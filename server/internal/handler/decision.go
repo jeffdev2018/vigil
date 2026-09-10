@@ -338,6 +338,10 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if h.applyOrgForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
 	}
+	// Native calendar: an agent's proposed event is scheduled or cancelled, no resume.
+	if h.applyCalendarForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
 		if interview != nil {

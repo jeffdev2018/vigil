@@ -265,6 +265,26 @@ export type {
   ListCyclesResponse,
 } from "./cycle";
 export type {
+  CalendarEventStatus,
+  CalendarParticipantType,
+  CalendarParticipantResponse,
+  CalendarParticipant,
+  CalendarActor,
+  CalendarEventEntry,
+  CalendarEventParticipantInput,
+  CalendarEventInput,
+  CalendarEventsResponse,
+  AgendaIssue,
+  AgendaCycle,
+  AgendaMeeting,
+  CalendarAgenda,
+  CalendarSlot,
+  CalendarSlotsResponse,
+  CalendarFeedTokenStatus,
+  CalendarFeedTokenMinted,
+  CalendarGoogleImportResult,
+} from "./calendar-events";
+export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
   OrgSimulationUnit, OrgSimulationRef, OrgSimulationActor, OrgSimulationRequest, OrgSimulation,

@@ -4,6 +4,13 @@ import { configStore } from "../config";
 import type { StorageAdapter, User } from "../types";
 import { ApiClient, ApiError, CHAT_DRAFT_RESTORE_CAPABILITY, clientErrorMessage } from "./client";
 import { EMPTY_PLUGIN_PACKAGE_LIST, EMPTY_PLUGIN_PREVIEW, EMPTY_PLUGIN_SURFACE_LAUNCH } from "./schemas";
+import {
+  EMPTY_CALENDAR_EVENTS_RESPONSE,
+  EMPTY_CALENDAR_AGENDA,
+  EMPTY_CALENDAR_SLOTS_RESPONSE,
+  EMPTY_CALENDAR_FEED_TOKEN_STATUS,
+  EMPTY_CALENDAR_EVENT,
+} from "./schemas";
 
 afterEach(() => {
   configStore.getState().setAgentConversationStartersSupported(false);
@@ -310,6 +317,51 @@ describe("ApiClient Plugin preview response schema", () => {
 
     await expect(new ApiClient("https://api.example.test").listPluginPackages("workspace-1"))
       .resolves.toEqual(EMPTY_PLUGIN_PACKAGE_LIST);
+  });
+});
+
+describe("ApiClient calendar events (OS plan, chantier 19)", () => {
+  function respondWith(body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+  }
+
+  it("falls back to an empty events response when the list is malformed", async () => {
+    respondWith({ events: "nope", from: 1, to: 2 });
+    await expect(new ApiClient("https://api.example.test").listCalendarEvents())
+      .resolves.toEqual(EMPTY_CALENDAR_EVENTS_RESPONSE);
+  });
+
+  it("falls back to an empty agenda when a join list is malformed", async () => {
+    respondWith({ events: [], issues_due: "nope", cycles: null, meetings: {} });
+    await expect(new ApiClient("https://api.example.test").getCalendarAgenda())
+      .resolves.toEqual(EMPTY_CALENDAR_AGENDA);
+  });
+
+  it("falls back to an empty slots response when duration is malformed", async () => {
+    respondWith({ slots: "nope", duration_minutes: "thirty", tz: 7 });
+    await expect(
+      new ApiClient("https://api.example.test").findCalendarSlots({ participants: "member:u1" }),
+    ).resolves.toEqual(EMPTY_CALENDAR_SLOTS_RESPONSE);
+  });
+
+  it("falls back to unconfigured when the feed-token response is malformed", async () => {
+    respondWith({ configured: "yes" });
+    await expect(new ApiClient("https://api.example.test").getCalendarEventFeedToken())
+      .resolves.toEqual(EMPTY_CALENDAR_FEED_TOKEN_STATUS);
+  });
+
+  it("degrades a single event to the empty fallback (with the requested id) when malformed", async () => {
+    respondWith({ event: { id: 123, participants: "nope" } });
+    await expect(new ApiClient("https://api.example.test").getCalendarEvent("evt-1"))
+      .resolves.toEqual({ ...EMPTY_CALENDAR_EVENT, id: "evt-1" });
   });
 });
 

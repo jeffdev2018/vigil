@@ -62,6 +62,12 @@ import type {
   MeetingSegmentResponse,
   CalendarUpcoming,
   CalendarFeed,
+  CalendarEventEntry,
+  CalendarEventsResponse,
+  CalendarAgenda,
+  CalendarSlotsResponse,
+  CalendarFeedTokenStatus,
+  CalendarGoogleImportResult,
   PostmortemStats,
   PostmortemsResponse,
   WorkspaceNote,
@@ -7712,3 +7718,170 @@ export const ProjectMemoryUsageSchema = z.object({
 });
 
 export const OrgTeamCatalogSchema = z.object({ templates: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), roles: z.array(z.string()), procedure: z.string() })) });
+
+// ---------------------------------------------------------------------------
+// Native calendar (OS plan, chantier 19). See
+// server/internal/handler/calendar_events.go for the wire shapes.
+// ---------------------------------------------------------------------------
+
+export const CalendarParticipantSchema = z.object({
+  type: z.string(),
+  id: z.string(),
+  name: z.string().optional(),
+  response: z.string().default("pending"),
+  required: z.boolean().default(true),
+}).loose();
+
+export const CalendarActorSchema = z.object({
+  type: z.string(),
+  id: z.string(),
+  name: z.string().optional(),
+}).loose();
+
+const EMPTY_CALENDAR_ACTOR = { type: "member", id: "" };
+
+// Named CalendarEventEntry (not CalendarEvent) to avoid colliding with the
+// ICS-subscription CalendarEvent above ({summary, start, end, in_progress}) —
+// a different, smaller shape for a different feature (the feed Multica
+// *reads*, vs this workspace calendar Multica *owns*).
+export const CalendarEventEntrySchema = z.object({
+  id: z.string(),
+  title: z.string().default(""),
+  description: z.string().default(""),
+  starts_at: z.string(),
+  ends_at: z.string(),
+  all_day: z.boolean().default(false),
+  timezone: z.string().default("UTC"),
+  location: z.string().default(""),
+  issue_id: z.string().nullable().default(null),
+  issue_identifier: z.string().optional(),
+  project_id: z.string().nullable().default(null),
+  status: z.string().default("scheduled"),
+  created_by: CalendarActorSchema.default(EMPTY_CALENDAR_ACTOR),
+  source: z.string().default("vigil"),
+  external_id: z.string().optional(),
+  decision_id: z.string().nullable().default(null),
+  participants: z.array(CalendarParticipantSchema).default([]),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const CalendarEventsResponseSchema = z.object({
+  events: z.array(CalendarEventEntrySchema).default([]),
+  from: z.string().default(""),
+  to: z.string().default(""),
+}).loose();
+
+export const EMPTY_CALENDAR_EVENTS_RESPONSE: CalendarEventsResponse = Object.freeze({
+  events: [],
+  from: "",
+  to: "",
+}) as CalendarEventsResponse;
+
+export const CalendarEventResponseSchema = z.object({ event: CalendarEventEntrySchema }).loose();
+
+export const EMPTY_CALENDAR_EVENT: CalendarEventEntry = Object.freeze({
+  id: "",
+  title: "",
+  description: "",
+  starts_at: "",
+  ends_at: "",
+  all_day: false,
+  timezone: "UTC",
+  location: "",
+  issue_id: null,
+  project_id: null,
+  status: "scheduled",
+  created_by: EMPTY_CALENDAR_ACTOR,
+  source: "vigil",
+  decision_id: null,
+  participants: [],
+  created_at: "",
+  updated_at: "",
+}) as CalendarEventEntry;
+
+export const AgendaIssueSchema = z.object({
+  id: z.string(),
+  identifier: z.string().default(""),
+  title: z.string().default(""),
+  status: z.string().default(""),
+  due_date: z.string().default(""),
+  assignee_type: z.string().nullable().optional(),
+  assignee_id: z.string().nullable().optional(),
+}).loose();
+
+export const AgendaCycleSchema = z.object({
+  id: z.string(),
+  name: z.string().default(""),
+  start_date: z.string().default(""),
+  end_date: z.string().default(""),
+}).loose();
+
+export const AgendaMeetingSchema = z.object({
+  id: z.string(),
+  title: z.string().default(""),
+  status: z.string().default(""),
+  started_at: z.string().default(""),
+  ended_at: z.string().nullable().optional(),
+}).loose();
+
+export const CalendarAgendaSchema = z.object({
+  from: z.string().default(""),
+  to: z.string().default(""),
+  events: z.array(CalendarEventEntrySchema).default([]),
+  issues_due: z.array(AgendaIssueSchema).default([]),
+  cycles: z.array(AgendaCycleSchema).default([]),
+  meetings: z.array(AgendaMeetingSchema).default([]),
+}).loose();
+
+export const EMPTY_CALENDAR_AGENDA: CalendarAgenda = Object.freeze({
+  from: "",
+  to: "",
+  events: [],
+  issues_due: [],
+  cycles: [],
+  meetings: [],
+}) as CalendarAgenda;
+
+export const CalendarSlotSchema = z.object({
+  starts_at: z.string(),
+  ends_at: z.string(),
+}).loose();
+
+export const CalendarSlotsResponseSchema = z.object({
+  slots: z.array(CalendarSlotSchema).default([]),
+  duration_minutes: z.number().default(30),
+  tz: z.string().default("UTC"),
+}).loose();
+
+export const EMPTY_CALENDAR_SLOTS_RESPONSE: CalendarSlotsResponse = Object.freeze({
+  slots: [],
+  duration_minutes: 30,
+  tz: "UTC",
+}) as CalendarSlotsResponse;
+
+export const CalendarFeedTokenStatusSchema = z.object({
+  configured: z.boolean().default(false),
+  created_at: z.string().optional(),
+}).loose();
+
+export const EMPTY_CALENDAR_FEED_TOKEN_STATUS: CalendarFeedTokenStatus = Object.freeze({
+  configured: false,
+}) as CalendarFeedTokenStatus;
+
+export const CalendarFeedTokenMintedSchema = z.object({
+  url: z.string().default(""),
+  path: z.string().default(""),
+}).loose();
+
+export const CalendarGoogleImportResultSchema = z.object({
+  created: z.number().default(0),
+  updated: z.number().default(0),
+  seen: z.number().default(0),
+}).loose();
+
+export const EMPTY_CALENDAR_GOOGLE_IMPORT_RESULT: CalendarGoogleImportResult = Object.freeze({
+  created: 0,
+  updated: 0,
+  seen: 0,
+}) as CalendarGoogleImportResult;

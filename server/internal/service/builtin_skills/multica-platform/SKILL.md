@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Platform: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, long tasks, MCP, Twenty, runs, triage, undo, insights, racing."
+description: "Platform: issues, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, long tasks, MCP, Twenty, runs, calendar, triage, undo, insights, racing."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -39,6 +39,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
 | `references/mcp-server.md` | Reaching Vigil over MCP from a run or an external client: the endpoint, the two surfaces, allow / ask / deny, held calls (gates, confirmation tokens), what is never exposed |
+| `references/calendar.md` | The workspace calendar: reading the agenda and events, finding a free slot for people and agents, proposing an event a person accepts |
 | `references/runs.md` | The fleet: listing every run of the workspace with what each is blocked on and what it cost, cancelling your own runs, what the halt means for you |
 | `references/twenty.md` | The Twenty CRM a workspace is connected to: its MCP server in your run, reading and writing customer records, items that come from the CRM, the member pairing by email |
 | `references/goal-loop.md` | Long tasks across runs: how your closing status is judged against the issue's goal, what queues the next run, asking the team a typed question, reading and pausing the chain |

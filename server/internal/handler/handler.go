@@ -333,6 +333,9 @@ type Handler struct {
 	// Twenty CRM integration (OS plan, chantier 2). Nil when
 	// MULTICA_TWENTY_SECRET_KEY is unset; the handlers then answer 503.
 	Twenty *twenty.Service
+	// CalendarSync mirrors scheduled events to a member's Google Calendar and
+	// imports theirs, through Composio; nil when Composio is off.
+	CalendarSync CalendarExternalSync
 	// ChannelSupervisor owns the per-installation supervisor goroutines
 	// that hold the §4.4 WS lease and drive each channel.Channel
 	// (MUL-3620 generalized the Feishu-only Hub into this channel-agnostic
@@ -656,6 +659,9 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// Native onboarding (OS plan, chantier 5): routing refuses a native-bound
 	// trigger while the server has no model, instead of queuing it in silence.
 	taskSvc.NativeRuntimeAvailable = h.NativeAgents.Available
+	// Native calendar (chantier 19): the run's calendar tools go through the
+	// same handlers as the API.
+	h.NativeAgents.Calendar = calendarToolAdapter{h: h}
 	return h
 }
 

@@ -1303,6 +1303,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			name: "purge calendar events",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarEvents(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge calendar participants",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarEventParticipants(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge calendar feed tokens",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarFeedTokens(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge twenty connection",
 			run:  func() error { return qtx.PurgeWorkspaceTwentyConnections(ctx, requester.WorkspaceID) },
 		},

@@ -109,7 +109,9 @@
     "residency_policy_blocked": "データ所在地ポリシーによりブロック",
     "linear_alert": "Linear が切断されています",
     "code_health_report": "コードヘルスレポート",
-    "doc_drift_report": "エージェントコンテキストのずれ"
+    "doc_drift_report": "エージェントコンテキストのずれ",
+    "calendar_invitation": "イベントに招待されました",
+    "calendar_reminder": "まもなく開始"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

@@ -38,6 +38,7 @@
     "tasks",
     "daemon-runtimes",
     "runs",
+    "calendar",
     "mcp-server",
     "install-agent-runtime",
     "providers",

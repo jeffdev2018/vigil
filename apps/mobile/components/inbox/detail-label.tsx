@@ -35,6 +35,9 @@ const PRIORITY_LABEL: Record<IssuePriority, string> = {
 
 // Mirrors useTypeLabels in packages/views/inbox/components/inbox-detail-label.tsx
 const TYPE_LABEL: Record<InboxItemType, string> = {
+  // Native calendar (OS plan, chantier 19).
+  calendar_invitation: "Invitation",
+  calendar_reminder: "Reminder",
   issue_assigned: "Assigned",
   issue_subscribed: "Subscribed",
   unassigned: "Unassigned",
@@ -107,9 +110,10 @@ export function InboxDetailLabel({
   // and glyph all resolve through the workspace catalog. (MUL-6243)
   const { categoryOf, colorOf, labelOf } = useIssueStatuses();
   const details = item.details ?? {};
+  const type = item.type;
 
   // Cases with inline icons → Row layout.
-  if (item.type === "status_changed" && details.to) {
+  if (type === "status_changed" && details.to) {
     const status = details.to;
     return (
       <View className={cn("flex-row items-center gap-1", className)}>
@@ -127,7 +131,7 @@ export function InboxDetailLabel({
     );
   }
 
-  if (item.type === "priority_changed" && details.to) {
+  if (type === "priority_changed" && details.to) {
     const priority = details.to as IssuePriority;
     return (
       <View className={cn("flex-row items-center gap-1", className)}>
@@ -142,7 +146,7 @@ export function InboxDetailLabel({
 
   // Single-string cases.
   const text = (() => {
-    switch (item.type) {
+    switch (type) {
       case "issue_assigned":
       case "assignee_changed":
         if (details.new_assignee_id) {
@@ -152,7 +156,7 @@ export function InboxDetailLabel({
           );
           return `Assigned to ${name}`;
         }
-        return TYPE_LABEL[item.type];
+        return TYPE_LABEL[type];
       case "delegate_assigned":
         if (details.new_delegate_id) {
           const name = getName(
@@ -161,7 +165,7 @@ export function InboxDetailLabel({
           );
           return `Delegated to ${name}`;
         }
-        return TYPE_LABEL[item.type];
+        return TYPE_LABEL[type];
       case "unassigned":
         return "Removed assignee";
       case "due_date_changed":
@@ -169,30 +173,39 @@ export function InboxDetailLabel({
           ? `Set due date to ${shortDate(details.to)}`
           : "Removed due date";
       case "new_comment":
-        return singleLine(item.body) || TYPE_LABEL[item.type];
+        return singleLine(item.body) || TYPE_LABEL[type];
       case "reaction_added":
         return details.emoji
           ? `Reacted with ${details.emoji}`
-          : TYPE_LABEL[item.type];
+          : TYPE_LABEL[type];
       case "quick_create_done":
         return details.identifier
           ? `Created with agent: ${details.identifier}`
-          : TYPE_LABEL[item.type];
+          : TYPE_LABEL[type];
       case "quick_create_failed": {
         const detail = singleLine(details.error) || singleLine(item.body);
-        return detail ? `Failed: ${detail}` : TYPE_LABEL[item.type];
+        return detail ? `Failed: ${detail}` : TYPE_LABEL[type];
       }
       // Mirrors packages/views/inbox/components/inbox-detail-label.tsx: the
       // unconfirmed outcome deliberately drops the "Failed:" prefix, because
       // the issue may actually have been created.
       case "quick_create_unconfirmed": {
         const detail = singleLine(details.error) || singleLine(item.body);
-        return detail || TYPE_LABEL[item.type];
+        return detail || TYPE_LABEL[type];
       }
       case "autopilot_quota_exceeded":
         return "Run blocked because the limit was reached";
+      // Native calendar (OS plan, chantier 19): the server already renders
+      // a ready-to-read body ("Mon 2 Jan 2006 15:04 – 15:04 (tz) · location"
+      // for an invitation, "Starts in N min · location" for a reminder —
+      // see notifyCalendarInvitations / RemindCalendarEvents in
+      // server/internal/handler/calendar_events.go), so this mirrors the
+      // new_comment case: show the body, fall back to the type label.
+      case "calendar_invitation":
+      case "calendar_reminder":
+        return singleLine(item.body) || TYPE_LABEL[type];
       default:
-        return TYPE_LABEL[item.type] ?? item.type;
+        return TYPE_LABEL[type] ?? type;
     }
   })();
 

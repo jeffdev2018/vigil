@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -287,6 +288,50 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 				},
 			},
 		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "list_events",
+			Description: openai.String("Calendar events of the workspace overlapping a window (RFC 3339 from/to, default the coming week), with participants and status. Use agenda=true to also get issues due, cycles and meetings."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"from":   shared.FunctionParameters{"type": "string"},
+					"to":     shared.FunctionParameters{"type": "string"},
+					"agenda": shared.FunctionParameters{"type": "boolean"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "find_slot",
+			Description: openai.String("Free windows every participant can make (members inside 09:00-18:00 weekdays in tz, agents any time), earliest first. participants: [\"member:<user id>\", \"agent:<agent id>\"]."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"participants":     shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+					"duration_minutes": shared.FunctionParameters{"type": "integer"},
+					"from":             shared.FunctionParameters{"type": "string"},
+					"to":               shared.FunctionParameters{"type": "string"},
+					"tz":               shared.FunctionParameters{"type": "string"},
+				},
+				"required": []string{"participants"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "propose_event",
+			Description: openai.String("Propose a calendar event on this task's issue. It is filed as proposed with a Decision Card; a person accepts or declines. Times RFC 3339; participants: [{type: member|agent, id}]."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"title":        shared.FunctionParameters{"type": "string"},
+					"starts_at":    shared.FunctionParameters{"type": "string"},
+					"ends_at":      shared.FunctionParameters{"type": "string"},
+					"description":  shared.FunctionParameters{"type": "string"},
+					"timezone":     shared.FunctionParameters{"type": "string"},
+					"location":     shared.FunctionParameters{"type": "string"},
+					"participants": shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "object"}},
+				},
+				"required": []string{"title", "starts_at", "ends_at"},
+			},
+		}),
 	}
 }
 
@@ -362,6 +407,16 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
+	case "list_events":
+		return s.nativeCalendarList(ctx, tctx, args)
+	case "find_slot":
+		return s.nativeCalendarSlots(ctx, tctx, args)
+	case "propose_event":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeCalendarPropose(ctx, tctx, args)
 	case "ask_user":
 		return s.nativeAskUser(ctx, tctx, args)
 	case "delegate":
@@ -993,4 +1048,84 @@ func clampString(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+// ---- Calendar tools (native calendar, chantier 19) ---------------------------------
+
+func nativeCalendarWindow(args map[string]any) (time.Time, time.Time, error) {
+	from := time.Now().UTC().Truncate(time.Hour)
+	to := from.Add(7 * 24 * time.Hour)
+	if raw, _ := args["from"].(string); strings.TrimSpace(raw) != "" {
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			return from, to, errors.New("from must be RFC 3339")
+		}
+		from = t
+		to = from.Add(7 * 24 * time.Hour)
+	}
+	if raw, _ := args["to"].(string); strings.TrimSpace(raw) != "" {
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			return from, to, errors.New("to must be RFC 3339")
+		}
+		to = t
+	}
+	if !to.After(from) {
+		return from, to, errors.New("to must be after from")
+	}
+	if to.Sub(from) > 366*24*time.Hour {
+		return from, to, errors.New("the window may span at most a year")
+	}
+	return from, to, nil
+}
+
+func (s *NativeAgentService) nativeCalendarList(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	from, to, err := nativeCalendarWindow(args)
+	if err != nil {
+		return nil, err
+	}
+	if agenda, _ := args["agenda"].(bool); agenda {
+		return s.Calendar.Agenda(ctx, tctx.agent.WorkspaceID, from, to)
+	}
+	return s.Calendar.ListEvents(ctx, tctx.agent.WorkspaceID, from, to)
+}
+
+func (s *NativeAgentService) nativeCalendarSlots(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	from, to, err := nativeCalendarWindow(args)
+	if err != nil {
+		return nil, err
+	}
+	var participants []string
+	if raw, ok := args["participants"].([]any); ok {
+		for _, p := range raw {
+			if str, ok := p.(string); ok && strings.TrimSpace(str) != "" {
+				participants = append(participants, strings.TrimSpace(str))
+			}
+		}
+	}
+	if len(participants) == 0 {
+		return nil, errors.New("participants is required")
+	}
+	duration := 30
+	if raw, ok := args["duration_minutes"].(float64); ok && raw > 0 {
+		duration = int(raw)
+	}
+	tz, _ := args["tz"].(string)
+	return s.Calendar.FindSlots(ctx, tctx.agent.WorkspaceID, participants, duration, from, to, tz)
+}
+
+func (s *NativeAgentService) nativeCalendarPropose(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	if !tctx.task.IssueID.Valid {
+		return nil, errors.New("this run has no issue to propose an event on")
+	}
+	return s.Calendar.Propose(ctx, tctx.agent.WorkspaceID, tctx.agent.ID, tctx.task.IssueID, args)
 }

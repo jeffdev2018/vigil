@@ -74,6 +74,7 @@
     "./work-profile": "./work-profile/queries.ts",
     "./goals": "./goals/queries.ts",
     "./cycles": "./cycles/queries.ts",
+    "./calendar-events": "./calendar-events/index.ts",
     "./org": "./org/queries.ts",
     "./org/tester": "./org/tester.ts",
     "./org/templates": "./org/templates.ts",

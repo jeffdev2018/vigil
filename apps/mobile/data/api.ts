@@ -212,6 +212,12 @@ import {
 } from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
+import {
+  CalendarAgendaSchema,
+  CalendarEventResponseSchema,
+  EMPTY_CALENDAR_AGENDA,
+} from "@multica/core/api/schemas";
+import type { CalendarAgenda, CalendarEventEntry, CalendarEventInput } from "@multica/core/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -1072,6 +1078,70 @@ class ApiClient {
       { method: "PATCH", body: JSON.stringify(data) },
       { endpoint: "PATCH /api/meetings/:id" },
     );
+  }
+
+  // --- Native calendar (OS plan, chantier 19) ---
+  // See apps/mobile/data/schemas.ts for why these schemas are mobile-local
+  // rather than @multica/core/api/schemas.
+
+  async getCalendarAgenda(
+    from: string,
+    to: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CalendarAgenda> {
+    const search = new URLSearchParams({ from, to });
+    return this.fetchValidated<CalendarAgenda>(
+      `/api/calendar/agenda?${search.toString()}`,
+      CalendarAgendaSchema,
+      EMPTY_CALENDAR_AGENDA,
+      { ...opts, endpoint: "GET /api/calendar/agenda" },
+    );
+  }
+
+  async getCalendarEvent(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events/${encodeURIComponent(id)}`,
+      { signal: opts?.signal },
+    );
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "GET /api/calendar/events/:id",
+    });
+    return parsed?.event ?? null;
+  }
+
+  async createCalendarEvent(body: CalendarEventInput): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>("/api/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "POST /api/calendar/events",
+    });
+    return parsed?.event ?? null;
+  }
+
+  async respondCalendarEvent(
+    id: string,
+    response: "accepted" | "declined" | "tentative",
+  ): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events/${encodeURIComponent(id)}/respond`,
+      { method: "POST", body: JSON.stringify({ response }) },
+    );
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "POST /api/calendar/events/:id/respond",
+    });
+    return parsed?.event ?? null;
+  }
+
+  /** DELETE cancels rather than erasing — 204, nothing to parse. */
+  async cancelCalendarEvent(id: string): Promise<void> {
+    await this.fetch<void>(`/api/calendar/events/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   }
 
   /** Removes a meeting and its transcript. 204, no body. */

@@ -126,6 +126,7 @@ type NavKey =
   | "projects"
   | "goals"
   | "cycles"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -150,6 +151,7 @@ type NavLabelKey =
   | "projects"
   | "goals"
   | "cycles"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -173,6 +175,7 @@ const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "projects", labelKey: "projects" },
   { key: "goals", labelKey: "goals" },
   { key: "cycles", labelKey: "cycles" },
+  { key: "calendar", labelKey: "calendar" },
   { key: "triage", labelKey: "triage" },
   { key: "meetings", labelKey: "meetings" },
   { key: "postmortems", labelKey: "postmortems" },
