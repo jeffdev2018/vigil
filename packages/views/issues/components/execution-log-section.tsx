@@ -44,6 +44,7 @@ import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
 import { RunPreviewChip } from "../../runs/components/run-preview-chip";
 import { RunRevertAction } from "./run-revert-action";
+import { WorktreeRunBlock } from "./worktree-run-block";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
 
 // Right-panel section that lists every agent run for this issue. Active
@@ -714,6 +715,10 @@ function PastRow({
       </RowShell>
       <RunPlanBlock task={task} />
       <TaskConsultLines task={task} />
+      {/* Worktree branch (JEF-255): the run's branch, its diff, and the
+          promote/discard close-out. Renders nothing for runs without a
+          branch — everything that predates per-run worktrees. */}
+      <WorktreeRunBlock task={task} issueId={issueId} />
     </>
   );
 }

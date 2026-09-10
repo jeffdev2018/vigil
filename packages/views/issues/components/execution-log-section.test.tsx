@@ -781,3 +781,41 @@ describe("run consults", () => {
     expect(screen.getByText("fleet-mini consulté · $0.42")).toBeInTheDocument();
   });
 });
+
+// Worktree branch block (JEF-255). The block's own states — diff, pending,
+// promoted, discarded, 409 — are pinned in worktree-run-block.test.tsx; what
+// this pins is the wiring: a finished run with a branch gets the block on its
+// execution-log row, and a run without one is unchanged.
+describe("execution log worktree branch (JEF-255)", () => {
+  function renderLogWithTask(task: AgentTask) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [task]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+  }
+
+  it("shows the branch and its close-out actions under a finished worktree run", () => {
+    renderLogWithTask(
+      makeTask({
+        status: "completed",
+        completed_at: "2026-06-08T08:04:00Z",
+        branch_name: "agent/jef-255/task-1",
+      }),
+    );
+    expect(screen.getByTestId("worktree-run-block")).toBeInTheDocument();
+    expect(screen.getByText("agent/jef-255/task-1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Promote" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+  });
+
+  it("renders no block for a run without a branch", () => {
+    renderLogWithTask(
+      makeTask({ status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    );
+    expect(screen.queryByTestId("worktree-run-block")).not.toBeInTheDocument();
+  });
+});

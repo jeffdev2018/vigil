@@ -574,6 +574,17 @@ type AgentTaskResponse struct {
 	// Populated on both terminal paths — a failed run can still have committed
 	// partial work, and that is when the pointer matters most.
 	BranchName string `json:"branch_name,omitempty"`
+	// Promote / discard (JEF-255). PromotedAt and DiscardedAt are the run's
+	// terminal facts — null until the daemon's result lands; PromotePRURL is
+	// the pull request the server opened after the push, empty when no VCS
+	// provider covers the remote. PendingBranchAction is "promote"/"discard"
+	// while a request is in flight and "" otherwise; hydrated in one batched
+	// query per issue list, so surfaces that never render the buttons may
+	// leave it empty.
+	PromotedAt          *string `json:"promoted_at"`
+	DiscardedAt         *string `json:"discarded_at"`
+	PromotePRURL        string  `json:"promote_pr_url"`
+	PendingBranchAction string  `json:"pending_branch_action"`
 	// Turn checkpoints (F09). CheckpointSHA is the git commit recording what
 	// this worktree run delivered; TurnSeq is its position among the
 	// conversation's checkpointed turns. Revertable is the derived affordance:
@@ -1015,6 +1026,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		PreemptedAt:            timestampToPtr(t.PreemptedAt),
 		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
+		PromotedAt:             timestampToPtr(t.PromotedAt),
+		DiscardedAt:            timestampToPtr(t.DiscardedAt),
+		PromotePRURL:           t.PromotePrUrl,
 		CheckpointSHA:          t.CheckpointSha.String,
 		TurnSeq:                int4ToPtr(t.TurnSeq),
 		Revertable:             taskRevertable(t),

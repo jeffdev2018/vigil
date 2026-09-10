@@ -36,6 +36,17 @@ const (
 	// all without this string, and the UI leaves the action out.
 	DaemonCapabilityWorktreeRevertV1 = "worktree-revert-v1"
 
+	// DaemonCapabilityBranchActionV1 advertises that the daemon can promote
+	// (push to origin) or discard (delete branch and worktree) the branch a
+	// terminal run delivered (JEF-255).
+	//
+	// A capability rather than a version check, for the same reason as
+	// worktree-revert-v1: a daemon that does not implement it json-skips
+	// pending_branch_action and never reports, so the request would sit claimed
+	// until the stale sweeper releases it and the user watches a spinner that
+	// can never finish. The server does not enqueue at all without this string.
+	DaemonCapabilityBranchActionV1 = "branch-action-v1"
+
 	// DaemonCapabilityRPCV1 advertises that the daemon can carry
 	// request/response RPCs over the WebSocket control connection (MUL-4257).
 	// Gated so only daemons+servers that both support it route claim over WS;
@@ -194,6 +205,7 @@ const (
 	PendingWorkKindLocalSkillImport = "local_skill_import"
 	PendingWorkKindWorktreeRevert   = "worktree_revert"
 	PendingWorkKindMemoryEvaluation = "memory_evaluation"
+	PendingWorkKindBranchAction     = "branch_action"
 )
 
 // PendingWorkPayload is sent from server to daemon as a wakeup hint when a
@@ -230,10 +242,12 @@ type TaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	PRURL  string `json:"pr_url,omitempty"`
 	Output string `json:"output,omitempty"`
-	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered on
-	// its branch, measured against the commit its worktree started from. Sent
-	// only for a task the claim marked as an attempt, so an ordinary run pays
-	// nothing for them.
+	// DiffStat / DiffUnified describe what the run delivered on its branch,
+	// measured against the commit its worktree started from. Sent for every
+	// terminal worktree run that carried a branch (JEF-255 widened this from
+	// racing attempts only, F11): an ordinary run pays nothing when it has no
+	// branch, and an attempt that changed nothing reports a zero stat, which is
+	// a real answer rather than a missing one.
 	//
 	// DiffUnified is omitted when the patch exceeded the daemon's byte bound:
 	// the stat alone then tells the UI the diff exists and was truncated. The
@@ -513,6 +527,11 @@ type DaemonHeartbeatAckPayload struct {
 	// is destructive and a daemon that silently ignores the field would strand
 	// the request in 'claimed'.
 	PendingWorktreeRevert *DaemonHeartbeatPendingWorktreeRevert `json:"pending_worktree_revert,omitempty"`
+	// PendingBranchAction carries a claimed promote/discard request (JEF-255).
+	// Only ever set for a daemon advertising DaemonCapabilityBranchActionV1:
+	// the action moves refs on the user's own repository and a daemon that
+	// silently ignores the field would strand the request in 'claimed'.
+	PendingBranchAction *DaemonHeartbeatPendingBranchAction `json:"pending_branch_action,omitempty"`
 }
 
 // HeartbeatStatusRuntimeGone is the ack Status used when the runtime row no
@@ -567,4 +586,24 @@ type DaemonHeartbeatPendingWorktreeRevert struct {
 	// LaterTaskIDs are the runs after the target turn, whose turn refs the
 	// daemon drops once the branch is back.
 	LaterTaskIDs []string `json:"later_task_ids,omitempty"`
+}
+
+// DaemonHeartbeatPendingBranchAction describes one promote/discard request
+// against the branch a terminal run delivered (JEF-255).
+//
+// Everything the daemon needs is here, so the work never depends on a second
+// round trip that could see a different state: the repository (LocalPath), the
+// branch, and the base the run started from. Action is "promote" (push the
+// branch to origin) or "discard" (delete the branch and any worktree still
+// registered for it).
+type DaemonHeartbeatPendingBranchAction struct {
+	ID        string `json:"id"`
+	TaskID    string `json:"task_id"`
+	Action    string `json:"action"`
+	LocalPath string `json:"local_path"`
+	Branch    string `json:"branch"`
+	// BaseBranch names the repository's default branch as the server knows it
+	// (a hint, possibly empty). The daemon re-derives the default itself before
+	// any guard decision; this is for the server's own PR-creation bookkeeping.
+	BaseBranch string `json:"base_branch,omitempty"`
 }

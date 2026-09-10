@@ -1692,6 +1692,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceWorktreeRevertRequests(ctx, requester.WorkspaceID) },
 		},
 		{
+			// JEF-255: same shape as the revert requests above — before the
+			// runs they target, and nothing outside the workspace reads them.
+			name: "delete run branch action requests",
+			run:  func() error { return qtx.DeleteWorkspaceRunBranchActionRequests(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete comments",
 			run:  func() error { return qtx.DeleteWorkspaceComments(ctx, requester.WorkspaceID) },
 		},

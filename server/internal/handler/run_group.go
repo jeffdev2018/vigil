@@ -23,8 +23,10 @@ import (
 //
 // An attempt is an ordinary agent_task_queue row carrying run_group_id, so the
 // losing attempts are cancelled through CancelTaskByUser — the same path the
-// issue cancel button uses. That is what makes the daemon clean their branch
-// and worktree: settling a race is, for the daemon, N-1 user cancellations.
+// issue cancel button uses. Cancellation keeps the branch: the daemon's
+// Finalize commits whatever the attempt produced before tearing the worktree
+// down, so a settled race's losers remain inspectable. Deleting a run's branch
+// is a separate, explicit user action — discard (JEF-255), not cancel.
 const (
 	AuditRunGroup = "run_group"
 
@@ -325,7 +327,8 @@ func (h *Handler) loadRunGroupForUser(w http.ResponseWriter, r *http.Request) (d
 
 // SettleRunGroup: POST /api/run-groups/{id}/settle {winner_task_id}. The winner
 // is kept as it is; every other attempt still open is cancelled through the
-// ordinary user-cancel path so the daemon drops its branch and worktree.
+// ordinary user-cancel path. Cancellation keeps the attempt's branch — only
+// discard (JEF-255) deletes one.
 func (h *Handler) SettleRunGroup(w http.ResponseWriter, r *http.Request) {
 	group, issue, ok := h.loadRunGroupForUser(w, r)
 	if !ok {
@@ -426,24 +429,21 @@ func (h *Handler) finishRunGroup(w http.ResponseWriter, r *http.Request, group d
 	writeJSON(w, http.StatusOK, map[string]any{"group": runGroupToResponse(group, attempts, h.runGroupMetricsByTask(r.Context(), issue.ID))})
 }
 
-// recordRunGroupTaskDiff stores what one attempt changed, as the daemon
-// measured it at Finalize.
-//
-// Best-effort and attempt-only: an ordinary run never carries a diff, and a
-// task outside a group is ignored even if one arrives — its columns are not
-// read by anything, and writing them would make the group-membership rule
-// depend on the caller rather than on the row.
+// recordTaskDiff stores what one run changed, as the daemon measured it at
+// Finalize. Every terminal run with a branch reports one (JEF-255 widened this
+// from racing attempts only, F11): the compare view reads it for attempts and
+// GET /api/tasks/{taskId}/diff serves it for any run.
 //
 // A nil stat writes nothing. A stat with no patch is the truncated case and
-// must still be written: it is exactly what tells the compare view the attempt
-// produced a diff too large to show.
-func (h *Handler) recordRunGroupTaskDiff(ctx context.Context, task db.AgentTaskQueue, stat *protocol.TaskDiffStat, unified string) {
-	if stat == nil || !task.RunGroupID.Valid {
+// must still be written: it is exactly what tells the UI the run produced a
+// diff too large to show.
+func (h *Handler) recordTaskDiff(ctx context.Context, task db.AgentTaskQueue, stat *protocol.TaskDiffStat, unified string) {
+	if stat == nil {
 		return
 	}
 	encoded, err := json.Marshal(stat)
 	if err != nil {
-		slog.Warn("run group: could not encode the attempt's diff stat", "task_id", uuidToString(task.ID), "error", err)
+		slog.Warn("run diff: could not encode the run's diff stat", "task_id", uuidToString(task.ID), "error", err)
 		return
 	}
 	if _, err := h.Queries.RecordTaskDiff(ctx, db.RecordTaskDiffParams{
@@ -451,7 +451,7 @@ func (h *Handler) recordRunGroupTaskDiff(ctx context.Context, task db.AgentTaskQ
 		DiffStat:    encoded,
 		DiffUnified: strToText(unified),
 	}); err != nil {
-		slog.Warn("run group: could not record the attempt's diff; the run stands, its column shows nothing",
-			"task_id", uuidToString(task.ID), "run_group_id", uuidToString(task.RunGroupID), "error", err)
+		slog.Warn("run diff: could not record the run's diff; the run stands, its column shows nothing",
+			"task_id", uuidToString(task.ID), "error", err)
 	}
 }

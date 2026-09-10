@@ -6,8 +6,9 @@ import { issueKeys } from "./queries";
 
 // Racing attempts (F11 / JEF-6): N independent runs of one issue, the human
 // keeps one. Nothing here is optimistic — settling cancels the losing attempts
-// server-side and the daemon then drops their branches, so what the list shows
-// after the call is only ever what the server answered.
+// server-side, and cancelling stops execution but keeps each attempt's branch
+// (deleting a branch is the explicit discard action, JEF-255), so what the
+// list shows after the call is only ever what the server answered.
 
 export type { RunGroup, RunGroupAttempt, RunGroupJudgement, RunGroupJudgementScore, StartRunGroupInput };
 

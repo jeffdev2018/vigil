@@ -53,6 +53,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"agent_skill":                        workspaceDelete,
 	"agent_task_queue":                   workspaceDelete,
 	"worktree_revert_request":            workspaceDelete,
+	"run_branch_action_request":          workspaceDelete,
 	"agent_to_label":                     workspaceDelete,
 	"attachment":                         workspaceDelete,
 	"autopilot":                          workspaceDelete,

@@ -422,6 +422,10 @@ type Handler struct {
 	// PRMerger (K42) merges a shard's pull request through the platform API;
 	// nil means the built-in GitHub App / VCS connection merger.
 	PRMerger PullRequestMerger
+	// BranchPRCreator (JEF-255) opens the pull request for a promoted run
+	// branch; nil means the built-in VCS-connection creator (which reports ""
+	// when no provider covers the pushed remote).
+	BranchPRCreator BranchPullRequestCreator
 	// Push (K64) delivers mobile notifications through Expo; nil disables push.
 	Push push.Sender
 	// DigestSenders (K64) post the morning digest into a chat, keyed by
