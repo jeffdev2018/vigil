@@ -128,8 +128,19 @@ export function OrganizeDialog({
     }
   }, [action, capture.id, content, onClose, organize, pinned, t, tagsRaw, target, title]);
 
+  // The server derives a missing title the same way: the title hint, then
+  // the capture's first line. Show that default so an empty field is a
+  // choice, not a blocker.
+  const defaultTitle =
+    capture.title_hint.trim() ||
+    (capture.content ?? "")
+      .trim()
+      .split("\n")[0]
+      ?.trim()
+      .slice(0, 80) ||
+    "";
   const canSubmit =
-    action === "merge" ? Boolean(target?.id) : title.trim() !== "" || capture.title_hint !== "";
+    action === "merge" ? Boolean(target?.id) : title.trim() !== "" || defaultTitle !== "";
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -151,7 +162,7 @@ export function OrganizeDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               aria-label={t(($) => $.detail.title_label)}
-              placeholder={t(($) => $.create.title_placeholder)}
+              placeholder={defaultTitle || t(($) => $.create.title_placeholder)}
             />
           ) : (
             <div className="flex flex-col gap-2">
