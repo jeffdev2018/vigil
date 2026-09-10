@@ -184,6 +184,7 @@
       "usage_loading": "正在加载自动化用量",
       "usage_label": "自动化额度用量",
       "current_usage": "当前用量",
+      "approaching": "接近上限",
       "reached": "已达到限额",
       "usage_total": "{{total}} / {{limit}}",
       "usage_breakdown": "已完成 {{used}} · 进行中 {{reserved}}",

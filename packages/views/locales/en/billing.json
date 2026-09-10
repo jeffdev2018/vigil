@@ -186,6 +186,7 @@
       "usage_loading": "Loading automation usage",
       "usage_label": "Automation quota usage",
       "current_usage": "Current usage",
+      "approaching": "Approaching limit",
       "reached": "Limit reached",
       "usage_total": "{{total}} / {{limit}}",
       "usage_breakdown": "{{used}} completed · {{reserved}} in progress",

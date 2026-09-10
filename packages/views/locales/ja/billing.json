@@ -184,6 +184,7 @@
       "usage_loading": "自動化の使用量を読み込み中",
       "usage_label": "自動化クォータの使用量",
       "current_usage": "現在の使用量",
+      "approaching": "上限が近づいています",
       "reached": "上限に達しました",
       "usage_total": "{{total}} / {{limit}}",
       "usage_breakdown": "完了 {{used}} · 実行中 {{reserved}}",

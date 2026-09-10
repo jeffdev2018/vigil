@@ -50,6 +50,7 @@ describe("resolveAutopilotUsage", () => {
       limit: 7,
       progress: 500 / 7,
       reached: false,
+      approaching: false,
       resetAt: "2030-02-01T00:00:00Z",
     });
 
@@ -60,6 +61,30 @@ describe("resolveAutopilotUsage", () => {
         false,
       ),
     ).toMatchObject({ total: 7, reached: true, progress: 100 });
+  });
+
+  it("warns at the alert ratio and stops warning once the server refuses", () => {
+    // 6/7 crosses 0.8; 5/7 does not. `approaching` never overlaps `reached`,
+    // so the label is one state, not two competing ones.
+    expect(
+      resolveAutopilotUsage(
+        freeEntitlements,
+        { ...quotaUsage, used: 4, total: 6 },
+        false,
+      ),
+    ).toMatchObject({ reached: false, approaching: true });
+
+    expect(
+      resolveAutopilotUsage(freeEntitlements, quotaUsage, false),
+    ).toMatchObject({ reached: false, approaching: false });
+
+    expect(
+      resolveAutopilotUsage(
+        freeEntitlements,
+        { ...quotaUsage, used: 5, total: 7, reached: true },
+        false,
+      ),
+    ).toMatchObject({ reached: true, approaching: false });
   });
 
   it("renders the server's explicit unlimited mode", () => {

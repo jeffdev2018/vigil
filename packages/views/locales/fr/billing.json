@@ -186,6 +186,7 @@
       "usage_loading": "Chargement de l'utilisation des automatisations",
       "usage_label": "Utilisation du quota d'automatisation",
       "current_usage": "Utilisation actuelle",
+      "approaching": "Limite bientôt atteinte",
       "reached": "Limite atteinte",
       "usage_total": "{{total}} / {{limit}}",
       "usage_breakdown": "{{used}} terminées · {{reserved}} en cours",

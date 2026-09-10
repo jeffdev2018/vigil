@@ -1225,7 +1225,9 @@ function BillingTabContent() {
                   <ProgressLabel>
                     {quotaUsage.reached
                       ? t(($) => $.workspace.limits.reached)
-                      : t(($) => $.workspace.limits.current_usage)}
+                      : quotaUsage.approaching
+                        ? t(($) => $.workspace.limits.approaching)
+                        : t(($) => $.workspace.limits.current_usage)}
                   </ProgressLabel>
                   <ProgressValue>
                     {() =>
