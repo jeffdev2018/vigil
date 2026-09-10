@@ -2589,6 +2589,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/answer", h.AnswerIssueGoal)
 				r.Post("/question", h.AskIssueGoalQuestion)
 			})
+			// Follow-ups (OS plan, réveil programmé): a deferred wake-up of the
+			// issue's agent, for members and agent runs alike.
+			r.Route("/api/issues/{id}/followups", func(r chi.Router) {
+				r.Get("/", h.ListIssueFollowups)
+				r.Post("/", h.CreateIssueFollowup)
+				r.Delete("/{followupId}", h.CancelIssueFollowup)
+			})
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
 				r.Get("/", h.GetIssueWatchdog)
@@ -3017,6 +3024,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/", h.ListAutopilots)
 				r.Post("/", h.CreateAutopilot)
 				r.Get("/cron-preview", h.CronPreview)
+				// From a sentence: the model drafts title, cron, prompt (no write);
+				// propose files a paused autopilot behind a Decision Card.
+				r.With(handler.RequireHumanActor).Post("/draft", h.DraftAutopilot)
+				r.Post("/propose", h.ProposeAutopilot)
 				r.Get("/usage", h.GetAutopilotQuotaUsage)
 				// DAEMON.md (F24): a declaration imports onto the autopilot
 				// machinery below. Static before /{id}, like cron-preview.

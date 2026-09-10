@@ -693,6 +693,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// same handlers as the API.
 	h.NativeAgents.Calendar = calendarToolAdapter{h: h}
 	h.NativeAgents.Doctrine = doctrineToolAdapter{h: h}
+	h.NativeAgents.Autopilots = autopilotToolAdapter{h: h}
 	return h
 }
 

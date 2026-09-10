@@ -20,7 +20,12 @@ import (
 // same handlers the API exposes, so a run and a person read the same
 // windows and file the same proposals. Calls are dispatched in-process
 // through recorders, the way the MCP server dispatches its leaves.
-type calendarToolAdapter struct{ h *Handler }
+type calendarToolAdapter struct {
+	h *Handler
+	// taskID, when set, is stamped as X-Task-ID so resolveActor trusts the
+	// agent identity the way the auth middleware would for a task token.
+	taskID string
+}
 
 func (a calendarToolAdapter) call(ctx context.Context, method, path string, query url.Values, body any, fn http.HandlerFunc, wsID pgtype.UUID, actorType, actorID string, params map[string]string) (any, error) {
 	var reader *strings.Reader
@@ -42,6 +47,9 @@ func (a calendarToolAdapter) call(ctx context.Context, method, path string, quer
 		// (what a real run token carries in user_id) and acts as the agent.
 		req.Header.Set("X-Actor-Source", "task_token")
 		req.Header.Set("X-Agent-ID", actorID)
+		if a.taskID != "" {
+			req.Header.Set("X-Task-ID", a.taskID)
+		}
 		req.Header.Set("X-User-ID", a.h.workspaceOwnerUserID(ctx, wsID))
 	} else {
 		req.Header.Set("X-User-ID", actorID)

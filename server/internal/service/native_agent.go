@@ -147,6 +147,9 @@ type NativeAgentService struct {
 	// 22). The handler wires it: filing a report notifies the owners, which
 	// lives there. Nil means the tool answers that reports are unavailable.
 	Doctrine NativeDoctrineTools
+	// Autopilots backs propose_autopilot (réveil programmé): a paused autopilot
+	// behind a Decision Card on the run's issue. Nil: the tool is unavailable.
+	Autopilots NativeAutopilotTools
 	// NoteEmbedder refreshes a note's vector after save_note/update_note
 	// (Brain ranked search). Nil: the backfill job catches up.
 	NoteEmbedder NoteEmbedder
@@ -256,6 +259,11 @@ type NativeCalendarTools interface {
 
 // NativeDoctrineTools is what report_doctrine_conflict needs from the rest of
 // the server: file the report against the run's own task and return its id.
+// NativeAutopilotTools is what propose_autopilot needs from the server.
+type NativeAutopilotTools interface {
+	Propose(ctx context.Context, task db.AgentTaskQueue, agent db.Agent, input map[string]any) (any, error)
+}
+
 type NativeDoctrineTools interface {
 	Report(ctx context.Context, task db.AgentTaskQueue, agent db.Agent, kind, summary, passage string) (string, error)
 }

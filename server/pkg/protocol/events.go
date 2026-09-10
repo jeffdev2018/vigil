@@ -75,7 +75,10 @@ const (
 	EventWorkspaceNoteUpdated = "workspace_note:updated"
 	// EventBrainCaptureChanged fires when a capture is created, transcribed,
 	// suggested, organized, discarded or reopened (payload: capture_id, status, change).
-	EventBrainCaptureChanged  = "brain_capture:changed"
+	EventBrainCaptureChanged = "brain_capture:changed"
+	// EventFollowupChanged fires when a follow-up (deferred wake-up of an
+	// issue\'s agent) is scheduled or cancelled (payload: issue_id, followup_id, change).
+	EventFollowupChanged      = "followup:changed"
 	EventWorkspaceNoteDeleted = "workspace_note:deleted"
 
 	// Inbox events
