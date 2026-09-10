@@ -86,11 +86,15 @@ vi.mock("@multica/core/auth", async () => {
   return { ...actual, useAuthStore };
 });
 
-// The calendar subscription is server state with its own suite
-// (calendar-feed-section.test.tsx). This tab test owns theme, language,
+// The calendar subscription and the calendar-publish blocks are server state
+// with their own suites (calendar-feed-section.test.tsx,
+// calendar-publish-section.test.tsx). This tab test owns theme, language,
 // timezone and the sticky bar, and mounts without a QueryClientProvider.
 vi.mock("./calendar-feed-section", () => ({
   CalendarFeedSection: () => null,
+}));
+vi.mock("./calendar-publish-section", () => ({
+  CalendarPublishSection: () => null,
 }));
 
 import { PreferencesTab } from "./preferences-tab";

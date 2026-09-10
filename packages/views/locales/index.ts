@@ -23,6 +23,7 @@ import enAutopilots from "./en/autopilots.json";
 import enSkills from "./en/skills.json";
 import enGoals from "./en/goals.json";
 import enCycles from "./en/cycles.json";
+import enCalendarEvents from "./en/calendar-events.json";
 import enOrg from "./en/org.json";
 import enContests from "./en/contests.json";
 import enChat from "./en/chat.json";
@@ -58,6 +59,7 @@ import zhHansAutopilots from "./zh-Hans/autopilots.json";
 import zhHansSkills from "./zh-Hans/skills.json";
 import zhHansGoals from "./zh-Hans/goals.json";
 import zhHansCycles from "./zh-Hans/cycles.json";
+import zhHansCalendarEvents from "./zh-Hans/calendar-events.json";
 import zhHansOrg from "./zh-Hans/org.json";
 import zhHansContests from "./zh-Hans/contests.json";
 import zhHansChat from "./zh-Hans/chat.json";
@@ -93,6 +95,7 @@ import koAutopilots from "./ko/autopilots.json";
 import koSkills from "./ko/skills.json";
 import koGoals from "./ko/goals.json";
 import koCycles from "./ko/cycles.json";
+import koCalendarEvents from "./ko/calendar-events.json";
 import koOrg from "./ko/org.json";
 import koContests from "./ko/contests.json";
 import koChat from "./ko/chat.json";
@@ -128,6 +131,7 @@ import jaAutopilots from "./ja/autopilots.json";
 import jaSkills from "./ja/skills.json";
 import jaGoals from "./ja/goals.json";
 import jaCycles from "./ja/cycles.json";
+import jaCalendarEvents from "./ja/calendar-events.json";
 import jaOrg from "./ja/org.json";
 import jaContests from "./ja/contests.json";
 import jaChat from "./ja/chat.json";
@@ -162,6 +166,7 @@ import frAutopilots from "./fr/autopilots.json";
 import frSkills from "./fr/skills.json";
 import frGoals from "./fr/goals.json";
 import frCycles from "./fr/cycles.json";
+import frCalendarEvents from "./fr/calendar-events.json";
 import frOrg from "./fr/org.json";
 import frContests from "./fr/contests.json";
 import frChat from "./fr/chat.json";
@@ -203,6 +208,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: frSkills,
     goals: frGoals,
     cycles: frCycles,
+    "calendar-events": frCalendarEvents,
     org: frOrg,
     contests: frContests,
     chat: frChat,
@@ -241,6 +247,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: enSkills,
     goals: enGoals,
     cycles: enCycles,
+    "calendar-events": enCalendarEvents,
     org: enOrg,
     contests: enContests,
     chat: enChat,
@@ -278,6 +285,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: zhHansSkills,
     goals: zhHansGoals,
     cycles: zhHansCycles,
+    "calendar-events": zhHansCalendarEvents,
     org: zhHansOrg,
     contests: zhHansContests,
     chat: zhHansChat,
@@ -315,6 +323,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: koSkills,
     goals: koGoals,
     cycles: koCycles,
+    "calendar-events": koCalendarEvents,
     org: koOrg,
     contests: koContests,
     chat: koChat,
@@ -352,6 +361,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: jaSkills,
     goals: jaGoals,
     cycles: jaCycles,
+    "calendar-events": jaCalendarEvents,
     org: jaOrg,
     contests: jaContests,
     chat: jaChat,

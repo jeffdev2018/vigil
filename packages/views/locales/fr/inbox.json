@@ -111,7 +111,9 @@
     "residency_policy_blocked": "Bloqué par la résidence des données",
     "linear_alert": "Linear est déconnecté",
     "code_health_report": "Rapport de santé du code",
-    "doc_drift_report": "Dérive du contexte agent"
+    "doc_drift_report": "Dérive du contexte agent",
+    "calendar_invitation": "Invitation à un événement",
+    "calendar_reminder": "Commence bientôt"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

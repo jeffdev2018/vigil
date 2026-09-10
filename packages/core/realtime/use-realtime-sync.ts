@@ -36,6 +36,7 @@ import {
 } from "../agents/queries";
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
+import { calendarEventKeys } from "../calendar-events/queries";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { epicKeys } from "../projects/epic";
@@ -148,6 +149,7 @@ import type {
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
   MeetingEventPayload,
+  CalendarChangedPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -1419,6 +1421,21 @@ export function useRealtimeSync(
     const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
     const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
 
+    // Native calendar (OS plan, chantier 19). Invalidate only — the payload
+    // is a change hint (create, update, status change, or a participant's
+    // response), same choice as meetings above. The list and agenda queries
+    // are keyed by from/to, so every window currently open is stale; the
+    // detail query is keyed by event_id when the frame names one.
+    const unsubCalendarChanged = ws.on("calendar:changed", (p) => {
+      const payload = (p ?? {}) as CalendarChangedPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: calendarEventKeys.all(wsId) });
+      if (payload.event_id) {
+        qc.invalidateQueries({ queryKey: calendarEventKeys.detail(wsId, payload.event_id) });
+      }
+    });
+
     // Review rework loop (JEF-238): a request_changes verdict sent the task
     // back to the worker, or the cycle cap escalated to a human. Refresh the
     // issue's review list and raise a client-only signal the cross-review
@@ -2162,6 +2179,7 @@ export function useRealtimeSync(
       unsubMeetingCreated();
       unsubMeetingUpdated();
       unsubMeetingDeleted();
+      unsubCalendarChanged();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

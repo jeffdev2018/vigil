@@ -17,12 +17,18 @@ import {
   appConfigOptions,
   workspaceSubscriptionSummaryOptions,
 } from "@/data/queries/billing";
+import { calendarEventOptions } from "@/data/queries/calendar";
+import { useRespondCalendarEvent } from "@/data/mutations/calendar";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import {
   getAutopilotQuotaBody,
   getInboxDisplayTitle,
 } from "@/lib/inbox-display";
 import { matchApprovalForInboxItem } from "@/lib/approvals-display";
+import { formatEventTimeRange } from "@/lib/calendar-display";
+
+// Native calendar (OS plan, chantier 19).
+const CALENDAR_NOTICE_TYPES = new Set(["calendar_invitation", "calendar_reminder"]);
 
 // Inbox item types with a decidable ask on the approvals feed (GET
 // /api/approvals) — see matchApprovalForInboxItem for how each is matched.
@@ -88,6 +94,11 @@ export default function InboxNoticeDetail() {
   );
   const isQuotaNotice = item?.type === "autopilot_quota_exceeded";
   const isApprovalNotice = !!item && APPROVAL_NOTICE_TYPES.has(item.type);
+  const isCalendarNotice = !!item && CALENDAR_NOTICE_TYPES.has(item.type);
+  const isCalendarInvitation = item?.type === "calendar_invitation";
+  const eventId = isCalendarNotice ? (item?.details?.event_id ?? null) : null;
+  const { data: calendarEvent } = useQuery(calendarEventOptions(wsId, eventId));
+  const respondCalendarEvent = useRespondCalendarEvent();
   // Workspace-level feed: the matching ask may belong to any issue.
   const { data: approvalsFeed } = useWorkspaceApprovals(
     isApprovalNotice ? wsId : null,
@@ -148,7 +159,8 @@ export default function InboxNoticeDetail() {
       ) : !item ||
         (item.type !== "autopilot_quota_exceeded" &&
           item.type !== "autopilot_paused" &&
-          !isApprovalNotice) ? (
+          !isApprovalNotice &&
+          !isCalendarNotice) ? (
         <View className="px-4 py-8">
           <Text className="text-sm text-muted-foreground text-center">
             This notification is no longer available.
@@ -171,6 +183,58 @@ export default function InboxNoticeDetail() {
             <Text className="text-base leading-6 text-foreground">
               {item.body}
             </Text>
+          ) : null}
+        </ScrollView>
+      ) : isCalendarNotice ? (
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-4 px-4 py-5"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text className="text-base leading-6 text-foreground">
+            {calendarEvent ? formatEventTimeRange(calendarEvent) : item.body}
+          </Text>
+          {calendarEvent?.location ? (
+            <Text className="text-sm text-muted-foreground">
+              {calendarEvent.location}
+            </Text>
+          ) : null}
+
+          {isCalendarInvitation ? (
+            <View className="flex-row gap-2">
+              <Button
+                className="flex-1"
+                onPress={() =>
+                  eventId &&
+                  respondCalendarEvent.mutate({ id: eventId, response: "accepted" })
+                }
+                disabled={!eventId || respondCalendarEvent.isPending}
+              >
+                <Text>Accept</Text>
+              </Button>
+              <Button
+                className="flex-1"
+                variant="outline"
+                onPress={() =>
+                  eventId &&
+                  respondCalendarEvent.mutate({ id: eventId, response: "declined" })
+                }
+                disabled={!eventId || respondCalendarEvent.isPending}
+              >
+                <Text>Decline</Text>
+              </Button>
+            </View>
+          ) : null}
+
+          {eventId ? (
+            <Button
+              variant="outline"
+              onPress={() =>
+                wsSlug && router.push(`/${wsSlug}/calendar-event/${eventId}`)
+              }
+            >
+              <Text>View event</Text>
+            </Button>
           ) : null}
         </ScrollView>
       ) : (

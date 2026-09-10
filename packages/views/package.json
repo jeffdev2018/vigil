@@ -21,6 +21,7 @@
     "./projects/components": "./projects/components/index.ts",
     "./goals/components": "./goals/components/index.ts",
     "./cycles/components": "./cycles/components/index.ts",
+    "./calendar/components": "./calendar/components/index.ts",
     "./org/components": "./org/components/index.ts",
     "./autopilots/components": "./autopilots/components/index.ts",
     "./modals/registry": "./modals/registry.tsx",

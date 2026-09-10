@@ -13,10 +13,12 @@ import { useChatSessionsRealtime } from "@/data/realtime/use-chat-sessions-realt
 import { useProjectsRealtime } from "@/data/realtime/use-projects-realtime";
 import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
 import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
+import { useCalendarRealtime } from "@/data/realtime/use-calendar-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import { useNewIssueDraftResetOnWorkspaceChange } from "@/data/stores/new-issue-draft-store";
+import { useNewEventDraftResetOnWorkspaceChange } from "@/data/stores/new-event-draft-store";
 import { useNewProjectDraftResetOnWorkspaceChange } from "@/data/stores/new-project-draft-store";
 import { useChatSessionPickerResetOnWorkspaceChange } from "@/data/stores/chat-session-picker-store";
 
@@ -87,6 +89,9 @@ function RealtimeSubscriptions() {
   // Triage + postmortem: both feed an always-mounted badge in the More
   // popover, so they stay subscribed for the whole workspace session.
   useTriageRealtime();
+  // Native calendar (OS plan, chantier 19): the Agenda screen and any open
+  // calendar_invitation/calendar_reminder inbox notification both care.
+  useCalendarRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -124,6 +129,7 @@ export default function WorkspaceLayout() {
   // changes — a draft picked under workspace A (assignee id, draft
   // session id, etc.) is invalid in workspace B and must not leak.
   useNewIssueDraftResetOnWorkspaceChange(matched?.id ?? null);
+  useNewEventDraftResetOnWorkspaceChange(matched?.id ?? null);
   useNewProjectDraftResetOnWorkspaceChange(matched?.id ?? null);
   useChatSessionPickerResetOnWorkspaceChange(matched?.id ?? null);
 
@@ -320,6 +326,16 @@ export default function WorkspaceLayout() {
           name="new-issue-picker/due-date"
           options={SHEET_OPTIONS}
         />
+        {/* New-event draft formSheet picker — stacked on top of `new-event`
+            (a modal), same relationship as new-issue-picker/* → new-issue. */}
+        <Stack.Screen
+          name="new-event-picker/participants"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Participants",
+          }}
+        />
         {/* New-project draft formSheet pickers — same pattern as
             new-issue-picker/*. Stacked on top of `project/new` (a modal). */}
         <Stack.Screen
@@ -387,6 +403,12 @@ export default function WorkspaceLayout() {
           name="more/meetings"
           options={{ title: "Meetings", headerBackTitle: "Back" }}
         />
+        {/* Calendar (OS plan, chantier 19): agenda of events, issues due,
+            cycles and meetings for the coming/previous fortnight. */}
+        <Stack.Screen
+          name="more/calendar"
+          options={{ title: "Calendar", headerBackTitle: "Back" }}
+        />
         <Stack.Screen
           name="meeting/[id]"
           options={{ title: "Meeting", headerBackTitle: "Meetings" }}
@@ -427,6 +449,20 @@ export default function WorkspaceLayout() {
             headerLeft: () => <ModalCloseButton />,
           }}
         />
+        {/* New Event (OS plan, chantier 19) — modal like new-issue: its
+            participants picker pushes a sibling formSheet on top. */}
+        <Stack.Screen
+          name="new-event"
+          options={{
+            title: "New Event",
+            presentation: "modal",
+            headerLeft: () => <ModalCloseButton />,
+          }}
+        />
+        {/* Calendar event detail — participants + responses, Accept /
+            Tentative / Decline, Cancel for the creator. Same SHEET_OPTIONS
+            as inbox/[id] (a content view, no keyboard, own body header). */}
+        <Stack.Screen name="calendar-event/[id]" options={SHEET_OPTIONS} />
         {/* Voice-dictated issue draft (K36). A modal like new-issue: it is a
             two-step flow with its own keyboard, not a picker sheet. */}
         <Stack.Screen

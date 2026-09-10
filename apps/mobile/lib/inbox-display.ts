@@ -84,6 +84,17 @@ export function getInboxNavigationTarget(
   historyToken: string,
 ) {
   if (!workspace) return null;
+  // Native calendar (OS plan, chantier 19). Checked BEFORE the `issue_id`
+  // branch below: a calendar_invitation can carry an issue_id (a proposed
+  // event rides an issue's Decision Card) but its primary action is
+  // Accept/Decline on the event, not the issue thread — routing to the
+  // issue would hide that affordance.
+  if (item.type === "calendar_invitation" || item.type === "calendar_reminder") {
+    return {
+      pathname: "/[workspace]/inbox/[id]" as const,
+      params: { workspace, id: item.id },
+    };
+  }
   if (item.issue_id) {
     return {
       pathname: "/[workspace]/issue/[id]" as const,

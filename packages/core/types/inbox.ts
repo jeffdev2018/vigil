@@ -83,7 +83,12 @@ export type InboxItemType =
   | "critic_budget"
   // Dated cycles (F29): a cycle ended with unfinished work and no next cycle
   // to roll it into, so it is now planned nowhere. Filed for the project lead.
-  | "cycle_rollover_orphaned";
+  | "cycle_rollover_orphaned"
+  // Native calendar (OS plan, chantier 19): a member was invited to a
+  // scheduled event (filed on create and on a re-invite after it moves), or
+  // gets the fifteen-minute-out reminder.
+  | "calendar_invitation"
+  | "calendar_reminder";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

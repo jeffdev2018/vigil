@@ -35,6 +35,7 @@ import { IssueTab } from "./issue-tab";
 import { ChatTab } from "./chat-tab";
 import { useT } from "../../i18n";
 import { CalendarFeedSection } from "./calendar-feed-section";
+import { CalendarPublishSection } from "./calendar-publish-section";
 import {
   SettingsCard,
   SettingsRow,
@@ -249,6 +250,8 @@ function GeneralPreferences() {
       </SettingsSection>
 
       <CalendarFeedSection />
+
+      <CalendarPublishSection />
 
       <MeetingDetectionSection />
     </>

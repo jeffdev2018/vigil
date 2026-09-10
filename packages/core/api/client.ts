@@ -307,6 +307,13 @@ import type {
   MeetingSegmentResponse,
   CalendarFeed,
   CalendarUpcoming,
+  CalendarEventEntry,
+  CalendarEventInput,
+  CalendarEventsResponse,
+  CalendarAgenda,
+  CalendarSlotsResponse,
+  CalendarFeedTokenStatus,
+  CalendarGoogleImportResult,
   VoiceTranscription,
   RealtimeVoiceSession,
   TriageSource,
@@ -657,6 +664,19 @@ import {
   CalendarUpcomingSchema,
   EMPTY_CALENDAR_FEED,
   EMPTY_CALENDAR_UPCOMING,
+  CalendarEventsResponseSchema,
+  EMPTY_CALENDAR_EVENTS_RESPONSE,
+  CalendarEventResponseSchema,
+  EMPTY_CALENDAR_EVENT,
+  CalendarAgendaSchema,
+  EMPTY_CALENDAR_AGENDA,
+  CalendarSlotsResponseSchema,
+  EMPTY_CALENDAR_SLOTS_RESPONSE,
+  CalendarFeedTokenStatusSchema,
+  EMPTY_CALENDAR_FEED_TOKEN_STATUS,
+  CalendarFeedTokenMintedSchema,
+  CalendarGoogleImportResultSchema,
+  EMPTY_CALENDAR_GOOGLE_IMPORT_RESULT,
   TriageBatchAcceptResponseSchema,
   AcceptTriageItemResponseSchema,
   DismissTriageItemResponseSchema,
@@ -2370,6 +2390,186 @@ export class ApiClient {
       CalendarUpcomingSchema,
       EMPTY_CALENDAR_UPCOMING,
       { endpoint: "GET /api/calendar/upcoming" },
+    );
+  }
+
+  // Native calendar (OS plan, chantier 19): events with members and agents as
+  // participants, the joined agenda, the free-slot finder, the outbound ICS
+  // feed token, and the Google Calendar import. Distinct from the ICS
+  // subscription block above (that one reads an external feed; this one is
+  // the workspace's own calendar).
+  async listCalendarEvents(
+    params: {
+      from?: string;
+      to?: string;
+      participantType?: "member" | "agent";
+      participantId?: string;
+      includeCancelled?: boolean;
+    } = {},
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarEventsResponse> {
+    const search = new URLSearchParams();
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.participantType) search.set("participant_type", params.participantType);
+    if (params.participantId) search.set("participant_id", params.participantId);
+    if (params.includeCancelled) search.set("include_cancelled", "true");
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarEventsResponse>(
+      raw,
+      CalendarEventsResponseSchema,
+      EMPTY_CALENDAR_EVENTS_RESPONSE,
+      { endpoint: "GET /api/calendar/events" },
+    );
+  }
+
+  async getCalendarEvent(id: string, options?: { signal?: AbortSignal }): Promise<CalendarEventEntry> {
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<{ event: CalendarEventEntry }>(
+      raw,
+      CalendarEventResponseSchema,
+      { event: { ...EMPTY_CALENDAR_EVENT, id } },
+      { endpoint: "GET /api/calendar/events/:id" },
+    ).event;
+  }
+
+  /** A member schedules directly; an agent's call is filed as `proposed` with a Decision Card (issue_id required). */
+  async createCalendarEvent(data: CalendarEventInput): Promise<CalendarEventEntry> {
+    const raw = await this.fetch<unknown>("/api/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<{ event: CalendarEventEntry }>(
+      raw,
+      CalendarEventResponseSchema,
+      { event: EMPTY_CALENDAR_EVENT },
+      { endpoint: "POST /api/calendar/events" },
+    ).event;
+  }
+
+  async updateCalendarEvent(id: string, data: CalendarEventInput): Promise<CalendarEventEntry> {
+    const raw = await this.fetch<unknown>(`/api/calendar/events/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<{ event: CalendarEventEntry }>(
+      raw,
+      CalendarEventResponseSchema,
+      { event: { ...EMPTY_CALENDAR_EVENT, id } },
+      { endpoint: "PUT /api/calendar/events/:id" },
+    ).event;
+  }
+
+  /** Cancels rather than deletes, so a subscribed ICS feed learns it is off. */
+  async cancelCalendarEvent(id: string): Promise<void> {
+    await this.fetch(`/api/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async respondCalendarEvent(
+    id: string,
+    response: "accepted" | "declined" | "tentative",
+  ): Promise<CalendarEventEntry> {
+    const raw = await this.fetch<unknown>(`/api/calendar/events/${encodeURIComponent(id)}/respond`, {
+      method: "POST",
+      body: JSON.stringify({ response }),
+    });
+    return parseWithFallback<{ event: CalendarEventEntry }>(
+      raw,
+      CalendarEventResponseSchema,
+      { event: { ...EMPTY_CALENDAR_EVENT, id } },
+      { endpoint: "POST /api/calendar/events/:id/respond" },
+    ).event;
+  }
+
+  async getCalendarAgenda(
+    params: { from?: string; to?: string } = {},
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarAgenda> {
+    const search = new URLSearchParams();
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/agenda${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarAgenda>(raw, CalendarAgendaSchema, EMPTY_CALENDAR_AGENDA, {
+      endpoint: "GET /api/calendar/agenda",
+    });
+  }
+
+  /** `participants` is `member:<id>,agent:<id>`, comma-separated. */
+  async findCalendarSlots(
+    params: { participants: string; durationMinutes?: number; from?: string; to?: string; tz?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarSlotsResponse> {
+    const search = new URLSearchParams();
+    search.set("participants", params.participants);
+    if (params.durationMinutes !== undefined) search.set("duration", String(params.durationMinutes));
+    if (params.from) search.set("from", params.from);
+    if (params.to) search.set("to", params.to);
+    if (params.tz) search.set("tz", params.tz);
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/slots?${search.toString()}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarSlotsResponse>(
+      raw,
+      CalendarSlotsResponseSchema,
+      EMPTY_CALENDAR_SLOTS_RESPONSE,
+      { endpoint: "GET /api/calendar/slots" },
+    );
+  }
+
+  /** Outbound ICS feed the caller publishes to their own calendar app. */
+  async getCalendarEventFeedToken(options?: { signal?: AbortSignal }): Promise<CalendarFeedTokenStatus> {
+    const raw = await this.fetch<unknown>(
+      "/api/calendar/feed-token",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarFeedTokenStatus>(
+      raw,
+      CalendarFeedTokenStatusSchema,
+      EMPTY_CALENDAR_FEED_TOKEN_STATUS,
+      { endpoint: "GET /api/calendar/feed-token" },
+    );
+  }
+
+  /** Mints (or rotates) the feed URL. The clear URL is in this response only. */
+  async mintCalendarEventFeedToken(): Promise<{ url: string; path: string }> {
+    const raw = await this.fetch<unknown>("/api/calendar/feed-token", { method: "POST" });
+    return parseWithFallback<{ url: string; path: string }>(
+      raw,
+      CalendarFeedTokenMintedSchema,
+      { url: "", path: "" },
+      { endpoint: "POST /api/calendar/feed-token" },
+    );
+  }
+
+  async revokeCalendarEventFeedToken(): Promise<void> {
+    await this.fetch("/api/calendar/feed-token", { method: "DELETE" });
+  }
+
+  /** 409 `no_google_connection` when Google Calendar is not connected; 503 when Composio is off. */
+  async importGoogleCalendar(
+    data: { from?: string; to?: string } = {},
+  ): Promise<CalendarGoogleImportResult> {
+    const raw = await this.fetch<unknown>("/api/calendar/google/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<CalendarGoogleImportResult>(
+      raw,
+      CalendarGoogleImportResultSchema,
+      EMPTY_CALENDAR_GOOGLE_IMPORT_RESULT,
+      { endpoint: "POST /api/calendar/google/import" },
     );
   }
 

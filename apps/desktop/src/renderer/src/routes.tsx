@@ -19,6 +19,7 @@ import { IssuesPage } from "@multica/views/issues/components";
 import { ProjectsPage } from "@multica/views/projects/components";
 import { GoalsPage } from "@multica/views/goals/components";
 import { CyclesPage } from "@multica/views/cycles/components";
+import { CalendarPage } from "@multica/views/calendar/components";
 import { OrgPage } from "@multica/views/org/components";
 import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
@@ -177,6 +178,11 @@ export const appRoutes: RouteObject[] = [
             path: "cycles/:id",
             element: <CycleDetailPage />,
             handle: { title: "Cycle" },
+          },
+          {
+            path: "calendar",
+            element: <CalendarPage />,
+            handle: { title: "Calendar" },
           },
           {
             path: "org",

@@ -64,6 +64,8 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   // Dated cycles (F29).
   ["cycles"],
   ["cycles", ":id"],
+  // Native calendar (OS plan, chantier 19).
+  ["calendar"],
   // Executable org chart (K75).
   ["org"],
   ["autopilots"],

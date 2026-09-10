@@ -65,6 +65,8 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     critic_degraded: t(($) => $.types.critic_degraded),
     critic_budget: t(($) => $.types.critic_budget),
     cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
+    calendar_invitation: t(($) => $.types.calendar_invitation),
+    calendar_reminder: t(($) => $.types.calendar_reminder),
   };
 }
 

@@ -38,6 +38,9 @@ function workspaceScoped(slug: string) {
     // Dated cycles (F29): a project's iterations, their capacity and burndown.
     cycles: () => `${ws}/cycles`,
     cycleDetail: (id: string) => `${ws}/cycles/${encode(id)}`,
+    // Native calendar (OS plan, chantier 19): events, agenda, cycles and
+    // issue due dates joined into one workspace calendar.
+    calendar: () => `${ws}/calendar`,
     // Executable org chart (K75): the structures routing work in this workspace.
     org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,

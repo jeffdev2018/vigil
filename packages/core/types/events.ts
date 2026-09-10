@@ -138,7 +138,11 @@ export type WSEventType =
   // Runs fleet page (OS plan, chantier 4): the kill switch and a plain
   // halt/lift both publish this. `cancelled` is present only for the kill
   // switch, which halts then cancels every run not already over.
-  | "run_halt:changed";
+  | "run_halt:changed"
+  // Native calendar (OS plan, chantier 19): an event was created, updated,
+  // its status changed (scheduled/cancelled, including a proposal's
+  // accept/decline), or a participant answered.
+  | "calendar:changed";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -358,6 +362,20 @@ export interface RunPreviewUpdatedPayload {
 export interface RunHaltChangedPayload {
   run_halt: unknown;
   cancelled?: number;
+}
+
+/**
+ * Native calendar (OS plan, chantier 19). A change hint, not a row: fired on
+ * create, update, a status change (scheduled/cancelled, including a
+ * proposal's accept/decline through its Decision Card), and a participant's
+ * response — listeners invalidate the calendar queries rather than merging
+ * this, the same choice `MeetingEventPayload` makes for meetings.
+ */
+export interface CalendarChangedPayload {
+  event_id: string;
+  issue_id: string | null;
+  status: string;
+  starts_at: string;
 }
 
 export interface CrossReviewEventPayload {
@@ -967,6 +985,7 @@ export interface WSEventPayloadMap {
   "critic_verdict:relaunch": CriticVerdictEventPayload;
   "run_preview:updated": RunPreviewUpdatedPayload;
   "run_halt:changed": RunHaltChangedPayload;
+  "calendar:changed": CalendarChangedPayload;
 }
 
 /**
