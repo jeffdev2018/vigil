@@ -442,6 +442,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMMaxRetries:            opts.LLMMaxRetries,
 		LLMRoutingModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_ROUTING_MODEL")),
 		ConsultModel:             strings.TrimSpace(os.Getenv("MULTICA_CONSULT_MODEL")),
+		JudgeModel:               strings.TrimSpace(os.Getenv("MULTICA_JUDGE_MODEL")),
 		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
 		STTAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_STT_API_KEY")),
 		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),
@@ -2740,6 +2741,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/run-groups", h.ListIssueRunGroups)
 			r.With(handler.RequireHumanActor).Post("/api/run-groups/{id}/settle", h.SettleRunGroup)
 			r.With(handler.RequireHumanActor).Post("/api/run-groups/{id}/abandon", h.AbandonRunGroup)
+			// The LLM judge (JEF-234 follow-up) spends LLM budget on a human's
+			// request, so it is human-only like settle/abandon.
+			r.With(handler.RequireHumanActor).Post("/api/run-groups/{id}/judge", h.JudgeRunGroup)
 
 			// Cross-repo mirror issues (K54).
 			r.Get("/api/issues/{id}/mirrors", h.GetIssueMirrors)

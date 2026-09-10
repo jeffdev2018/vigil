@@ -1327,6 +1327,7 @@
     "start_confirm": "レースを開始",
     "attempt_agent": "試行 {{index}} — エージェント",
     "attempt_model": "試行 {{index}} — モデル",
+    "attempt_runtime": "試行 {{index}} — ランタイム",
     "remove_attempt": "試行 {{index}} を削除",
     "add_attempt": "試行を追加",
     "pick_agent": "エージェントを選択…",
@@ -1335,6 +1336,10 @@
     "note_placeholder": "すべての試行へのメモ（任意）",
     "model": "モデル",
     "default_model": "エージェント既定",
+    "runtime": "ランタイム",
+    "default_runtime": "既定（エージェントのバインド）",
+    "cost": "コスト",
+    "duration": "所要時間",
     "run_status": "実行",
     "diff_stat": "差分",
     "diff_truncated": "差分が大きすぎて保存できません。統計のみ — ブランチを確認してください。",
@@ -1351,7 +1356,13 @@
     "cancel": "キャンセル",
     "failed": "レースのリクエストに失敗しました",
     "error_already_active": "この課題では既にレースが実行中です。",
-    "error_already_settled": "このレースは既に終了しています。"
+    "error_already_settled": "このレースは既に終了しています。",
+    "ask_judge": "ジャッジに判定を依頼",
+    "judging": "判定中…",
+    "recommended": "おすすめ",
+    "judge_score": "ジャッジのスコア",
+    "judge_failed": "ジャッジは判定を出せませんでした。試行を自分で比較してください。",
+    "error_not_judgeable": "ジャッジには完了した試行が 2 件以上必要です。"
   },
   "campaign": {
     "section": "リファクタリングキャンペーン",

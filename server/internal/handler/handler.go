@@ -161,6 +161,10 @@ type Config struct {
 	// LLMDefaultModel, so a deployment's default-model change cannot silently
 	// reprice in-task consults.
 	ConsultModel string
+	// JudgeModel pins the model POST /api/run-groups/{id}/judge calls
+	// (JEF-234 follow-up). MULTICA_JUDGE_MODEL; empty falls back to
+	// llm.FallbackModel, same rule as ConsultModel.
+	JudgeModel string
 	// LLMEmbeddingModel enables the embeddings surface (K47). Empty is the
 	// default and a supported steady state: the shared repo index then ranks
 	// lexically and no code text is ever sent to the embeddings upstream.
@@ -462,6 +466,10 @@ type Handler struct {
 	// as LLM in production, an interface so handler tests can stub it. Read
 	// through consultLLM() — it falls back to LLM when unset.
 	ConsultLLM ConsultLLM
+	// JudgeLLM is the LLM seam for POST /api/run-groups/{id}/judge (JEF-234
+	// follow-up): same client as LLM in production, an interface so handler
+	// tests can stub it. Read through judgeLLM() — it falls back to LLM.
+	JudgeLLM ConsultLLM
 	// STT transcribes audio for voice memos and meetings. Always non-nil;
 	// Enabled() is false when MULTICA_STT_* is unset.
 	STT *stt.Client
@@ -642,9 +650,12 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		// Agent consult (JEF-12) shares the same internal LLM client; the field
 		// is an interface so tests can stub the whole consult path.
 		ConsultLLM: llmClient,
-		STT:        stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
-		TTS:        tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
-		cfg:        cfg,
+		// The run-group judge (JEF-234 follow-up) shares the same client; the
+		// field is an interface so tests can stub the whole judge path.
+		JudgeLLM: llmClient,
+		STT:      stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
+		TTS:      tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
+		cfg:      cfg,
 	}
 	h.NativeAgents.NoteEmbedder = brainEmbedder
 	h.NativeAgents.Goal = h.GoalLoop

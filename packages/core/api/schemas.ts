@@ -5643,16 +5643,44 @@ export const AgentDuelEnvelopeSchema = z.object({
 // diff_unified is null both when nothing was recorded and when the patch was
 // too large to store — diff_truncated is what tells those apart, so the UI can
 // say "too large, read the branch" instead of "no changes".
+// runtime_id / runtime_name (JEF-234) are empty strings when the attempt ran
+// on the agent's own binding; cost_usd_ticks is 0 while unreported and
+// duration_seconds is 0 while the attempt is still running.
 export const RunGroupAttemptSchema = z.object({
   task_id: z.string().default(""),
   agent_id: z.string().default(""),
   status: z.string().catch("").default(""),
   model: z.string().catch("").default(""),
+  runtime_id: z.string().catch("").default(""),
+  runtime_name: z.string().catch("").default(""),
+  cost_usd_ticks: z.number().catch(0).default(0),
+  duration_seconds: z.number().catch(0).default(0),
   diff_stat: z.unknown().nullable().catch(null).default(null),
   diff_unified: z.string().nullable().catch(null).default(null),
   diff_truncated: z.boolean().catch(false).default(false),
   created_at: z.string().default(""),
   completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+// LLM judge (JEF-234): null until a human asks for a verdict, then either
+// "answered" with a winner and per-attempt scores, or "failed" when the judge
+// model could not decide. It never settles the race — keeping one attempt
+// stays a human decision. winner_task_id is an empty string (not null) when
+// the judge failed, and cost_usd_ticks is null while unreported.
+export const RunGroupJudgementScoreSchema = z.object({
+  task_id: z.string().catch("").default(""),
+  score: z.number().catch(0).default(0),
+  rationale: z.string().catch("").default(""),
+}).loose();
+
+export const RunGroupJudgementSchema = z.object({
+  status: z.enum(["answered", "failed"]).catch("failed").default("failed"),
+  winner_task_id: z.string().catch("").default(""),
+  justification: z.string().catch("").default(""),
+  scores: z.array(RunGroupJudgementScoreSchema).catch([]).default([]),
+  model: z.string().catch("").default(""),
+  judged_at: z.string().catch("").default(""),
+  cost_usd_ticks: z.number().nullable().catch(null).default(null),
 }).loose();
 
 export const RunGroupSchema = z.object({
@@ -5665,6 +5693,7 @@ export const RunGroupSchema = z.object({
   created_at: z.string().default(""),
   settled_at: z.string().nullable().catch(null).default(null),
   attempts: z.array(RunGroupAttemptSchema).catch([]).default([]),
+  judgement: RunGroupJudgementSchema.nullable().catch(null).default(null),
 }).loose();
 
 export const RunGroupEnvelopeSchema = z.object({
@@ -5677,10 +5706,12 @@ export const RunGroupListEnvelopeSchema = z.object({
 
 export type RunGroup = z.infer<typeof RunGroupSchema>;
 export type RunGroupAttempt = z.infer<typeof RunGroupAttemptSchema>;
+export type RunGroupJudgement = z.infer<typeof RunGroupJudgementSchema>;
+export type RunGroupJudgementScore = z.infer<typeof RunGroupJudgementScoreSchema>;
 
 /** Body of POST /api/issues/:id/run-groups. The server caps attempts at 5. */
 export interface StartRunGroupInput {
-  attempts: Array<{ agent_id: string; model?: string }>;
+  attempts: Array<{ agent_id: string; model?: string; runtime_id?: string }>;
   note?: string;
 }
 

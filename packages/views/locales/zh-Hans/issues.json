@@ -1327,6 +1327,7 @@
     "start_confirm": "发起竞速",
     "attempt_agent": "尝试 {{index}} — 智能体",
     "attempt_model": "尝试 {{index}} — 模型",
+    "attempt_runtime": "尝试 {{index}} — 运行时",
     "remove_attempt": "移除尝试 {{index}}",
     "add_attempt": "添加尝试",
     "pick_agent": "选择智能体…",
@@ -1335,6 +1336,10 @@
     "note_placeholder": "给所有尝试的备注（可选）",
     "model": "模型",
     "default_model": "智能体默认",
+    "runtime": "运行时",
+    "default_runtime": "默认（智能体绑定）",
+    "cost": "成本",
+    "duration": "耗时",
     "run_status": "运行",
     "diff_stat": "差异",
     "diff_truncated": "差异过大，未能存储 —— 仅有统计，请查看分支。",
@@ -1351,7 +1356,13 @@
     "cancel": "取消",
     "failed": "竞速请求失败",
     "error_already_active": "该任务已有一场竞速在进行中。",
-    "error_already_settled": "这场竞速已经结束。"
+    "error_already_settled": "这场竞速已经结束。",
+    "ask_judge": "请裁判评判",
+    "judging": "评判中…",
+    "recommended": "推荐",
+    "judge_score": "裁判评分",
+    "judge_failed": "裁判无法给出结论——请自行比较各次尝试。",
+    "error_not_judgeable": "裁判需要至少 2 次已完成的尝试。"
   },
   "campaign": {
     "section": "重构战役",

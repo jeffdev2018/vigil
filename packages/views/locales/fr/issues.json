@@ -1342,6 +1342,7 @@
     "start_confirm": "Lancer la course",
     "attempt_agent": "Tentative {{index}} — agent",
     "attempt_model": "Tentative {{index}} — modèle",
+    "attempt_runtime": "Tentative {{index}} — runtime",
     "remove_attempt": "Retirer la tentative {{index}}",
     "add_attempt": "Ajouter une tentative",
     "pick_agent": "Choisissez un agent…",
@@ -1350,6 +1351,10 @@
     "note_placeholder": "Note pour toutes les tentatives (facultatif)",
     "model": "Modèle",
     "default_model": "modèle de l'agent",
+    "runtime": "Runtime",
+    "default_runtime": "Par défaut (liaison de l'agent)",
+    "cost": "Coût",
+    "duration": "Durée",
     "run_status": "Exécution",
     "diff_stat": "Diff",
     "diff_truncated": "Diff trop volumineux pour être stocké — stat seulement ; lisez la branche.",
@@ -1366,7 +1371,13 @@
     "cancel": "Annuler",
     "failed": "La demande de course a échoué",
     "error_already_active": "Une course est déjà en cours sur cette issue.",
-    "error_already_settled": "Cette course n'est plus en cours."
+    "error_already_settled": "Cette course n'est plus en cours.",
+    "ask_judge": "Demander au juge",
+    "judging": "Jugement en cours…",
+    "recommended": "Recommandée",
+    "judge_score": "Score du juge",
+    "judge_failed": "Le juge n'a pas pu donner de verdict — comparez les tentatives vous-même.",
+    "error_not_judgeable": "Le juge a besoin d'au moins 2 tentatives terminées."
   },
   "campaign": {
     "section": "Campagne de refactorisation",

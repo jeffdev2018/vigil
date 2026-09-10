@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, errorCode } from "../api";
-import type { RunGroup, RunGroupAttempt, StartRunGroupInput } from "../api/schemas";
+import type { RunGroup, RunGroupAttempt, RunGroupJudgement, RunGroupJudgementScore, StartRunGroupInput } from "../api/schemas";
+import { runCostUsd } from "../runs/fleet-schemas";
 import { issueKeys } from "./queries";
 
 // Racing attempts (F11 / JEF-6): N independent runs of one issue, the human
@@ -8,7 +9,7 @@ import { issueKeys } from "./queries";
 // server-side and the daemon then drops their branches, so what the list shows
 // after the call is only ever what the server answered.
 
-export type { RunGroup, RunGroupAttempt, StartRunGroupInput };
+export type { RunGroup, RunGroupAttempt, RunGroupJudgement, RunGroupJudgementScore, StartRunGroupInput };
 
 /** Server bounds, mirrored from server/internal/handler/run_group.go. */
 export const MIN_RUN_GROUP_ATTEMPTS = 2;
@@ -44,6 +45,17 @@ export function isRunGroupRunning(group: RunGroup): boolean {
  */
 export function canStartRunGroup(groups: readonly RunGroup[]): boolean {
   return !groups.some(isRunGroupRunning);
+}
+
+/**
+ * The judge (JEF-234) compares what actually finished, so the button mirrors
+ * the server's rule (409 run_group_not_judgeable): at least two completed
+ * attempts, on a race not yet settled. Judging an abandoned race is allowed —
+ * the verdict is still useful for the record even though nothing can be kept.
+ */
+export function canJudgeRunGroup(group: RunGroup): boolean {
+  if (group.status === "settled") return false;
+  return group.attempts.filter((a) => a.status === "completed").length >= MIN_RUN_GROUP_ATTEMPTS;
 }
 
 export interface DiffStat {
@@ -82,6 +94,35 @@ export function diffStatLabel(value: unknown): string | null {
   return `${stat.files} · +${stat.insertions} −${stat.deletions}`;
 }
 
+/**
+ * The attempt's cost (JEF-234) as a display string, or null when the server
+ * has not reported one — 0 ticks means "unreported", not "free", so the UI
+ * must not render it as $0.00. Cents under $100, whole dollars above (the
+ * same rule the runtimes usage views use), and two significant digits under a
+ * cent so a genuinely cheap attempt doesn't round to $0.00.
+ */
+export function formatUsdTicks(costUsdTicks: number): string | null {
+  if (!Number.isFinite(costUsdTicks) || costUsdTicks <= 0) return null;
+  const usd = runCostUsd(costUsdTicks);
+  if (usd >= 100) return `$${usd.toFixed(0)}`;
+  if (usd >= 0.01) return `$${usd.toFixed(2)}`;
+  return `$${usd.toPrecision(2)}`;
+}
+
+/**
+ * The attempt's duration as `m:ss`, or `h:mm` past an hour. 0 seconds is what
+ * the server sends while the attempt is still running, so null tells the UI
+ * to show a dash instead of a fake 0:00.
+ */
+export function formatAttemptDuration(seconds: number): string | null {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}`;
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export type DiffLineKind = "added" | "removed" | "hunk" | "meta" | "context";
 
 export interface DiffLine {
@@ -108,11 +149,13 @@ export function diffUnifiedLines(diff: string): DiffLine[] {
   });
 }
 
-export type RunGroupErrorKind = "already_active" | "already_settled" | "generic";
+export type RunGroupErrorKind = "already_active" | "already_settled" | "not_judgeable" | "generic";
 
 /**
- * Maps a failed race write onto a sentence the UI owns. The two 409 codes are
- * the ones the human can act on: the list is stale, refetch and look again.
+ * Maps a failed race write onto a sentence the UI owns. The 409 codes are
+ * the ones the human can act on: for the first two the list is stale, refetch
+ * and look again; for the third the race simply has too few finished attempts
+ * for the judge to compare.
  */
 export function runGroupErrorKind(err: unknown): RunGroupErrorKind {
   switch (errorCode(err)) {
@@ -120,6 +163,8 @@ export function runGroupErrorKind(err: unknown): RunGroupErrorKind {
       return "already_active";
     case "run_group_already_settled":
       return "already_settled";
+    case "run_group_not_judgeable":
+      return "not_judgeable";
     default:
       return "generic";
   }
@@ -168,5 +213,17 @@ export function useAbandonRunGroup(wsId: string, issueId: string) {
   return useMutation({
     mutationFn: ({ groupId }: { groupId: string }) => api.abandonRunGroup(groupId),
     onSettled: () => invalidateRace(qc, wsId, issueId),
+  });
+}
+
+/**
+ * Asking the judge never settles the race — it only writes the verdict onto
+ * the group — so unlike settle/abandon it leaves the issue's own runs alone.
+ */
+export function useJudgeRunGroup(wsId: string, issueId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId }: { groupId: string }) => api.judgeRunGroup(groupId),
+    onSettled: () => qc.invalidateQueries({ queryKey: runGroupKeys.issue(wsId, issueId) }),
   });
 }
