@@ -1417,3 +1417,56 @@ func TestNativeAgentStreamsFinalText(t *testing.T) {
 		t.Fatalf("streamed usage = (%d, %d), want the reported (50, 10)", input, output)
 	}
 }
+
+// N05 — model per agent. A pinned model rides every turn of the run; without
+// one the request carries no model and the client applies its default. The
+// vendor-key failover needs no wiring here: it hooks FailTask, which native
+// runs settle through, and the retry re-enters the loop with the agent's
+// model again.
+func TestNativeAgentSendsPinnedModel(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+
+	// Pinned model.
+	pinnedID := fx.Agent(t, "Pinned", runtimeID, testutil.Cols{"model": "granite-4.2"})
+	pinnedIssue := fx.Issue(t, "Pinned model run")
+	fx.Task(t, pinnedID, testutil.Cols{"issue_id": pinnedIssue, "runtime_id": runtimeID})
+	pinnedLLM := &scriptedNativeLLM{turns: []openai.ChatCompletion{nativeTextTurn("ok")}}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, pinnedLLM, events.New())
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(pinnedID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+	if got := pinnedLLM.first.Model; got != "granite-4.2" {
+		t.Fatalf("pinned request model = %q, want granite-4.2", got)
+	}
+
+	// No model: the request carries none — the client owns the default.
+	plainID := fx.Agent(t, "Plain", runtimeID)
+	plainIssue := fx.Issue(t, "Plain model run")
+	fx.Task(t, plainID, testutil.Cols{"issue_id": plainIssue, "runtime_id": runtimeID})
+	plainLLM := &scriptedNativeLLM{turns: []openai.ChatCompletion{nativeTextTurn("ok")}}
+	svc2 := NewNativeAgentService(db.New(pool), tasks, issues, plainLLM, events.New())
+	claimed2, err := tasks.claimTask(ctx, util.MustParseUUID(plainID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed2 == nil {
+		t.Fatalf("claim: %v (%v)", claimed2, err)
+	}
+	svc2.runTask(ctx, *claimed2)
+	if got := plainLLM.first.Model; got != "" {
+		t.Fatalf("plain request model = %q, want empty (client default)", got)
+	}
+}
