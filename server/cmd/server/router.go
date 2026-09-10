@@ -1725,6 +1725,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/runtimes/{runtimeId}/local-skills/import/{requestId}/result", h.ReportLocalSkillImportResult)
 		// F09: the daemon reports whether it could put the branch back.
 		r.Post("/runtimes/{runtimeId}/worktree-revert/{requestId}/result", h.ReportWorktreeRevertResult)
+		// JEF-255: the daemon reports whether it pushed (promote) or deleted
+		// (discard) the run's branch.
+		r.Post("/runtimes/{runtimeId}/branch-action/{requestId}/result", h.ReportBranchActionResult)
 
 		r.Get("/tasks/{taskId}/status", h.GetTaskStatus)
 		r.Post("/tasks/{taskId}/paused", h.AckTaskPaused)
@@ -2251,6 +2254,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// given run delivered.
 					r.Post("/runs/{taskId}/revert", h.RequestIssueRunRevert)
 					r.Get("/runs/{taskId}/revert/{requestId}", h.GetWorktreeRevertRequest)
+					// JEF-255: promote (push + PR) or discard (delete) the
+					// branch a terminal run delivered. Human-only: an agent
+					// must not push or delete its own deliverable.
+					r.With(handler.RequireHumanActor).Post("/runs/{taskId}/promote", h.PromoteIssueRun)
+					r.With(handler.RequireHumanActor).Post("/runs/{taskId}/discard", h.DiscardIssueRun)
 					r.Get("/usage", h.GetIssueUsage)
 					r.Get("/delivery", h.GetIssueDelivery)
 					r.Put("/delivery/criteria", h.UpdateIssueDeliveryCriteria)
@@ -2496,6 +2504,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
+			// JEF-255: the diff a terminal run delivered on its branch, served
+			// lazily from the task row's own columns.
+			r.Get("/api/tasks/{taskId}/diff", h.GetTaskDiff)
 			// Living run plan (F04). Deliberately NOT RequireHumanActor: this
 			// is the one write on a member route that only an agent may make,
 			// and the handler gates it on the run's own task token.

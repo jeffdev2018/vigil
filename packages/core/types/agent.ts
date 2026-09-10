@@ -637,6 +637,20 @@ export interface AgentTask {
    */
   revertable?: boolean;
   /**
+   * Worktree branch lifecycle (JEF-255): where this run's branch stands after
+   * the run ended. `promoted_at` marks a branch the user chose to push and
+   * open a pull request from (`promote_pr_url` is that PR's URL, "" when the
+   * daemon could not report one); `discarded_at` marks a branch+worktree the
+   * user chose to delete. `pending_branch_action` is the promote/discard the
+   * daemon is executing right now — while set, no new branch action is
+   * accepted (409 run_branch_action_pending). All absent on servers that
+   * predate the feature, which reads as "no action taken, none in flight".
+   */
+  promoted_at?: string | null;
+  discarded_at?: string | null;
+  promote_pr_url?: string;
+  pending_branch_action?: "" | "promote" | "discard";
+  /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
    * user-facing task surfaces; older backends omit it — render conditionally.

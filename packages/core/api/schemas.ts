@@ -2871,6 +2871,17 @@ export const AgentTaskSchema = z.object({
   checkpoint_sha: z.string().optional().catch(undefined),
   turn_seq: z.number().optional().catch(undefined),
   revertable: z.boolean().optional().catch(undefined),
+  // Worktree branch lifecycle (JEF-255): where this run's branch stands after
+  // the run ended. `promoted_at` / `discarded_at` are the terminal markers,
+  // `promote_pr_url` the pull request a promote opened ("" when none), and
+  // `pending_branch_action` the promote/discard the daemon is executing right
+  // now ("" when idle). Same independent-degradation rule as `revertable`:
+  // absent on servers that predate the feature, which reads as "no action
+  // taken, none in flight" — exactly what those servers describe.
+  promoted_at: z.string().nullable().catch(null).default(null),
+  discarded_at: z.string().nullable().catch(null).default(null),
+  promote_pr_url: z.string().catch("").default(""),
+  pending_branch_action: z.enum(["", "promote", "discard"]).catch("").default(""),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -2885,6 +2896,32 @@ export const WorktreeRevertRequestSchema = z.object({
 }).loose();
 
 export type WorktreeRevertRequestResponse = z.infer<typeof WorktreeRevertRequestSchema>;
+
+// Worktree run branch lifecycle (JEF-255). What GET /api/tasks/:id/diff
+// returns: the stat and unified patch recorded when the run ended. Both are
+// null when nothing was recorded; diff_truncated tells "the patch was too
+// large to store" apart from "the run changed nothing", the same split the
+// race attempts use. diff_stat stays `unknown` and goes through
+// parseDiffStat — the daemon writes it as a JSONB blob no schema pins yet.
+export const RunDiffSchema = z.object({
+  diff_stat: z.unknown().nullable().catch(null).default(null),
+  diff_unified: z.string().nullable().catch(null).default(null),
+  diff_truncated: z.boolean().catch(false).default(false),
+}).loose();
+
+export type RunDiff = z.infer<typeof RunDiffSchema>;
+
+// What POST …/runs/:taskId/promote and …/discard return: an acknowledgement,
+// not a result — the branch lives on the user's machine, so the daemon does
+// the work and the task row's promoted_at / discarded_at / pending_branch_action
+// fields carry the outcome. `status` is a server-driven enum kept as a plain
+// string for the same reason as WorktreeRevertRequestSchema's.
+export const RunBranchActionResponseSchema = z.object({
+  request_id: z.string().default(""),
+  status: z.string().default("pending"),
+}).loose();
+
+export type RunBranchActionResponse = z.infer<typeof RunBranchActionResponseSchema>;
 
 // Task cancellation (`POST /api/tasks/:id/cancel`) is consumed directly by
 // chat recovery. Its optional message payload must be well-formed before the

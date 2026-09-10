@@ -211,6 +211,7 @@ func daemonCommonCapabilities() []string {
 		protocol.DaemonCapabilityRPCV1,
 		protocol.DaemonCapabilityPlatformSkillV1,
 		protocol.DaemonCapabilityWorktreeRevertV1,
+		protocol.DaemonCapabilityBranchActionV1,
 		protocol.DaemonCapabilityRunPreviewV1,
 		protocol.DaemonCapabilityMemoryEvaluationV1,
 	}
@@ -726,6 +727,7 @@ type (
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 	PendingWorktreeRevert   = protocol.DaemonHeartbeatPendingWorktreeRevert
+	PendingBranchAction     = protocol.DaemonHeartbeatPendingBranchAction
 )
 
 // SendHeartbeat beats for one runtime. `skipped` is the machine's
@@ -792,6 +794,12 @@ func (c *Client) ReportLocalSkillListResult(ctx context.Context, runtimeID, requ
 // ReportWorktreeRevertResult tells the server whether the branch went back.
 func (c *Client) ReportWorktreeRevertResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/worktree-revert/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportBranchActionResult tells the server whether the run branch was pushed
+// (promote) or deleted (discard).
+func (c *Client) ReportBranchActionResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/branch-action/%s/result", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillImportResult sends a runtime-local-skill bundle back to the server.

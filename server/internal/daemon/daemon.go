@@ -4428,6 +4428,14 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			go d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert)
 		}
 	}
+	if resp.PendingBranchAction != nil {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			// WithoutCancel, same reason as the revert above: a push or a
+			// branch deletion that already happened must still be reported,
+			// or the server leaves the request claimed until the sweeper.
+			go d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction)
+		}
+	}
 }
 
 // handleWorktreeRevert puts a conversation branch back to an earlier turn and
@@ -4458,6 +4466,52 @@ func (d *Daemon) handleWorktreeRevert(ctx context.Context, rt Runtime, pending P
 func (d *Daemon) reportWorktreeRevertResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
 	d.reportRuntimeResultWithRetry(ctx, "worktree_revert", rt.ID, requestID, func(ctx context.Context) error {
 		return d.client.ReportWorktreeRevertResult(ctx, rt.ID, requestID, payload)
+	})
+}
+
+// handleBranchAction promotes (push to origin) or discards (delete branch and
+// worktree) the branch a terminal run delivered, and reports the outcome
+// (JEF-255).
+//
+// A refusal is reported as failed with its cause verbatim: "no_remote" and
+// "branch checked out in your working tree" are the answers the user needs,
+// and turning them into a generic error would leave them re-clicking a button
+// that can never work.
+func (d *Daemon) handleBranchAction(ctx context.Context, rt Runtime, pending PendingBranchAction) {
+	params := execenv.BranchActionParams{LocalPath: pending.LocalPath, Branch: pending.Branch}
+	var (
+		outcome execenv.BranchActionOutcome
+		err     error
+	)
+	switch pending.Action {
+	case "promote":
+		outcome, err = execenv.PromoteBranch(params, d.logger)
+	case "discard":
+		outcome, err = execenv.DiscardBranch(params, d.logger)
+	default:
+		err = fmt.Errorf("unknown branch action %q", pending.Action)
+	}
+	if err != nil {
+		d.logger.Warn("run branch action did not complete",
+			"runtime_id", rt.ID, "request_id", pending.ID, "action", pending.Action,
+			"branch", pending.Branch, "error", err)
+		d.reportBranchActionResult(ctx, rt, pending.ID, map[string]any{
+			"status": "failed",
+			"error":  err.Error(),
+		})
+		return
+	}
+	d.reportBranchActionResult(ctx, rt, pending.ID, map[string]any{
+		"status":         "completed",
+		"head_sha":       outcome.HeadSHA,
+		"remote_url":     outcome.RemoteURL,
+		"default_branch": outcome.DefaultBranch,
+	})
+}
+
+func (d *Daemon) reportBranchActionResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
+	d.reportRuntimeResultWithRetry(ctx, "branch_action", rt.ID, requestID, func(ctx context.Context) error {
+		return d.client.ReportBranchActionResult(ctx, rt.ID, requestID, payload)
 	})
 }
 
@@ -8194,20 +8248,19 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			if outcome.CheckpointSHA != "" {
 				taskResult.CheckpointSHA = outcome.CheckpointSHA
 			}
-			// Racing attempts (F11) only. Measured here because Finalize has
-			// just committed the agent's leftovers, so the branch tip is the
-			// whole deliverable — and because the worktree is about to be gone,
-			// leaving the user's repository as the only place the branch lives.
-			// An attempt that changed nothing has no branch and reports a zero
-			// stat, which is a real answer rather than a missing one.
-			if task.RunGroupID != "" {
-				if outcome.Branch == "" {
-					taskResult.Diff = &runDiff{}
-				} else {
-					taskResult.Diff = computeRunDiff(context.WithoutCancel(ctx),
-						env.LocalWorktree.GitRoot, env.LocalWorktree.BaseCommit, outcome.Branch,
-						maxRunDiffBytes, taskLog)
-				}
+			// Every terminal run with a branch (JEF-255; racing attempts only
+			// before it). Measured here because Finalize has just committed the
+			// agent's leftovers, so the branch tip is the whole deliverable —
+			// and because the worktree is about to be gone, leaving the user's
+			// repository as the only place the branch lives. A run that changed
+			// nothing has no branch and reports a zero stat, which is a real
+			// answer rather than a missing one.
+			if outcome.Branch == "" {
+				taskResult.Diff = &runDiff{}
+			} else {
+				taskResult.Diff = computeRunDiff(context.WithoutCancel(ctx),
+					env.LocalWorktree.GitRoot, env.LocalWorktree.BaseCommit, outcome.Branch,
+					maxRunDiffBytes, taskLog)
 			}
 			if finalizeErr == nil {
 				// The configured local_directory becomes authoritative only after

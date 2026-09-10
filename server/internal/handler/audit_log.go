@@ -48,6 +48,14 @@ const (
 	// completion: the entry has to exist even when the daemon later refuses,
 	// because "someone tried to roll this back" is the fact being audited.
 	AuditWorktreeReverted = "worktree.reverted"
+	// AuditRunBranchAction (JEF-255) records who asked for a run's branch to be
+	// promoted or discarded. Written at request time, for the same reason as
+	// AuditWorktreeReverted: "someone asked to push/delete this branch" is the
+	// fact being audited, even when the daemon later refuses.
+	AuditRunBranchAction = "run_branch_action.requested"
+	// AuditRunBranchActionResult records the landed outcome of a completed
+	// request (and the PR a promote opened, when it did).
+	AuditRunBranchActionResult = "run_branch_action.completed"
 )
 
 type auditOpts struct {

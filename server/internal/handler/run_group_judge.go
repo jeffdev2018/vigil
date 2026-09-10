@@ -141,7 +141,7 @@ func buildRunGroupJudgePrompt(issue db.Issue, attempts []db.AgentTaskQueue, metr
 			fmt.Fprintf(&b, "diff_unified:\n%s\n", diff)
 		} else if len(task.DiffStat) > 0 {
 			// A stat without a patch is the recorded "too large to store" case
-			// (see recordRunGroupTaskDiff): the judge must know a diff exists
+			// (see recordTaskDiff): the judge must know a diff exists
 			// even though it cannot read it.
 			b.WriteString("diff_unified: produced but too large to store\n")
 		} else {

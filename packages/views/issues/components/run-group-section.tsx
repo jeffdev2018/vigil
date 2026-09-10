@@ -10,7 +10,6 @@ import {
   canJudgeRunGroup,
   canStartRunGroup,
   diffStatLabel,
-  diffUnifiedLines,
   formatAttemptDuration,
   formatUsdTicks,
   runGroupErrorKind,
@@ -36,6 +35,7 @@ import {
 import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
+import { UnifiedDiff } from "../../common/unified-diff";
 import { TaskStatusIcon } from "./task-status-icon";
 import { useStatusLabel } from "./task-run-labels";
 import { RunGroupStartDialog } from "./run-group-start-dialog";
@@ -354,33 +354,18 @@ function AttemptColumn({
 }
 
 /**
- * The attempt's patch. `diff_truncated` is the case where the run did change
- * things and the patch was too large to store — saying "no changes" there
- * would be a lie, so it gets its own sentence.
+ * The attempt's patch, through the shared viewer — the empty and too-large
+ * sentences come from this section's own namespace.
  */
 function AttemptDiff({ attempt }: { attempt: RunGroupAttempt }) {
   const { t } = useT("issues");
-  if (attempt.diff_truncated) {
-    return <p data-testid="run-group-diff-truncated" className="text-muted-foreground">{t(($) => $.race.diff_truncated)}</p>;
-  }
-  if (!attempt.diff_unified) {
-    return <p className="text-muted-foreground">{t(($) => $.race.diff_none)}</p>;
-  }
   return (
-    <pre data-testid="run-group-diff" className="max-h-64 overflow-auto rounded bg-muted/40 p-2 font-mono text-caption">
-      {diffUnifiedLines(attempt.diff_unified).map((line, i) => (
-        <div
-          key={i}
-          className={cn(
-            "whitespace-pre",
-            line.kind === "added" && "bg-success/15",
-            line.kind === "removed" && "bg-destructive/15",
-            (line.kind === "hunk" || line.kind === "meta") && "text-muted-foreground",
-          )}
-        >
-          {line.text || " "}
-        </div>
-      ))}
-    </pre>
+    <UnifiedDiff
+      diff={attempt.diff_unified}
+      truncated={attempt.diff_truncated}
+      emptyLabel={t(($) => $.race.diff_none)}
+      truncatedLabel={t(($) => $.race.diff_truncated)}
+      testid="run-group-diff"
+    />
   );
 }

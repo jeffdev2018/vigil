@@ -1309,6 +1309,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if ack.PendingWorktreeRevert != nil {
 		resp["pending_worktree_revert"] = ack.PendingWorktreeRevert
 	}
+	if ack.PendingBranchAction != nil {
+		resp["pending_branch_action"] = ack.PendingBranchAction
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -1654,6 +1657,16 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 			slog.Warn("worktree revert HasPending failed", "error", err, "runtime_id", runtimeID)
 		} else if hasRevert {
 			ack.PendingWorktreeRevert = h.claimWorktreeRevertForHeartbeat(ctx, runtimeUUID)
+		}
+	}
+
+	// Run branch actions (JEF-255). Same probe-then-claim shape as the revert
+	// queue above, on its own normally-empty partial index.
+	if runtimeUUID, err := util.ParseUUID(runtimeID); err == nil {
+		if hasAction, err := h.Queries.HasPendingRunBranchAction(ctx, runtimeUUID); err != nil {
+			slog.Warn("run branch action HasPending failed", "error", err, "runtime_id", runtimeID)
+		} else if hasAction {
+			ack.PendingBranchAction = h.claimBranchActionForHeartbeat(ctx, runtimeUUID)
 		}
 	}
 
@@ -4349,12 +4362,13 @@ type TaskCompleteRequest struct {
 	// commit refs/multica/turn/<taskKey> points at in the user's repository.
 	// Recording it is what makes the run revertible.
 	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
-	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered.
-	// Only a task the claim marked as an attempt sends them, and only the stat
-	// is guaranteed: an over-the-bound patch is deliberately withheld, which is
-	// what the compare view renders as truncated. Both are stripped from the
-	// stored task result before it is marshalled, so the patch is persisted
-	// once, in its own column.
+	// DiffStat / DiffUnified describe what the run delivered on its branch.
+	// Every terminal worktree run with a branch sends them (JEF-255 widened
+	// this from racing attempts only, F11), and only the stat is guaranteed:
+	// an over-the-bound patch is deliberately withheld, which is what the UI
+	// renders as truncated. Both are stripped from the stored task result
+	// before it is marshalled, so the patch is persisted once, in its own
+	// column.
 	DiffStat    *protocol.TaskDiffStat `json:"diff_stat,omitempty"`
 	DiffUnified string                 `json:"diff_unified,omitempty"`
 }
@@ -4475,9 +4489,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
-	// Racing (F11): the attempt's diff is what the compare view puts in its
-	// column. Ignored for a task outside a group.
-	h.recordRunGroupTaskDiff(r.Context(), *task, diffStat, diffUnified)
+	// JEF-255: every terminal run with a branch reports its diff; the compare
+	// view reads it for attempts, the run-diff endpoint for any run.
+	h.recordTaskDiff(r.Context(), *task, diffStat, diffUnified)
 	h.emitIssueExecutedOnFirstCompletion(r, task)
 	// Handoff packet (K17): every completed run leaves one.
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
@@ -5168,10 +5182,10 @@ type TaskFailRequest struct {
 	// commit refs/multica/turn/<taskKey> points at in the user's repository.
 	// Recording it is what makes the run revertible.
 	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
-	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered
+	// DiffStat / DiffUnified describe what the run delivered on its branch
 	// before failing. Worktree mode commits the agent's leftovers before
-	// tearing the worktree down, so a losing attempt routinely still has a
-	// branch and a diff — same fields, same truncation contract as
+	// tearing the worktree down, so a failed run routinely still has a branch
+	// and a diff — same fields, same truncation contract as
 	// TaskCompleteRequest.
 	DiffStat    *protocol.TaskDiffStat `json:"diff_stat,omitempty"`
 	DiffUnified string                 `json:"diff_unified,omitempty"`
@@ -5224,10 +5238,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		return
 	}
 	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
-	// Racing (F11): a losing attempt's diff lands here too, so the compare
-	// view can show what it produced before it failed. Ignored for a task
-	// outside a group.
-	h.recordRunGroupTaskDiff(r.Context(), *task, req.DiffStat, req.DiffUnified)
+	// JEF-255: a failed run's diff lands here too, so the UI can show what it
+	// produced before it failed.
+	h.recordTaskDiff(r.Context(), *task, req.DiffStat, req.DiffUnified)
 	h.TaskService.NotifyTaskFinished(*task)
 	// The settlement every terminal run gets (JEF-275): barriers, held writes,
 	// sealed replay. Shared with the complete path and with cancellation.
@@ -5836,6 +5849,14 @@ func (h *Handler) ListTasksByIssue(w http.ResponseWriter, r *http.Request) {
 	// an in-flight run is precisely the one whose checklist a reader wants, and
 	// it is one query for the whole list either way.
 	h.hydrateTaskPlans(r.Context(), resp)
+
+	// JEF-255: the promote/discard spinner each terminal run may be showing.
+	// One batched read for the issue, then a map join — never one query per run.
+	if pending := h.pendingBranchActionByTask(r.Context(), issue.ID); len(pending) > 0 {
+		for i := range resp {
+			resp[i].PendingBranchAction = pending[resp[i].ID]
+		}
+	}
 
 	writeJSON(w, http.StatusOK, resp)
 }

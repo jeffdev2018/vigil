@@ -490,6 +490,7 @@ var concurrentIndexCleanups = map[string]string{
 	"903_workspace_note_embedding_ws_index":                     "idx_workspace_note_embedding_ws",
 	"904_workspace_note_embedding_index":                        "idx_workspace_note_embedding",
 	"905_attachment_note_index":                                 "idx_attachment_note",
+	"909_run_branch_action_request_pending":                     "idx_run_branch_action_request_pending",
 	"895_agent_task_pending_thread_unique":                      "idx_one_pending_task_per_issue_agent_thread",
 }
 

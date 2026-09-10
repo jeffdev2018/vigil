@@ -431,6 +431,12 @@ type AgentTaskQueue struct {
 	MemoryContext   []byte      `json:"memory_context"`
 	CommentThreadID pgtype.UUID `json:"comment_thread_id"`
 	RuntimePinned   bool        `json:"runtime_pinned"`
+	// JEF-255: when the run's branch was pushed to origin at the user's request. NULL until a promote completes.
+	PromotedAt pgtype.Timestamptz `json:"promoted_at"`
+	// JEF-255: the pull request opened for the promoted branch. Empty when the workspace has no VCS provider for the remote (the push alone satisfies promote).
+	PromotePrUrl string `json:"promote_pr_url"`
+	// JEF-255: when the run's branch and worktree were deleted at the user's request. NULL until a discard completes.
+	DiscardedAt pgtype.Timestamptz `json:"discarded_at"`
 }
 
 type AgentToLabel struct {
@@ -2626,6 +2632,25 @@ type ReviewFlag struct {
 	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// JEF-255: one user request to promote (push + PR) or discard (delete branch and worktree) the branch a terminal run delivered.
+type RunBranchActionRequest struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	TaskID      pgtype.UUID        `json:"task_id"`
+	RuntimeID   pgtype.UUID        `json:"runtime_id"`
+	Action      string             `json:"action"`
+	Status      string             `json:"status"`
+	BranchName  string             `json:"branch_name"`
+	BaseBranch  string             `json:"base_branch"`
+	PrUrl       string             `json:"pr_url"`
+	Error       string             `json:"error"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
 }
 
 // A set of attempts racing on one issue (F11). Attempts are agent_task_queue rows carrying run_group_id.

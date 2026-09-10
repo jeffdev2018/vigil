@@ -473,6 +473,10 @@ import {
   AgentTaskListSchema,
   WorktreeRevertRequestSchema,
   type WorktreeRevertRequestResponse,
+  RunDiffSchema,
+  type RunDiff,
+  RunBranchActionResponseSchema,
+  type RunBranchActionResponse,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
   ChatDraftRestoresResponseSchema,
@@ -6258,6 +6262,62 @@ export class ApiClient {
       WorktreeRevertRequestSchema,
       { request_id: requestId, status: "failed" },
       { endpoint: "GET /api/issues/:id/runs/:taskId/revert/:requestId" },
+    );
+  }
+
+  /**
+   * The patch a worktree run recorded when it ended (JEF-255). Lazy-loaded by
+   * the UI: the task list carries only the branch name, the diff is its own
+   * endpoint. 404 run_diff_not_found when the run recorded nothing — the
+   * caller renders that as "no diff recorded", not as an error.
+   */
+  async getRunDiff(taskId: string): Promise<RunDiff> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/diff`);
+    return parseWithFallback<RunDiff>(
+      raw,
+      RunDiffSchema,
+      { diff_stat: null, diff_unified: null, diff_truncated: false },
+      { endpoint: "GET /api/tasks/:id/diff" },
+    );
+  }
+
+  /**
+   * Promote a worktree run's branch (JEF-255): push it and open a pull
+   * request. Like the revert, this is a request the daemon executes
+   * asynchronously — the answer is an acknowledgement, and the outcome lands
+   * on the task row (`promoted_at`, `promote_pr_url`). 409 run_not_promotable
+   * when the run has no branch or already has an end state, 409
+   * run_branch_action_pending while another branch action is in flight.
+   */
+  async promoteRun(issueId: string, taskId: string): Promise<RunBranchActionResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/runs/${encodeURIComponent(taskId)}/promote`,
+      { method: "POST" },
+    );
+    return parseWithFallback<RunBranchActionResponse>(
+      raw,
+      RunBranchActionResponseSchema,
+      { request_id: "", status: "pending" },
+      { endpoint: "POST /api/issues/:id/runs/:taskId/promote" },
+    );
+  }
+
+  /**
+   * Discard a worktree run's branch (JEF-255): delete the branch and its
+   * worktree daemon-side. Same async acknowledgement shape as promote; the
+   * outcome lands on the task row (`discarded_at`). 409 run_not_discardable /
+   * run_branch_action_pending mirror promote's two conflicts.
+   */
+  async discardRun(issueId: string, taskId: string): Promise<RunBranchActionResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/runs/${encodeURIComponent(taskId)}/discard`,
+      { method: "POST" },
+    );
+    return parseWithFallback<RunBranchActionResponse>(
+      raw,
+      RunBranchActionResponseSchema,
+      { request_id: "", status: "pending" },
+      { endpoint: "POST /api/issues/:id/runs/:taskId/discard" },
     );
   }
 
