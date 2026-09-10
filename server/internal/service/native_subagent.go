@@ -120,7 +120,7 @@ func (s *NativeAgentService) nativeDelegate(ctx context.Context, tctx *nativeToo
 	subctx, cancel := context.WithTimeout(ctx, nativeSubagentTimeout)
 	defer cancel()
 	sub2 := &nativeToolContext{task: sub, agent: tctx.agent, issue: tctx.issue, workspaceID: tctx.workspaceID, depth: 1, budget: tctx.budget}
-	cx := newNativeContext(nativeSystemPrompt(tctx.agent)+"\n\n"+nativeSubagentSystemAddendum, nativeSubagentBrief(tctx, taskText, contextText))
+	cx := newNativeContext(s.nativeSystemPromptWithDoctrine(ctx, tctx.agent)+"\n\n"+nativeSubagentSystemAddendum, nativeSubagentBrief(tctx, taskText, contextText))
 	var usage nativeRunUsage
 	report, runErr := s.runLoop(subctx, sub2, cx, nativeAgentToolSpecsFor(1), nativeSubagentMaxTurns, &usage)
 	s.recordNativeUsage(ctx, sub.ID, usage)

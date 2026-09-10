@@ -393,12 +393,18 @@ type AgentTaskResponse struct {
 	// credential used only by the local daemon's write-only Remote MCP broker.
 	// It is never injected into the agent process.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`
-	// WorkspaceContext is the workspace-level system prompt set in workspace
-	// settings (`workspace.context` DB column). Injected into the agent brief
-	// as `## Workspace Context` so every agent running in this workspace —
-	// regardless of issue / chat / autopilot / quick-create — sees the same
-	// shared context. Empty when the workspace owner hasn't set it.
+	// WorkspaceContext is the workspace doctrine: the governing document the
+	// workspace's owners write for every agent (`workspace.context` DB
+	// column). Injected into the agent brief as `## Workspace Doctrine` so
+	// every agent running in this workspace — regardless of issue / chat /
+	// autopilot / quick-create — is bound by the same rules. Empty when the
+	// workspace owner hasn't written one.
 	WorkspaceContext string `json:"workspace_context,omitempty"`
+	// WorkspaceDoctrineRevision is the doctrine's revision number
+	// (`workspace.doctrine_revision`). The brief names it so a report an
+	// agent files can be read against the exact text it ran under. Zero for
+	// a workspace whose doctrine predates the revision ledger.
+	WorkspaceDoctrineRevision int32 `json:"workspace_doctrine_revision,omitempty"`
 	// IssueStatuses is the workspace's ACTIVE CUSTOM status catalog (MUL-6460),
 	// injected into the agent brief so agents can see and use statuses beyond
 	// the seven built-ins. Built-ins are omitted: their keys, names, and

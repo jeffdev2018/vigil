@@ -662,6 +662,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// Native calendar (chantier 19): the run's calendar tools go through the
 	// same handlers as the API.
 	h.NativeAgents.Calendar = calendarToolAdapter{h: h}
+	h.NativeAgents.Doctrine = doctrineToolAdapter{h: h}
 	return h
 }
 

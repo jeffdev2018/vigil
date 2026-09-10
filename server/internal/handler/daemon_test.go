@@ -604,10 +604,11 @@ func TestClaimTaskByRuntime_SkillBundleRefsAndResolve(t *testing.T) {
 }
 
 // TestClaimTaskByRuntime_PopulatesWorkspaceContext verifies the claim
-// response carries workspace.context so the daemon can inject the
-// workspace-level system prompt into every agent brief. Regression coverage
-// for MUL-2542: before this fix the field was never plumbed through, so
-// even workspaces that had set a context got an empty brief.
+// response carries workspace.context — the workspace doctrine — and its
+// revision, so the daemon can inject `## Workspace Doctrine (revision N)`
+// into every agent brief. Regression coverage for MUL-2542: before this fix
+// the field was never plumbed through, so even workspaces that had set a
+// context got an empty brief.
 func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 	if testHandler == nil || testPool == nil {
 		t.Skip("database not available")
@@ -615,14 +616,16 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 
 	ctx := context.Background()
 	const wsContext = "All comments must be in English. Prefer concise PR descriptions."
+	const wsRevision = 5
 	var prior string
-	dbfx.QueryRow(t, `SELECT COALESCE(context, '') FROM workspace WHERE id = $1`, testWorkspaceID).Scan(&prior)
-	dbfx.Exec(t, `UPDATE workspace SET context = $1 WHERE id = $2`, wsContext, testWorkspaceID)
+	var priorRevision int32
+	dbfx.QueryRow(t, `SELECT COALESCE(context, ''), doctrine_revision FROM workspace WHERE id = $1`, testWorkspaceID).Scan(&prior, &priorRevision)
+	dbfx.Exec(t, `UPDATE workspace SET context = $1, doctrine_revision = $2 WHERE id = $3`, wsContext, wsRevision, testWorkspaceID)
 	t.Cleanup(func() {
 		if prior == "" {
-			testPool.Exec(ctx, `UPDATE workspace SET context = NULL WHERE id = $1`, testWorkspaceID)
+			testPool.Exec(ctx, `UPDATE workspace SET context = NULL, doctrine_revision = $1 WHERE id = $2`, priorRevision, testWorkspaceID)
 		} else {
-			testPool.Exec(ctx, `UPDATE workspace SET context = $1 WHERE id = $2`, prior, testWorkspaceID)
+			testPool.Exec(ctx, `UPDATE workspace SET context = $1, doctrine_revision = $2 WHERE id = $3`, prior, priorRevision, testWorkspaceID)
 		}
 	})
 
@@ -641,10 +644,11 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 
 	var resp struct {
 		Task *struct {
-			ID               string `json:"id"`
-			WorkspaceContext string `json:"workspace_context"`
-			WorkspaceSlug    string `json:"workspace_slug"`
-			IssueIdentifier  string `json:"issue_identifier"`
+			ID                        string `json:"id"`
+			WorkspaceContext          string `json:"workspace_context"`
+			WorkspaceDoctrineRevision int32  `json:"workspace_doctrine_revision"`
+			WorkspaceSlug             string `json:"workspace_slug"`
+			IssueIdentifier           string `json:"issue_identifier"`
 		} `json:"task"`
 	}
 	w.JSON(&resp)
@@ -656,6 +660,9 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 	}
 	if resp.Task.WorkspaceContext != wsContext {
 		t.Errorf("workspace_context = %q, want %q", resp.Task.WorkspaceContext, wsContext)
+	}
+	if resp.Task.WorkspaceDoctrineRevision != wsRevision {
+		t.Errorf("workspace_doctrine_revision = %d, want %d", resp.Task.WorkspaceDoctrineRevision, wsRevision)
 	}
 	if resp.Task.WorkspaceSlug != workspaceSlug {
 		t.Errorf("workspace_slug = %q, want %q", resp.Task.WorkspaceSlug, workspaceSlug)

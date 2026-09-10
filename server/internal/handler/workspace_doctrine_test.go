@@ -228,7 +228,9 @@ func TestDoctrineReportsReachTheManagersAndAreResolved(t *testing.T) {
 	publishDoctrineAs(t, testUserID, map[string]any{"content": "Never contact customers directly.", "expected_revision": 0})
 	admin := doctrineAdmin(t)
 	issue, task, agent := runningAgentRun(t, "doctrine report")
-	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue) })
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+	})
 	var out struct {
 		Report DoctrineReportResponse `json:"report"`
 	}

@@ -3594,12 +3594,12 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount, failure
 	}
 
-	// Workspace-level Context (workspace.context DB column) — the per-workspace
-	// system prompt that workspace owners set in Settings → General. Inject it
-	// into the brief regardless of task kind (issue / chat / autopilot /
-	// quick-create) so every agent running in the workspace sees the same
-	// shared context. Empty string when the owner hasn't set one; the daemon
-	// skips rendering the heading in that case.
+	// The workspace doctrine (workspace.context DB column, revision in
+	// workspace.doctrine_revision) — the governing document workspace owners
+	// write for every agent. Inject it regardless of task kind (issue / chat
+	// / autopilot / quick-create) so every agent running in the workspace is
+	// bound by the same rules. Empty string when the owner hasn't written one;
+	// the daemon skips rendering the heading in that case.
 	if ws, err := h.Queries.GetWorkspace(r.Context(), parseUUID(resp.WorkspaceID)); err == nil {
 		resp.WorkspaceSlug = ws.Slug
 		if issueNumber > 0 {
@@ -3608,6 +3608,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		if ws.Context.Valid {
 			resp.WorkspaceContext = ws.Context.String
 		}
+		resp.WorkspaceDoctrineRevision = ws.DoctrineRevision
 		// Shared repo index hints (K47) ride this same assembly point: it is the
 		// one place where BOTH the workspace settings (the per-repo opt-in) and
 		// resp.Repos (already narrowed to the task's project repos by

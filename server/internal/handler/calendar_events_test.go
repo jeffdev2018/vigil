@@ -361,3 +361,27 @@ func TestGoogleImportAndExportThroughTheProvider(t *testing.T) {
 	fake.connected = false
 	testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import", map[string]any{})).Want(http.StatusConflict)
 }
+
+// The native runtime's propose_event tool replays CreateCalendarEvent as the
+// agent. The handler gates on workspace membership before resolving the
+// actor, so the replay must authenticate as the workspace owner; sending the
+// agent id as the user 404ed every native proposal.
+func TestCalendarToolAdapterProposesAsTheAgent(t *testing.T) {
+	calendarCleanup(t)
+	issue, _, agent := runningAgentRun(t, "calendar adapter")
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+	})
+	start := time.Now().UTC().Add(48 * time.Hour).Truncate(time.Hour)
+	out, err := calendarToolAdapter{h: testHandler}.Propose(context.Background(), parseUUID(testWorkspaceID), parseUUID(agent), parseUUID(issue), map[string]any{
+		"title": "Native proposal", "starts_at": start.Format(time.RFC3339), "ends_at": start.Add(time.Hour).Format(time.RFC3339),
+	})
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	event, _ := out.(map[string]any)["event"].(map[string]any)
+	if event["status"] != CalendarStatusProposed || event["decision_id"] == nil {
+		t.Fatalf("proposal = %+v", out)
+	}
+}
