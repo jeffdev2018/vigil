@@ -599,7 +599,10 @@
       "bar_authors_more_other": "{{names}} et {{count}} autres",
       "resolve_failed": "Échec de la résolution du fil",
       "unresolve_failed": "Échec de la réouverture du fil"
-    }
+    },
+    "add_reaction": "Ajouter une réaction",
+    "collapse_thread": "Replier le fil",
+    "expand_thread": "Déplier le fil"
   },
   "reply": {
     "placeholder": "Laisser une réponse..."
@@ -1841,5 +1844,27 @@
     "run_halt_unknown_actor": "un propriétaire",
     "run_halt_lift": "Lever l'arrêt",
     "run_halt_lift_failed": "Impossible de lever l'arrêt"
+  },
+  "inline_run": {
+    "label": "Run de {{name}}",
+    "stop": "Arrêter",
+    "stopping": "Arrêt en cours...",
+    "queued": "En attente d'un agent disponible.",
+    "starting": "Préparation de la session de l'agent.",
+    "waiting_directory": "En attente qu'un autre run libère le répertoire de travail.",
+    "thinking": "Réflexion",
+    "waiting_response": "En attente de la réponse de l'agent.",
+    "view_activity": "Voir l'activité",
+    "steps_one": "{{count}} étape",
+    "steps_other": "{{count}} étapes",
+    "loading": "Chargement de l'activité...",
+    "load_failed": "Impossible de charger l'activité.",
+    "try_again": "Réessayer",
+    "empty": "Aucune activité enregistrée pour l'instant.",
+    "show_earlier": "Afficher les {{count}} étapes précédentes",
+    "full_log": "Ouvrir le journal complet",
+    "message": "Message de l'agent",
+    "error": "Erreur",
+    "waiting_result": "En attente du résultat de l'outil..."
   }
 }

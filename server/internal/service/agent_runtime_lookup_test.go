@@ -116,8 +116,8 @@ func TestRuntimeLookupGetManyNilMetricsIsSafe(t *testing.T) {
 func TestRuntimeLookupGetManySuccessClassifiesEachID(t *testing.T) {
 	t.Parallel()
 
-	found := mustUUID(t, "11111111-1111-1111-1111-111111111111")
-	missing := mustUUID(t, "22222222-2222-2222-2222-222222222222")
+	found := mustTestUUID(t, "11111111-1111-1111-1111-111111111111")
+	missing := mustTestUUID(t, "22222222-2222-2222-2222-222222222222")
 
 	m := obsmetrics.NewBusinessMetrics()
 	lookup := RuntimeLookup{
@@ -192,7 +192,9 @@ type errRow struct{ err error }
 
 func (r errRow) Scan(...any) error { return r.err }
 
-func mustUUID(t *testing.T, s string) pgtype.UUID {
+// Named apart from run_limit.go's package-level mustUUID(string): same intent,
+// different signature, and Go has no overloading.
+func mustTestUUID(t *testing.T, s string) pgtype.UUID {
 	t.Helper()
 	u, err := util.ParseUUID(s)
 	if err != nil {

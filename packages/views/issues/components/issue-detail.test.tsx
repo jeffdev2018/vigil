@@ -124,6 +124,10 @@ vi.mock("../../navigation", () => ({
     getShareableUrl: (p: string) => `https://app.multica.com${p}`,
   }),
   useBackOrReplace: () => vi.fn(),
+  // The inline run block opens AgentTranscriptDialog, which asks for
+  // navigation optionally so a remediation button is offered only where
+  // routing exists. Returning null is the "no router here" branch.
+  useOptionalNavigation: () => null,
   NavigationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
