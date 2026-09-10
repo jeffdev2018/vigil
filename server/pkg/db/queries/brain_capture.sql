@@ -112,3 +112,6 @@ LIMIT $1;
 
 -- name: GetWorkspaceNoteByID :one
 SELECT * FROM workspace_note WHERE id = $1;
+
+-- name: DeleteBrainCapture :execrows
+DELETE FROM brain_capture WHERE id = $1 AND workspace_id = $2;

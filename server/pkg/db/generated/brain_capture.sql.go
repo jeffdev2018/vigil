@@ -116,6 +116,23 @@ func (q *Queries) CreateBrainCapture(ctx context.Context, arg CreateBrainCapture
 	return i, err
 }
 
+const deleteBrainCapture = `-- name: DeleteBrainCapture :execrows
+DELETE FROM brain_capture WHERE id = $1 AND workspace_id = $2
+`
+
+type DeleteBrainCaptureParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteBrainCapture(ctx context.Context, arg DeleteBrainCaptureParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBrainCapture, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteWorkspaceNoteEmbedding = `-- name: DeleteWorkspaceNoteEmbedding :exec
 DELETE FROM workspace_note_embedding WHERE note_id = $1
 `

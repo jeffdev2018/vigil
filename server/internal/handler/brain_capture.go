@@ -883,3 +883,36 @@ func (h *Handler) BackfillBrainEmbeddings(ctx context.Context) int {
 	}
 	return n
 }
+
+// DELETE /api/brain/captures/{id} — the capture is gone for good, with its
+// file unless a note already holds it. The note, when there is one, stays.
+func (h *Handler) DeleteBrainCapture(w http.ResponseWriter, r *http.Request) {
+	wsUUID, userUUID, ok := h.loadBrainWorkspace(w, r)
+	if !ok {
+		return
+	}
+	c, ok := h.loadBrainCapture(w, r, wsUUID)
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.DeleteBrainCapture(r.Context(), db.DeleteBrainCaptureParams{ID: c.ID, WorkspaceID: wsUUID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete the capture")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "capture not found")
+		return
+	}
+	if c.AttachmentID.Valid {
+		if att, err := h.Queries.GetAttachment(r.Context(), db.GetAttachmentParams{ID: c.AttachmentID, WorkspaceID: wsUUID}); err == nil && !att.NoteID.Valid {
+			if _, err := h.Queries.DeleteAttachment(r.Context(), db.DeleteAttachmentParams{ID: att.ID, WorkspaceID: wsUUID}); err == nil {
+				h.deleteS3Object(r.Context(), att.Url)
+			}
+		}
+	}
+	actorType, actorID, _ := h.noteActor(r, uuidToString(userUUID), uuidToString(wsUUID))
+	h.audit(r.Context(), wsUUID, actorType, uuidToString(actorID), AuditBrainOrganized, "brain_capture", c.ID, map[string]any{"action": "delete"}, nil)
+	h.publish(protocol.EventBrainCaptureChanged, uuidToString(wsUUID), actorType, uuidToString(actorID), map[string]any{"capture_id": uuidToString(c.ID), "status": "deleted", "change": "deleted"})
+	w.WriteHeader(http.StatusNoContent)
+}

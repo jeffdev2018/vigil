@@ -163,6 +163,12 @@ func TestBrainCaptureLifecycle(t *testing.T) {
 		noteRequest(http.MethodGet, "/api/brain/captures?status=nope", workspaceID, nil)).Want(http.StatusBadRequest)
 	// Without a model, a suggestion on demand says so instead of guessing.
 	captureAction(t, workspaceID, todo.ID, "suggest", nil, http.StatusServiceUnavailable)
+
+	// Delete for good: the row is gone, the list no longer shows it.
+	testutil.Call(t, noteWorkspaceHandler(testHandler.DeleteBrainCapture),
+		testutil.WithURLParams(noteRequest(http.MethodDelete, "/api/brain/captures/"+todo.ID, workspaceID, nil), "id", todo.ID)).Want(http.StatusNoContent)
+	testutil.Call(t, noteWorkspaceHandler(testHandler.GetBrainCapture),
+		testutil.WithURLParams(noteRequest(http.MethodGet, "/api/brain/captures/"+todo.ID, workspaceID, nil), "id", todo.ID)).Want(http.StatusNotFound)
 }
 
 func TestBrainCaptureUploadBecomesAttachmentAndNote(t *testing.T) {
@@ -206,6 +212,12 @@ func TestBrainCaptureUploadBecomesAttachmentAndNote(t *testing.T) {
 	}
 	if n := dbfx.Count(t, `SELECT count(*) FROM attachment WHERE id = $1 AND note_id = $2`, out.Capture.Attachment.ID, organized.Note.ID); n != 1 {
 		t.Errorf("attachment is not linked to the note it was filed into")
+	}
+	// Deleting the organized capture keeps the file the note now holds.
+	testutil.Call(t, noteWorkspaceHandler(testHandler.DeleteBrainCapture),
+		testutil.WithURLParams(noteRequest(http.MethodDelete, "/api/brain/captures/"+out.Capture.ID, workspaceID, nil), "id", out.Capture.ID)).Want(http.StatusNoContent)
+	if n := dbfx.Count(t, `SELECT count(*) FROM attachment WHERE id = $1`, out.Capture.Attachment.ID); n != 1 {
+		t.Errorf("attachment held by a note was deleted with the capture")
 	}
 	// No file field → 400, missing storage → 503.
 	testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture),

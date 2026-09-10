@@ -2462,6 +2462,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/suggest", h.SuggestBrainCapture)
 					r.Post("/organize", h.OrganizeBrainCapture)
 					r.Post("/reopen", h.ReopenBrainCapture)
+					r.Delete("/", h.DeleteBrainCapture)
 				})
 			})
 			// Insights (F27): ask a question in plain language, run a saved
