@@ -61,10 +61,14 @@ type nativeToolContext struct {
 	workspaceID pgtype.UUID
 	// depth is 0 for a run, 1 for a sub-agent it delegated to; budget is
 	// shared down the tree (effectful ceiling, sub-agent count); receipts
-	// are a sub-run's journal for the report contract.
+	// journal tool calls — all tools for a sub-run's report contract, and
+	// successful state-changing tools for the parent run's honest stop (N18).
 	depth    int
 	budget   *nativeRunBudget
 	receipts []nativeReceipt
+	// honestStopAsked: the loop already diverted a premature prose turn
+	// into a wrap-up so the model must reconcile effects vs the ask (N18).
+	honestStopAsked bool
 }
 
 // chargeEffectful counts one state-changing call against the caller's own

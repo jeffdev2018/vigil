@@ -525,7 +525,11 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
 	}
 
-	result, _ := json.Marshal(map[string]any{"summary": finalText})
+	resultPayload := map[string]any{"summary": finalText}
+	if len(tctx.receipts) > 0 {
+		resultPayload["receipts"] = tctx.receipts
+	}
+	result, _ := json.Marshal(resultPayload)
 	completed, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", "")
 	if err != nil {
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
@@ -591,7 +595,7 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 			if reason == "" {
 				reason = fmt.Sprintf("the turn budget (%d tool-calling turns) is spent", maxTurns)
 			}
-			params.Messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
+			params.Messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason, tctx.receipts)))
 		} else {
 			params.Tools = tools
 		}
@@ -688,9 +692,6 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 		}
 		s.noteLLMSuccess(model)
 		if wrapUp || len(toolOrder) == 0 {
-			// A prose turn (or the wrap-up): the streamed message IS the
-			// final text. Complete it — the flush was throttled. Tool calls
-			// hallucinated on a wrap-up turn are ignored, as before.
 			finalText := strings.TrimSpace(text.String())
 			if streamedMsgID.Valid {
 				if err := s.Queries.UpdateTaskMessageContent(ctx, db.UpdateTaskMessageContentParams{
@@ -699,6 +700,25 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 				}); err == nil {
 					s.publishNativeTaskMessage(*tctx, taskID, streamedSeq, finalText)
 				}
+			}
+			// Honest stop (N18): a premature "I'm done" after real workspace
+			// writes must not settle until the model reconciles those effects
+			// with the ask. Divert once into a wrap-up turn that carries the
+			// effect ledger; Run confidence still scores the completed result.
+			if !wrapUp && len(tctx.receipts) > 0 && !tctx.honestStopAsked {
+				tctx.honestStopAsked = true
+				tctx.requestWrapUp("honest stop: reconcile the effects you produced with what was asked")
+				if finalText != "" {
+					cx.addTurn(openai.AssistantMessage(finalText), finalText, nil)
+				}
+				ledger := nativeHonestStopLedger(tctx.receipts)
+				s.writeNativeMessage(ctx, taskID, "system", "", ledger, nil)
+				continue
+			}
+			// A prose turn (or the wrap-up): the streamed message IS the
+			// final text. Complete it — the flush was throttled. Tool calls
+			// hallucinated on a wrap-up turn are ignored, as before.
+			if streamedMsgID.Valid {
 				tctx.textStreamed = true
 				tctx.streamedMsgID = streamedMsgID
 			}
@@ -760,13 +780,59 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 }
 
 // nativeWrapUpPrompt is the user turn that closes a run whose budget is
-// spent. It names the reason so the model does not try to keep working, and
-// asks for the three things a follow-up run needs.
-func nativeWrapUpPrompt(reason string) string {
-	return "Stop: " + reason + ". No tools are available anymore. " +
-		"Reply with a short final status for the team, in three parts: " +
-		"what you did, what remains to be done, and what blocked you (if anything). " +
-		"A follow-up run will continue from this status."
+// spent (or that was diverted for an honest stop). It names the reason so
+// the model does not try to keep working, asks for the three things a
+// follow-up run needs, and (N18) requires a short auto-bilan that cites the
+// effects this run actually produced.
+func nativeWrapUpPrompt(reason string, receipts []nativeReceipt) string {
+	var b strings.Builder
+	b.WriteString("Stop: ")
+	b.WriteString(reason)
+	b.WriteString(". No tools are available anymore. ")
+	b.WriteString("Reply with a short final status for the team, in three parts: ")
+	b.WriteString("what you did, what remains to be done, and what blocked you (if anything). ")
+	b.WriteString("A follow-up run will continue from this status.\n\n")
+	b.WriteString("Honest stop / auto-bilan: before you finish, reconcile the ask with the ")
+	b.WriteString("effects this run actually produced. Cite each effect by its receipt id ")
+	b.WriteString("([r1], [r2], …). If an effect is missing from your status, say so. ")
+	b.WriteString("Do not claim a write that has no receipt.\n")
+	b.WriteString(nativeHonestStopLedger(receipts))
+	return b.String()
+}
+
+// nativeHonestStopLedger is the human- and model-facing list of successful
+// state-changing tool calls this run produced (N18).
+func nativeHonestStopLedger(receipts []nativeReceipt) string {
+	if len(receipts) == 0 {
+		return "Effects this run produced: none (no state-changing tool succeeded)."
+	}
+	var b strings.Builder
+	b.WriteString("Effects this run produced:\n")
+	for _, r := range receipts {
+		status := "ok"
+		if !r.OK {
+			status = "failed"
+		}
+		fmt.Fprintf(&b, "- [%s] %s (%s)", r.ID, r.Tool, status)
+		if r.Args != "" {
+			b.WriteString(": ")
+			b.WriteString(clampString(r.Args, 200))
+		}
+		b.WriteByte('\n')
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// nativeToolIsEffectful reports whether a native tool changes workspace
+// state (the same set that spends the effectful budget).
+func nativeToolIsEffectful(name string) bool {
+	switch name {
+	case "add_comment", "update_issue", "transition_issue", "create_sub_issue",
+		"create_issue", "save_note", "update_note", "propose_event", "schedule_followup":
+		return true
+	default:
+		return false
+	}
 }
 
 // publishNativeTaskMessage republishes a (growing) transcript row exactly the
@@ -863,16 +929,19 @@ func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx *na
 	if merr != nil {
 		raw = []byte(`{"error":"tool result could not be serialised"}`)
 	}
+	errored, held := false, false
+	if m, ok := payload.(map[string]any); ok {
+		_, errored = m["error"]
+		held, _ = m["held"].(bool)
+	}
 	if tctx.depth > 0 {
-		// Sub-runs journal receipts for the report contract; an errored
-		// call is a receipt too, marked as such. Results are whatever the
-		// tool returned (an object, a list, a string); only an object can
-		// carry an error key.
-		errored := false
-		if m, ok := payload.(map[string]any); ok {
-			_, errored = m["error"]
-		}
+		// Sub-runs journal every tool for the report contract; an errored
+		// call is a receipt too, marked as such.
 		tctx.recordReceipt(name, inputJSON, !errored)
+	} else if !held && !errored && nativeToolIsEffectful(name) {
+		// Parent run (N18): only successful state-changing tools — the
+		// honest-stop ledger must list effects that actually landed.
+		tctx.recordReceipt(name, inputJSON, true)
 	}
 	s.writeToolResult(ctx, tctx.task.ID, name, string(raw))
 	return string(raw)
