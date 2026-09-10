@@ -133,6 +133,12 @@ func TestProposeAutopilotFilesAPausedAutopilotBehindADecision(t *testing.T) {
 	}
 	// Activate from the card: active + schedule enabled with a next run.
 	decisionID := resp["decision_id"].(string)
+	// The approvals feed labels the card by its option prefix, the way a
+	// calendar proposal is labelled, so a client can say what is being asked
+	// without knowing the autopilot tables.
+	if card := findApproval(listApprovals(t, "?issue_id="+issue).Approvals, ApprovalSourceDecision, decisionID); card == nil || card.Kind != ApprovalKindAutopilot {
+		t.Fatalf("card = %+v, want kind %s", card, ApprovalKindAutopilot)
+	}
 	answer := followupRequest(http.MethodPost, "/api/issues/"+issue+"/decisions/"+decisionID+"/respond", DecisionAnswer{OptionID: autopilotActivateOption + apID})
 	testutil.Call(t, testHandler.RespondIssueDecision, testutil.WithURLParams(answer, "id", issue, "decisionId", decisionID)).Want(http.StatusOK)
 	var status string
@@ -171,4 +177,32 @@ func agentRow(t *testing.T, id string) db.Agent {
 		t.Fatalf("agent %s: %v", id, err)
 	}
 	return row
+}
+
+func TestProposeAutopilotActivateIsForMembersOnly(t *testing.T) {
+	issue, task, agent := runningAgentRun(t, "autopilot activate "+uuid.NewString()[:6])
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM autopilot_trigger WHERE autopilot_id IN (SELECT id FROM autopilot WHERE assignee_id = $1)`, agent)
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM autopilot WHERE assignee_id = $1`, agent)
+	})
+	// A run cannot activate.
+	_, err := autopilotToolAdapter{h: testHandler}.Propose(context.Background(), taskRow(t, task), agentRow(t, agent), map[string]any{"title": "x", "cron_expression": "0 9 * * 1", "description": "y", "activate": true})
+	if err == nil {
+		t.Fatal("a run activated an autopilot")
+	}
+	// A member can: active, schedule enabled, no card.
+	var out struct {
+		Autopilot  map[string]any `json:"autopilot"`
+		DecisionID *string        `json:"decision_id"`
+	}
+	testutil.Call(t, testHandler.ProposeAutopilot, followupRequest(http.MethodPost, "/api/autopilots/propose", map[string]any{"title": "Weekly " + uuid.NewString()[:4], "cron_expression": "0 9 * * 1", "timezone": "Europe/Paris", "description": "y", "assignee_id": agent, "issue_id": issue, "activate": true})).
+		Want(http.StatusCreated).JSON(&out)
+	if out.Autopilot["status"] != "active" || out.DecisionID != nil {
+		t.Fatalf("member activate = %+v decision=%v", out.Autopilot, out.DecisionID)
+	}
+	var enabled bool
+	if err := testPool.QueryRow(context.Background(), `SELECT enabled FROM autopilot_trigger WHERE autopilot_id = $1`, out.Autopilot["id"]).Scan(&enabled); err != nil || !enabled {
+		t.Errorf("trigger enabled=%v err=%v", enabled, err)
+	}
 }

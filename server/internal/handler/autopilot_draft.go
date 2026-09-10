@@ -166,6 +166,9 @@ type AutopilotProposalRequest struct {
 	ProjectID          string `json:"project_id"`
 	// IssueID is where the Decision Card goes; a run's own issue by default.
 	IssueID string `json:"issue_id"`
+	// Activate (members only) creates the autopilot active with its schedule
+	// enabled and files no card: the person deciding is the caller.
+	Activate bool `json:"activate"`
 }
 
 // POST /api/autopilots/propose — an agent run (task token) or a member.
@@ -282,9 +285,17 @@ func (h *Handler) ProposeAutopilot(w http.ResponseWriter, r *http.Request) {
 		}
 		issue = &row
 	}
+	if req.Activate && actorType != "member" {
+		writeError(w, http.StatusForbidden, "only a member can activate; a run proposes and a person decides")
+		return
+	}
+	status := "paused"
+	if req.Activate {
+		status = "active"
+	}
 	createdByType, createdByID := actorType, parseUUID(actorID)
 	ap, err := h.Queries.CreateAutopilot(r.Context(), db.CreateAutopilotParams{
-		WorkspaceID: wsUUID, Title: strings.TrimSpace(req.Title), AssigneeType: "agent", AssigneeID: assigneeUUID, Status: "paused", ExecutionMode: req.ExecutionMode,
+		WorkspaceID: wsUUID, Title: strings.TrimSpace(req.Title), AssigneeType: "agent", AssigneeID: assigneeUUID, Status: status, ExecutionMode: req.ExecutionMode,
 		CreatedByType: createdByType, CreatedByID: createdByID, Description: pgtype.Text{String: strings.TrimSpace(req.Description), Valid: true},
 		IssueTitleTemplate: pgtype.Text{String: req.IssueTitleTemplate, Valid: req.IssueTitleTemplate != ""}, ProjectID: projectID,
 	})
@@ -293,7 +304,7 @@ func (h *Handler) ProposeAutopilot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.Queries.CreateAutopilotTrigger(r.Context(), db.CreateAutopilotTriggerParams{
-		AutopilotID: ap.ID, Kind: "schedule", Enabled: false, CronExpression: pgtype.Text{String: req.CronExpression, Valid: true}, Timezone: pgtype.Text{String: req.Timezone, Valid: true},
+		AutopilotID: ap.ID, Kind: "schedule", Enabled: req.Activate, CronExpression: pgtype.Text{String: req.CronExpression, Valid: true}, Timezone: pgtype.Text{String: req.Timezone, Valid: true},
 		NextRunAt: pgtype.Timestamptz{Time: runs[0], Valid: true}, Label: pgtype.Text{String: "Proposed schedule", Valid: true},
 		CreatedByType: pgtype.Text{String: createdByType, Valid: true}, CreatedByID: createdByID,
 	}); err != nil {
@@ -305,7 +316,7 @@ func (h *Handler) ProposeAutopilot(w http.ResponseWriter, r *http.Request) {
 		next = append(next, at.Format(time.RFC3339))
 	}
 	var decisionID *string
-	if issue != nil {
+	if issue != nil && !req.Activate {
 		options, _ := json.Marshal([]DecisionOption{
 			{ID: autopilotActivateOption + uuidToString(ap.ID), Label: "Activate", Impact: "the autopilot runs on its schedule, first on " + runs[0].In(mustLocation(req.Timezone)).Format("Mon 2 Jan 15:04")},
 			{ID: autopilotDiscardOption + uuidToString(ap.ID), Label: "Discard", Impact: "the autopilot is archived and never runs"},
