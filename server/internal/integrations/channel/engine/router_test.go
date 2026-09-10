@@ -494,6 +494,7 @@ type harness struct {
 	tasks     *fakeTasks
 	reader    *fakeReader
 	lifecycle *fakeChannelChatLifecycle
+	captures  *fakeCaptures
 }
 
 func newHarness(t *testing.T) *harness {
@@ -519,8 +520,9 @@ func newHarness(t *testing.T) *harness {
 		tasks:     &fakeTasks{},
 		reader:    &fakeReader{ws: db.Workspace{IssuePrefix: "MUL", Slug: "demo-web"}},
 		lifecycle: &fakeChannelChatLifecycle{},
+		captures:  &fakeCaptures{id: uuidFromString(t, "cccccccc-cccc-4ccc-8ccc-cccccccccccc")},
 	}
-	h.router = NewRouter(h.issues, h.tasks, h.reader, RouterConfig{Logger: discardLogger(), Lifecycle: h.lifecycle})
+	h.router = NewRouter(h.issues, h.tasks, h.reader, RouterConfig{Logger: discardLogger(), Lifecycle: h.lifecycle, Captures: h.captures})
 	h.router.Register(channel.TypeFeishu, ResolverSet{
 		Installation: h.inst,
 		Identity:     h.ident,

@@ -549,6 +549,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// A `/issue` typed in a channel is inbound material: it answers to the
 		// channel's own triage source before it becomes an issue.
 		Triage: h,
+		// `/capture` parks a thought in the Brain's capture inbox. It goes
+		// through the handler so a capture typed in a chat gets the same
+		// audit trail, realtime event and suggestion as one made in the app.
+		Captures: h,
 	})
 	// Debounce the per-session run trigger so a burst of messages collapses
 	// into one agent run instead of one per message (MUL-2968).

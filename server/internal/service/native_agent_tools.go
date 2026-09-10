@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -209,13 +211,27 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "search_notes",
-			Description: openai.String("Search the workspace's shared knowledge (notes): full-text query and/or a single tag. This is where procedures, decisions and know-how live — check it before answering or filing."),
+			Description: openai.String("Search the workspace's shared knowledge (notes) by relevance: results come back ranked, with a score and a matching snippet. This is where procedures, decisions and know-how live — check it before answering or filing. The query accepts \"a quoted phrase\", -negation and OR; omit it to browse the freshest notes instead."),
 			Parameters: shared.FunctionParameters{
 				"type": "object",
 				"properties": shared.FunctionParameters{
-					"query": shared.FunctionParameters{"type": "string"},
-					"tag":   shared.FunctionParameters{"type": "string"},
-					"limit": shared.FunctionParameters{"type": "integer"},
+					"query":            shared.FunctionParameters{"type": "string", "description": "What to look for. Omit to browse."},
+					"tag":              shared.FunctionParameters{"type": "string", "description": "Only notes carrying this tag."},
+					"limit":            shared.FunctionParameters{"type": "integer", "description": "Max hits, 1-50 (default 10)."},
+					"include_archived": shared.FunctionParameters{"type": "boolean", "description": "Also search notes that were archived."},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "capture_note",
+			Description: openai.String("Park something in the Brain's capture inbox instead of filing it. Capture when you are NOT sure it belongs in the shared knowledge — a link worth reading, a remark that might be a convention, a lead: a person files it later. Use save_note only when you are sure it is durable workspace knowledge and you checked search_notes first."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"content":    shared.FunctionParameters{"type": "string", "description": "The text to capture (content or url is required)."},
+					"url":        shared.FunctionParameters{"type": "string", "description": "An http(s) link to capture."},
+					"kind":       shared.FunctionParameters{"type": "string", "enum": []string{"text", "link", "todo"}, "description": "Inferred when omitted."},
+					"title_hint": shared.FunctionParameters{"type": "string", "description": "A hint for the note title, used when a person organizes the capture."},
 				},
 			},
 		}),
@@ -445,7 +461,7 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeIssueSnapshot(ctx, tctx, issue)
 	case "list_issues":
 		return s.nativeListIssues(ctx, tctx, args)
-	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note":
+	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note", "capture_note":
 		// Preview mode (N10 / K69): the write is HELD, not applied — journaled
 		// as a pending effect a human approves. Held writes do not spend the
 		// effect budget: nothing changed.
@@ -493,6 +509,8 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return s.nativeSaveNote(ctx, tctx, args)
 		case "update_note":
 			return s.nativeUpdateNote(ctx, tctx, args)
+		case "capture_note":
+			return s.nativeCaptureNote(ctx, tctx, args)
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
@@ -991,41 +1009,180 @@ func nativeNoteTags(raw []any) ([]string, error) {
 	return out, nil
 }
 
+// nativeNoteSearchPrefilter is how deep each ranker looks before the two
+// are fused. It matches the app's own search so an agent and a person asking
+// the same question see the same notes.
+const nativeNoteSearchPrefilter = 60
+
+// nativeSearchNotes answers a question against the Brain by relevance. With a
+// query it runs the same ranked search the app does — lexical rank fused with
+// a vector rank when an embeddings model is configured, so a note that words
+// the fact differently still surfaces. With no query at all there is nothing
+// to rank, so it falls back to browsing: the freshest notes, optionally of one
+// tag, which is what "what do we know" means.
 func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
-	params := db.ListWorkspaceNotesParams{
-		WorkspaceID:     tctx.workspaceID,
-		IncludeArchived: false,
-		PageLimit:       10,
-	}
-	if q, ok := args["query"].(string); ok && strings.TrimSpace(q) != "" {
-		params.Search = pgtype.Text{String: strings.TrimSpace(q), Valid: true}
-	}
-	if tag, ok := args["tag"].(string); ok && strings.TrimSpace(tag) != "" {
-		params.Tag = pgtype.Text{String: strings.TrimSpace(tag), Valid: true}
-	}
+	query, _ := args["query"].(string)
+	query = strings.TrimSpace(query)
+	tag, _ := args["tag"].(string)
+	tag = strings.TrimSpace(tag)
+	includeArchived, _ := args["include_archived"].(bool)
+	limit := int32(10)
 	if lim, ok := args["limit"].(float64); ok && lim >= 1 {
-		params.PageLimit = int32(min(int(lim), 20))
+		limit = int32(min(int(lim), 50))
 	}
-	if !params.Search.Valid && !params.Tag.Valid {
-		// No filter: the freshest notes, so "what do we know" has an answer.
+
+	if query == "" {
+		return s.nativeBrowseNotes(ctx, tctx, tag, includeArchived, limit)
 	}
-	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
+
+	params := db.SearchWorkspaceNotesParams{
+		WorkspaceID:     tctx.workspaceID,
+		Query:           query,
+		IncludeArchived: includeArchived,
+		Prefilter:       nativeNoteSearchPrefilter,
+		TopK:            limit,
+	}
+	if tag != "" {
+		params.Tag = pgtype.Text{String: tag, Valid: true}
+	}
+	if s.NoteEmbedder != nil && s.NoteEmbedder.Enabled() {
+		if literal, model, ok := s.NoteEmbedder.QueryEmbedding(ctx, query); ok {
+			params.QueryEmbedding = pgtype.Text{String: literal, Valid: true}
+			params.EmbeddingModel = pgtype.Text{String: model, Valid: true}
+		}
+	}
+	rows, err := s.Queries.SearchWorkspaceNotes(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("note search failed: %w", err)
 	}
-	out := make([]map[string]any, 0, len(notes))
-	for _, n := range notes {
+	out := make([]map[string]any, 0, len(rows))
+	for _, n := range rows {
 		out = append(out, map[string]any{
 			"id":     util.UUIDToString(n.ID),
 			"title":  n.Title,
 			"tags":   n.Tags,
 			"pinned": n.Pinned,
+			"score":  n.Score,
 			// Fenced as a record (N01): a note's body is workspace data,
 			// never instructions for the agent reading it.
-			"excerpt": nativeDataFence("note", clampString(n.Content, 300)),
+			"snippet":    nativeDataFence("note", stripNoteHighlight(string(n.Snippet))),
+			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
 	}
 	return out, nil
+}
+
+// nativeBrowseNotes is the no-query branch: the freshest notes, so an agent
+// with no words to search by still has an answer.
+func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *nativeToolContext, tag string, includeArchived bool, limit int32) (any, error) {
+	params := db.ListWorkspaceNotesParams{
+		WorkspaceID:     tctx.workspaceID,
+		IncludeArchived: includeArchived,
+		PageLimit:       limit,
+	}
+	if tag != "" {
+		params.Tag = pgtype.Text{String: tag, Valid: true}
+	}
+	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("note listing failed: %w", err)
+	}
+	out := make([]map[string]any, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, map[string]any{
+			"id":         util.UUIDToString(n.ID),
+			"title":      n.Title,
+			"tags":       n.Tags,
+			"pinned":     n.Pinned,
+			"snippet":    nativeDataFence("note", clampString(n.Content, 300)),
+			"updated_at": nativeTimestamp(n.UpdatedAt),
+		})
+	}
+	return out, nil
+}
+
+// stripNoteHighlight removes the search snippet's <mark> markers. They exist
+// for a browser to bold; to a model they are noise inside the fenced record.
+func stripNoteHighlight(snippet string) string {
+	return strings.NewReplacer("<mark>", "", "</mark>", "").Replace(snippet)
+}
+
+func nativeTimestamp(ts pgtype.Timestamptz) string {
+	if !ts.Valid {
+		return ""
+	}
+	return ts.Time.UTC().Format(time.RFC3339)
+}
+
+// nativeCaptureNote parks something in the Brain's capture inbox instead of
+// writing a note. Nothing is filed: a person turns the capture into a note,
+// merges it into one, or discards it. It is the honest move when a run learns
+// something that MIGHT be worth keeping — a wrong capture costs a click, a
+// wrong note pollutes what every later run reads.
+func (s *NativeAgentService) nativeCaptureNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	content, _ := args["content"].(string)
+	content = strings.TrimSpace(util.SanitizeTextForPostgres(content))
+	rawURL, _ := args["url"].(string)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL != "" {
+		u, err := url.Parse(rawURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(rawURL) > 2048 {
+			return nil, errors.New("url must be an http(s) URL")
+		}
+	}
+	if content == "" && rawURL == "" {
+		return nil, errors.New("content or url is required")
+	}
+	if utf8.RuneCountInString(content) > nativeNoteBodyMax {
+		return nil, fmt.Errorf("content exceeds %d characters — capture the part that matters", nativeNoteBodyMax)
+	}
+	hint, _ := args["title_hint"].(string)
+	hint = strings.TrimSpace(util.SanitizeTextForPostgres(hint))
+	if len(hint) > nativeNoteTitleMax {
+		hint = hint[:nativeNoteTitleMax]
+	}
+	kind, _ := args["kind"].(string)
+	switch strings.TrimSpace(kind) {
+	case "text", "link", "todo":
+		kind = strings.TrimSpace(kind)
+	case "":
+		// The server-side rule, applied here because the native runtime
+		// writes the row directly: a bare link is a link, anything with
+		// words is text.
+		if rawURL != "" && content == "" {
+			kind = "link"
+		} else {
+			kind = "text"
+		}
+	default:
+		return nil, errors.New("kind must be text, link or todo")
+	}
+
+	capture, err := s.Queries.CreateBrainCapture(ctx, db.CreateBrainCaptureParams{
+		ID:                  dbid.NewV7(),
+		WorkspaceID:         tctx.workspaceID,
+		Kind:                kind,
+		Content:             content,
+		Url:                 rawURL,
+		TitleHint:           hint,
+		Origin:              "agent",
+		TranscriptionStatus: "none",
+		CreatedByType:       "agent",
+		CreatedByID:         pgtype.UUID(tctx.agent.ID),
+		SourceTaskID:        pgtype.UUID(tctx.task.ID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("capture failed: %w", err)
+	}
+	s.publishNative(protocol.EventBrainCaptureChanged, tctx, map[string]any{
+		"capture_id": util.UUIDToString(capture.ID),
+		"status":     capture.Status,
+		"change":     "captured",
+	})
+	return map[string]any{
+		"id": util.UUIDToString(capture.ID), "kind": capture.Kind, "status": capture.Status,
+		"note": "Captured, not filed. A person organizes the Brain inbox; do not capture the same thing twice.",
+	}, nil
 }
 
 func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {

@@ -134,7 +134,7 @@ func (h *Handler) loadBrainWorkspace(w http.ResponseWriter, r *http.Request) (pg
 	return wsUUID, userUUID, true
 }
 
-func brainCaptureOrigin(r *http.Request, requested, actorType string) string {
+func brainCaptureOrigin(requested, actorType string) string {
 	if actorType == "agent" {
 		return "agent"
 	}
@@ -209,7 +209,7 @@ func (h *Handler) CreateBrainCapture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	capture, err := h.Queries.CreateBrainCapture(r.Context(), db.CreateBrainCaptureParams{
-		ID: dbid.NewV7(), WorkspaceID: wsUUID, Kind: kind, Content: content, Url: rawURL, TitleHint: hint, Origin: brainCaptureOrigin(r, req.Origin, actorType), TranscriptionStatus: "none",
+		ID: dbid.NewV7(), WorkspaceID: wsUUID, Kind: kind, Content: content, Url: rawURL, TitleHint: hint, Origin: brainCaptureOrigin(req.Origin, actorType), TranscriptionStatus: "none",
 		CreatedByType: actorType, CreatedByID: actorID, SourceTaskID: taskID,
 	})
 	if err != nil {
@@ -318,7 +318,7 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	capture, err := h.Queries.CreateBrainCapture(r.Context(), db.CreateBrainCaptureParams{
-		ID: dbid.NewV7(), WorkspaceID: wsUUID, Kind: kind, Content: content, Url: "", TitleHint: hint, AttachmentID: att.ID, Origin: brainCaptureOrigin(r, r.FormValue("origin"), actorType), TranscriptionStatus: transcription,
+		ID: dbid.NewV7(), WorkspaceID: wsUUID, Kind: kind, Content: content, Url: "", TitleHint: hint, AttachmentID: att.ID, Origin: brainCaptureOrigin(r.FormValue("origin"), actorType), TranscriptionStatus: transcription,
 		CreatedByType: actorType, CreatedByID: actorID, SourceTaskID: taskID,
 	})
 	if err != nil {

@@ -29,6 +29,8 @@ const (
 	OutcomeFreshPending  Outcome = "fresh_pending"
 	OutcomeChatStarted   Outcome = "chat_started"
 	OutcomeIssueUsage    Outcome = "issue_usage"
+	OutcomeCaptured      Outcome = "captured"
+	OutcomeCaptureUsage  Outcome = "capture_usage"
 	OutcomeAgentOffline  Outcome = "agent_offline"
 	OutcomeAgentArchived Outcome = "agent_archived"
 )
@@ -77,6 +79,10 @@ type Result struct {
 	// review it. A refusal (blocked source) sets neither field — that
 	// channel was deliberately silenced.
 	IssueHeld bool
+	// CaptureID is the Brain capture a /capture command filed. Set only with
+	// OutcomeCaptured; repliers confirm it so the member knows where the
+	// thought went.
+	CaptureID pgtype.UUID
 	// runScheduled reports whether this ingest scheduled a normal chat run.
 	// It is Router-internal state: repliers must continue to use Outcome.
 	runScheduled bool
@@ -417,6 +423,15 @@ type ResolverSet struct {
 type IssueCreator interface {
 	Create(ctx context.Context, p service.IssueCreateParams, opts service.IssueCreateOpts) (service.IssueCreateResult, error)
 	PublishAttachmentsChanged(ctx context.Context, issue db.Issue, actorID pgtype.UUID)
+}
+
+// CaptureCreator files a Brain capture for the /capture command. It is the
+// narrow subset of the API's own capture path the Router needs, so a capture
+// typed in a chat gets the same audit trail, realtime event and suggestion as
+// one made in the app. Parameters stay primitive on purpose: the
+// implementation lives in the HTTP layer and must not depend on this package.
+type CaptureCreator interface {
+	CreateChannelCapture(ctx context.Context, workspaceID, creatorUserID pgtype.UUID, content, rawURL string) (pgtype.UUID, error)
 }
 
 // TaskEnqueuer is the narrow subset of service.TaskService the Router needs to

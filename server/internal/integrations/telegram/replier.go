@@ -31,6 +31,8 @@ const (
 	msgFreshPending   = "✅ Fresh start ready. Your next chat message will run without previous context."
 	msgChatStarted    = "✅ Started a new Multica chat. Your next message will enter it."
 	msgIssueUsage     = "Please include an issue title. Use:\n\n/issue <title>\n[description] (optional)"
+	msgCaptureAck     = "✅ Captured — organize it in the Brain inbox."
+	msgCaptureUsage   = "Please include what to capture. Use:\n\n/capture <text or link>"
 	msgIssueNotMember = "You're not a member of this Multica workspace, so I can't file an issue for you. Ask a workspace admin to invite you, then send the command again."
 	msgIssueDisabled  = "This Telegram bot isn't connected to Multica (or was disconnected). Ask a workspace admin to reconnect it."
 )
@@ -125,6 +127,16 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeIssueUsage:
 		if err := r.post(ctx, inst, msg, msgIssueUsage); err != nil {
 			r.logger.WarnContext(ctx, "telegram replier: issue usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptured:
+		if err := r.post(ctx, inst, msg, msgCaptureAck); err != nil {
+			r.logger.WarnContext(ctx, "telegram replier: capture confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptureUsage:
+		if err := r.post(ctx, inst, msg, msgCaptureUsage); err != nil {
+			r.logger.WarnContext(ctx, "telegram replier: capture usage reply failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:

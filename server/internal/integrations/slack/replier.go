@@ -36,6 +36,8 @@ const (
 	freshPendingText  = "✅ Fresh start ready. Your next chat message will run without previous context."
 	chatStartedText   = "✅ Started a new Multica chat. Your next message will enter it."
 	issueUsageText    = "Please include an issue title. Use:\n\n`/issue <title>`\n`[description]` (optional)"
+	captureAckText    = "✅ Captured — organize it in the Brain inbox."
+	captureUsageText  = "Please include what to capture. Use:\n\n`/capture <text or link>`"
 )
 
 // bindingMinter is the binding-token surface the replier needs.
@@ -139,6 +141,16 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeIssueUsage:
 		if err := r.postResult(ctx, inst, msg, res, issueUsageText); err != nil {
 			r.logger.WarnContext(ctx, "slack replier: issue usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptured:
+		if err := r.postResult(ctx, inst, msg, res, captureAckText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: capture confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptureUsage:
+		if err := r.postResult(ctx, inst, msg, res, captureUsageText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: capture usage reply failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:

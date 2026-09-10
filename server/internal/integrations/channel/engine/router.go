@@ -42,6 +42,7 @@ type Router struct {
 	reader    SessionReader
 	lifecycle ChannelChatLifecycle
 	triage    TriageGate
+	captures  CaptureCreator
 
 	batcher *pendingBatcher
 
@@ -82,6 +83,10 @@ type RouterConfig struct {
 	// Triage gates `/issue` commands against the channel's triage source.
 	// Nil admits every channel directly.
 	Triage TriageGate
+	// Captures files `/capture` commands into the Brain's capture inbox. Nil
+	// disables the command: the message is then an ordinary chat turn, which
+	// is the honest behavior for a deployment wired without it.
+	Captures CaptureCreator
 }
 
 // NewRouter builds a Router around the shared (platform-agnostic) services:
@@ -109,6 +114,7 @@ func NewRouter(issues IssueCreator, tasks TaskEnqueuer, reader SessionReader, cf
 		reader:       reader,
 		lifecycle:    cfg.Lifecycle,
 		triage:       cfg.Triage,
+		captures:     cfg.Captures,
 		replyTimeout: cfg.ReplyTimeout,
 		mediaTimeout: cfg.MediaTimeout,
 		mediaCtx:     mediaCtx,
@@ -647,6 +653,27 @@ func (r *Router) processClaimed(ctx context.Context, set ResolverSet, msg channe
 			}, msg.CommandText, deferredIssueTaskID, localMediaDeadline)
 		}
 		return res, postAppendFinalize, nil
+	}
+
+	// 7b. `/capture` command, if present. Like `/issue` this is terminal: the
+	//     member asked for the thought to be parked, not for the agent to
+	//     answer it, so no chat run is scheduled. Unlike `/issue` it answers
+	//     to nothing — a capture changes no shared state anyone has to review,
+	//     which is exactly why it is the cheap gesture.
+	if r.captures != nil {
+		if cmd, ok := ParseCaptureCommand(msg.CommandText); ok {
+			if cmd.IsEmpty() || cmd.TooLong() {
+				res.Outcome = OutcomeCaptureUsage
+				return res, postAppendFinalize, nil
+			}
+			captureID, err := r.captures.CreateChannelCapture(ctx, inst.WorkspaceID, identity.UserID, cmd.Content, cmd.URL)
+			if err != nil {
+				return Result{}, postAppendFinalize, fmt.Errorf("capture from command: %w", err)
+			}
+			res.Outcome = OutcomeCaptured
+			res.CaptureID = captureID
+			return res, postAppendFinalize, nil
+		}
 	}
 
 	// 8. Debounce the run trigger. The synchronous outcome is OutcomeIngested

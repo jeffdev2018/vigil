@@ -939,6 +939,22 @@ func TestNativeAgentBrainTools(t *testing.T) {
 	if len(results) != 1 || results[0]["id"] != noteID {
 		t.Fatalf("search results = %v, want the saved note", results)
 	}
+	// The search is ranked, not a filtered list: a hit carries why it ranked
+	// and a snippet of what matched. The snippet is a record for a model to
+	// read, so the browser's highlight markup must not ride along.
+	if score, ok := results[0]["score"].(float64); !ok || score <= 0 {
+		t.Errorf("hit score = %#v, want a positive rank-fusion score", results[0]["score"])
+	}
+	snippet, _ := results[0]["snippet"].(string)
+	if strings.Contains(snippet, "<mark>") {
+		t.Errorf("snippet still carries HTML highlight markers: %q", snippet)
+	}
+	if !strings.Contains(snippet, "remboursement") {
+		t.Errorf("snippet %q does not show what matched", snippet)
+	}
+	if _, ok := results[0]["updated_at"].(string); !ok {
+		t.Errorf("hit has no updated_at, so the model cannot tell a stale note from a fresh one")
+	}
 
 	out, err = svc.callNativeTool(ctx, tctx, "update_note", map[string]any{
 		"note_id": noteID,
@@ -1101,8 +1117,8 @@ func TestNativeAgentToolResultsFenceRecords(t *testing.T) {
 	if err := json.Unmarshal(raw, &rows); err != nil || len(rows) != 1 {
 		t.Fatalf("search_notes result = %s", string(raw))
 	}
-	if excerpt, _ := rows[0]["excerpt"].(string); !strings.Contains(excerpt, "<data note>") {
-		t.Fatalf("note excerpt is not fenced: %q", excerpt)
+	if snippet, _ := rows[0]["snippet"].(string); !strings.Contains(snippet, "<data note>") {
+		t.Fatalf("note snippet is not fenced: %q", snippet)
 	}
 
 	snapshot, err := svc.callNativeToolRead(ctx, tctx, "get_issue", nil)
@@ -2420,5 +2436,94 @@ func TestNativeAgentLivingDocumentOnIssueBrief(t *testing.T) {
 	}
 	if !strings.Contains(brief, "Issue #") || !strings.Contains(brief, "Living document") || !strings.Contains(brief, noteID) {
 		t.Fatalf("issue+note brief = %q", brief)
+	}
+}
+
+// capture_note is the safe half of the Brain contract: a run that is not sure
+// something is durable workspace knowledge parks it in the capture inbox
+// instead of writing a note every later run would read. The row must carry
+// the run's own provenance and stay RAW — capturing files nothing.
+func TestNativeAgentCaptureNote(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-cap-%d", suffix), fmt.Sprintf("native-cap-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-cap-ws-%d", suffix), fmt.Sprintf("native-cap-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{"runtime_mode": "native", "daemon_id": "native", "provider": "native"})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	taskID := fx.Task(t, agentID, testutil.Cols{"runtime_id": runtimeID})
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, workspaceID: agent.WorkspaceID}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+
+	out, err := svc.callNativeTool(ctx, tctx, "capture_note", map[string]any{
+		"url":        "https://example.com/postgres-locking",
+		"title_hint": "Locking article to read",
+	})
+	if err != nil {
+		t.Fatalf("capture_note: %v", err)
+	}
+	captured := out.(map[string]any)
+	captureID, _ := captured["id"].(string)
+	if captured["status"] != "raw" {
+		t.Fatalf("status = %#v, want raw: capturing files nothing", captured["status"])
+	}
+	// A bare link is a link. The kind decides how the capture renders and
+	// what the organizer sees, so it is inferred, never guessed by the model.
+	if captured["kind"] != "link" {
+		t.Errorf("kind = %#v, want link for a url with no words", captured["kind"])
+	}
+
+	var kind, origin, createdByType, transcription string
+	var srcTask, createdBy string
+	if err := pool.QueryRow(ctx, `SELECT kind, origin, created_by_type, transcription_status, source_task_id::text, created_by_id::text FROM brain_capture WHERE id = $1`, captureID).
+		Scan(&kind, &origin, &createdByType, &transcription, &srcTask, &createdBy); err != nil {
+		t.Fatalf("read capture: %v", err)
+	}
+	if origin != "agent" || createdByType != "agent" || createdBy != agentID || srcTask != taskID {
+		t.Fatalf("capture provenance = (%q,%q,%s,%s), want the agent and its run on every field", origin, createdByType, createdBy, srcTask)
+	}
+	if transcription != "none" {
+		t.Errorf("transcription_status = %q, want none: there is no audio to transcribe", transcription)
+	}
+
+	// The capture then shows up in the inbox the app renders.
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM brain_capture WHERE id = $1`, captureID).Scan(&status); err != nil {
+		t.Fatalf("read capture status: %v", err)
+	}
+	if status != "raw" {
+		t.Fatalf("stored status = %q, want raw", status)
+	}
+}
+
+// The boundary cases are refused as tool errors the model can react to, not
+// as run failures: an empty capture and a non-http url are mistakes, and a
+// capture is only worth having if someone can act on it later.
+func TestNativeAgentCaptureNoteRefusesJunk(t *testing.T) {
+	svc := &NativeAgentService{}
+	tctx := &nativeToolContext{}
+	for _, tc := range []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "nothing at all", args: map[string]any{}},
+		{name: "blank content", args: map[string]any{"content": "   \n  "}},
+		{name: "non-http url", args: map[string]any{"url": "file:///etc/passwd"}},
+		{name: "url with no host", args: map[string]any{"url": "https://"}},
+		{name: "unknown kind", args: map[string]any{"content": "x", "kind": "audio"}},
+		{name: "oversized content", args: map[string]any{"content": strings.Repeat("a", nativeNoteBodyMax+1)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := svc.nativeCaptureNote(context.Background(), tctx, tc.args); err == nil {
+				t.Fatal("nativeCaptureNote accepted it")
+			}
+		})
 	}
 }

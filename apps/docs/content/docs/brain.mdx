@@ -1,6 +1,6 @@
 ---
 title: Brain
-description: The workspace's shared knowledge base — written by people and by agents, injected into every run.
+description: The workspace's shared knowledge base and its capture inbox — written by people and by agents, injected into every run.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -8,6 +8,19 @@ import { Callout } from "fumadocs-ui/components/callout";
 The Brain is a set of short notes your workspace shares: the decisions you made and why, the conventions nobody wrote down, hard facts about the codebase, who owns what.
 
 Everything in it is handed to every agent run. That is the point — an agent that already knows your deploy process does not have to rediscover it, and does not have to be told again next week.
+
+## Capture first, organize later
+
+A knowledge base dies of friction. If writing something down means finding the right title, the right tags and the right existing note, you do it once and never again.
+
+So the Brain has two halves:
+
+- The **inbox** takes anything worth keeping in one gesture: a line of text, a link, a screenshot, a voice memo, a file, a to do. No title, no tags, no decision.
+- The **notes** are the curated half, and the only half a run receives.
+
+A capture sits in the inbox until a person turns it into a note, merges it into one that already covers the subject, or discards it. Nothing is organized behind anyone's back, and nothing an agent captured reaches other runs until someone said it should.
+
+A wrong capture costs one click. A wrong note is read by every run that follows.
 
 ## What belongs in it
 
@@ -28,17 +41,77 @@ Not notes:
 
 One note, one idea. Write the fact in the title (`Deploys go through the release tag`), not the topic (`Deploys`) — the title is what everyone scans in the list, and what an agent reads before deciding to open the note.
 
+The inbox is looser on purpose. Capture the thing you have not decided about yet; you decide when you sort it.
+
 ## Working in the app
 
-Open **Brain** in the sidebar.
+Open **Brain** in the sidebar. It has two tabs: **Inbox**, badged with how many captures are still to sort, and **Notes**.
 
-- **Search** runs on the server, over both title and body.
+### The inbox
+
+The composer sits at the top of the Inbox: type and press Enter. The same box takes a to do, a file you attach or drop on the page, and a voice memo you record in place. A message that is nothing but a link is filed as a link rather than as prose.
+
+Each capture card shows what it is (text, link, image, voice memo, file, to do) and where it came from (web, desktop, mobile, CLI, MCP, a chat channel, an agent, the API). From the card:
+
+- **Save as note** creates a note. The title defaults to the capture's title hint, then its first line; the body defaults to the capture itself — its link, its text, then its file.
+- **Merge into…** appends the capture to a note you pick and adds its tags to that note. This is the right move whenever a note already covers the subject.
+- **Discard** files nothing. Discarded captures stay in their own filter and can be **reopened**.
+- **Delete** removes a capture for good, and its file with it unless a note already holds it. Discard is reversible; delete is not.
+
+### The notes
+
+- **Search** ranks by relevance (see below), over both title and body.
 - **Tags** are the filter chips. They are lowercased and de-duplicated, so `Deploy` and `deploy` stay one facet.
 - **Pin** a note to send it to every run regardless of age. Use it sparingly: pinned notes crowd out recent ones.
 - **Archive** a note that stopped being true. It leaves the runs and the default list but stays readable.
 - **Delete** is permanent, and reserved for workspace admins and the note's own author.
 
 Editing uses optimistic concurrency. If someone else — or the nightly curation pass — changed the note while you had it open, the save is refused and you are asked to reload rather than silently overwriting them.
+
+## Where you can capture from
+
+The inbox is one queue, reachable from everywhere the workspace is:
+
+| Surface | How |
+| --- | --- |
+| Web and desktop | The composer on the Brain **Inbox** tab: text, to do, attached or dropped file, voice memo recorded in place. |
+| iPhone | **Brain** under More: type, share a link, take a photo or pick one from the library, attach a file. There is no in-app recorder — the keyboard's mic key dictates into the box, and an audio file you attach is still transcribed. |
+| CLI | `multica brain capture` (below). |
+| MCP clients | The `vigil_brain` tool, action `capture`. Captures made this way carry origin **MCP**; the client cannot claim another one. |
+| Chat channels | `/capture <text or link>` in Lark, Slack, WeCom, DingTalk or Telegram. The bot confirms with one line and nothing else runs — no agent turn, no issue. |
+| Agents | The `capture_note` tool, on native runtimes, and `multica brain capture` from any run. |
+
+Whatever the surface, the capture lands in the same inbox with its origin recorded, so you can tell the thing you typed on the train from the thing an agent parked while working.
+
+<Callout>
+An agent's contract is explicit: capture when it is not sure the workspace wants something as a note, save a note only when it is sure and has already searched. A capture is the honest answer to "this might matter".
+</Callout>
+
+## Suggestions
+
+When the workspace has an assist-layer LLM configured (`MULTICA_LLM_*`), a capture gets a suggestion shortly after it lands: a title, tags, a one-line summary, and what to do with it — a new note, a merge into a specific existing note, or a discard, with the reason.
+
+The suggestion is a proposal on the card, never an action. You can also ask for a fresh one at any time from the card, or with `multica brain suggest`. Without a model, suggestions are simply off and every other part of the inbox works the same.
+
+## Finding things
+
+Note search is ranked, not filtered: results come back best match first, each with a score and a snippet of what matched.
+
+The query understands a little syntax:
+
+- `"a quoted phrase"` — the words together, in order.
+- `-word` — exclude notes containing it.
+- `a OR b` — either.
+
+Two rankers are fused. The first is lexical, over title and body. The second is semantic: if the workspace has an embeddings model configured (`MULTICA_LLM_EMBEDDING_MODEL`), every note also carries a vector, and a note that words the same fact differently still surfaces — the search UI marks those results **semantic**. Without that model the search is purely lexical and says so.
+
+Vectors are written when a note is saved or edited. A background pass every ten minutes catches up to 200 notes whose vector is missing, stale or from another model, which is what makes search whole again after an outage or a model change. Nothing has to be re-imported by hand.
+
+## Voice memos
+
+A voice memo captured on the web or desktop — or an audio file attached from anywhere — is transcribed when the server has a speech-to-text provider configured (`MULTICA_STT_BASE_URL`, `MULTICA_STT_API_KEY`, `MULTICA_STT_MODEL`, with an optional `MULTICA_STT_LANGUAGE` hint). The card shows **Transcribing…** and the transcript then becomes the capture's text, so the memo is searchable and can be organized like any other capture. The audio itself stays attached.
+
+Without a provider the recording is still captured and still playable; only the transcript is missing, and the card says so.
 
 ## What a run receives
 
@@ -51,13 +124,19 @@ Each run gets every pinned note plus the 20 most recently updated others, writte
 
 The run's brief points at that directory instead of embedding the notes, so a large Brain costs the prompt a few lines rather than its whole content. The total is capped at 200 KB; if notes are left out, the index says how many.
 
+Captures are **not** part of what a run receives. They are somebody's unsorted thoughts, and a run reading them would be acting on things nobody vouched for yet.
+
 ## Agents write to it too
 
 Agents save what they learn through the CLI, and the built-in `multica-workspace-brain` skill teaches them when to.
 
 ```bash
-multica brain list --search "release" --output json
+# looking for something: ranked, best match first
+multica brain search "release tag" --output json
 multica brain show <note-id>
+
+# browsing instead of searching
+multica brain list --tag deploy
 
 multica brain save \
   --title "Deploys go through the release tag" \
@@ -73,7 +152,26 @@ multica brain save --id <note-id> --content-file ./note.md
 multica brain archive <note-id>
 ```
 
-A note saved from a run is attributed to the agent that saved it and linked back to the run, so a surprising note is one click from the thing that wrote it.
+And the capture inbox:
+
+```bash
+multica brain capture "the daemon reaches Postgres through pgbouncer on 6432"
+multica brain capture --url https://example.com/locking --title-hint "Locking article"
+echo "a longer thought" | multica brain capture
+multica brain capture --file ./whiteboard.png
+
+multica brain inbox                            # still to sort, newest first
+multica brain inbox --status all --limit 50
+multica brain suggest <capture-id>
+
+multica brain organize <capture-id> --as note --title "…" --tags deploy
+multica brain organize <capture-id> --as merge --note <note-id>
+multica brain organize <capture-id> --as discard
+multica brain reopen <capture-id>
+multica brain delete <capture-id> --yes
+```
+
+A note saved from a run is attributed to the agent that saved it and linked back to the run, so a surprising note is one click from the thing that wrote it. So is a capture: the card names the agent and its run.
 
 <Callout>
 The skill tells agents to search the Brain before saving and to update the matching note rather than adding a near-duplicate. A knowledge base decays through duplication faster than through anything else.
@@ -90,4 +188,4 @@ Once a day, workspaces whose Brain actually changed get a curation pass. It read
 
 Merges keep the history: the source note is archived with a pointer to the note it was folded into, never deleted, so a wrong merge is recoverable. The pass never rewrites a note's body and never invents a fact.
 
-Curation needs an assist-layer LLM (`MULTICA_LLM_*`). Without one it does nothing, and the rest of the Brain works exactly the same.
+Curation needs an assist-layer LLM (`MULTICA_LLM_*`). Without one it does nothing, and the rest of the Brain works exactly the same. The pass never touches the inbox: sorting captures is a person's call.

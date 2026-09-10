@@ -835,6 +835,9 @@ func nativeToolIsEffectful(name string) bool {
 	case "add_comment", "update_issue", "transition_issue", "create_sub_issue",
 		"create_issue", "save_note", "update_note", "propose_event", "schedule_followup":
 		return true
+	// capture_note is deliberately not here: a capture is the inbox, a person
+	// files it. Charging it like save_note would push a run to save instead
+	// of capturing when unsure — the opposite of the Brain contract.
 	default:
 		return false
 	}

@@ -872,3 +872,64 @@ func (c *APIClient) HealthCheck(ctx context.Context) (string, error) {
 	}
 	return strings.TrimSpace(string(data)), nil
 }
+
+// UploadBrainCapture files a Brain capture whose payload is a local file
+// (a photo, a voice memo, any document) as multipart/form-data. The server
+// derives the capture's kind from the file's content type and, for audio,
+// starts a transcription; the decoded capture lands in out.
+func (c *APIClient) UploadBrainCapture(ctx context.Context, fileData []byte, filename, content, titleHint, origin string, out any) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(filename))
+	if err != nil {
+		return fmt.Errorf("create form file: %w", err)
+	}
+	if _, err := part.Write(fileData); err != nil {
+		return fmt.Errorf("write file data: %w", err)
+	}
+	for field, value := range map[string]string{"content": content, "title_hint": titleHint, "origin": origin} {
+		if value == "" {
+			continue
+		}
+		if err := writer.WriteField(field, value); err != nil {
+			return fmt.Errorf("write %s field: %w", field, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("close multipart writer: %w", err)
+	}
+
+	const path = "/api/brain/captures/upload"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, &body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	c.setHeaders(req)
+
+	// A voice memo or a photo can outlast the default client timeout; honour
+	// the caller's deadline the way the other upload helpers do.
+	httpClient := c.HTTPClient
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining > httpClient.Timeout {
+			clientCopy := *httpClient
+			clientCopy.Timeout = remaining
+			httpClient = &clientCopy
+		}
+	}
+
+	resp, err := httpClient.Do(req)
+	if err = wrapTransport(req, err); err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return newHTTPError(http.MethodPost, path, resp)
+	}
+	if out == nil {
+		return nil
+	}
+	return wrapBodyRead(req, json.NewDecoder(resp.Body).Decode(out))
+}
