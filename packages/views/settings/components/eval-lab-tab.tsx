@@ -10,6 +10,9 @@ import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -72,8 +75,6 @@ const TONE_CLASS = {
   warning: "text-warning",
   destructive: "text-destructive",
 } as const;
-
-const SELECT_CLASS = "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
 
 /** Which inline form a suite row has open, if any. */
 type SuiteFormKind = "run" | "benchmark";
@@ -458,35 +459,47 @@ function RunSuiteForm({
 
   return (
     <form className="flex w-full flex-wrap items-center gap-2" onSubmit={submit} data-testid="eval-run-form">
-      <select
-        aria-label={t(($) => $.eval_lab.agent)}
-        className={SELECT_CLASS}
+      <Select
+        items={[
+          { value: "", label: t(($) => $.eval_lab.pick_agent) },
+          ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+        ]}
         value={agentId}
-        onChange={(event) => {
-          setAgentId(event.target.value);
+        onValueChange={(value) => {
+          setAgentId(value ?? "");
           setVersionId("");
         }}
       >
-        <option value="">{t(($) => $.eval_lab.pick_agent)}</option>
-        {agents.map((agent) => (
-          <option key={agent.id} value={agent.id}>{agent.name}</option>
-        ))}
-      </select>
-      <select
-        aria-label={t(($) => $.eval_lab.version)}
-        className={SELECT_CLASS}
+        <SelectTrigger aria-label={t(($) => $.eval_lab.agent)} size="sm"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t(($) => $.eval_lab.pick_agent)}</SelectItem>
+          {agents.map((agent) => (
+            <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={[
+          { value: "", label: t(($) => $.eval_lab.pick_version) },
+          ...versions.map((version) => ({
+            value: version.id,
+            label: `${t(($) => $.eval_lab.version_label, { number: version.version_number })}${version.note ? ` — ${version.note}` : ""}`,
+          })),
+        ]}
         value={versionId}
-        disabled={agentId === ""}
-        onChange={(event) => setVersionId(event.target.value)}
+        onValueChange={(value) => setVersionId(value ?? "")}
       >
-        <option value="">{t(($) => $.eval_lab.pick_version)}</option>
-        {versions.map((version) => (
-          <option key={version.id} value={version.id}>
-            {t(($) => $.eval_lab.version_label, { number: version.version_number })}
-            {version.note ? ` — ${version.note}` : ""}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger aria-label={t(($) => $.eval_lab.version)} size="sm" disabled={agentId === ""}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t(($) => $.eval_lab.pick_version)}</SelectItem>
+          {versions.map((version) => (
+            <SelectItem key={version.id} value={version.id}>
+              {t(($) => $.eval_lab.version_label, { number: version.version_number })}
+              {version.note ? ` — ${version.note}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button type="submit" size="sm" disabled={agentId === "" || versionId === "" || runSuite.isPending}>
         {t(($) => $.eval_lab.run)}
       </Button>
@@ -684,52 +697,76 @@ function BenchmarkSuiteForm({
   return (
     <form className="w-full space-y-2" onSubmit={submit} data-testid="eval-benchmark-form">
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label={t(($) => $.eval_lab.agent)}
-          className={SELECT_CLASS}
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.pick_agent) },
+            ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+          ]}
           value={agentId}
-          onChange={(event) => {
-            setAgentId(event.target.value);
+          onValueChange={(value) => {
+            setAgentId(value ?? "");
             setVersionId("");
           }}
         >
-          <option value="">{t(($) => $.eval_lab.pick_agent)}</option>
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
-          ))}
-        </select>
-        <select
-          aria-label={t(($) => $.eval_lab.version)}
-          className={SELECT_CLASS}
+          <SelectTrigger aria-label={t(($) => $.eval_lab.agent)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.pick_agent)}</SelectItem>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.pick_version) },
+            ...versions.map((version) => ({
+              value: version.id,
+              label: `${t(($) => $.eval_lab.version_label, { number: version.version_number })}${version.note ? ` — ${version.note}` : ""}`,
+            })),
+          ]}
           value={versionId}
-          disabled={agentId === ""}
-          onChange={(event) => setVersionId(event.target.value)}
+          onValueChange={(value) => setVersionId(value ?? "")}
         >
-          <option value="">{t(($) => $.eval_lab.pick_version)}</option>
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>
-              {t(($) => $.eval_lab.version_label, { number: version.version_number })}
-              {version.note ? ` — ${version.note}` : ""}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={t(($) => $.eval_lab.baseline)}
-          className={SELECT_CLASS}
-          value={baselineRunId}
-          onChange={(event) => setBaselineRunId(event.target.value)}
-        >
-          <option value="">{t(($) => $.eval_lab.no_baseline)}</option>
-          {baselines.map((run) => (
-            <option key={run.id} value={run.id}>
-              {t(($) => $.eval_lab.baseline_option, {
+          <SelectTrigger aria-label={t(($) => $.eval_lab.version)} size="sm" disabled={agentId === ""}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.pick_version)}</SelectItem>
+            {versions.map((version) => (
+              <SelectItem key={version.id} value={version.id}>
+                {t(($) => $.eval_lab.version_label, { number: version.version_number })}
+                {version.note ? ` — ${version.note}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.no_baseline) },
+            ...baselines.map((run) => ({
+              value: run.id,
+              label: t(($) => $.eval_lab.baseline_option, {
                 runtime: run.runtime_name || run.runtime_id.slice(0, 8),
                 model: run.model || t(($) => $.eval_lab.default_model),
                 score: run.score ?? 0,
-              })}
-            </option>
-          ))}
-        </select>
+              }),
+            })),
+          ]}
+          value={baselineRunId}
+          onValueChange={(value) => setBaselineRunId(value ?? "")}
+        >
+          <SelectTrigger aria-label={t(($) => $.eval_lab.baseline)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.no_baseline)}</SelectItem>
+            {baselines.map((run) => (
+              <SelectItem key={run.id} value={run.id}>
+                {t(($) => $.eval_lab.baseline_option, {
+                  runtime: run.runtime_name || run.runtime_id.slice(0, 8),
+                  model: run.model || t(($) => $.eval_lab.default_model),
+                  score: run.score ?? 0,
+                })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <fieldset className="space-y-1.5">
@@ -738,17 +775,24 @@ function BenchmarkSuiteForm({
         </legend>
         {candidates.map((candidate, index) => (
           <div key={index} className="flex flex-wrap items-center gap-2" data-testid="benchmark-candidate">
-            <select
-              aria-label={t(($) => $.eval_lab.candidate_runtime, { n: index + 1 })}
-              className={SELECT_CLASS}
+            <Select
+              items={[
+                { value: "", label: t(($) => $.eval_lab.pick_runtime) },
+                ...runtimes.map((runtime) => ({ value: runtime.id, label: runtimeDisplayLabel(runtime) })),
+              ]}
               value={candidate.runtime_id}
-              onChange={(event) => patchCandidate(index, { runtime_id: event.target.value })}
+              onValueChange={(value) => patchCandidate(index, { runtime_id: value ?? "" })}
             >
-              <option value="">{t(($) => $.eval_lab.pick_runtime)}</option>
-              {runtimes.map((runtime) => (
-                <option key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={t(($) => $.eval_lab.candidate_runtime, { n: index + 1 })} size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.eval_lab.pick_runtime)}</SelectItem>
+                {runtimes.map((runtime) => (
+                  <SelectItem key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               aria-label={t(($) => $.eval_lab.candidate_model, { n: index + 1 })}
               className="h-7 w-44 text-caption"

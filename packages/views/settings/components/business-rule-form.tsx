@@ -13,6 +13,9 @@ import type {
   IssueAssigneeType,
 } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { AssigneePicker } from "../../issues/components/pickers";
 import { useT } from "../../i18n";
@@ -133,40 +136,52 @@ export function BusinessRuleForm({
         }}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label={t(($) => $.workspace.rules_attach)}
-          className="h-8 rounded-md border bg-background px-2"
+        <Select
+          items={attachPoints.map((a) => ({ value: a, label: attachLabel(a) }))}
           value={attach}
-          onChange={(e) => setAttach(e.target.value)}
+          onValueChange={(value) => value && setAttach(value)}
         >
-          {attachPoints.map((a) => (
-            <option key={a} value={a}>{attachLabel(a)}</option>
-          ))}
-        </select>
+          <SelectTrigger aria-label={t(($) => $.workspace.rules_attach)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {attachPoints.map((a) => (
+              <SelectItem key={a} value={a}>{attachLabel(a)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {isWebhook && (
           <>
-            <select
-              aria-label={t(($) => $.workspace.rules_action)}
-              className="h-8 rounded-md border bg-background px-2"
+            <Select
+              items={[
+                { value: "dismiss", label: t(($) => $.workspace.rules_action_dismiss) },
+                { value: "accept", label: t(($) => $.workspace.rules_action_accept) },
+              ]}
               value={actionKind}
-              onChange={(e) => setActionKind(e.target.value as "dismiss" | "accept")}
+              onValueChange={(value) => value && setActionKind(value as "dismiss" | "accept")}
             >
-              <option value="dismiss">{t(($) => $.workspace.rules_action_dismiss)}</option>
-              <option value="accept">{t(($) => $.workspace.rules_action_accept)}</option>
-            </select>
+              <SelectTrigger aria-label={t(($) => $.workspace.rules_action)} size="sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="dismiss">{t(($) => $.workspace.rules_action_dismiss)}</SelectItem>
+                <SelectItem value="accept">{t(($) => $.workspace.rules_action_accept)}</SelectItem>
+              </SelectContent>
+            </Select>
             {actionKind === "accept" && (
               <>
-                <select
-                  aria-label={t(($) => $.workspace.rules_action_priority)}
-                  className="h-8 rounded-md border bg-background px-2"
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.workspace.rules_action_priority_keep) },
+                    ...ISSUE_PRIORITIES.map((p) => ({ value: p, label: p })),
+                  ]}
                   value={actionPriority}
-                  onChange={(e) => setActionPriority(e.target.value)}
+                  onValueChange={(value) => setActionPriority(value ?? "")}
                 >
-                  <option value="">{t(($) => $.workspace.rules_action_priority_keep)}</option>
-                  {ISSUE_PRIORITIES.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-label={t(($) => $.workspace.rules_action_priority)} size="sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.workspace.rules_action_priority_keep)}</SelectItem>
+                    {ISSUE_PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <AssigneePicker
                   assigneeType={assigneeType}
                   assigneeId={assigneeId}

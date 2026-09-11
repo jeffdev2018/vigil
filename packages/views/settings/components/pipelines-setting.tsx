@@ -10,6 +10,9 @@ import { pipelineSquadsOptions, pipelinesOptions, useDeletePipeline, useSavePipe
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { SettingsCard, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
@@ -130,10 +133,25 @@ function PipelineEditor({ initial, executors, locked, pending, onSave, onCancel 
               <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1">
                 <span className="w-5 font-mono text-muted-foreground">{i + 1}.</span>
                 <Input aria-label={t(($) => $.workspace.pipelines_stage_name, { n: i + 1 })} className="w-40" value={s.name} onChange={(e) => update(i, { name: e.target.value })} />
-                <select aria-label={t(($) => $.workspace.pipelines_stage_executor, { n: i + 1 })} className="rounded-md border border-input bg-transparent px-2 py-1" value={`${s.executor_type}:${s.executor_id}`} onChange={(e) => { const ex = executors.find((x) => x.key === e.target.value); if (ex) update(i, { executor_type: ex.type, executor_id: ex.id }); }}>
-                  <option value="">{t(($) => $.workspace.pipelines_pick_executor)}</option>
-                  {executors.map((ex) => <option key={ex.key} value={ex.key}>{ex.label}</option>)}
-                </select>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.workspace.pipelines_pick_executor) },
+                    ...executors.map((ex) => ({ value: ex.key, label: ex.label })),
+                  ]}
+                  value={`${s.executor_type}:${s.executor_id}`}
+                  onValueChange={(value) => {
+                    const ex = executors.find((x) => x.key === value);
+                    if (ex) update(i, { executor_type: ex.type, executor_id: ex.id });
+                  }}
+                >
+                  <SelectTrigger aria-label={t(($) => $.workspace.pipelines_stage_executor, { n: i + 1 })} size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.workspace.pipelines_pick_executor)}</SelectItem>
+                    {executors.map((ex) => <SelectItem key={ex.key} value={ex.key}>{ex.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <label className="flex items-center gap-1 text-muted-foreground">
                   <Checkbox aria-label={t(($) => $.workspace.pipelines_stage_gate, { n: i + 1 })} checked={s.requires_human_gate} onCheckedChange={(v) => update(i, { requires_human_gate: v === true })} />
                   {t(($) => $.workspace.pipelines_gate)}

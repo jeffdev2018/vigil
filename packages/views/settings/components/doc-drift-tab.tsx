@@ -6,6 +6,9 @@ import { ExternalLink, FileDiff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@multica/ui/components/ui/button";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import {
@@ -47,8 +50,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * Off by default, admin-only to configure.
  */
 
-const SELECT_CLASS =
-  "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
 
 const PROPOSAL_STATUSES = ["draft", "opened_pr", "dismissed", "merged"] as const;
 
@@ -157,22 +158,27 @@ export function DocDriftTab() {
               </label>
 
               <div className="space-y-1.5">
-                <Label htmlFor="doc-drift-agent">
-                  {t(($) => $.doc_drift.agent_label)}
-                </Label>
-                <select
-                  id="doc-drift-agent"
-                  className={SELECT_CLASS}
+                <Label>{t(($) => $.doc_drift.agent_label)}</Label>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.doc_drift.pick_agent) },
+                    ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                  ]}
                   value={form.agent_id}
-                  onChange={(event) => patch({ agent_id: event.target.value })}
+                  onValueChange={(value) => patch({ agent_id: value ?? "" })}
                 >
-                  <option value="">{t(($) => $.doc_drift.pick_agent)}</option>
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-label={t(($) => $.doc_drift.agent_label)} size="sm" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.doc_drift.pick_agent)}</SelectItem>
+                    {agents.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-1.5">

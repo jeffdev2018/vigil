@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MCPServerSettingsEnvelope } from "@multica/core/agents/mcp-server";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Schema/client parsing: packages/core/agents/mcp-server.test.ts. This suite
 // covers the wiring — read state, per-tool overrides, the dirty gate on
@@ -97,7 +109,8 @@ describe("MCPServerSetting", () => {
     const saveButton = screen.getByRole("button", { name: "Save" });
     expect(saveButton).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Override for issue_create"), { target: { value: "ask" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Override for issue_create", "Ask");
     expect(saveButton).not.toBeDisabled();
 
     fireEvent.click(saveButton);
@@ -113,10 +126,11 @@ describe("MCPServerSetting", () => {
       settings: { enabled: true, default_surface: "compound", tools: { issue_create: "deny" } },
     };
     render();
-    const select = (await screen.findByLabelText("Override for issue_create")) as HTMLSelectElement;
-    expect(select.value).toBe("deny");
+    const select = await screen.findByRole("combobox", { name: "Override for issue_create" });
+    expect(select.textContent).toContain("Deny");
 
-    fireEvent.change(select, { target: { value: "" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Override for issue_create", "Default");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.save).toHaveBeenCalledWith(
       { enabled: true, default_surface: "compound", tools: {} },

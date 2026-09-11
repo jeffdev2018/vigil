@@ -24,9 +24,9 @@ describe("CrossReviewSetting", () => {
         <CrossReviewSetting canEdit />
       </QueryClientProvider>,
     );
-    const docs = (await screen.findByLabelText("Docs")) as HTMLInputElement;
-    await waitFor(() => expect(docs.checked).toBe(true));
-    fireEvent.click(screen.getByLabelText("Core"));
+    const docs = await screen.findByRole("checkbox", { name: "Docs" });
+    await waitFor(() => expect(docs).toHaveAttribute("aria-checked", "true"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Core" }));
     expect(state.save).toHaveBeenCalledWith({ enabled: true, opt_out_project_ids: ["p2", "p1"] }, expect.anything());
     fireEvent.click(screen.getByRole("switch", { name: "Review every delivered diff with another provider" }));
     expect(state.save).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }), expect.anything());

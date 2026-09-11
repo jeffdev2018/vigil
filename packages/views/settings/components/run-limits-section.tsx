@@ -22,6 +22,9 @@ import { projectListOptions } from "@multica/core/projects";
 import { formatGateValue, runLimitPoliciesOptions, useDeleteRunLimitPolicy, useSaveRunLimitPolicy, type RunLimitGate, type RunLimitPolicy, type RunLimitPolicyInput } from "@multica/core/budgets/run-limits";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 import { SettingsSaveState, type SettingsSaveStatus } from "./settings-layout";
 
@@ -235,14 +238,34 @@ function RunLimitEditor({ policy, projects, agents, pending, onSave, onCancel }:
     <form data-testid="run-limit-editor" className="flex flex-col gap-2 rounded-md border border-border p-3 text-caption" onSubmit={(e) => { e.preventDefault(); if (valid) onSave(input); }}>
       {!policy && (
         <div className="flex flex-wrap gap-2">
-          <select aria-label={t(($) => $.budgets.scope)} className="rounded-md border border-input bg-transparent px-2 py-1" value={scope} onChange={(e) => { setScope(e.target.value as RunLimitPolicy["scope_type"]); setScopeId(""); }}>
-            {(["workspace", "project", "agent"] as const).map((s) => <option key={s} value={s}>{t(($) => $.budgets.scopes[s])}</option>)}
-          </select>
+          <Select
+            items={(["workspace", "project", "agent"] as const).map((s) => ({ value: s, label: t(($) => $.budgets.scopes[s]) }))}
+            value={scope}
+            onValueChange={(value) => {
+              if (value) setScope(value as RunLimitPolicy["scope_type"]);
+              setScopeId("");
+            }}
+          >
+            <SelectTrigger aria-label={t(($) => $.budgets.scope)} size="sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["workspace", "project", "agent"] as const).map((s) => <SelectItem key={s} value={s}>{t(($) => $.budgets.scopes[s])}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {scope !== "workspace" && (
-            <select aria-label={t(($) => $.budgets.target)} className="rounded-md border border-input bg-transparent px-2 py-1" value={scopeId} onChange={(e) => setScopeId(e.target.value)}>
-              <option value="">{t(($) => $.budgets.target)}</option>
-              {targets.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-            </select>
+            <Select
+              items={[
+                { value: "", label: t(($) => $.budgets.target) },
+                ...targets.map((x) => ({ value: x.id, label: x.label })),
+              ]}
+              value={scopeId}
+              onValueChange={(value) => setScopeId(value ?? "")}
+            >
+              <SelectTrigger aria-label={t(($) => $.budgets.target)} size="sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.budgets.target)}</SelectItem>
+                {targets.map((x) => <SelectItem key={x.id} value={x.id}>{x.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
         </div>
       )}
@@ -254,10 +277,20 @@ function RunLimitEditor({ policy, projects, agents, pending, onSave, onCancel }:
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">{t(($) => $.budgets.warning)}<Input type="number" min={0} max={100} className="w-20" aria-label={t(($) => $.budgets.warning)} value={warn} onChange={(e) => setWarn(e.target.value)} /></label>
-        <select aria-label={t(($) => $.budgets.action)} className="rounded-md border border-input bg-transparent px-2 py-1" value={action} onChange={(e) => setAction(e.target.value as RunLimitPolicy["action"])}>
-          <option value="enforce">{t(($) => $.budgets.actions.enforce)}</option>
-          <option value="observe">{t(($) => $.budgets.actions.observe)}</option>
-        </select>
+        <Select
+          items={[
+            { value: "enforce", label: t(($) => $.budgets.actions.enforce) },
+            { value: "observe", label: t(($) => $.budgets.actions.observe) },
+          ]}
+          value={action}
+          onValueChange={(value) => value && setAction(value as RunLimitPolicy["action"])}
+        >
+          <SelectTrigger aria-label={t(($) => $.budgets.action)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="enforce">{t(($) => $.budgets.actions.enforce)}</SelectItem>
+            <SelectItem value="observe">{t(($) => $.budgets.actions.observe)}</SelectItem>
+          </SelectContent>
+        </Select>
         <Button type="submit" size="sm" disabled={pending || !valid}>{t(($) => $.run_limits.save)}</Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>{t(($) => $.budgets.cancel)}</Button>
       </div>

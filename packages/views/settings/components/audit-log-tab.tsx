@@ -9,6 +9,9 @@ import { auditLogInfiniteOptions } from "@multica/core/workspace/audit";
 import type { AuditChainStatus, AuditLogFilter } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT, useTimeAgo } from "../../i18n";
 import { SettingsTab } from "./settings-layout";
 
@@ -75,12 +78,24 @@ export function AuditLogTab() {
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t(($) => $.audit.actor_type)} className="h-8 rounded-md border bg-background px-2" value={actorType} onChange={(e) => setActorType(e.target.value)}>
-          <option value="">{t(($) => $.audit.any_actor)}</option>
-          <option value="member">{t(($) => $.audit.actor_member)}</option>
-          <option value="agent">{t(($) => $.audit.actor_agent)}</option>
-          <option value="system">{t(($) => $.audit.actor_system)}</option>
-        </select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.audit.any_actor) },
+            { value: "member", label: t(($) => $.audit.actor_member) },
+            { value: "agent", label: t(($) => $.audit.actor_agent) },
+            { value: "system", label: t(($) => $.audit.actor_system) },
+          ]}
+          value={actorType}
+          onValueChange={(value) => setActorType(value ?? "")}
+        >
+          <SelectTrigger aria-label={t(($) => $.audit.actor_type)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.audit.any_actor)}</SelectItem>
+            <SelectItem value="member">{t(($) => $.audit.actor_member)}</SelectItem>
+            <SelectItem value="agent">{t(($) => $.audit.actor_agent)}</SelectItem>
+            <SelectItem value="system">{t(($) => $.audit.actor_system)}</SelectItem>
+          </SelectContent>
+        </Select>
         <Input aria-label={t(($) => $.audit.action)} placeholder={t(($) => $.audit.action_placeholder)} className="h-8 w-56 font-mono" value={action} onChange={(e) => setAction(e.target.value)} />
         <span className="flex-1" />
         <Button type="button" size="sm" variant="outline" disabled={exporting !== null} onClick={() => void exportAs("csv")}>

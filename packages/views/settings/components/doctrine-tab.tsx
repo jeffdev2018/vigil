@@ -54,6 +54,9 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
@@ -102,9 +105,6 @@ const DIFF_LINE_TONE: Record<string, string> = {
   del: "bg-destructive/10 text-destructive",
   same: "text-muted-foreground",
 };
-
-const SELECT_CLASS =
-  "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -813,19 +813,26 @@ function ReportsSection({
       title={t(($) => $.doctrine.reports_title)}
       description={t(($) => $.doctrine.reports_description)}
       action={
-        <select
-          aria-label={t(($) => $.doctrine.filter_label)}
-          className={SELECT_CLASS}
-          data-testid="doctrine-reports-filter"
+        <Select
+          items={DOCTRINE_REPORT_FILTERS.map((value) => ({ value, label: reportFilterLabel(value, t) }))}
           value={filter}
-          onChange={(event) => setFilter(event.target.value as DoctrineReportFilter)}
+          onValueChange={(value) => value && setFilter(value)}
         >
-          {DOCTRINE_REPORT_FILTERS.map((value) => (
-            <option key={value} value={value}>
-              {reportFilterLabel(value, t)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label={t(($) => $.doctrine.filter_label)}
+            size="sm"
+            data-testid="doctrine-reports-filter"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DOCTRINE_REPORT_FILTERS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {reportFilterLabel(value, t)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       }
     >
       <SettingsCard>
