@@ -10,6 +10,13 @@ import { agentListOptions } from "@multica/core/workspace/queries";
 import { campaignProgress, campaignShardSkippable, issueCampaignOptions, useCreateCampaign, useSkipCampaignShard, type CampaignMergeStatus } from "@multica/core/issues/campaign";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
@@ -97,19 +104,43 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
             <div className="flex gap-1">
               <Input aria-label={t(($) => $.campaign.name)} placeholder={t(($) => $.campaign.name)} value={name} onChange={(e) => setName(e.target.value)} />
               <Input aria-label={t(($) => $.campaign.target_branch)} placeholder={t(($) => $.campaign.target_branch)} value={target} onChange={(e) => setTarget(e.target.value)} />
-              <select aria-label={t(($) => $.campaign.leader)} className="rounded-md border border-input bg-transparent px-2 py-1" value={leader} onChange={(e) => setLeader(e.target.value)}>
-                <option value="">{t(($) => $.campaign.leader)}</option>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.campaign.leader) },
+                  ...agents.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                value={leader}
+                onValueChange={(value) => value !== null && setLeader(value)}
+              >
+                <SelectTrigger size="sm" aria-label={t(($) => $.campaign.leader)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.campaign.leader)}</SelectItem>
+                  {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             {rows.map((r, i) => (
               <div key={i} className="flex gap-1">
                 <Input aria-label={t(($) => $.campaign.shard, { n: i + 1 })} placeholder={t(($) => $.campaign.shard_placeholder)} value={r.description} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, description: e.target.value } : x)))} />
                 <Input aria-label={t(($) => $.campaign.branch, { n: i + 1 })} placeholder={t(($) => $.campaign.branch_placeholder)} className="w-48" value={r.branch_name} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, branch_name: e.target.value } : x)))} />
-                <select aria-label={t(($) => $.campaign.assignee, { n: i + 1 })} className="rounded-md border border-input bg-transparent px-2 py-1" value={r.assignee_id} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: e.target.value } : x)))}>
-                  <option value="">{t(($) => $.campaign.pick_agent)}</option>
-                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.campaign.pick_agent) },
+                    ...agents.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                  value={r.assignee_id}
+                  onValueChange={(value) => value !== null && setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: value } : x)))}
+                >
+                  <SelectTrigger size="sm" aria-label={t(($) => $.campaign.assignee, { n: i + 1 })}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.campaign.pick_agent)}</SelectItem>
+                    {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <button type="button" aria-label={t(($) => $.campaign.remove, { n: i + 1 })} className="text-muted-foreground hover:text-destructive" onClick={() => setRows(rows.filter((_, n) => n !== i))}>×</button>
               </div>
             ))}
