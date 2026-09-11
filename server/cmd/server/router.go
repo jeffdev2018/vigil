@@ -2439,6 +2439,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/runs", h.ListRuns)
 			r.Post("/api/runs/cancel", h.CancelRuns)
 			r.Post("/api/runs/kill-switch", h.KillSwitch)
+			// JEF-388: dead run branches. The plan is member-readable; the
+			// batch discard is human-only like the single-run discard whose
+			// guard chain it re-runs per task.
+			r.Get("/api/runs/dead-branches", h.ListDeadBranches)
+			r.With(handler.RequireHumanActor).Post("/api/runs/dead-branches/discard", h.DiscardDeadBranches)
 			r.Get("/api/run-halt", h.GetRunHalt)
 			r.Put("/api/run-halt", h.PutRunHalt)
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.

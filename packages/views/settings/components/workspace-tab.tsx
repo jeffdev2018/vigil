@@ -46,6 +46,7 @@ import { TriageAutoSetting } from "./triage-auto-setting";
 import { TriageEmailSourceSetting } from "./triage-email-source-setting";
 import { ApprovalGatesSetting } from "./approval-gates-setting";
 import { RunHaltSetting } from "./run-halt-setting";
+import { BranchCleanupSetting } from "./branch-cleanup-setting";
 import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
@@ -512,6 +513,7 @@ export function WorkspaceTab() {
       {wsId && <TriageEmailSourceSetting wsId={wsId} canEdit={canManageWorkspace} />}
       {workspace && <ApprovalGatesSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {wsId && <RunHaltSetting wsId={wsId} canEdit={canManageWorkspace} />}
+      {workspace && <BranchCleanupSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PermissionProfilesSetting canEdit={canManageWorkspace} />}
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
