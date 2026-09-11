@@ -5,7 +5,7 @@ import type { AuditLogFilter } from "../types";
 // Audit log (K08): a cursor-paginated, filtered read.
 
 export const auditKeys = {
-  list: (wsId: string, filter: AuditLogFilter) => ["audit-log", wsId, filter.since ?? "", filter.until ?? "", filter.actor_type ?? "", filter.action ?? ""] as const,
+  list: (wsId: string, filter: AuditLogFilter) => ["audit-log", wsId, filter.since ?? "", filter.until ?? "", filter.actor_type ?? "", filter.action ?? "", filter.entity_id ?? ""] as const,
 };
 
 export function auditLogInfiniteOptions(wsId: string, filter: AuditLogFilter) {
