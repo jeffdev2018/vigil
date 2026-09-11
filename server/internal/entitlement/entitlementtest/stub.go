@@ -74,5 +74,10 @@ func cloneDecision(in entitlement.Decision) entitlement.Decision {
 		value := *in.Gate.ResetAt
 		out.Gate.ResetAt = &value
 	}
+	if in.Gate.Notifications != nil {
+		out.Gate.Notifications = &entitlement.NotificationPolicy{
+			OnRejection: in.Gate.Notifications.OnRejection,
+		}
+	}
 	return out
 }
