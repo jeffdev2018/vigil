@@ -204,6 +204,9 @@
     "too_many_series": "共 {{count}} 个类别 — 以表格显示。",
     "move_up": "上移",
     "move_down": "下移",
-    "remove": "删除"
+    "remove": "删除",
+    "pin_failed": "无法固定此回答。",
+    "reorder_failed": "无法重新排序此卡片。",
+    "remove_failed": "无法删除此卡片。"
   }
 }

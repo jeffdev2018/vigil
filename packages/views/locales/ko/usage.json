@@ -204,6 +204,9 @@
     "too_many_series": "카테고리 {{count}}개 — 표로 표시합니다.",
     "move_up": "위로 이동",
     "move_down": "아래로 이동",
-    "remove": "삭제"
+    "remove": "삭제",
+    "pin_failed": "이 답변을 고정할 수 없습니다.",
+    "reorder_failed": "이 카드를 재정렬할 수 없습니다.",
+    "remove_failed": "이 카드를 삭제할 수 없습니다."
   }
 }

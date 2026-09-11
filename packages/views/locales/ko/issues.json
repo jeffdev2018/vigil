@@ -844,6 +844,7 @@
     "add_blocking": "차단 대상 추가...",
     "add_blocked_by": "차단 원인 추가...",
     "remove_dependency": "의존성 제거",
+    "remove_dependency_failed": "의존성을 제거할 수 없습니다.",
     "add_relation": "관계 추가…"
   },
   "pickers": {

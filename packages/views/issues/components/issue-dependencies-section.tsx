@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
+import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import {
   issueDependenciesOptions,
@@ -62,7 +63,19 @@ export function IssueDependenciesSection({ issueId }: { issueId: string }) {
                   type="button"
                   title={t(($) => $.actions.remove_dependency)}
                   aria-label={t(($) => $.actions.remove_dependency)}
-                  onClick={() => remove.mutate({ issueId, dependencyId: dep.id })}
+                  onClick={() =>
+                    remove.mutate(
+                      { issueId, dependencyId: dep.id },
+                      {
+                        onError: (err) =>
+                          toast.error(
+                            err instanceof Error && err.message
+                              ? err.message
+                              : t(($) => $.actions.remove_dependency_failed),
+                          ),
+                      },
+                    )
+                  }
                   className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <X className="h-3.5 w-3.5" />

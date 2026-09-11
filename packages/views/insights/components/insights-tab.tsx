@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import type { InsightWidget } from "@multica/core/insights";
@@ -28,20 +29,26 @@ export function InsightsTab({ wsId }: { wsId: string }) {
   const update = useUpdateInsightWidget(wsId);
   const widgets = widgetsQuery.data ?? [];
 
+  const reportReorderFailure = (err: unknown) =>
+    toast.error(
+      err instanceof Error && err.message ? err.message : t(($) => $.insights.reorder_failed),
+    );
+
   const swap = (index: number, direction: -1 | 1) => {
     const current = widgets[index];
     const neighbour = widgets[index + direction];
     if (!current || !neighbour) return;
     // Positions are swapped rather than recomputed, so a reorder is two
-    // independent PATCHes and a failure on one leaves the other consistent.
-    update.mutate({
-      id: current.id,
-      input: { position: neighbour.position, expected_revision: current.revision },
-    });
-    update.mutate({
-      id: neighbour.id,
-      input: { position: current.position, expected_revision: neighbour.revision },
-    });
+    // independent PATCHes and a failure on one leaves the other consistent
+    // (onSettled re-reads the list either way — see useUpdateInsightWidget).
+    update.mutate(
+      { id: current.id, input: { position: neighbour.position, expected_revision: current.revision } },
+      { onError: reportReorderFailure },
+    );
+    update.mutate(
+      { id: neighbour.id, input: { position: current.position, expected_revision: neighbour.revision } },
+      { onError: reportReorderFailure },
+    );
   };
 
   return (
@@ -128,7 +135,16 @@ function InsightWidgetCard({
             variant="ghost"
             size="icon-sm"
             aria-label={t(($) => $.insights.remove)}
-            onClick={() => remove.mutate(widget.id)}
+            onClick={() =>
+              remove.mutate(widget.id, {
+                onError: (err) =>
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : t(($) => $.insights.remove_failed),
+                  ),
+              })
+            }
           >
             <Trash2 />
           </Button>
