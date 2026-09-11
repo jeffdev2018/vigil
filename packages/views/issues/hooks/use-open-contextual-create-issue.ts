@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { openCreateIssueWithPreference } from "@multica/core/issues/stores/create-mode-store";
+import { openCreateIssueWithPreference } from "@multica/core/issues/stores";
 import type { Cycle } from "@multica/core/types";
 import { useNavigation } from "../../navigation";
 
