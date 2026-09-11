@@ -112,6 +112,7 @@ export function dashboardCostPerDeliverableOptions(
         project_id: projectId ?? undefined,
         tz,
       }),
+    enabled: !!wsId,
     staleTime: 60_000,
   });
 }
@@ -131,6 +132,7 @@ export function dashboardAgentRoiOptions(
         project_id: projectId ?? undefined,
         tz,
       }),
+    enabled: !!wsId,
     staleTime: 60_000,
   });
 }

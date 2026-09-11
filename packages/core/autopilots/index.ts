@@ -11,10 +11,14 @@ export {
   scheduleTriggerDryRunOptions,
 } from "./queries";
 export {
+  useDraftAutopilot,
+  useProposeAutopilot,
   useCreateAutopilot,
   useUpdateAutopilot,
   useDeleteAutopilot,
   useTriggerAutopilot,
+  useGrantAutopilotAccess,
+  useRevokeAutopilotAccess,
   useCreateAutopilotTrigger,
   useUpdateAutopilotTrigger,
   useDeleteAutopilotTrigger,

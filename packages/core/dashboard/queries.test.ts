@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dashboardAgentRoiOptions,
   dashboardAgentRunTimeOptions,
+  dashboardCostPerDeliverableOptions,
   dashboardFailuresByAgentOptions,
   dashboardFailuresDailyOptions,
   dashboardRunTimeDailyOptions,
@@ -84,5 +86,12 @@ describe("dashboard range placeholders", () => {
     const options = dashboardUsageDailyOptions("ws-1", 30, null, "UTC");
 
     expect(resolvePlaceholder(options, undefined, undefined)).toBeUndefined();
+  });
+
+  it("gates cost-per-deliverable and agent-ROI cards on a resolved workspace, like every other card", () => {
+    expect(dashboardCostPerDeliverableOptions("", 30, null, "UTC").enabled).toBe(false);
+    expect(dashboardCostPerDeliverableOptions("ws-1", 30, null, "UTC").enabled).toBe(true);
+    expect(dashboardAgentRoiOptions("", 30, null, "UTC").enabled).toBe(false);
+    expect(dashboardAgentRoiOptions("ws-1", 30, null, "UTC").enabled).toBe(true);
   });
 });
