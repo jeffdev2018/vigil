@@ -514,7 +514,7 @@ func brainSuggestUserPrompt(c db.BrainCapture, candidates []db.SearchWorkspaceNo
 	}
 	content := c.Content
 	if len(content) > 6000 {
-		content = content[:6000] + "…"
+		content = util.TruncateUTF8Bytes(content, 6000) + "…"
 	}
 	fmt.Fprintf(&b, "Content:\n<capture>\n%s\n</capture>\n", content)
 	if len(candidates) > 0 {
@@ -522,7 +522,7 @@ func brainSuggestUserPrompt(c db.BrainCapture, candidates []db.SearchWorkspaceNo
 		for _, n := range candidates {
 			excerpt := n.Content
 			if len(excerpt) > 240 {
-				excerpt = excerpt[:240] + "…"
+				excerpt = util.TruncateUTF8Bytes(excerpt, 240) + "…"
 			}
 			fmt.Fprintf(&b, "- %s · %s · %s\n", uuidToString(n.ID), n.Title, strings.ReplaceAll(excerpt, "\n", " "))
 		}
@@ -539,7 +539,7 @@ func (h *Handler) brainCaptureCandidates(ctx context.Context, c db.BrainCapture)
 		query = c.Url
 	}
 	if len(query) > 500 {
-		query = query[:500]
+		query = util.TruncateUTF8Bytes(query, 500)
 	}
 	if strings.TrimSpace(query) == "" {
 		return nil

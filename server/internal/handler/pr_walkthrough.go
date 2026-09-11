@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/integrations/ghdiff"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -530,7 +531,7 @@ func (h *Handler) failPrWalkthrough(ctx context.Context, row db.PrWalkthrough, r
 func clipWalkthroughError(reason string) string {
 	reason = strings.TrimSpace(reason)
 	if len(reason) > 1000 {
-		return reason[:1000]
+		return util.TruncateUTF8Bytes(reason, 1000)
 	}
 	return reason
 }

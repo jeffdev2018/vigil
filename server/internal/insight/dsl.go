@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // Entities. Each maps to exactly one table plus its workspace predicate; there
@@ -525,7 +526,7 @@ func quoteForReason(value string) string {
 		return r
 	}, value)
 	if len(cleaned) > max {
-		cleaned = cleaned[:max] + "…"
+		cleaned = util.TruncateUTF8Bytes(cleaned, max) + "…"
 	}
 	return strconv.Quote(cleaned)
 }

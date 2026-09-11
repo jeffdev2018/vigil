@@ -59,7 +59,7 @@ func NoteContentHash(title, content string) string {
 func noteEmbeddingText(title, content string) string {
 	text := strings.TrimSpace(title) + "\n\n" + strings.TrimSpace(content)
 	if len(text) > noteEmbeddingTextCap {
-		text = text[:noteEmbeddingTextCap]
+		text = util.TruncateUTF8Bytes(text, noteEmbeddingTextCap)
 	}
 	return text
 }

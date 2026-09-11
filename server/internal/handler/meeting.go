@@ -251,7 +251,7 @@ func (h *Handler) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	appName := strings.TrimSpace(req.AppName)
 	if len(appName) > 64 {
-		appName = appName[:64]
+		appName = util.TruncateUTF8Bytes(appName, 64)
 	}
 	m, err := h.Queries.CreateMeeting(r.Context(), db.CreateMeetingParams{
 		WorkspaceID: workspaceID,
@@ -532,7 +532,7 @@ func (h *Handler) summarizeMeeting(ctx context.Context, transcript string) (meet
 		return meetingSummary{}, false
 	}
 	if len(transcript) > meetingLLMTranscriptCap {
-		transcript = transcript[:meetingLLMTranscriptCap]
+		transcript = util.TruncateUTF8Bytes(transcript, meetingLLMTranscriptCap)
 	}
 	ctx, cancel := context.WithTimeout(ctx, meetingSummaryTimeout)
 	defer cancel()

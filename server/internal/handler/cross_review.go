@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -114,7 +115,7 @@ func parseCrossReviewReport(text string) CrossReviewReport {
 	for i := len(paragraphs) - 1; i >= 0; i-- {
 		if p := strings.TrimSpace(paragraphs[i]); p != "" {
 			if len(p) > 1000 {
-				p = p[:1000] + "…"
+				p = util.TruncateUTF8Bytes(p, 1000) + "…"
 			}
 			report.Summary = p
 			break
@@ -184,7 +185,7 @@ func (h *Handler) diffBlock(ctx context.Context, issue db.Issue, prURL string) s
 		return "Read the diff yourself with git.\n"
 	}
 	if len(diff) > crossReviewDiffCap {
-		diff = diff[:crossReviewDiffCap] + "\n… (diff truncated; read the rest with git)"
+		diff = util.TruncateUTF8Bytes(diff, crossReviewDiffCap) + "\n… (diff truncated; read the rest with git)"
 	}
 	return "The diff:\n```diff\n" + diff + "\n```\n"
 }
