@@ -244,6 +244,7 @@
     "empty": "No issues match this view.",
     "search_placeholder": "Search title or issue ID…",
     "search_clear": "Clear search",
+    "resize_column": "Resize {{label}} column",
     "load_failed": "Failed to load issues.",
     "load_failed_retry": "Retry",
     "load_more_failed_retry": "Loading more failed — Retry",

@@ -1,8 +1,13 @@
 {
   "attach_file": "Joindre un fichier",
   "toggle_sidebar": "Basculer la barre latérale gauche",
+  "mobile_sidebar_title": "Barre latérale",
+  "mobile_sidebar_description": "Affiche la barre latérale mobile.",
   "copy_code": "Copier le code",
   "plain_text": "texte brut",
+  "add_reaction": "Ajouter une réaction",
+  "loading": "Chargement...",
+  "more_emojis": "Plus d'émojis...",
   "error_boundary": {
     "title": "Un problème est survenu lors de l'affichage de cette section.",
     "description": "Une erreur inattendue est survenue.",

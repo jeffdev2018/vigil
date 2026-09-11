@@ -1,8 +1,13 @@
 {
   "attach_file": "添加附件",
   "toggle_sidebar": "切换左侧边栏",
+  "mobile_sidebar_title": "侧边栏",
+  "mobile_sidebar_description": "显示移动端侧边栏。",
   "copy_code": "复制代码",
   "plain_text": "纯文本",
+  "add_reaction": "添加表情回应",
+  "loading": "加载中...",
+  "more_emojis": "更多表情...",
   "error_boundary": {
     "title": "此区域显示时出现问题。",
     "description": "发生了意外错误。",

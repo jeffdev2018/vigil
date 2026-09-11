@@ -59,6 +59,11 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   virtualizeRows?: boolean;
   virtualRowHeight?: number;
   virtualOverscan?: number;
+  // Accessible label for a column-resize handle. `packages/ui` has no i18n
+  // of its own — pass the translated label from the caller (same pattern as
+  // DialogContent's closeLabel). Defaults to the English "Resize {label}
+  // column".
+  resizeAriaLabel?: (headerLabel: string) => string;
 }
 
 // Headless data-table shell — adapted from Dice UI's data-table
@@ -88,6 +93,7 @@ export function DataTable<TData>({
   virtualizeRows = false,
   virtualRowHeight = 41,
   virtualOverscan = 10,
+  resizeAriaLabel = (headerLabel) => `Resize ${headerLabel} column`,
   className,
   ...props
 }: DataTableProps<TData>) {
@@ -469,7 +475,7 @@ export function DataTable<TData>({
                         header.column.getCanResize() && (
                           <div
                             role="separator"
-                            aria-label={`Resize ${headerLabel} column`}
+                            aria-label={resizeAriaLabel(headerLabel)}
                             aria-orientation="vertical"
                             tabIndex={0}
                             className={cn(

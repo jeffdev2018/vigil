@@ -448,6 +448,9 @@ function StepperContent({
 
   return (
     <div
+      // Matches StepperTrigger's `aria-controls={stepper-panel-${step}}` so
+      // the reference actually resolves to an element.
+      id={`stepper-panel-${value}`}
       data-slot="stepper-content"
       data-state={activeStep}
       className={cn("w-full", className, !isActive && forceMount && "hidden")}
