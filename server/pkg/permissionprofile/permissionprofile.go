@@ -26,7 +26,9 @@
 //     channel this package owns. The daemon's own inherited environment is
 //     narrowed elsewhere (pkg/agent buildEnv drops foreign model-vendor keys)
 //     and a BYOK key is injected after this filter on purpose.
-//   - AllowedCommands: told to the model, and nothing checks it. See
+//   - AllowedCommands: told to the model, and enforced for the shell
+//     surface only (AllowsCommand in shellcommand.go, called from the
+//     command hook); other provider surfaces stay advisory. See
 //     AllowsAnyCommand and PromptSection.
 //
 // AllowedCommands cannot be made a control from here, and the reason is worth
