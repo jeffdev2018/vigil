@@ -330,7 +330,13 @@ func (h *Handler) BootstrapOnboardingRuntime(w http.ResponseWriter, r *http.Requ
 			platform,
 		))
 		if h.shouldEnqueueAgentTask(r.Context(), issue) {
-			h.TaskService.EnqueueTaskForIssue(r.Context(), issue)
+			// DO NOT change behavior here (see file header): no new return
+			// code for the pre-v3 client. Logging only, so a silent enqueue
+			// failure at least leaves a trace to diagnose "issue created but
+			// no agent started" reports.
+			if _, err := h.TaskService.EnqueueTaskForIssue(r.Context(), issue); err != nil {
+				slog.Warn("onboarding shim: enqueue task for issue failed", "error", err, "issue_id", uuidToString(issue.ID))
+			}
 		}
 	}
 	if firstCompletion {
