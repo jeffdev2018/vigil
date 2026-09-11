@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Cycle } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
@@ -92,6 +93,19 @@ beforeEach(() => {
   state.toastError.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(
+  scope: { getByRole: typeof screen.getByRole; findByRole: typeof screen.findByRole },
+  comboboxName: string,
+  optionName: string,
+) {
+  const user = userEvent.setup();
+  await user.click(scope.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("CyclesPage", () => {
   it("groups cycles into active, upcoming and closed sections", () => {
     state.cycles = [
@@ -130,11 +144,11 @@ describe("CyclesPage", () => {
   it("creates a cycle with the project filter preselected", async () => {
     state.cycles = [cycle({ id: "c1" })];
     renderPage();
-    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "p1" } });
+    await pickOption(screen, "Project", "Billing");
     fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect((within(dialog).getByLabelText("Project") as HTMLSelectElement).value).toBe("p1");
+    expect(within(dialog).getByRole("combobox", { name: "Project" }).textContent).toContain("Billing");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Sprint 14" } });
     fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-01" } });
     fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-14" } });
@@ -161,7 +175,7 @@ describe("CyclesPage", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Project"), { target: { value: "p1" } });
+    await pickOption(within(dialog), "Project", "Billing");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Backwards" } });
     fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-14" } });
     fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-01" } });

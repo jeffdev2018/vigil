@@ -24,6 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { AppLink } from "../../navigation";
 import {
   CollectionPageHeader,
@@ -42,8 +49,6 @@ const STATUS_BADGE: Record<CycleStatus, string> = {
   active: "bg-primary/10 text-primary",
   closed: "bg-success/10 text-success",
 };
-
-const SELECT_CLASS = "h-7 rounded-md border bg-background px-2 text-caption";
 
 const errorMessage = (e: unknown, fallback: string) =>
   e instanceof Error && e.message ? e.message : fallback;
@@ -165,17 +170,24 @@ export function CyclesPage() {
         count={cycles.length}
         actions={
           <div className="flex items-center gap-2">
-            <select
-              className={SELECT_CLASS}
-              aria-label={t(($) => $.form.project)}
+            <Select
+              items={[
+                { value: "", label: t(($) => $.page.all_projects) },
+                ...projects.map((p) => ({ value: p.id, label: p.title })),
+              ]}
               value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
+              onValueChange={(value) => value !== null && setProjectFilter(value)}
             >
-              <option value="">{t(($) => $.page.all_projects)}</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" aria-label={t(($) => $.form.project)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.page.all_projects)}</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <CollectionPageHeaderAction
               icon={Plus}
               label={t(($) => $.page.new_cycle)}
