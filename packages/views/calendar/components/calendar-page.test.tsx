@@ -288,4 +288,20 @@ describe("CalendarPage", () => {
     const endInput = screen.getByLabelText(new RegExp(en.form.ends_at, "i")) as HTMLInputElement;
     expect(endInput.value).toBe("2026-09-16T10:30");
   });
+
+  // Regression: the participant chip's remove button reused the generic
+  // "Cancel" accessible name, identical to the form's Cancel button — a
+  // screen reader or keyboard user could not tell them apart (UX audit).
+  it("names the participant chip's remove button after the participant, not 'Cancel'", async () => {
+    renderPage();
+    await screen.findByText("September 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: en.page.new_event }));
+    await screen.findByPlaceholderText(en.form.title_placeholder);
+    fireEvent.click(screen.getByText(en.form.add_participants));
+    fireEvent.click(await screen.findByText("Ada"));
+
+    expect(screen.getByRole("button", { name: "Remove Ada" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: en.form.cancel })).toHaveLength(1);
+  });
 });

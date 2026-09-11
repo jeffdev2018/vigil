@@ -51,6 +51,7 @@
     "find_slot_pick_participants": "空き枠を探すには参加者を1人以上選んでください。",
     "find_slot_use": "この枠を使う",
     "cancel": "キャンセル",
+    "remove_participant": "{{name}}を削除",
     "create": "イベントを作成",
     "save": "保存",
     "error": "イベントを保存できませんでした",

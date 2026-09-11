@@ -51,6 +51,7 @@
     "find_slot_pick_participants": "Pick at least one participant to find a slot.",
     "find_slot_use": "Use this slot",
     "cancel": "Cancel",
+    "remove_participant": "Remove {{name}}",
     "create": "Create event",
     "save": "Save",
     "error": "Could not save the event",
