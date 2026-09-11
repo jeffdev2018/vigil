@@ -414,6 +414,14 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				continue
 			}
 			go d.handleRuntimeProfilesChanged(payload)
+		case protocol.EventDaemonRunHaltChanged:
+			// JEF-257: a halt flip changes the control status of every
+			// in-flight task in the workspace. The reconcile broadcaster nudges
+			// each task watcher to re-poll immediately instead of on its 5s
+			// tick, so a freeze lands sub-second.
+			if d.reconcile != nil {
+				d.reconcile.broadcast()
+			}
 		case protocol.EventDaemonWorkspacesChanged:
 			if d.workspaceChanges != nil {
 				d.workspaceChanges.broadcast()

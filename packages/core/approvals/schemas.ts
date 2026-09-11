@@ -94,10 +94,14 @@ export const RunHaltSchema = z.object({
   reason: z.string().catch(""),
   halted_by: z.string().catch(""),
   halted_at: z.string().nullable().catch(null),
+  // JEF-257 freeze semantics: how many in-flight runs the halt just froze /
+  // the lift just resumed. Absent on legacy backends — degrade to 0.
+  frozen_count: z.number().catch(0),
+  resumed_count: z.number().catch(0),
 }).loose();
 export type RunHalt = z.infer<typeof RunHaltSchema>;
 
-export const EMPTY_RUN_HALT: RunHalt = { halted: false, reason: "", halted_by: "", halted_at: null };
+export const EMPTY_RUN_HALT: RunHalt = { halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 0 };
 
 export const ApprovalsResponseSchema = z.object({
   approvals: z.array(ApprovalItemSchema).catch([]),

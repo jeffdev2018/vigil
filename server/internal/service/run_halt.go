@@ -27,6 +27,13 @@ type RunHalt struct {
 	// who threw it.
 	HaltedBy string `json:"halted_by,omitempty"`
 	HaltedAt string `json:"halted_at,omitempty"`
+	// FrozenCount is how many in-flight runs the halt is currently holding
+	// (JEF-257). Live-computed on reads, just-frozen on the write that set the
+	// halt; never stored in settings — the copy persisted there keeps it zero.
+	FrozenCount int `json:"frozen_count"`
+	// ResumedCount is how many frozen runs the lift that produced this
+	// response resumed. Zero everywhere except a lift response.
+	ResumedCount int `json:"resumed_count"`
 }
 
 // RunHaltMaxReasonRunes bounds the reason. It travels in refusals, including

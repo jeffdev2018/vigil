@@ -208,6 +208,14 @@ type RuntimeProfileRefreshNotifier interface {
 	NotifyRuntimeProfilesChanged(workspaceID, profileID string)
 }
 
+// DaemonRunHaltNotifier pushes a workspace-scoped "halt changed" hint to
+// connected daemons so in-flight task watchers re-poll their control status
+// immediately (JEF-257). Satisfied by both *daemonws.Hub (single-node) and
+// *daemonws.RelayNotifier (multi-node, fans out through Redis).
+type DaemonRunHaltNotifier interface {
+	NotifyRunHaltChanged(workspaceID string)
+}
+
 type WorkspaceSetRefreshNotifier interface {
 	NotifyWorkspacesChanged(userID string)
 }
@@ -246,6 +254,7 @@ type Handler struct {
 	DaemonProfileRefresh   RuntimeProfileRefreshNotifier
 	DaemonWorkspaceRefresh WorkspaceSetRefreshNotifier
 	DaemonRuntimeGone      RuntimeGoneNotifier
+	DaemonRunHalt          DaemonRunHaltNotifier
 	Bus                    *events.Bus
 	TaskService            *service.TaskService
 	BudgetService          *service.BudgetService
@@ -556,10 +565,12 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	var daemonProfileRefresh RuntimeProfileRefreshNotifier
 	var daemonWorkspaceRefresh WorkspaceSetRefreshNotifier
 	var daemonRuntimeGone RuntimeGoneNotifier
+	var daemonRunHalt DaemonRunHaltNotifier
 	if daemonHub != nil {
 		daemonProfileRefresh = daemonHub
 		daemonWorkspaceRefresh = daemonHub
 		daemonRuntimeGone = daemonHub
+		daemonRunHalt = daemonHub
 	}
 
 	llmClient := llm.New(llm.Config{
@@ -623,6 +634,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		DaemonProfileRefresh:         daemonProfileRefresh,
 		DaemonWorkspaceRefresh:       daemonWorkspaceRefresh,
 		DaemonRuntimeGone:            daemonRuntimeGone,
+		DaemonRunHalt:                daemonRunHalt,
 		Bus:                          bus,
 		TaskService:                  taskSvc,
 		BudgetService:                budgetSvc,

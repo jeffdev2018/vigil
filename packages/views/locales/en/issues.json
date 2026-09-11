@@ -1908,6 +1908,7 @@
     "run_halt_unknown_actor": "an owner",
     "run_halt_lift": "Lift the halt",
     "run_halt_lift_failed": "Could not lift the halt",
+    "run_halt_frozen_count": "{{count}} runs frozen",
     "kind_calendar_proposal": "Meeting proposal",
     "kind_autopilot_proposal": "Autopilot proposal"
   },

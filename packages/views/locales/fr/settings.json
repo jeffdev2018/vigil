@@ -998,6 +998,8 @@
     "run_halt_reason_label": "Motif",
     "run_halt_reason_description": "Affiché à quiconque rencontre l'arrêt, y compris dans le texte d'erreur d'un agent.",
     "run_halt_failed": "Échec de la mise à jour de l'arrêt",
+    "run_halt_frozen_toast": "{{count}} runs en cours figés",
+    "run_halt_resumed_toast": "{{count}} runs figés repris",
     "profiles_section": "Profils de permission",
     "profiles_intro": "Définit ce à quoi un agent peut accéder lors de son exécution. Assignez un profil à l'agent (ou à une exécution) ; les règles ci-dessous sont appliquées lorsque le runtime le permet (règles de refus Claude, sandbox lecture seule Codex, portails d'approbation) et communiquées au modèle dans le cas contraire.",
     "profiles_read_only": "Lecture seule",

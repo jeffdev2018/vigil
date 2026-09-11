@@ -194,6 +194,13 @@ type RuntimeProfilesChangedPayload struct {
 // no workspace data is embedded in the event.
 type WorkspacesChangedPayload struct{}
 
+// RunHaltChangedPayload is sent from server to daemon as a wakeup hint when a
+// workspace's run halt is set or lifted (JEF-257). It carries no state: the
+// daemon re-reads control status through the existing HTTP endpoints.
+type RunHaltChangedPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+}
+
 // PendingWorkKind values carried by PendingWorkPayload.Kind. The kind is
 // advisory only — the daemon reacts identically to every kind (one immediate
 // heartbeat, which claims whatever is queued) — so an unknown value from a

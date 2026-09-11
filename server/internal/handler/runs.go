@@ -646,7 +646,7 @@ func (h *Handler) KillSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.SliceStable(results, func(i, j int) bool { return results[i].Outcome < results[j].Outcome })
 	h.audit(r.Context(), wsUUID, "member", userID, AuditKillSwitch, "workspace", wsUUID, map[string]any{"reason": req.Reason, "requested": len(all), "cancelled": cancelled}, nil)
-	h.publish(protocol.EventRunHaltChanged, uuidToString(wsUUID), "member", userID, map[string]any{"run_halt": halt, "cancelled": cancelled})
+	h.publish(protocol.EventRunHaltChanged, uuidToString(wsUUID), "member", userID, map[string]any{"run_halt": halt, "cancelled": cancelled, "frozen": halt.FrozenCount, "resumed": halt.ResumedCount})
 	writeJSON(w, http.StatusOK, map[string]any{"run_halt": halt, "cancelled": cancelled, "results": results})
 }
 

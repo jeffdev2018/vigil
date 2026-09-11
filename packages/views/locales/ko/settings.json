@@ -964,6 +964,8 @@
     "run_halt_reason_label": "이유",
     "run_halt_reason_description": "정지를 만나는 모든 사람에게 표시됩니다. 에이전트 자신의 오류 메시지에도 포함됩니다.",
     "run_halt_failed": "정지 설정을 업데이트하지 못했습니다",
+    "run_halt_frozen_toast": "진행 중이던 실행 {{count}}개를 동결했습니다",
+    "run_halt_resumed_toast": "동결된 실행 {{count}}개를 재개했습니다",
     "profiles_section": "권한 프로필",
     "profiles_intro": "에이전트가 실행 중 접근할 수 있는 범위입니다. 프로필은 에이전트(또는 개별 실행)에 지정합니다. 아래 규칙은 런타임이 허용하는 범위에서 강제되고(Claude 거부 규칙, Codex 읽기 전용 샌드박스, 승인 게이트) 그 외에는 모델에 전달됩니다.",
     "profiles_read_only": "읽기 전용",

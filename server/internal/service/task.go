@@ -1370,9 +1370,16 @@ func (s *TaskService) EnqueueTaskForIssueWithHandoff(ctx context.Context, issue 
 // enqueue's) so attribution, routing and the trigger snapshot of the waiting
 // run stay untouched — only the operator-facing note grows.
 func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.Issue, handoffNote string) (db.AgentTaskQueue, error) {
+	return s.mergeHandoffIntoPendingTaskForAgent(ctx, issue, issue.AssigneeID, handoffNote)
+}
+
+// mergeHandoffIntoPendingTaskForAgent is the agent-explicit variant: resume
+// children (JEF-257) collide with the pending slot of the PAUSED TASK's
+// agent, which is not necessarily the issue's current assignee.
+func (s *TaskService) mergeHandoffIntoPendingTaskForAgent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, handoffNote string) (db.AgentTaskQueue, error) {
 	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
 		IssueID: issue.ID,
-		AgentID: issue.AssigneeID,
+		AgentID: agentID,
 	})
 	if err != nil {
 		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)

@@ -705,3 +705,128 @@ func (p *localFirstDaemonRelayPublisher) PublishWithID(scopeType, scopeID, exclu
 	}
 	return nil
 }
+
+// JEF-257: a halt flip fans a workspace-scoped run_halt:changed frame out to
+// every daemon of the workspace so task watchers re-poll control status
+// immediately instead of on the 5s tick.
+func TestNotifyRunHaltChanged(t *testing.T) {
+	M.Reset()
+	defer M.Reset()
+
+	hub := NewHub()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.HandleWebSocket(w, r, ClientIdentity{
+			WorkspaceID: "ws-1",
+			RuntimeIDs:  []string{"runtime-1"},
+		})
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer conn.Close()
+
+	deadline := time.Now().Add(time.Second)
+	for hub.WorkspaceConnectionCount("ws-1") == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("workspace connection was not registered")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	hub.NotifyRunHaltChanged("ws-1")
+
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	_, raw, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		t.Fatalf("unmarshal message: %v", err)
+	}
+	if msg.Type != protocol.EventDaemonRunHaltChanged {
+		t.Fatalf("message type = %q, want %q", msg.Type, protocol.EventDaemonRunHaltChanged)
+	}
+
+	var payload protocol.RunHaltChangedPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.WorkspaceID != "ws-1" {
+		t.Fatalf("payload = %+v, want workspace ID", payload)
+	}
+}
+
+func TestRelayNotifierPublishesRunHaltChanged(t *testing.T) {
+	M.Reset()
+	defer M.Reset()
+
+	relay := &recordingRelayPublisher{}
+	notifier := NewRelayNotifier(nil, relay)
+
+	notifier.NotifyRunHaltChanged("ws-1")
+
+	if relay.scopeType != realtime.ScopeDaemonRuntime {
+		t.Fatalf("scopeType = %q, want %q", relay.scopeType, realtime.ScopeDaemonRuntime)
+	}
+	if relay.scopeID != "ws-1" {
+		t.Fatalf("scopeID = %q, want workspace shard key", relay.scopeID)
+	}
+	if relay.eventID == "" {
+		t.Fatal("expected event id")
+	}
+	if M.WakeupPublishedTotal.Load() != 1 {
+		t.Fatalf("published metric = %d, want 1", M.WakeupPublishedTotal.Load())
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(relay.frame, &msg); err != nil {
+		t.Fatalf("unmarshal frame: %v", err)
+	}
+	if msg.Type != protocol.EventDaemonRunHaltChanged {
+		t.Fatalf("message type = %q, want %q", msg.Type, protocol.EventDaemonRunHaltChanged)
+	}
+	var payload protocol.RunHaltChangedPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.WorkspaceID != "ws-1" {
+		t.Fatalf("payload = %+v, want workspace ID", payload)
+	}
+}
+
+// The relay path routes the frame by its payload's workspace id, the same as
+// runtime_profiles_changed.
+func TestDeliverDaemonRuntimeRoutesRunHaltChanged(t *testing.T) {
+	M.Reset()
+	defer M.Reset()
+
+	hub := NewHub()
+	client := attachDaemonWorkspaceTestClient(hub, "ws-1")
+
+	frame, err := runHaltChangedFrame("ws-1")
+	if err != nil {
+		t.Fatalf("frame: %v", err)
+	}
+	hub.DeliverDaemonRuntime("ws-1", frame, "event-1")
+
+	select {
+	case raw := <-client.send:
+		var msg protocol.Message
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			t.Fatalf("unmarshal message: %v", err)
+		}
+		if msg.Type != protocol.EventDaemonRunHaltChanged {
+			t.Fatalf("message type = %q, want %q", msg.Type, protocol.EventDaemonRunHaltChanged)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run_halt_changed frame was not delivered")
+	}
+}

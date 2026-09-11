@@ -458,6 +458,12 @@ func (h *Hub) NotifyRuntimeProfilesChanged(workspaceID, profileID string) {
 	h.notifyRuntimeProfilesChanged(workspaceID, profileID, "")
 }
 
+// NotifyRunHaltChanged asks connected daemons in workspaceID to reconcile
+// control status immediately after the workspace halt flipped (JEF-257).
+func (h *Hub) NotifyRunHaltChanged(workspaceID string) {
+	h.notifyRunHaltChanged(workspaceID, "")
+}
+
 // NotifyWorkspacesChanged asks every connected daemon authenticated as userID
 // to reconcile its workspace membership set.
 func (h *Hub) NotifyWorkspacesChanged(userID string) {
@@ -501,6 +507,17 @@ func (h *Hub) notifyRuntimeProfilesChanged(workspaceID, profileID, eventID strin
 		return
 	}
 	data, err := runtimeProfilesChangedFrame(workspaceID, profileID)
+	if err != nil {
+		return
+	}
+	h.notifyWorkspaceFrame(workspaceID, data, eventID)
+}
+
+func (h *Hub) notifyRunHaltChanged(workspaceID, eventID string) {
+	if h == nil || workspaceID == "" {
+		return
+	}
+	data, err := runHaltChangedFrame(workspaceID)
 	if err != nil {
 		return
 	}
@@ -630,6 +647,19 @@ func (h *Hub) DeliverDaemonRuntime(scopeID string, frame []byte, eventID string)
 		var payload protocol.RuntimeProfilesChangedPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.WorkspaceID == "" {
 			slog.Debug("daemon websocket relay: invalid runtime_profiles_changed payload", "error", err, "scope_id", scopeID, "event_id", eventID)
+			M.WakeupDeliveredMiss.Add(1)
+			return
+		}
+		delivered, deduped := h.notifyWorkspaceFrame(payload.WorkspaceID, frame, eventID)
+		if delivered {
+			M.WakeupDeliveredHit.Add(1)
+		} else if !deduped {
+			M.WakeupDeliveredMiss.Add(1)
+		}
+	case protocol.EventDaemonRunHaltChanged:
+		var payload protocol.RunHaltChangedPayload
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.WorkspaceID == "" {
+			slog.Debug("daemon websocket relay: invalid run_halt_changed payload", "error", err, "scope_id", scopeID, "event_id", eventID)
 			M.WakeupDeliveredMiss.Add(1)
 			return
 		}
@@ -778,6 +808,15 @@ func runtimeProfilesChangedFrame(workspaceID, profileID string) ([]byte, error) 
 		Payload: mustMarshalRaw(protocol.RuntimeProfilesChangedPayload{
 			WorkspaceID:      workspaceID,
 			RuntimeProfileID: profileID,
+		}),
+	})
+}
+
+func runHaltChangedFrame(workspaceID string) ([]byte, error) {
+	return json.Marshal(protocol.Message{
+		Type: protocol.EventDaemonRunHaltChanged,
+		Payload: mustMarshalRaw(protocol.RunHaltChangedPayload{
+			WorkspaceID: workspaceID,
 		}),
 	})
 }

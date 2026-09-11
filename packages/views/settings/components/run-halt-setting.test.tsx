@@ -2,11 +2,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { RunHalt } from "@multica/core/run-halt";
 import { renderWithI18n } from "../../test/i18n";
 
 const state = vi.hoisted(() => ({
-  halt: { halted: false, reason: "", halted_by: "", halted_at: null } as RunHalt,
+  halt: { halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 0 } as RunHalt,
   setRunHalt: vi.fn(),
 }));
 
@@ -29,8 +30,9 @@ function render(canEdit = true) {
 }
 
 beforeEach(() => {
-  state.halt = { halted: false, reason: "", halted_by: "", halted_at: null };
+  state.halt = { halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 0 };
   state.setRunHalt.mockReset();
+  vi.mocked(toast.success).mockClear();
 });
 
 describe("RunHaltSetting", () => {
@@ -48,13 +50,42 @@ describe("RunHaltSetting", () => {
   });
 
   it("commits an edited reason on blur while halted", async () => {
-    state.halt = { halted: true, reason: "old reason", halted_by: "u1", halted_at: "2026-09-09T09:00:00Z" };
+    state.halt = { halted: true, reason: "old reason", halted_by: "u1", halted_at: "2026-09-09T09:00:00Z", frozen_count: 0, resumed_count: 0 };
     render();
     const input = screen.getByRole("textbox", { name: "Reason" });
     await waitFor(() => expect(input).not.toBeDisabled());
     fireEvent.change(input, { target: { value: "new reason" } });
     fireEvent.blur(input);
     expect(state.setRunHalt).toHaveBeenCalledWith({ halted: true, reason: "new reason" }, expect.anything());
+  });
+
+  it("toasts how many in-flight runs the halt froze", async () => {
+    state.setRunHalt.mockImplementation((_input: unknown, opts: { onSuccess: (data: RunHalt) => void }) =>
+      opts.onSuccess({ halted: true, reason: "", halted_by: "u1", halted_at: null, frozen_count: 4, resumed_count: 0 }),
+    );
+    render();
+    fireEvent.click(await screen.findByRole("switch", { name: "Halt all agents" }));
+    expect(toast.success).toHaveBeenCalledWith("Froze 4 in-flight runs");
+  });
+
+  it("toasts how many frozen runs lifting the halt resumed", async () => {
+    state.halt = { halted: true, reason: "", halted_by: "u1", halted_at: null, frozen_count: 2, resumed_count: 0 };
+    state.setRunHalt.mockImplementation((_input: unknown, opts: { onSuccess: (data: RunHalt) => void }) =>
+      opts.onSuccess({ halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 2 }),
+    );
+    render();
+    fireEvent.click(await screen.findByRole("switch", { name: "Halt all agents" }));
+    expect(toast.success).toHaveBeenCalledWith("Resumed 2 frozen runs");
+  });
+
+  it("keeps to the plain saved toast when the halt froze nothing", async () => {
+    state.setRunHalt.mockImplementation((_input: unknown, opts: { onSuccess: (data: RunHalt) => void }) =>
+      opts.onSuccess({ halted: true, reason: "", halted_by: "u1", halted_at: null, frozen_count: 0, resumed_count: 0 }),
+    );
+    render();
+    fireEvent.click(await screen.findByRole("switch", { name: "Halt all agents" }));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalledWith(expect.stringContaining("Froze"));
   });
 
   it("disables both controls when the reader may not edit workspace settings", () => {

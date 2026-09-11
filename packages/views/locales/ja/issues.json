@@ -1864,6 +1864,7 @@
     "run_halt_unknown_actor": "オーナー",
     "run_halt_lift": "停止を解除",
     "run_halt_lift_failed": "停止を解除できませんでした",
+    "run_halt_frozen_count": "{{count}} 件の実行が凍結中",
     "kind_calendar_proposal": "会議の提案",
     "kind_autopilot_proposal": "オートパイロットの提案"
   },
