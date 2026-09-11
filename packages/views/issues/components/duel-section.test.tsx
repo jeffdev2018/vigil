@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AgentDuel } from "@multica/core/issues/duel";
 import { renderWithI18n } from "../../test/i18n";
@@ -39,15 +40,24 @@ beforeEach(() => {
   state.confirm.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("DuelSection", () => {
   it("launches a duel between two different agents", async () => {
     render();
     fireEvent.click(await screen.findByText("Start a duel"));
-    fireEvent.change(screen.getByLabelText("Agent A"), { target: { value: "a" } });
-    fireEvent.change(screen.getByLabelText("Agent B"), { target: { value: "a" } });
+    await pickOption("Agent A", "Alpha");
+    await pickOption("Agent B", "Alpha");
     expect(screen.getByText("Pick two different agents")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Launch duel" }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Agent B"), { target: { value: "b" } });
+    await pickOption("Agent B", "Beta");
     fireEvent.click(screen.getByRole("button", { name: "Launch duel" }));
     expect(state.start).toHaveBeenCalledWith({ agent_a_id: "a", agent_b_id: "b" }, expect.anything());
   });
