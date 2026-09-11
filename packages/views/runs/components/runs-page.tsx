@@ -18,6 +18,7 @@ import {
   useKillSwitch,
   isRunSilent,
   runCostUsd,
+  runCostKnown,
   blockerHash,
   EMPTY_RUNS_SUMMARY,
   type Run,
@@ -290,7 +291,14 @@ function RunsSummaryBar({ summary }: { summary: RunsSummary }) {
     { label: t(($) => $.summary.completed_since), value: String(summary.completed_since) },
     { label: t(($) => $.summary.failed_since), value: String(summary.failed_since) },
     { label: t(($) => $.summary.cancelled_since), value: String(summary.cancelled_since) },
-    { label: t(($) => $.summary.cost_since), value: formatUsd(runCostUsd(summary.cost_since_usd_ticks)) },
+    // Priced like budget settlement; runs that left no priceable usage are
+    // not in the figure, and the tile says how many instead of hiding them.
+    {
+      label: t(($) => $.summary.cost_since),
+      value: summary.cost_unknown_since > 0
+        ? t(($) => $.summary.cost_since_partial, { cost: formatUsd(runCostUsd(summary.cost_since_usd_ticks)), count: summary.cost_unknown_since })
+        : formatUsd(runCostUsd(summary.cost_since_usd_ticks)),
+    },
   ];
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-1 border-b px-4 py-2 text-caption">
@@ -618,7 +626,10 @@ function RunRow({
           {formatDurationMs(run.duration_ms)}
         </span>
         <span className="w-16 shrink-0 truncate text-right font-mono text-caption tabular-nums text-muted-foreground">
-          {formatUsd(runCostUsd(run.cost_usd_ticks))}
+          {/* No priceable usage reads "unknown", never "$0.00" beside an issue page saying unavailable. */}
+          {runCostKnown(run) ? formatUsd(runCostUsd(run.cost_usd_ticks)) : (
+            <span title={t(($) => $.row.cost_unknown_tooltip)}>{t(($) => $.row.cost_unknown)}</span>
+          )}
         </span>
 
         <div className="flex shrink-0 items-center gap-0.5">

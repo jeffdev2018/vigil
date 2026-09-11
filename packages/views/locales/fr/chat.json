@@ -31,7 +31,8 @@
     "change_project_context": "Modifier le contexte du projet",
     "remove_project_context": "Supprimer le contexte du projet",
     "no_projects": "Aucun projet pour le moment",
-    "project_context_unsupported": "La description du projet ne s'appliquera pas — le daemon de cet agent nécessite une mise à jour"
+    "project_context_unsupported": "La description du projet ne s'appliquera pas — le daemon de cet agent nécessite une mise à jour",
+    "run_notice": "Envoyer lance un run de {{name}} ; cela peut prendre quelques minutes."
   },
   "queue": {
     "title_one": "{{count}} message en attente",

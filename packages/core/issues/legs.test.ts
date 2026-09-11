@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { legRoleLabelKey, workflowRootOf } from "./legs";
+import { legRoleLabelKey, unknownCostLegs, workflowRootOf } from "./legs";
 
 // Per-leg accounting (JEF-274). Canonical layer for the pure helpers and for
 // the endpoint's tolerance: the views suite mounts the summary, it does not
@@ -60,6 +60,18 @@ describe("workflowRootOf", () => {
   });
 });
 
+describe("unknownCostLegs", () => {
+  // "$0.00 au total" beside "Coût indisponible" on the same issue (audit UX,
+  // sept. 2026): a zero total is only a figure when no leg is unknown.
+  it("trusts the server count, and treats an older backend's zero total as unknown", () => {
+    const totals = { legs: 3, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 };
+    expect(unknownCostLegs({ ...totals, unknown_cost_legs: 1 })).toBe(1);
+    expect(unknownCostLegs({ ...totals, unknown_cost_legs: 0 })).toBe(0);
+    expect(unknownCostLegs(totals)).toBe(3);
+    expect(unknownCostLegs({ ...totals, cost_usd_ticks: 10 })).toBe(0);
+  });
+});
+
 describe("getTaskLegs", () => {
   it("parses a workflow and totals it", async () => {
     stubFetch({
@@ -95,5 +107,12 @@ describe("getTaskLegs", () => {
     expect(r.legs[0]?.leg_role).toBe("");
     expect(r.legs[1]?.cost_usd_ticks).toBe(0);
     expect(r.totals.legs).toBe(0);
+  });
+
+  it("drops a malformed unknown-cost count instead of trusting it", async () => {
+    stubFetch({ root_task_id: "t1", legs: [{ task_id: "t1", cost_known: "no" }], totals: { legs: 1, unknown_cost_legs: "many" } });
+    const r = await client().getTaskLegs("t1");
+    expect(r.legs[0]?.cost_known).toBeUndefined();
+    expect(r.totals.unknown_cost_legs).toBeUndefined();
   });
 });

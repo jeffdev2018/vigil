@@ -258,6 +258,10 @@ vi.mock("@multica/core/chat", () => {
   };
 });
 
+vi.mock("../../agents/components/agent-run-details", () => ({
+  AgentRunDetails: ({ agentId }: { agentId: string }) => <span>run details for {agentId}</span>,
+}));
+
 import { ChatInput } from "./chat-input";
 import { useChatStore } from "@multica/core/chat";
 import { configStore } from "@multica/core/config";
@@ -398,6 +402,25 @@ function element(props: Partial<React.ComponentProps<typeof ChatInput>>) {
 // MUL-4864: an uncreated chat has ONE draft per workspace. `selectedAgentId`
 // picks where the first send goes; it does not own the draft. Switching agent
 // mid-compose must therefore change nothing the user can see.
+// Audit UX (sept. 2026): nothing in the composer said that sending starts a
+// real agent run. A new conversation now says so before its first send.
+describe("ChatInput run notice", () => {
+  it("tells a new conversation that sending starts a run of the agent", () => {
+    renderInput({ agentId: "agent-1", agentName: "Mika", showRunNotice: true });
+    const notice = screen.getByTestId("chat-run-notice");
+    expect(notice).toHaveTextContent("Sending starts a run of Mika");
+    expect(notice).toHaveTextContent("run details for agent-1");
+  });
+
+  it("stays out of an existing conversation and a composer that cannot send", () => {
+    const { unmount } = renderInput({ agentId: "agent-1", agentName: "Mika", showRunNotice: false });
+    expect(screen.queryByTestId("chat-run-notice")).not.toBeInTheDocument();
+    unmount();
+    renderInput({ agentId: "agent-1", agentName: "Mika", showRunNotice: true, noAgent: true });
+    expect(screen.queryByTestId("chat-run-notice")).not.toBeInTheDocument();
+  });
+});
+
 describe("ChatInput new-chat draft identity", () => {
   function switchAgentTo(agentId: string, rerender: (ui: React.ReactElement) => void) {
     const state = useChatStore.getState() as unknown as { selectedAgentId: string };

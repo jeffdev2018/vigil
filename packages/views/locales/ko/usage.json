@@ -17,7 +17,8 @@
     "run_time_label": "실행 시간 · {{days}}일",
     "run_time_hint": "실행 {{tasks}}개 기준",
     "tasks_label": "실행 · {{days}}일",
-    "tasks_hint": "실패 {{failed}}개"
+    "tasks_hint": "실패 {{failed}}개",
+    "cost_hint": "모든 실행의 토큰으로 추정한 값(보고된 경우 공급자 비용)이며, 예산에 청구된 금액이 아닙니다"
   },
   "dim": {
     "label": "단위",

@@ -630,6 +630,18 @@ describe("workflow legs", () => {
     expect(screen.getByText("3 runs · $4.20 total · 2m 05s")).toBeInTheDocument();
   });
 
+  // Audit UX (sept. 2026): "$0.00 total" beside the delivery panel's "Cost
+  // unavailable" for the same runs. Counting rule: core legs.test.ts.
+  it("says a workflow cost is unknown instead of totalling it at zero", () => {
+    renderLog(legs({ cost_usd_ticks: 0, unknown_cost_legs: 3 }));
+    expect(screen.getByText("3 runs · cost unknown · 2m 05s")).toBeInTheDocument();
+  });
+
+  it("names the legs a partial total leaves out", () => {
+    renderLog(legs({ unknown_cost_legs: 1 }));
+    expect(screen.getByText("3 runs · $4.20 + 1 run of unknown cost · 2m 05s")).toBeInTheDocument();
+  });
+
   it("renders no summary from a malformed or single-leg response", () => {
     // What parseWithFallback yields for garbage: an empty workflow.
     renderLog({ root_task_id: "task-1", legs: [], totals: { legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 } });

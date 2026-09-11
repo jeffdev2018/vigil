@@ -242,7 +242,8 @@
       "error_agent_unavailable_fallback": "智能体不可用，请换一个。",
       "error_daemon_version": "该智能体的守护进程 CLI（{{current}}）低于要求的 {{min}}。请升级守护进程后再使用通过智能体创建。",
       "error_unknown": "提交失败，请重试。",
-      "sub_issue_of": "作为 {{identifier}} 的子任务"
+      "sub_issue_of": "作为 {{identifier}} 的子任务",
+      "run_notice": "点击创建会启动 {{name}} 的一次运行：由智能体根据你的描述撰写任务。"
     },
     "scoping_toggle": "用几句话生成草稿",
     "scoping_placeholder": "用几句话描述这个议题…",

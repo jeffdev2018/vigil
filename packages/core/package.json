@@ -73,6 +73,7 @@
     "./issues/legs": "./issues/legs.ts",
     "./issues/watchdog": "./issues/watchdog.ts",
     "./issues/goal-loop": "./issues/goal-loop.ts",
+    "./issues/run-result": "./issues/run-result.ts",
     "./work-profile": "./work-profile/queries.ts",
     "./goals": "./goals/queries.ts",
     "./cycles": "./cycles/queries.ts",

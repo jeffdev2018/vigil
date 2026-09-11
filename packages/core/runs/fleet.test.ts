@@ -8,6 +8,7 @@ import {
   CancelRunsResponseSchema,
   isRunSilent,
   runCostUsd,
+  runCostKnown,
   blockerHash,
   RUN_SILENCE_THRESHOLD_MS,
 } from "./fleet-schemas";
@@ -49,6 +50,20 @@ describe("runs fleet response parsing", () => {
       cancelled: 0,
     });
     expect(parsed.results[0]?.outcome).toBe("reclaimed_by_a_newer_server");
+  });
+});
+
+describe("runCostKnown", () => {
+  // A zero is only a figure when the server says so: a run with no priceable
+  // usage must read "unknown", never "$0.00" (audit UX, sept. 2026).
+  it("trusts cost_known, and on an older backend only a positive amount", () => {
+    const parse = (row: Record<string, unknown>) => RunSchema.parse({ id: "t", ...row });
+    expect(runCostKnown(parse({ cost_usd_ticks: 0, cost_known: true }))).toBe(true);
+    expect(runCostKnown(parse({ cost_usd_ticks: 5, cost_known: false }))).toBe(false);
+    expect(runCostKnown(parse({ cost_usd_ticks: 0 }))).toBe(false);
+    expect(runCostKnown(parse({ cost_usd_ticks: 5 }))).toBe(true);
+    expect(runCostKnown(parse({ cost_usd_ticks: 0, cost_known: "yes" }))).toBe(false);
+    expect(RunsResponseSchema.parse({ summary: { cost_unknown_since: "x" } }).summary.cost_unknown_since).toBe(0);
   });
 });
 

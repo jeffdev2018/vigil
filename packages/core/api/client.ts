@@ -100,6 +100,7 @@ import type {
   DashboardAgentRoi,
   DashboardCostPerDeliverable,
   AgentScorecard,
+  AgentCostEstimate,
   WorkspaceScorecardRow,
   AgentVersion,
   AgentVersionDiff,
@@ -524,6 +525,7 @@ import {
   DashboardAgentRoiSchema,
   DashboardCostPerDeliverableSchema,
   AgentScorecardSchema,
+  AgentCostEstimateSchema,
   WorkspaceScorecardsSchema,
   AgentVersionsSchema,
   AuditLogPageSchema,
@@ -6064,6 +6066,13 @@ export class ApiClient {
   }
 
   // Scorecards (K25).
+  async getAgentCostEstimate(agentId: string): Promise<AgentCostEstimate> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/cost-estimate`);
+    return parseWithFallback(raw, AgentCostEstimateSchema, { agent_id: agentId, sample_runs: 0, avg_cost_usd_ticks: null }, {
+      endpoint: "GET /api/agents/:id/cost-estimate",
+    });
+  }
+
   async getAgentScorecard(agentId: string, days = 30): Promise<AgentScorecard> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/scorecard?days=${days}`);
     const empty = { runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true };

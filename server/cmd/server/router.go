@@ -3164,6 +3164,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Route("/{id}", func(r chi.Router) {
 					// Scorecards (K25).
 					r.Get("/scorecard", h.GetAgentScorecard)
+					// Pre-launch cost notice: recent average run cost.
+					r.Get("/cost-estimate", h.GetAgentCostEstimate)
 					// Agent versions (K23).
 					r.Get("/versions", h.ListAgentVersions)
 					r.Get("/versions/{versionId}/diff", h.GetAgentVersionDiff)

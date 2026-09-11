@@ -20,6 +20,8 @@ export interface WorkflowLeg {
   input_tokens: number;
   output_tokens: number;
   cost_usd_ticks: number;
+  /** False when the leg left no priceable usage; absent on older backends. */
+  cost_known?: boolean;
   duration_seconds: number;
   created_at: string | null;
   completed_at: string | null;
@@ -28,6 +30,8 @@ export interface WorkflowLeg {
 export interface WorkflowLegTotals {
   legs: number;
   cost_usd_ticks: number;
+  /** Legs the total leaves out because their usage could not be priced. */
+  unknown_cost_legs?: number;
   input_tokens: number;
   output_tokens: number;
   duration_seconds: number;
@@ -91,4 +95,14 @@ export function legRoleLabelKey(role: string): string {
 export function workflowRootOf(task: { id: string; leg_role?: string; workflow_root_task_id?: string }): string {
   if (!task.leg_role) return "";
   return task.workflow_root_task_id || task.id;
+}
+
+/**
+ * How many legs the cost total leaves out. An older backend sends no
+ * `unknown_cost_legs` and sums only provider-reported ticks, so its zero
+ * total cannot be told apart from "nothing priced": every leg is unknown then.
+ */
+export function unknownCostLegs(totals: WorkflowLegTotals): number {
+  if (typeof totals.unknown_cost_legs === "number") return totals.unknown_cost_legs;
+  return totals.cost_usd_ticks > 0 ? 0 : totals.legs;
 }

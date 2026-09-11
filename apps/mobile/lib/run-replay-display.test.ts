@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { RunReplayEvent } from "@/data/schemas";
+import { RunReplaySchema, RunsSummarySchema, type RunReplayEvent } from "@/data/schemas";
 import {
   previewJson,
   replayCountsSoFar,
   replayKindLabel,
   replaySealLabel,
+  replayFailureSummary,
 } from "./run-replay-display";
 
 function ev(seq: number, kind: string): RunReplayEvent {
@@ -89,5 +90,24 @@ describe("previewJson", () => {
     const lines = previewJson(big, 12).split("\n");
     expect(lines).toHaveLength(13);
     expect(lines[12]).toBe("…");
+  });
+});
+
+// Audit UX (sept. 2026): a failed run's replay opened on an audit JSON dump
+// with no plain-language reason.
+describe("replayFailureSummary", () => {
+  it("says why a failed run failed, in words, before any payload", () => {
+    expect(replayFailureSummary({ status: "failed", failure_reason: "runtime_offline" })).toBe("This run failed: Daemon offline.");
+    expect(replayFailureSummary({ status: "failed", failure_reason: "brand_new_reason" })).toBe("This run failed: Brand new reason.");
+    expect(replayFailureSummary({ status: "failed", failure_reason: "" })).toBe("This run failed. No reason was recorded.");
+    expect(replayFailureSummary({ status: "cancelled", failure_reason: "queued_expired" })).toBe("This run was cancelled: Expired in queue.");
+    expect(replayFailureSummary({ status: "cancelled", failure_reason: "" })).toBeNull();
+    expect(replayFailureSummary({ status: "completed", failure_reason: "" })).toBeNull();
+  });
+
+  it("reads a malformed or missing failure_reason as none, and a malformed unknown count as zero", () => {
+    expect(RunReplaySchema.parse({ run: { id: "t", failure_reason: 42 } }).run.failure_reason).toBe("");
+    expect(RunReplaySchema.parse({ run: { id: "t" } }).run.failure_reason).toBe("");
+    expect(RunsSummarySchema.parse({ cost_unknown_since: "x" }).cost_unknown_since).toBe(0);
   });
 });

@@ -59,6 +59,24 @@ describe("IssueDeliverySection", () => {
       assessments: [{ passed: true, evidence: "Checked on mobile" }],
     }));
   });
+  // Audit UX (sept. 2026): the reported result was dumped as raw JSON, with
+  // the absolute work_dir of the agent's machine, the session id and the
+  // judge's signature. Parsing matrix: core/issues/run-result.test.ts.
+  it("renders the reported output and goal verdict for humans and folds the rest away", async () => {
+    api.getIssueDelivery.mockResolvedValue({ ...initial, run: { ...initial.run, result: {
+      output: "**Market scan** done", pr_url: "https://github.com/acme/app/pull/7",
+      work_dir: "/Users/jeff/multica_workspaces/one/x", session_id: "sess-9", branch_name: "agent/one-96",
+      goal_loop: { continuation: 1, signature: "deadbeef", no_progress: 0, outcome: "stopped:needs_user_input", blocker: "needs_user_input", reason: "Market name missing", next_step: "Name the market" },
+    } } });
+    const { container } = mount();
+    expect(await screen.findByText("Market scan")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://github.com/acme/app/pull/7" })).toBeInTheDocument();
+    expect(screen.getByText("Market name missing")).toBeInTheDocument();
+    expect(screen.getByText("Name the market")).toBeInTheDocument();
+    expect(screen.getByText("Technical details")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/Users\/jeff|sess-9|deadbeef|"output"/);
+  });
+
   it("explains that board In Review is not acceptance or a merge lock", async () => {
     mount({ boardStatusIsReview: true });
     expect(await screen.findByRole("note")).toHaveTextContent(/workflow signal only/);

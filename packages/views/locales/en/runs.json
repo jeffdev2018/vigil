@@ -8,7 +8,9 @@
     "completed_since": "Completed today",
     "failed_since": "Failed today",
     "cancelled_since": "Cancelled today",
-    "cost_since": "Cost today"
+    "cost_since": "Cost today",
+    "cost_since_partial_one": "{{cost}} + {{count}} run of unknown cost",
+    "cost_since_partial_other": "{{cost}} + {{count}} runs of unknown cost"
   },
   "halt": {
     "kill_switch": "Kill switch",
@@ -44,7 +46,9 @@
     "blocked_on": "Blocked on",
     "cancel_aria": "Cancel this run",
     "cancel_tooltip": "Cancel",
-    "transcript_tooltip": "View transcript"
+    "transcript_tooltip": "View transcript",
+    "cost_unknown": "—",
+    "cost_unknown_tooltip": "Cost unknown: this run recorded no usage that could be priced"
   },
   "cancel_dialog": {
     "title_one": "Cancel this run?",

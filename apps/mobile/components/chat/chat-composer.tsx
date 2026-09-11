@@ -32,6 +32,7 @@ import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
 import { MessageComposer } from "@/components/composer/message-composer";
+import { AgentRunNoticeLine, RunNoticeBox } from "@/components/issue/comment-run-notice";
 import { VoiceConversationButton } from "@/components/voice/voice-conversation-button";
 import { appConfigOptions } from "@/data/queries/billing";
 import { useWorkspaceStore } from "@/data/workspace-store";
@@ -59,6 +60,9 @@ interface Props {
   disabled?: boolean;
   /** When `disabled`, replaces the pill label with the reason. */
   disabledReason?: string;
+  /** Agent a send will run, when the conversation has not started yet: the
+   *  composer says so (runtime, cost) before the first send. */
+  runNoticeAgent?: { id: string; name: string } | null;
 }
 
 const IS_IOS = process.env.EXPO_OS === "ios";
@@ -72,6 +76,7 @@ export function ChatComposer({
   allowStop = true,
   disabled = false,
   disabledReason,
+  runNoticeAgent,
 }: Props) {
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
   // Same gate as web chat-input: hide conversation when STT is not configured.
@@ -156,6 +161,15 @@ export function ChatComposer({
         ) : null
       }
       manageKeyboard={false}
+      renderNotice={
+        runNoticeAgent && !disabled
+          ? () => (
+              <RunNoticeBox>
+                <AgentRunNoticeLine agentId={runNoticeAgent.id} name={runNoticeAgent.name} />
+              </RunNoticeBox>
+            )
+          : undefined
+      }
     />
   );
 }

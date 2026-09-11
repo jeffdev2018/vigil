@@ -26,6 +26,8 @@ import {
 } from "@/data/mutations/delivery";
 import { useUpdateIssue } from "@/data/mutations/issues";
 import { useWorkspaceStore } from "@/data/workspace-store";
+import { Markdown } from "@/lib/markdown";
+import { runResultDisplay } from "@/lib/run-result-display";
 import {
   issueBehavesAs,
   issueBehavesAsAny,
@@ -45,13 +47,42 @@ function newReviewId(): string {
   });
 }
 
-function resultText(result: unknown): string {
-  if (result == null) return "No result was reported.";
-  const summary =
-    typeof result === "object" && result !== null && "summary" in result
-      ? (result as { summary: unknown }).summary
-      : result;
-  return typeof summary === "string" ? summary : JSON.stringify(result, null, 2);
+/** The reported result for a human: output as Markdown, pull request and goal
+ *  verdict as labelled rows, raw leftovers folded (see lib/run-result-display.ts). */
+function DeliveryResult({ result }: { result: unknown }) {
+  const [showTechnical, setShowTechnical] = useState(false);
+  const view = runResultDisplay(result);
+  if (!view) {
+    return <Text className="text-xs text-muted-foreground">No result was reported.</Text>;
+  }
+  return (
+    <View className="gap-1.5">
+      {view.output ? <Markdown content={view.output} /> : null}
+      {view.prUrl ? (
+        <Pressable onPress={() => void Linking.openURL(view.prUrl!)} accessibilityRole="link">
+          <Text className="text-sm text-primary underline">Pull request</Text>
+        </Pressable>
+      ) : null}
+      {view.rows.map((row) => (
+        <Text key={row.label} className="text-sm text-foreground">
+          <Text className="text-muted-foreground">{row.label}: </Text>
+          {row.value}
+        </Text>
+      ))}
+      {view.technical ? (
+        <View className="gap-1">
+          <Pressable onPress={() => setShowTechnical((v) => !v)} accessibilityRole="button">
+            <Text className="text-xs text-muted-foreground">
+              {showTechnical ? "Hide technical details" : "Technical details"}
+            </Text>
+          </Pressable>
+          {showTechnical ? (
+            <Text className="text-xs font-mono text-muted-foreground">{view.technical}</Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export function IssueDeliverySection({ issue }: { issue: Issue }) {
@@ -346,9 +377,7 @@ export function IssueDeliverySection({ issue }: { issue: Issue }) {
                   ? `Run ended ${new Date(data.run.completedAt).toLocaleString()}`
                   : "The latest run has not finished."}
               </Text>
-              <Text className="text-sm text-foreground">
-                {resultText(data.run.result)}
-              </Text>
+              <DeliveryResult result={data.run.result} />
               {data.run.error ? (
                 <Text className="text-xs text-destructive">
                   {data.run.error}

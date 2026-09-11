@@ -1979,7 +1979,8 @@
     "actions": {
       "enforce": "Pause à la limite",
       "observe": "Observer seulement"
-    }
+    },
+    "ledger_scope": "Montants imputés aux budgets : seuls les runs admis pendant qu'un budget s'appliquait sont comptés ; ils peuvent donc être inférieurs à l'estimation d'usage d'Analyses sur la même période."
   },
   "model_keys": {
     "title": "Clés de modèle",

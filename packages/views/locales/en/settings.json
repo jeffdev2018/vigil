@@ -1996,7 +1996,8 @@
     "actions": {
       "enforce": "Pause at limit",
       "observe": "Observe only"
-    }
+    },
+    "ledger_scope": "Amounts charged to budgets: only runs admitted while a budget applied are counted, so they can be lower than the usage estimate in Analytics for the same period."
   },
   "model_keys": {
     "title": "Model keys",

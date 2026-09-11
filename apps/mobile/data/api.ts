@@ -14,6 +14,8 @@
  *   4. Bearer auth + X-Workspace-Slug — NOT cookie auth (no CSRF, no credentials)
  */
 import type {
+  AgentCostEstimate,
+  CommentTriggerPreview,
   Agent,
   AgentTask,
   Attachment,
@@ -111,6 +113,8 @@ import {
   DeliveryReviewSchema,
   DeliveryCriteriaSchema,
   DeliveryCorrectionSchema,
+  CommentTriggerPreviewSchema,
+  AgentCostEstimateSchema,
   type IssueDelivery,
   type DeliveryReview,
   type DeliveryCorrection,
@@ -786,6 +790,36 @@ class ApiClient {
     return parseWithFallback(raw, AgentTaskListSchema, EMPTY_AGENT_TASK_LIST, {
       endpoint: "listAgentTaskSnapshot",
     });
+  }
+
+  // Which agents posting this comment would start (web: CommentTriggerChips).
+  // POST /api/issues/{id}/comments/trigger-preview — a malformed answer reads
+  // as "nobody", the composer then simply shows no notice.
+  async previewCommentTriggers(
+    issueId: string,
+    content: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CommentTriggerPreview> {
+    return this.fetchValidatedWith<CommentTriggerPreview>(
+      `/api/issues/${encodeURIComponent(issueId)}/comments/trigger-preview`,
+      CommentTriggerPreviewSchema,
+      { agents: [] },
+      { method: "POST", body: JSON.stringify({ content }) },
+      { signal: opts?.signal, endpoint: "POST /api/issues/:id/comments/trigger-preview" },
+    );
+  }
+
+  // Recent average cost of one run of an agent; null average = unknown.
+  async getAgentCostEstimate(
+    agentId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<AgentCostEstimate> {
+    return this.fetchValidated<AgentCostEstimate>(
+      `/api/agents/${encodeURIComponent(agentId)}/cost-estimate`,
+      AgentCostEstimateSchema,
+      { agent_id: agentId, sample_runs: 0, avg_cost_usd_ticks: null },
+      { signal: opts?.signal, endpoint: "GET /api/agents/:id/cost-estimate" },
+    );
   }
 
   // --- Run replay (k70) ---

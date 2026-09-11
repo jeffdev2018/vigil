@@ -17,7 +17,8 @@
     "run_time_label": "Temps d'exécution · {{days}}j",
     "run_time_hint": "Sur {{tasks}} exécutions",
     "tasks_label": "Exécutions · {{days}}j",
-    "tasks_hint": "{{failed}} échecs"
+    "tasks_hint": "{{failed}} échecs",
+    "cost_hint": "Estimé d'après les tokens de tous les runs (coût fournisseur quand il est rapporté), pas le montant imputé aux budgets"
   },
   "dim": {
     "label": "Dimension",

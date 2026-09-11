@@ -242,7 +242,8 @@
       "error_agent_unavailable_fallback": "エージェントを利用できません。別のエージェントを選択してください。",
       "error_daemon_version": "このエージェントのデーモン CLI（{{current}}）が必要なバージョン {{min}} を下回っています。エージェントで作成を使用するには、デーモンをアップグレードしてください。",
       "error_unknown": "送信できませんでした。再試行してください。",
-      "sub_issue_of": "{{identifier}} のサブ課題"
+      "sub_issue_of": "{{identifier}} のサブ課題",
+      "run_notice": "作成すると {{name}} の実行が始まり、エージェントが説明から課題を作成します。"
     },
     "scoping_toggle": "数文から下書きを作成",
     "scoping_placeholder": "イシューを数文で説明してください…",

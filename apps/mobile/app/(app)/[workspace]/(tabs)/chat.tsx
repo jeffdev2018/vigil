@@ -550,6 +550,9 @@ export default function ChatTab() {
           allowStop={pendingTask?.status !== "queued"}
           disabled={disabled}
           disabledReason={disabledReason}
+          // A new conversation: its first send is the one that starts a run
+          // (mirrors web's ChatInput showRunNotice).
+          runNoticeAgent={!activeSessionId && currentAgent ? { id: currentAgent.id, name: currentAgent.name } : null}
         />
       </KeyboardAvoidingView>
 
