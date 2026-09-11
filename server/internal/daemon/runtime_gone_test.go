@@ -361,6 +361,41 @@ func TestWorkspaceNeedsRuntimeRecovery(t *testing.T) {
 	}
 }
 
+// A workspace that deliberately converged to zero runtimes (a custom-only
+// daemon whose profile was disabled) has nothing to recover. Retrying its
+// registration on every sync tick only probed, failed with
+// ErrNoRuntimesToRegister, logged a warning and put the sync into backoff. A
+// later server-side deletion that empties the workspace again still recovers.
+func TestWorkspaceNeedsRuntimeRecoverySkipsConvergedToZero(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	d := freshDaemon(srv.URL)
+	d.workspaces["ws-1"] = &workspaceState{workspaceID: "ws-1", runtimeIDs: []string{"rt-profile"}}
+	d.runtimeIndex["rt-profile"] = Runtime{ID: "rt-profile", Provider: "claude", ProfileID: "p-1"}
+
+	if err := d.convergeWorkspaceRuntimesToZero(context.Background(), "ws-1", "sig", nil); err != nil {
+		t.Fatalf("converge: %v", err)
+	}
+	if d.workspaceNeedsRuntimeRecovery("ws-1") {
+		t.Fatal("a workspace converged to zero on purpose must not be retried every sync tick")
+	}
+
+	d.mu.Lock()
+	d.workspaces["ws-1"].runtimeIDs = []string{"rt-new"}
+	d.runtimeIndex["rt-new"] = Runtime{ID: "rt-new", Provider: "claude"}
+	d.mu.Unlock()
+	if _, removed := d.removeStaleRuntime("rt-new"); !removed {
+		t.Fatal("rt-new was not pruned")
+	}
+	if !d.workspaceNeedsRuntimeRecovery("ws-1") {
+		t.Fatal("a workspace emptied by a server-side deletion must still recover")
+	}
+}
+
 // multiProviderRegisterFixture mirrors handleRuntimeGoneFixture but speaks the
 // upsert semantics of UpsertAgentRuntime: surviving providers keep their
 // runtime IDs across re-registers, deleted ones get a fresh ID. The fake

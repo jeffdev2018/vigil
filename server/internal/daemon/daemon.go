@@ -408,6 +408,14 @@ type workspaceState struct {
 	// revisits it. A failed register records nothing, so the workspace stays
 	// behind and is retried. Guarded by Daemon.mu.
 	builtinVersions map[string]string
+	// convergedToZero marks a runtime set emptied on purpose by
+	// convergeWorkspaceRuntimesToZero: there is nothing to host, so the sync
+	// loop's zero-runtime recovery must not retry it (it could only fail with
+	// ErrNoRuntimesToRegister). A profile re-enable or a newly discovered CLI
+	// registers it again through their own paths. Cleared when a server-side
+	// deletion prunes a runtime, the case recovery exists for. Guarded by
+	// Daemon.mu.
+	convergedToZero bool
 }
 
 // contextLock is a zero-value-ready mutex whose wait can be cancelled. Repo
@@ -1457,6 +1465,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 		}
 		if found {
 			ws.runtimeIDs = filtered
+			ws.convergedToZero = false
 			workspaceID = wsID
 			break
 		}
@@ -1479,7 +1488,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 // has zero runtime IDs — the state reached when handleRuntimeGone pruned every
 // runtime and its inline re-register failed. workspaceSyncLoop calls this on
 // each tick so the workspace can recover without waiting for an external
-// trigger.
+// trigger. A workspace that converged to zero on purpose is not in that state.
 func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1487,7 +1496,7 @@ func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	if !ok {
 		return false
 	}
-	return len(ws.runtimeIDs) == 0
+	return len(ws.runtimeIDs) == 0 && !ws.convergedToZero
 }
 
 // reregisterWorkspaceAfterRuntimeGone calls registerRuntimesForWorkspace and
@@ -3773,6 +3782,7 @@ func (d *Daemon) convergeWorkspaceRuntimesToZero(ctx context.Context, workspaceI
 		dropped = append(dropped, rid)
 	}
 	ws.runtimeIDs = kept
+	ws.convergedToZero = len(kept) == 0
 	if profileSig != "" {
 		// Cache the converged signature so we don't loop into re-converging
 		// on every subsequent sync tick.
