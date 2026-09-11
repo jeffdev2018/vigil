@@ -59,7 +59,7 @@ func (q *Queries) CreateGitHubInstallation(ctx context.Context, arg CreateGitHub
 	return i, err
 }
 
-const deleteGitHubInstallation = `-- name: DeleteGitHubInstallation :exec
+const deleteGitHubInstallation = `-- name: DeleteGitHubInstallation :execrows
 DELETE FROM github_installation WHERE id = $1 AND workspace_id = $2
 `
 
@@ -68,9 +68,12 @@ type DeleteGitHubInstallationParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) DeleteGitHubInstallation(ctx context.Context, arg DeleteGitHubInstallationParams) error {
-	_, err := q.db.Exec(ctx, deleteGitHubInstallation, arg.ID, arg.WorkspaceID)
-	return err
+func (q *Queries) DeleteGitHubInstallation(ctx context.Context, arg DeleteGitHubInstallationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteGitHubInstallation, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteGitHubInstallationByInstallationID = `-- name: DeleteGitHubInstallationByInstallationID :many
