@@ -3886,6 +3886,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "project not found in this workspace")
 				return
 			}
+			// K60: moving into a project is a write on that project too, not
+			// just the source one already gated above.
+			if !h.requireProjectWrite(w, r, projectUUID) {
+				return
+			}
 			params.ProjectID = projectUUID
 		} else {
 			params.ProjectID = pgtype.UUID{Valid: false}
@@ -4663,6 +4668,13 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "project not found in this workspace")
 			return
 		}
+		// K60: the whole batch moves into this one project, so its write
+		// access is checked once here — same rationale as the tenancy check
+		// just above, and it covers the destination side of a move that the
+		// per-issue project_role check below only covers for the source.
+		if !h.requireProjectWrite(w, r, projectUUID) {
+			return
+		}
 		batchProjectID = projectUUID
 	}
 	// Dated cycles (F29). The cycle row is resolved once — the batch shares one
@@ -4726,6 +4738,16 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: wsUUID,
 		})
 		if err != nil {
+			continue
+		}
+		// K60: a project-role override refuses this one item rather than the
+		// whole batch, like the transition gate below — reported in `refused`.
+		if !h.projectWriteAllowed(r, prevIssue.ProjectID) {
+			refused = append(refused, map[string]any{
+				"issue_id": uuidToString(prevIssue.ID),
+				"code":     ErrCodeProjectRoleForbidden,
+				"reason":   "your project role does not allow this",
+			})
 			continue
 		}
 
@@ -5148,6 +5170,11 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: wsUUID,
 		})
 		if err != nil {
+			continue
+		}
+		// K60: silently skip, matching this loop's existing not-found/invalid-id
+		// handling above rather than aborting the whole batch.
+		if !h.projectWriteAllowed(r, issue.ProjectID) {
 			continue
 		}
 

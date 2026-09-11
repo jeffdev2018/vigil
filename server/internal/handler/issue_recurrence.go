@@ -118,6 +118,11 @@ func (h *Handler) SetIssueRecurrence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: the actorType check below is a workspace-role check, not a
+	// per-project one — a project-role override still applies.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req struct {
 		CronExpression string `json:"cron_expression"`
 		Timezone       string `json:"timezone"`
@@ -200,6 +205,10 @@ func (h *Handler) DeleteIssueRecurrence(w http.ResponseWriter, r *http.Request) 
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	// K60: same rationale as SetIssueRecurrence above.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))

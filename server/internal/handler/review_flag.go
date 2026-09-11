@@ -186,6 +186,9 @@ func (h *Handler) CreateIssueReviewFlag(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req createReviewFlagRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -343,6 +346,9 @@ func (h *Handler) SetIssueReviewFlagState(w http.ResponseWriter, r *http.Request
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	flagID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "flagId"), "flag id")

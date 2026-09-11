@@ -257,6 +257,11 @@ func (h *Handler) ResumeTaskReplay(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "issue not found")
 		return
 	}
+	// K60: same gate as SimulateTaskReplay — this starts a real (non-safe-mode)
+	// run, same root cause and fix by symmetry.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	replay, err := h.buildRunReplay(r.Context(), task, wsID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to build the replay: "+err.Error())
@@ -688,6 +693,9 @@ func (h *Handler) SimulateTaskReplay(w http.ResponseWriter, r *http.Request) {
 	issue, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: task.IssueID, WorkspaceID: wsID})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	replay, err := h.buildRunReplay(r.Context(), task, wsID)

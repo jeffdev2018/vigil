@@ -204,6 +204,9 @@ func (h *Handler) IgnoreTrafficConflict(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	cid, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "cid"), "conflict id")
 	if !ok {
 		return

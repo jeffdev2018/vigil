@@ -394,6 +394,9 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req createDecisionsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

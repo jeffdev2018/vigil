@@ -138,6 +138,9 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
