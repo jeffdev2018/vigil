@@ -66,6 +66,22 @@ interface RuntimeMachineOptions {
    * .cloud_worker_named, { provider: capitalize(provider) })`.
    */
   cloudMachineTitle?: (provider: string) => string;
+  /**
+   * Translated title for the synthesized placeholder machine (see
+   * `ensureLocalMachine` above) when no OS-reported `localMachineName` is
+   * available. Same optionality rationale as `cloudMachineTitle`: callers
+   * that never render `machine.title` as prose aren't forced through i18n.
+   * Falls back to the untranslated `"This machine"` this always returned.
+   */
+  localMachineTitle?: string;
+  /**
+   * Translated title for a machine machineTitle() otherwise cannot name —
+   * no shared custom name, no local override, no device name, and (for a
+   * non-cloud runtime) no daemon id to shorten. Same optionality rationale
+   * as `cloudMachineTitle`. Falls back to the untranslated `"Unknown
+   * machine"` this always returned.
+   */
+  unknownMachineTitle?: string;
 }
 
 interface RuntimeMachineDraft {
@@ -143,7 +159,7 @@ function placeholderLocalMachine(
   return {
     id: daemonId ? `local:${daemonId}` : "local:placeholder",
     daemonId,
-    title: options.localMachineName ?? "This machine",
+    title: options.localMachineName ?? options.localMachineTitle ?? "This machine",
     subtitle: null,
     deviceInfo: null,
     cliVersion: null,
@@ -230,6 +246,7 @@ function finalizeRuntimeMachine(
     isCurrent,
     localMachineName: options.localMachineName,
     cloudMachineTitle: options.cloudMachineTitle,
+    unknownMachineTitle: options.unknownMachineTitle,
   });
   const deviceInfo = first ? formatDeviceInfo(first.device_info ?? null) : null;
   const subtitle = machineSubtitle({ title, deviceInfo });
@@ -314,6 +331,7 @@ function machineTitle(
     isCurrent: boolean;
     localMachineName?: string | null;
     cloudMachineTitle?: (provider: string) => string;
+    unknownMachineTitle?: string;
   },
 ): string {
   // An explicit user-set machine name wins over everything, including the
@@ -325,8 +343,9 @@ function machineTitle(
     return options.localMachineName;
   }
 
+  const unknown = options.unknownMachineTitle ?? "Unknown machine";
   const first = runtimes[0];
-  if (!first) return "Unknown machine";
+  if (!first) return unknown;
 
   const deviceName = runtimeDeviceName(first);
   if (deviceName) return deviceName;
@@ -336,7 +355,7 @@ function machineTitle(
       ? options.cloudMachineTitle(first.provider)
       : `${capitalize(first.provider)} cloud`;
   }
-  return first.daemon_id ? shortDaemonId(first.daemon_id) : "Unknown machine";
+  return first.daemon_id ? shortDaemonId(first.daemon_id) : unknown;
 }
 
 // Null when the device reported nothing readable: the row then shows a
