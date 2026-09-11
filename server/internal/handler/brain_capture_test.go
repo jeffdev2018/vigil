@@ -171,6 +171,45 @@ func TestBrainCaptureLifecycle(t *testing.T) {
 		testutil.WithURLParams(noteRequest(http.MethodGet, "/api/brain/captures/"+todo.ID, workspaceID, nil), "id", todo.ID)).Want(http.StatusNotFound)
 }
 
+// An iOS voice memo (.m4a, declared audio/mp4) sniffs as video/mp4; it must
+// still land as an audio capture queued for transcription, not as a file.
+func TestBrainCaptureUploadM4aVoiceMemoIsAudio(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	store := &mockStorage{}
+	origStorage := testHandler.Storage
+	testHandler.Storage = store
+	t.Cleanup(func() { testHandler.Storage = origStorage })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreatePart(map[string][]string{
+		"Content-Disposition": {`form-data; name="file"; filename="voice-memo-1.m4a"`},
+		"Content-Type":        {"audio/mp4"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write(append([]byte("\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00M4A mp42isom"), make([]byte, 64)...))
+	_ = writer.WriteField("content", "Voice memo")
+	_ = writer.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-User-ID", testUserID)
+	req.Header.Set("X-Workspace-ID", workspaceID)
+	var out captureEnvelope
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture), req).Want(http.StatusCreated).JSON(&out)
+	dbfx.Cleanup(t, `DELETE FROM brain_capture WHERE id = $1`, out.Capture.ID)
+	if out.Capture.Attachment != nil {
+		dbfx.Cleanup(t, `DELETE FROM attachment WHERE id = $1`, out.Capture.Attachment.ID)
+	}
+	if out.Capture.Kind != "audio" || out.Capture.TranscriptionStatus == "none" {
+		t.Fatalf("m4a upload = kind %q, transcription %q; want an audio capture queued for transcription", out.Capture.Kind, out.Capture.TranscriptionStatus)
+	}
+	if out.Capture.Attachment == nil || out.Capture.Attachment.ContentType != "audio/mp4" {
+		t.Fatalf("attachment = %+v, want content type audio/mp4", out.Capture.Attachment)
+	}
+}
+
 func TestBrainCaptureUploadBecomesAttachmentAndNote(t *testing.T) {
 	workspaceID := brainWorkspace(t)
 	store := &mockStorage{}

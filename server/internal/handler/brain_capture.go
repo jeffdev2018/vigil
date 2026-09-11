@@ -271,8 +271,15 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 	if ct, ok := extContentTypes[strings.ToLower(path.Ext(header.Filename))]; ok {
 		contentType = ct
 	}
-	if declared := header.Header.Get("Content-Type"); strings.HasPrefix(contentType, "application/octet-stream") && declared != "" {
+	declared := header.Header.Get("Content-Type")
+	if declared != "" && strings.HasPrefix(contentType, "application/octet-stream") {
 		contentType = declared
+	}
+	// An iOS voice memo is an .m4a: the MP4 container sniffs as video/mp4
+	// while the client declares audio/mp4. Trust the audio declaration (or
+	// the extension) so the memo is transcribed instead of filed as a file.
+	if strings.HasPrefix(contentType, "video/mp4") && (strings.HasPrefix(declared, "audio/") || strings.EqualFold(path.Ext(header.Filename), ".m4a")) {
+		contentType = "audio/mp4"
 	}
 	kind := "file"
 	switch {
