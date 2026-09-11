@@ -148,7 +148,8 @@
     "cost": "Cost",
     "cost_per_issue": "Cost / issue",
     "none": "no issue closed",
-    "floor": "floor"
+    "floor": "floor",
+    "floor_hint": "This total is a minimum: some of this agent's runs used a model with no known price."
   },
   "scorecards": {
     "title": "Agent scorecards · {{days}}D",

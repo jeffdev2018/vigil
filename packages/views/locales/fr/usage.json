@@ -148,7 +148,8 @@
     "cost": "Coût",
     "cost_per_issue": "Coût / issue",
     "none": "aucune issue fermée",
-    "floor": "plancher"
+    "floor": "plancher",
+    "floor_hint": "Ce total est un minimum : certaines exécutions de cet agent ont utilisé un modèle sans prix connu."
   },
   "scorecards": {
     "title": "Bilans des agents · {{days}}J",

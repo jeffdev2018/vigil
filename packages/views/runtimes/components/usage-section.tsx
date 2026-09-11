@@ -53,13 +53,24 @@ import { useT } from "../../i18n";
 // weekly grain is one bar, so 7d is daily-only; 180d is weekly-only because
 // 180 daily bars are visually unreadable.
 const TIME_RANGES = [
-  { label: "7d", days: 7, dims: ["daily"] as const },
-  { label: "30d", days: 30, dims: ["daily", "weekly"] as const },
-  { label: "90d", days: 90, dims: ["daily", "weekly"] as const },
-  { label: "180d", days: 180, dims: ["weekly"] as const },
+  { days: 7, dims: ["daily"] as const },
+  { days: 30, dims: ["daily", "weekly"] as const },
+  { days: 90, dims: ["daily", "weekly"] as const },
+  { days: 180, dims: ["weekly"] as const },
 ] as const;
 
 type TimeRange = (typeof TIME_RANGES)[number]["days"];
+
+// A natural-language label for the period selector ("Last 30 days") instead
+// of the raw "30d" shorthand a non-dev reader has to decode (UX audit).
+function periodLabel(t: ReturnType<typeof useT<"runtimes">>["t"], days: TimeRange): string {
+  switch (days) {
+    case 7: return t(($) => $.usage.period_7d);
+    case 30: return t(($) => $.usage.period_30d);
+    case 90: return t(($) => $.usage.period_90d);
+    case 180: return t(($) => $.usage.period_180d);
+  }
+}
 type WhenTab = "daily" | "weekly" | "heatmap";
 
 // Default time range per dimension. Switching dimensions resets the period
@@ -209,7 +220,7 @@ export function UsageSection({ runtime }: { runtime: AgentRuntime }) {
             value={days}
             onChange={setDays}
             options={allowedRanges.map((r) => ({
-              label: r.label,
+              label: periodLabel(t, r.days),
               value: r.days,
             }))}
           />
@@ -658,7 +669,7 @@ function CostByBlock({
   usage: RuntimeUsage[];
   tz: string;
 }) {
-  const { t } = useT("runtimes");
+  const { t, i18n } = useT("runtimes");
   const [tab, setTab] = useState<"agent" | "model">("agent");
   // Subscribed and passed explicitly into aggregateCostBy{Agent,Model} below
   // (see ../utils) so a saved custom rate re-runs these memos.
@@ -674,7 +685,7 @@ function CostByBlock({
   const wsId = useWorkspaceId();
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
 
-  const byAgent = useMemo(
+  const byAgentAll = useMemo(
     () => aggregateCostByAgent(byAgentRows, pricings),
     [byAgentRows, pricings],
   );
@@ -682,6 +693,16 @@ function CostByBlock({
     () => aggregateCostByModel(usage, pricings),
     [usage, pricings],
   );
+
+  // Test/system agents that ran but priced at $0 drown out the agents that
+  // actually cost something (UX audit). Hide zero-cost rows by default; a
+  // toggle reveals them, since "$0" is still a real, checkable fact.
+  const [showZeroCost, setShowZeroCost] = useState(false);
+  const zeroCostCount = byAgentAll.length - byAgentAll.filter((r) => r.cost > 0).length;
+  const byAgent =
+    showZeroCost || zeroCostCount === byAgentAll.length
+      ? byAgentAll
+      : byAgentAll.filter((r) => r.cost > 0);
 
   const caption =
     tab === "agent"
@@ -708,12 +729,26 @@ function CostByBlock({
             }
           />
         </div>
-        <span className="text-caption text-muted-foreground">{caption}</span>
+        <div className="flex items-center gap-3">
+          {tab === "agent" && zeroCostCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowZeroCost((v) => !v)}
+              className="text-caption text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {showZeroCost
+                ? t(($) => $.usage.cost_by_hide_zero_cost)
+                : t(($) => $.usage.cost_by_show_zero_cost, { count: zeroCostCount })}
+            </button>
+          )}
+          <span className="text-caption text-muted-foreground">{caption}</span>
+        </div>
       </div>
       <div className="pt-4">
         {tab === "agent" && (
           <CostByList
             rows={byAgent}
+            locale={i18n.language}
             renderKey={(key) => {
               const agent = agents.find((a) => a.id === key);
               return (
@@ -730,6 +765,7 @@ function CostByBlock({
         {tab === "model" && (
           <CostByList
             rows={byModel}
+            locale={i18n.language}
             renderKey={(key) => (
               <span className="truncate font-mono text-caption text-foreground">
                 {key}
@@ -749,10 +785,12 @@ function CostByList({
   rows,
   renderKey,
   emptyHint,
+  locale,
 }: {
   rows: CostByKey[];
   renderKey: (key: string) => React.ReactNode;
   emptyHint?: string;
+  locale: string;
 }) {
   const { t } = useT("runtimes");
   if (rows.length === 0) {
@@ -783,7 +821,7 @@ function CostByList({
               {formatTokens(row.tokens)}
             </div>
             <div className="text-right text-body font-medium tabular-nums">
-              ${row.cost.toFixed(2)}
+              <CurrencyNumberFlow value={row.cost} locales={locale} aria-label={formatUsd(row.cost)} />
             </div>
           </div>
         );
