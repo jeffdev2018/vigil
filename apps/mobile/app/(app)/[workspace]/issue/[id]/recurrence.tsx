@@ -135,8 +135,13 @@ export default function IssueRecurrenceSheet() {
   };
 
   return (
-    <View className="flex-1">
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
         <Text className="text-base font-semibold text-foreground">
           {existing ? "Edit recurrence" : "Make it recurring"}
         </Text>
@@ -157,11 +162,7 @@ export default function IssueRecurrenceSheet() {
         </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
+      <View className="gap-4 px-4 pt-2">
         <View className="flex-row flex-wrap gap-2">
           {RECURRENCE_PRESETS.map((preset) => (
             <Chip
@@ -307,8 +308,8 @@ export default function IssueRecurrenceSheet() {
         {serverError ? (
           <Text className="text-xs text-destructive">{serverError}</Text>
         ) : null}
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 

@@ -126,8 +126,13 @@ export default function ScheduleFollowupSheet() {
   };
 
   return (
-    <View className="flex-1">
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
         <Text className="text-base font-semibold text-foreground">
           Schedule follow-up
         </Text>
@@ -148,11 +153,7 @@ export default function ScheduleFollowupSheet() {
         </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
+      <View className="gap-4 px-4 pt-2">
         <View className="flex-row flex-wrap gap-2">
           {choices.map((choice) => (
             <Chip
@@ -258,8 +259,8 @@ export default function ScheduleFollowupSheet() {
         >
           <Text className="text-sm text-primary">Automate on a schedule…</Text>
         </Pressable>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
