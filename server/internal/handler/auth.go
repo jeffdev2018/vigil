@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +46,7 @@ const (
 	googleLoginCodeEmailNotAllowed     = "email_not_allowed"
 	googleLoginCodeAccountWithoutEmail = "google_account_no_email"
 	googleLoginCodeInvalidOAuthCode    = "oauth_code_invalid"
+	googleLoginCodeInvalidOAuthState   = "oauth_state_invalid"
 )
 
 const devVerificationCodeEnv = "MULTICA_DEV_VERIFICATION_CODE"
@@ -459,7 +461,7 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 
 	// Set CloudFront signed cookies for CDN access.
 	if h.CFSigner != nil {
-		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(auth.AuthTokenTTL())) {
+		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(72 * time.Hour)) {
 			http.SetCookie(w, cookie)
 		}
 	}
@@ -504,6 +506,9 @@ type UpdateMeRequest struct {
 type GoogleLoginRequest struct {
 	Code        string `json:"code"`
 	RedirectURI string `json:"redirect_uri"`
+	// State is the value POST /auth/google/start returned, echoed back from
+	// Google's redirect. It must match the browser's state cookie.
+	State string `json:"state"`
 }
 
 type googleTokenResponse struct {
@@ -544,6 +549,22 @@ func (h *Handler) googleHTTPClient() *http.Client {
 	return http.DefaultClient
 }
 
+// GoogleLoginStart: POST /auth/google/start → {state}. It mints the state
+// the browser puts in Google's authorization URL and pins it to that browser
+// in an HttpOnly cookie, so POST /auth/google only exchanges a code for the
+// browser that started the flow. The desktop app starts Google sign-in in
+// the system browser, which carries the cookie through the whole round-trip.
+func (h *Handler) GoogleLoginStart(w http.ResponseWriter, r *http.Request) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start Google login")
+		return
+	}
+	state := hex.EncodeToString(buf)
+	auth.SetGoogleOAuthStateCookie(w, state)
+	writeJSON(w, http.StatusOK, map[string]string{"state": state})
+}
+
 func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	var req GoogleLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -553,6 +574,16 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if req.Code == "" {
 		writeError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+
+	// Login CSRF: the state is single-use and must be the one this browser
+	// was handed by GoogleLoginStart.
+	stateCookie, cookieErr := r.Cookie(auth.GoogleOAuthStateCookieName)
+	auth.ClearGoogleOAuthStateCookie(w)
+	if cookieErr != nil || stateCookie.Value == "" || req.State == "" ||
+		subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(req.State)) != 1 {
+		writeErrorCode(w, http.StatusBadRequest, googleLoginCodeInvalidOAuthState, "the Google sign-in was not started from this browser; sign in again")
 		return
 	}
 

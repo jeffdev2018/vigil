@@ -41,7 +41,7 @@ export interface AuthState {
   retryAuthentication: () => void;
   sendCode: (email: string) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<User>;
-  loginWithGoogle: (code: string, redirectUri: string) => Promise<User>;
+  loginWithGoogle: (code: string, redirectUri: string, state: string) => Promise<User>;
   loginWithToken: (token: string) => Promise<User>;
   logout: () => void;
   sessionExpired: () => void;
@@ -85,8 +85,8 @@ export function createAuthStore(options: AuthStoreOptions) {
       return user;
     },
 
-    loginWithGoogle: async (code: string, redirectUri: string) => {
-      const { token, user } = await api.googleLogin(code, redirectUri);
+    loginWithGoogle: async (code: string, redirectUri: string, state: string) => {
+      const { token, user } = await api.googleLogin(code, redirectUri, state);
       if (!cookieAuth) {
         storage.setItem("multica_token", token);
         api.setToken(token);

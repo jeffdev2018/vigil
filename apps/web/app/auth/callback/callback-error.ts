@@ -31,6 +31,9 @@ export function callbackErrorFrom(err: unknown): CallbackError {
     case "google_account_no_email":
       return { kind: "google_account_no_email" };
     case "oauth_code_invalid":
+    // A sign-in not started from this browser (or started too long ago) reads
+    // to the user exactly like a used or expired code: sign in again.
+    case "oauth_state_invalid":
       return { kind: "oauth_code_invalid" };
     default:
       break;

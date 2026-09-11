@@ -57,6 +57,10 @@ function CallbackContent() {
     // Strip "next:" prefix, then drop anything that isn't a safe relative path
     // so an attacker-controlled `state=next:https://evil` cannot redirect here.
     const nextUrl = sanitizeNextUrl(nextPart ? nextPart.slice(5) : null);
+    // The browser-bound state from POST /auth/google/start; the server
+    // refuses the exchange unless it matches this browser's cookie.
+    const oauthPart = stateParts.find((p) => p.startsWith("oauth:"));
+    const oauthState = oauthPart ? oauthPart.slice("oauth:".length) : "";
 
     // CLI callback params — carried across the Google OAuth round-trip so
     // headless/WSL2 `multica login` can receive the JWT after browser-based
@@ -83,7 +87,7 @@ function CallbackContent() {
       // CLI login flow: exchange the Google code for a JWT, then redirect the
       // token back to the CLI's local HTTP listener (e.g. WSL2 host).
       api
-        .googleLogin(code, redirectUri)
+        .googleLogin(code, redirectUri, oauthState)
         .then(({ token }) => {
           redirectToCliCallback(cliCallback, token, cliState);
         })
@@ -94,7 +98,7 @@ function CallbackContent() {
     } else if (isDesktop) {
       // Desktop flow: exchange code for token, then redirect via deep link
       api
-        .googleLogin(code, redirectUri)
+        .googleLogin(code, redirectUri, oauthState)
         .then(({ token }) => {
           setDesktopToken(token);
           window.location.href = `multica://auth/callback?token=${encodeURIComponent(token)}`;
@@ -105,7 +109,7 @@ function CallbackContent() {
         });
     } else {
       // Normal web flow
-      loginWithGoogle(code, redirectUri)
+      loginWithGoogle(code, redirectUri, oauthState)
         .then(async (loggedInUser) => {
           const wsList = await api.listWorkspaces();
           qc.setQueryData(workspaceKeys.list(), wsList);

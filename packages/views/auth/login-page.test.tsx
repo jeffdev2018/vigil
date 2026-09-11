@@ -35,6 +35,7 @@ const mockApiSetToken = vi.hoisted(() => vi.fn());
 const mockApiGetMe = vi.hoisted(() => vi.fn());
 const mockApiIssueCliToken = vi.hoisted(() => vi.fn());
 const mockApiStartOIDCLogin = vi.hoisted(() => vi.fn());
+const mockApiStartGoogleLogin = vi.hoisted(() => vi.fn());
 const mockSetQueryData = vi.hoisted(() => vi.fn());
 // Mutable slice of auth state the component subscribes to.
 const mockAuthState = vi.hoisted(() => ({ expired: false }));
@@ -74,6 +75,7 @@ vi.mock("@multica/core/api", () => ({
     getMe: mockApiGetMe,
     issueCliToken: mockApiIssueCliToken,
     startOIDCLogin: mockApiStartOIDCLogin,
+    startGoogleLogin: mockApiStartGoogleLogin,
   },
 }));
 
@@ -403,6 +405,32 @@ describe("LoginPage", () => {
     expect(
       screen.getByRole("button", { name: /continue with google/i }),
     ).toBeInTheDocument();
+  });
+
+  it("binds the Google redirect to this browser with a server-issued state", async () => {
+    mockApiStartGoogleLogin.mockResolvedValue("f00dcafe");
+    const hrefSetter = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: { ...originalLocation, set href(value: string) { hrefSetter(value); } },
+    });
+    try {
+      renderWithI18n(
+        <LoginPage
+          onSuccess={onSuccess}
+          google={{ clientId: "goog-123", redirectUri: "http://localhost/cb", state: "platform:desktop" }}
+        />,
+      );
+      await userEvent.setup().click(screen.getByRole("button", { name: /continue with google/i }));
+      await waitFor(() => expect(hrefSetter).toHaveBeenCalled());
+      const url = new URL(hrefSetter.mock.calls[0]![0] as string);
+      expect(url.origin).toBe("https://accounts.google.com");
+      expect(url.searchParams.get("state")).toBe("platform:desktop,oauth:f00dcafe");
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+    }
   });
 
   it("hides Google OAuth button when google prop omitted", () => {

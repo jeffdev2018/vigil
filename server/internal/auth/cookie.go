@@ -184,6 +184,46 @@ func SetAuthCookies(w http.ResponseWriter, token string) error {
 	return nil
 }
 
+// GoogleOAuthStateCookieName binds a Google sign-in to the browser that
+// started it (login CSRF). Host-only and scoped to the Google auth routes: it
+// is written by POST /auth/google/start and read by POST /auth/google.
+const GoogleOAuthStateCookieName = "multica_google_oauth_state"
+
+const (
+	googleOAuthStatePath = "/auth/google"
+	googleOAuthStateTTL  = 10 * time.Minute
+)
+
+// SetGoogleOAuthStateCookie stores the state of a Google sign-in that is
+// starting. SameSite=Lax is enough: the exchange is a same-site POST from the
+// callback page, and a cross-site response cannot set or read it.
+func SetGoogleOAuthStateCookie(w http.ResponseWriter, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     GoogleOAuthStateCookieName,
+		Value:    state,
+		Path:     googleOAuthStatePath,
+		MaxAge:   int(googleOAuthStateTTL.Seconds()),
+		Expires:  time.Now().Add(googleOAuthStateTTL),
+		HttpOnly: true,
+		Secure:   isSecureCookie(),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// ClearGoogleOAuthStateCookie consumes the state: one exchange per start.
+func ClearGoogleOAuthStateCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     GoogleOAuthStateCookieName,
+		Value:    "",
+		Path:     googleOAuthStatePath,
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   isSecureCookie(),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
 // ClearAuthCookies removes the auth and CSRF cookies.
 func ClearAuthCookies(w http.ResponseWriter) {
 	domain := cookieDomain()
