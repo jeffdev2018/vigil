@@ -392,6 +392,14 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     return () => {
       cancelled = true;
     };
+    // t is intentionally excluded: react-i18next's t is not referentially
+    // stable across renders here, and this effect's own setState calls
+    // would re-trigger it on every render — an infinite loop. It is only
+    // read inside the render-failure branch for a fallback string, so a
+    // stale closure over an old locale's t for that one message is an
+    // acceptable trade-off (matches the same pattern elsewhere in this
+    // package, e.g. settings/components/lark-tab.tsx).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart, diagramId, themeVersion]);
 
   const overflow = useHorizontalOverflow(scrollRef, [rendered?.inlineDocument]);

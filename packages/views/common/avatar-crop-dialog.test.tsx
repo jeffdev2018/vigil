@@ -14,7 +14,11 @@ const TEST_RESOURCES = { en: { common: enCommon } };
 // synchronously during render would re-trigger a render every time), which
 // is all this dialog's chrome needs to enable Save.
 vi.mock("react-easy-crop", () => ({
-  default: ({ onCropComplete }: { onCropComplete: (a: unknown, b: unknown) => void }) => {
+  default: function CropperStub({
+    onCropComplete,
+  }: {
+    onCropComplete: (a: unknown, b: unknown) => void;
+  }) {
     useEffect(() => {
       onCropComplete({}, { x: 0, y: 0, width: 10, height: 10 });
       // eslint-disable-next-line react-hooks/exhaustive-deps
