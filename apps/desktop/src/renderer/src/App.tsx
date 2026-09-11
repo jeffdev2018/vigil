@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CoreProvider } from "@multica/core/platform";
-import { pickLocale, type SupportedLocale } from "@multica/core/i18n";
+import { HTML_LANG, pickLocale } from "@multica/core/i18n";
 import { useAuthStore } from "@multica/core/auth";
 import { useWelcomeStore } from "@multica/core/onboarding";
 import { workspaceKeys } from "@multica/core/workspace/queries";
@@ -36,18 +36,6 @@ import {
   type SessionTeardown,
 } from "./platform/session-teardown";
 
-// BCP-47 region tags for the <html lang> attribute, mirroring
-// apps/web/app/layout.tsx HTML_LANG. index.html ships a static lang="en";
-// we sync it to the resolved locale at boot so screen readers announce the
-// right language AND the Japanese-scoped CJK font override in globals.css
-// (`html[lang|="ja"]`) can take effect.
-const HTML_LANG: Record<SupportedLocale, string> = {
-  en: "en",
-  "zh-Hans": "zh-CN",
-  ko: "ko-KR",
-  ja: "ja-JP",
-  fr: "fr-FR",
-};
 
 
 /**
@@ -414,8 +402,8 @@ export default function App() {
     () => ({ platform: "desktop", version, os }),
     [version, os],
   );
-  // Locale resolution happens once at app boot. Switching language goes
-  // through window.location.reload() to avoid hydration mismatch.
+  // Locale resolution happens once at app boot. The Settings switcher then
+  // changes language in place (applyLocale), which also updates <html lang>.
   const localeAdapter = useMemo(
     () => createDesktopLocaleAdapter(systemLocale),
     [systemLocale],

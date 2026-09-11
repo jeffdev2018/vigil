@@ -16,7 +16,7 @@ import {
   SUPPORTED_LOCALES,
   type SupportedLocale,
 } from "@multica/core/i18n";
-import { useLocaleAdapter } from "@multica/core/i18n/react";
+import { applyLocale, useLocaleAdapter } from "@multica/core/i18n/react";
 import { useAuthStore } from "@multica/core/auth";
 import { useCommentComposerStore } from "@multica/core/issues/stores";
 import { useMeetingPreferencesStore } from "@multica/core/meetings/preferences-store";
@@ -99,6 +99,7 @@ function GeneralPreferences() {
   const { t, i18n } = useT("settings");
   const localeAdapter = useLocaleAdapter();
   const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
 
   // i18next.language can be a region-tagged BCP-47 string (e.g. "en-US",
   // "zh-Hans-CN") returned by intl-localematcher. Normalize to a supported
@@ -123,42 +124,46 @@ function GeneralPreferences() {
     { value: "fr", label: t(($) => $.preferences.language.french) },
   ];
 
-  // Persist locally → sync to user.language → reload. Reload (vs in-place
-  // changeLanguage) avoids hydration mismatch and is the i18next-recommended
-  // pattern for App Router.
-  //
-  // If the cross-device sync (PATCH /api/me) fails, the local cookie is
-  // already written so the new locale will take effect after reload — but
-  // the user's other devices won't see the change. Surface that explicitly
-  // via a toast and delay the reload long enough for the toast to be read,
-  // otherwise the failure would be invisible.
+  // Persist locally → apply in place → sync to user.language. The language
+  // is a device choice: the account copy only seeds devices that have none
+  // (UserLocaleSync), so no other device reloads. Toasts fire after the
+  // switch, so they read in the language just chosen. When the bundle cannot
+  // be loaded the page reloads instead, and boots in the persisted locale.
   const handleLanguageChange = async (next: SupportedLocale) => {
     if (next === currentLocale) return;
     localeAdapter.persist(next);
 
+    let applied = true;
+    try {
+      const { RESOURCES } = await import("../../locales");
+      await applyLocale(i18n, next, RESOURCES[next]);
+    } catch (error) {
+      console.error("in-place language switch failed; reloading", error);
+      applied = false;
+    }
+
     let syncFailed = false;
     if (user) {
       try {
-        await api.updateMe({ language: next });
+        setUser(await api.updateMe({ language: next }));
       } catch {
         syncFailed = true;
       }
     }
 
+    // The render-bound `t` still speaks the previous language.
+    const tNext = i18n.getFixedT(next, "settings");
     if (syncFailed) {
-      toast.warning(t(($) => $.preferences.language.sync_failed));
-      // Give the toast 2.5s of visible time before navigating away.
-      setTimeout(() => window.location.reload(), 2500);
-      return;
-    }
-    toast.success(
-      t(($) => $.auto_save.toast_saved),
-      {
+      toast.warning(tNext(($) => $.preferences.language.sync_failed));
+    } else {
+      toast.success(tNext(($) => $.preferences.language.applied), {
         id: "settings-auto-save",
-      },
-    );
-    // Keep the confirmation visible before the locale reload replaces the UI.
-    setTimeout(() => window.location.reload(), 900);
+      });
+    }
+    if (!applied) {
+      // Give the toast time to be read before the reload replaces the UI.
+      setTimeout(() => window.location.reload(), syncFailed ? 2500 : 900);
+    }
   };
 
   return (
