@@ -2724,6 +2724,7 @@
       "removed": "Removed",
       "kept": "Kept",
       "no_items": "This install recorded no rows.",
+      "items_load_error": "Could not load this install's contents.",
       "confirm_title": "Remove {{title}}?",
       "confirm_body": "The configuration the pack created goes: its views, labels, properties, rules, statuses and work item types are removed, its agents and automations archived. Your content stays: projects, goals, notes and work items the pack brought are yours now, and anything it merged into a row you already had is left alone.",
       "confirm_cancel": "Cancel",

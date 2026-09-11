@@ -2724,6 +2724,7 @@
       "removed": "Retirés",
       "kept": "Conservés",
       "no_items": "Cette installation n'a enregistré aucun élément.",
+      "items_load_error": "Impossible de charger le contenu de cette installation.",
       "confirm_title": "Retirer {{title}} ?",
       "confirm_body": "La configuration créée par le pack part : ses vues, étiquettes, propriétés, règles, statuts et types de tâche sont supprimés, ses agents et automatisations archivés. Votre contenu reste : les projets, objectifs, notes et tâches apportés par le pack sont désormais les vôtres, et tout ce qu'il a fusionné dans un élément existant n'est pas touché.",
       "confirm_cancel": "Annuler",
