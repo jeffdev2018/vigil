@@ -110,12 +110,28 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create invitation")
 		return
 	}
-	if h.seatCapacityEnabled() {
+	if h.seatCapacityEnabled() && len(expiredInvitations) > 0 {
+		// One transaction for the whole batch: without it, a failure on the
+		// Nth row aborted the request but left the first N-1 rows' capacity
+		// already released, with no compensation for that partial progress.
+		tx, err := h.TxStarter.Begin(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create invitation")
+			return
+		}
+		qtx := h.Queries.WithTx(tx)
 		for _, expired := range expiredInvitations {
-			if err := enqueueCapacityRelease(r.Context(), h.Queries, uuid.UUID(expired.WorkspaceID.Bytes), uuid.UUID(expired.ID.Bytes)); err != nil {
+			if err := enqueueCapacityRelease(r.Context(), qtx, uuid.UUID(expired.WorkspaceID.Bytes), uuid.UUID(expired.ID.Bytes)); err != nil {
+				tx.Rollback(r.Context())
 				writeError(w, http.StatusInternalServerError, "failed to release expired invitation capacity")
 				return
 			}
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to release expired invitation capacity")
+			return
+		}
+		for _, expired := range expiredInvitations {
 			h.compensateCapacityIntent(r.Context(), uuid.UUID(expired.ID.Bytes))
 		}
 	}
