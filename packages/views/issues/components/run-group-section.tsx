@@ -108,7 +108,7 @@ export function RunGroupSection({ issueId, canManage = true }: { issueId: string
     <div data-testid="run-group-section" className="flex flex-col gap-2 text-caption">
       <div className="flex items-center gap-2 font-medium">
         <Flag className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <span>{t(($) => $.race.section)}</span>
+        <span title={t(($) => $.race.start_desc)}>{t(($) => $.race.section)}</span>
         {canManage && (
           <Button
             type="button"
