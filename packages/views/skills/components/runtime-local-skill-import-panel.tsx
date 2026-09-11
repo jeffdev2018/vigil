@@ -1108,14 +1108,10 @@ export function RuntimeLocalSkillImportPanel({
           <>
             {/* Select all header */}
             <label className="flex cursor-pointer items-center gap-2 px-1 py-1">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected;
-                }}
-                onChange={toggleAll}
-                className="cursor-pointer accent-primary"
+                indeterminate={someSelected}
+                onCheckedChange={toggleAll}
               />
               <span className="text-caption text-muted-foreground">
                 {t(($) => $.runtime_import.select_all, {
