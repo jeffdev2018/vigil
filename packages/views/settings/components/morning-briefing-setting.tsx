@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sunrise } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -60,6 +60,14 @@ export function MorningBriefingSetting({ workspace, canEdit }: { workspace: Work
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [channels, setChannels] = useState<BriefingChannel[]>(policy.channels);
+  // The buffers follow the stored policy: a workspace:updated patch changes the
+  // prop without a remount, and a blur must not write the old values back.
+  useEffect(() => {
+    setHour(String(policy.hour));
+    setTimezone(policy.timezone);
+  }, [policy.hour, policy.timezone]);
+  const storedChannels = JSON.stringify(policy.channels);
+  useEffect(() => setChannels(JSON.parse(storedChannels) as BriefingChannel[]), [storedChannels]);
 
   async function persist(next: MorningBriefingPolicy) {
     if (saving) return;

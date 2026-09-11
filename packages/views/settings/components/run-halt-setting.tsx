@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,9 @@ export function RunHaltSetting({ wsId, canEdit }: { wsId: string; canEdit: boole
   const { data: halt = EMPTY_RUN_HALT } = useQuery(runHaltOptions(wsId));
   const setRunHalt = useSetRunHalt(wsId);
   const [reason, setReason] = useState(halt.reason);
+  // The buffer follows the stored reason: the query resolves after the first
+  // render, and another admin can change it while this page is open.
+  useEffect(() => setReason(halt.reason), [halt.reason]);
   const halted = halt.halted === true;
 
   const commit = (nextHalted: boolean, nextReason: string) => {

@@ -44,6 +44,17 @@ describe("RunHaltSetting", () => {
     expect(state.setRunHalt).toHaveBeenCalledWith({ halted: true, reason: "investigating" }, expect.anything());
   });
 
+  // Regression: the reason was seeded before the query resolved, so it read
+  // empty, and re-halting sent reason:"" over the stored one.
+  it("shows the stored reason once the halt loads and keeps it on re-halt", async () => {
+    state.halt = { halted: true, reason: "incident #42", halted_by: "u1", halted_at: "2026-09-09T09:00:00Z", frozen_count: 0, resumed_count: 0 };
+    render();
+    const input = screen.getByRole("textbox", { name: "Reason" });
+    await waitFor(() => expect(input).toHaveValue("incident #42"));
+    fireEvent.click(screen.getByRole("switch", { name: "Halt all agents" }));
+    expect(state.setRunHalt).toHaveBeenCalledWith({ halted: false, reason: "incident #42" }, expect.anything());
+  });
+
   it("keeps the reason field disabled while not halted", async () => {
     render();
     expect(await screen.findByRole("textbox", { name: "Reason" })).toBeDisabled();
