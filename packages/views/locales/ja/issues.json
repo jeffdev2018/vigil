@@ -240,6 +240,7 @@
     "empty": "この表示に一致する課題はありません。",
     "search_placeholder": "タイトルまたは課題 ID を検索…",
     "search_clear": "検索をクリア",
+    "resize_column": "{{label}}列のサイズを変更",
     "load_failed": "課題を読み込めませんでした。",
     "load_failed_retry": "再試行",
     "load_more_failed_retry": "続きの読み込みに失敗しました — 再試行",

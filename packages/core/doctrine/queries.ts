@@ -11,7 +11,6 @@ export const doctrineKeys = {
   all: (wsId: string) => ["doctrine", wsId] as const,
   doctrine: (wsId: string) => [...doctrineKeys.all(wsId), "doctrine"] as const,
   versions: (wsId: string) => [...doctrineKeys.all(wsId), "versions"] as const,
-  version: (wsId: string, id: string) => [...doctrineKeys.all(wsId), "version", id] as const,
   diff: (wsId: string, id: string, against: string) =>
     [...doctrineKeys.all(wsId), "diff", id, against] as const,
   reports: (wsId: string, status: DoctrineReportFilter) =>

@@ -222,6 +222,7 @@
     "empty": "Aucune issue ne correspond à cette vue.",
     "search_placeholder": "Rechercher par titre ou ID d'issue…",
     "search_clear": "Effacer la recherche",
+    "resize_column": "Redimensionner la colonne {{label}}",
     "load_failed": "Échec du chargement des issues.",
     "load_failed_retry": "Réessayer",
     "load_more_failed_retry": "Échec du chargement supplémentaire — Réessayer",

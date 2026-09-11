@@ -25,6 +25,7 @@ import {
   docDriftProposalsOptions,
   docDriftSettingsOptions,
   driftExcerpt,
+  isOpenProposal,
   proposalTone,
   shortDriftCommit,
   useCheckDocDrift,
@@ -356,7 +357,7 @@ function ProposalRow({ proposal, wsId }: { proposal: DocDriftProposal; wsId: str
   const timeAgo = useTimeAgo();
   const dismiss = useDismissDocDriftProposal(wsId);
   const openPR = useOpenDocDriftProposalPR(wsId);
-  const open = proposal.status === "draft" || proposal.status === "opened_pr";
+  const open = isOpenProposal(proposal);
 
   return (
     <TableRow data-testid="doc-drift-proposal-row" data-status={proposal.status}>

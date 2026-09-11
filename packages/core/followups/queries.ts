@@ -1,4 +1,4 @@
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 
 /**
@@ -19,8 +19,4 @@ export function issueFollowupsOptions(wsId: string, issueId: string) {
     queryFn: ({ signal }) => api.listIssueFollowups(issueId, { signal }),
     enabled: issueId !== "",
   });
-}
-
-export function useIssueFollowups(wsId: string, issueId: string) {
-  return useQuery(issueFollowupsOptions(wsId, issueId));
 }

@@ -17,10 +17,12 @@ export function toStoredAgentDraft(
     runtime_routing: draft.runtimeRouting,
     thinking_level: draft.thinkingLevel,
     service_tier: draft.serviceTier,
-    skill_ids: [...draft.skillIds],
+    // Sorted so the JSON.stringify equality check in storedAgentDraftsEqual
+    // below is not sensitive to a Set's iteration (insertion) order.
+    skill_ids: [...draft.skillIds].sort(),
     permission_scope: draft.permissionScope,
-    member_ids: [...draft.memberIds],
-    team_ids: [...draft.teamIds],
+    member_ids: [...draft.memberIds].sort(),
+    team_ids: [...draft.teamIds].sort(),
     applied_message_id: appliedMessageId,
   };
 }

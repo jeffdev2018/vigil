@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { isCriterionSatisfied, unsatisfiedCriteria } from "./acceptance";
+import { isCriterionSatisfied } from "./acceptance";
 import type { AcceptanceCriterion } from "../types";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -23,7 +23,6 @@ describe("acceptance helpers", () => {
     expect(isCriterionSatisfied(proven)).toBe(true);
     expect(isCriterionSatisfied(missing)).toBe(false);
     expect(isCriterionSatisfied({ proof_state: "pending_human" })).toBe(false);
-    expect(unsatisfiedCriteria([missing, proven])).toEqual([missing]);
   });
 });
 

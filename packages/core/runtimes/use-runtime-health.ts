@@ -39,7 +39,10 @@ export function useRuntimeHealth(
     if (!wsId || !runtimeId) return "loading";
     if (!runtimes) return "loading";
     const runtime = runtimes.find((r) => r.id === runtimeId);
-    if (!runtime) return "loading";
+    // Runtime list is loaded but this id isn't in it (deleted, or an id from
+    // a stale reference) — a legitimate "offline" state, not "still
+    // loading". Same fallback as the sibling useAgentPresenceDetail.
+    if (!runtime) return "offline";
     return deriveRuntimeHealth(runtime, Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId, runtimeId, runtimes, tick]);

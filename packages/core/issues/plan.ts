@@ -91,8 +91,3 @@ export function latestPlanVerification(list: PlanVerification[]): PlanVerificati
   if (list.length === 0) return null;
   return list.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 }
-
-/** True only when a reported verification carries a critical finding. */
-export function planVerificationBlocksDone(v: PlanVerification | null): boolean {
-  return v !== null && v.state === "reported" && v.critical_count > 0;
-}

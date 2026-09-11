@@ -20,7 +20,7 @@ import {
   type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import type { InsightQuery, InsightRow } from "@multica/core/insights";
-import { insightLabelKey, resolveInsightShape } from "@multica/core/insights";
+import { insightLabelKey, insightRowValue, resolveInsightShape } from "@multica/core/insights";
 import { useT } from "../../i18n";
 
 /**
@@ -65,7 +65,7 @@ export function InsightChart({ query, rows, shape, emptyLabel }: InsightChartPro
     return rows.map((row, index) => {
       const raw = labelKey ? row[labelKey] : null;
       const fullLabel = raw === null || raw === undefined ? "—" : String(raw);
-      const value = typeof row["value"] === "number" ? row["value"] : 0;
+      const value = insightRowValue(row) ?? 0;
       return {
         label: truncate(fullLabel, MAX_AXIS_LABEL),
         fullLabel,

@@ -782,18 +782,32 @@ export interface RealtimeSyncStores {
 // per streamed chunk, and a 5 s resolution is far below any liveness threshold.
 const RUN_ACTIVITY_TOUCH_MIN_MS = 5_000;
 
+// Throttles the call itself, not just the write: without this, a run
+// streaming several chunks/second with the timeline open still pays a
+// getQueriesData + findIndex scan of every open task list on every chunk,
+// even though the RUN_ACTIVITY_TOUCH_MIN_MS check below would refuse to
+// write on almost all of those calls anyway.
+const lastRunActivityTouchMs = new Map<string, number>();
+
 function touchCachedRunActivity(qc: QueryClient, taskId: string) {
   const now = new Date();
+  const nowMs = now.getTime();
+  const lastTouch = lastRunActivityTouchMs.get(taskId);
+  if (lastTouch !== undefined && nowMs - lastTouch < RUN_ACTIVITY_TOUCH_MIN_MS) return;
+
+  let touched = false;
   for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
     if (!Array.isArray(tasks)) continue;
     const idx = tasks.findIndex((t) => t?.id === taskId);
     if (idx === -1) continue;
     const previous = tasks[idx]?.last_activity_at;
-    if (previous && now.getTime() - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
+    if (previous && nowMs - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
     const next = tasks.slice();
     next[idx] = { ...tasks[idx]!, last_activity_at: now.toISOString() };
     qc.setQueryData<AgentTask[]>(key, next);
+    touched = true;
   }
+  if (touched) lastRunActivityTouchMs.set(taskId, nowMs);
 }
 
 /**

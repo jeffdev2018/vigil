@@ -2,6 +2,7 @@
 
 import { useState, lazy, Suspense } from "react";
 import { SmilePlus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@multica/ui/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@multica/ui/components/ui/popover";
 
@@ -18,9 +19,11 @@ interface QuickEmojiPickerProps {
   ariaLabel?: string;
 }
 
-function QuickEmojiPicker({ onSelect, align = "start", className, ariaLabel = "Add reaction" }: QuickEmojiPickerProps) {
+function QuickEmojiPicker({ onSelect, align = "start", className, ariaLabel }: QuickEmojiPickerProps) {
+  const { t } = useTranslation("ui");
   const [open, setOpen] = useState(false);
   const [showFull, setShowFull] = useState(false);
+  const resolvedAriaLabel = ariaLabel ?? t(($) => $.add_reaction);
 
   const handleOpenChange = (v: boolean) => {
     setOpen(v);
@@ -39,8 +42,8 @@ function QuickEmojiPicker({ onSelect, align = "start", className, ariaLabel = "A
         render={
           <button
             type="button"
-            aria-label={ariaLabel}
-            title={ariaLabel}
+            aria-label={resolvedAriaLabel}
+            title={resolvedAriaLabel}
             className={cn("inline-flex shrink-0 items-center justify-center h-6 w-6 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
           >
             <SmilePlus className="h-3.5 w-3.5" aria-hidden />
@@ -49,7 +52,7 @@ function QuickEmojiPicker({ onSelect, align = "start", className, ariaLabel = "A
       />
       <PopoverContent align={align} className="w-auto p-0">
         {showFull ? (
-          <Suspense fallback={<div className="p-4 text-body text-muted-foreground">Loading...</div>}>
+          <Suspense fallback={<div className="p-4 text-body text-muted-foreground">{t(($) => $.loading)}</div>}>
             <EmojiPicker onSelect={handleSelect} />
           </Suspense>
         ) : (
@@ -71,7 +74,7 @@ function QuickEmojiPicker({ onSelect, align = "start", className, ariaLabel = "A
               onClick={() => setShowFull(true)}
               className="mt-1.5 w-full text-caption text-muted-foreground hover:text-foreground text-center py-1 rounded hover:bg-accent transition-colors"
             >
-              More emojis...
+              {t(($) => $.more_emojis)}
             </button>
           </div>
         )}

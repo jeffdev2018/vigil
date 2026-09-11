@@ -2499,6 +2499,7 @@ export function TableView({
             table={table}
             virtualizeRows
             emptyMessage={t(($) => $.table.empty)}
+            resizeAriaLabel={(headerLabel) => t(($) => $.table.resize_column, { label: headerLabel })}
             onRowClick={(row, event) => {
               if (row.original.kind === "issue") {
                 openIssue(row.original.issue, event);
