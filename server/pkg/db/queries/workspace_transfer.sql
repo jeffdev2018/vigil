@@ -78,6 +78,9 @@ UPDATE triage_source SET mode = $3, auto_accept = $4, cap_per_hour = $5, expiry_
 -- name: MergeImportedProject :exec
 UPDATE project SET description = $3, icon = $4, status = $5, priority = $6, updated_at = now() WHERE id = $1 AND workspace_id = $2;
 
+-- name: MergeImportedAutopilot :exec
+UPDATE autopilot SET description = $3, execution_mode = $4, issue_title_template = $5, assignee_type = $6, assignee_id = $7, updated_at = now() WHERE id = $1 AND workspace_id = $2;
+
 -- name: SetIssueGoalForImport :exec
 UPDATE issue SET goal_id = $3 WHERE id = $1 AND workspace_id = $2;
 

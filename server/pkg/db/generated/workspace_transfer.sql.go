@@ -811,6 +811,33 @@ func (q *Queries) MergeImportedAgent(ctx context.Context, arg MergeImportedAgent
 	return err
 }
 
+const mergeImportedAutopilot = `-- name: MergeImportedAutopilot :exec
+UPDATE autopilot SET description = $3, execution_mode = $4, issue_title_template = $5, assignee_type = $6, assignee_id = $7, updated_at = now() WHERE id = $1 AND workspace_id = $2
+`
+
+type MergeImportedAutopilotParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	WorkspaceID        pgtype.UUID `json:"workspace_id"`
+	Description        pgtype.Text `json:"description"`
+	ExecutionMode      string      `json:"execution_mode"`
+	IssueTitleTemplate pgtype.Text `json:"issue_title_template"`
+	AssigneeType       string      `json:"assignee_type"`
+	AssigneeID         pgtype.UUID `json:"assignee_id"`
+}
+
+func (q *Queries) MergeImportedAutopilot(ctx context.Context, arg MergeImportedAutopilotParams) error {
+	_, err := q.db.Exec(ctx, mergeImportedAutopilot,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Description,
+		arg.ExecutionMode,
+		arg.IssueTitleTemplate,
+		arg.AssigneeType,
+		arg.AssigneeID,
+	)
+	return err
+}
+
 const mergeImportedProject = `-- name: MergeImportedProject :exec
 UPDATE project SET description = $3, icon = $4, status = $5, priority = $6, updated_at = now() WHERE id = $1 AND workspace_id = $2
 `
