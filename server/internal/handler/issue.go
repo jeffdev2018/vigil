@@ -4443,9 +4443,16 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
+	// Best-effort: delete-must-proceed semantics regardless of these two
+	// failing, but a DB failure mid-cancel should still leave a trace for
+	// operators instead of being invisible.
+	if err := h.TaskService.CancelTasksForIssue(r.Context(), issue.ID); err != nil {
+		slog.Warn("delete issue: cancel tasks failed", "issue_id", uuidToString(issue.ID), "error", err)
+	}
 	// Fail any linked autopilot runs before delete (ON DELETE SET NULL clears issue_id).
-	_ = h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+	if err := h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID); err != nil {
+		slog.Warn("delete issue: fail autopilot runs failed", "issue_id", uuidToString(issue.ID), "error", err)
+	}
 
 	deleteResult, err := h.deleteIssueAndCollectAttachmentURLs(r.Context(), issue, nil)
 	if err != nil {
@@ -5191,8 +5198,14 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 		seenIssueIDs[issueUUID] = struct{}{}
 		issues = append(issues, issue)
 		excludedIDs = append(excludedIDs, issue.ID)
-		h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
-		_ = h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+		// Best-effort, same delete-must-proceed semantics as DeleteIssue —
+		// logged rather than silently discarded.
+		if err := h.TaskService.CancelTasksForIssue(r.Context(), issue.ID); err != nil {
+			slog.Warn("batch delete issues: cancel tasks failed", "issue_id", uuidToString(issue.ID), "error", err)
+		}
+		if err := h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID); err != nil {
+			slog.Warn("batch delete issues: fail autopilot runs failed", "issue_id", uuidToString(issue.ID), "error", err)
+		}
 	}
 	deleteResult, err := h.deleteIssuesAndCollectAttachmentURLs(r.Context(), issues, excludedIDs)
 	if err != nil {

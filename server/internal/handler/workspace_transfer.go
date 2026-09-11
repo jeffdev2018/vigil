@@ -927,6 +927,12 @@ func (h *Handler) importTransferBundle(ctx context.Context, wsUUID pgtype.UUID, 
 		return report, uuidToString(run.ID), err
 	}
 	if err := tx.Commit(ctx); err != nil {
+		// tx.Rollback (deferred above) already undid the applied changes, so
+		// there is no data-integrity loss — but without this the run row is
+		// left in status "running" forever, matching the finalize call on
+		// the applyTransferBundle-failure branch just above.
+		raw, _ := json.Marshal(map[string]any{"error": err.Error()})
+		_, _ = h.Queries.FinishWorkspaceTransferRun(ctx, db.FinishWorkspaceTransferRunParams{ID: run.ID, Status: "failed", Report: raw})
 		return report, uuidToString(run.ID), err
 	}
 	// Issues go through the issue service (numbering, labels, events) after
