@@ -51,6 +51,7 @@
     "find_slot_pick_participants": "빈 시간을 찾으려면 참가자를 한 명 이상 선택하세요.",
     "find_slot_use": "이 시간 사용",
     "cancel": "취소",
+    "remove_participant": "{{name}} 제거",
     "create": "이벤트 만들기",
     "save": "저장",
     "error": "이벤트를 저장할 수 없습니다",

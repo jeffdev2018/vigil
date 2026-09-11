@@ -151,7 +151,14 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
             </div>
           </form>
         ) : (
-          <button type="button" className="self-start text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>{t(($) => $.campaign.open)}</button>
+          <button
+            type="button"
+            className="self-start text-muted-foreground hover:text-foreground"
+            title={t(($) => $.campaign.open_hint)}
+            onClick={() => setOpen(true)}
+          >
+            {t(($) => $.campaign.open)}
+          </button>
         )
       )}
     </div>

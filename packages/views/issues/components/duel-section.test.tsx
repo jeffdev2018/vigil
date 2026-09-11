@@ -50,6 +50,15 @@ async function pickOption(comboboxName: string, optionName: string) {
 }
 
 describe("DuelSection", () => {
+  // "Duel" is jargon with no explanation elsewhere in the panel (UX audit);
+  // the trigger carries a tooltip instead of renaming the concept.
+  it("explains what a duel is on the trigger button", async () => {
+    render();
+    expect((await screen.findByText("Start a duel")).getAttribute("title")).toBe(
+      "Run two agents on the same issue in parallel and compare their results.",
+    );
+  });
+
   it("launches a duel between two different agents", async () => {
     render();
     fireEvent.click(await screen.findByText("Start a duel"));

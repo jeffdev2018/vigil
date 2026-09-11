@@ -832,8 +832,8 @@ export function MembersTab() {
                     <SelectValue>{() => roleConfig[inviteRole].label}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">{roleConfig.member.label}</SelectItem>
-                    <SelectItem value="admin">{roleConfig.admin.label}</SelectItem>
+                    <SelectItem value="member" title={roleConfig.member.description}>{roleConfig.member.label}</SelectItem>
+                    <SelectItem value="admin" title={roleConfig.admin.description}>{roleConfig.admin.label}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -929,8 +929,8 @@ export function MembersTab() {
                       <SelectValue>{() => roleConfig[shareLinkRole].label}</SelectValue>
                     </SelectTrigger>
                     <SelectContent className="min-w-0">
-                      <SelectItem value="member">{roleConfig.member.label}</SelectItem>
-                      <SelectItem value="admin">{roleConfig.admin.label}</SelectItem>
+                      <SelectItem value="member" title={roleConfig.member.description}>{roleConfig.member.label}</SelectItem>
+                      <SelectItem value="admin" title={roleConfig.admin.description}>{roleConfig.admin.label}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

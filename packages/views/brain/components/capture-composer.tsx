@@ -169,9 +169,27 @@ export function CaptureComposer({
       recorderRef.current = recorder;
       setElapsed(0);
       setRecording(true);
-    } catch {
-      // Permission refused, or no microphone. Say so; never fail silently.
-      setError(t(($) => $.capture.error));
+    } catch (err) {
+      // getUserMedia/MediaRecorder reject with a DOMException whose `name`
+      // says exactly what went wrong — surface that instead of one generic,
+      // non-actionable "the capture failed" for every cause (UX audit).
+      const name = err instanceof DOMException ? err.name : "";
+      switch (name) {
+        case "NotAllowedError":
+        case "PermissionDeniedError":
+          setError(t(($) => $.capture.mic_permission_denied));
+          break;
+        case "NotFoundError":
+        case "DevicesNotFoundError":
+          setError(t(($) => $.capture.mic_not_found));
+          break;
+        case "NotReadableError":
+        case "TrackStartError":
+          setError(t(($) => $.capture.mic_unreadable));
+          break;
+        default:
+          setError(t(($) => $.capture.error));
+      }
     }
   }, [file, t]);
 

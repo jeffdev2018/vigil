@@ -324,7 +324,9 @@
       "zoom_in": "확대",
       "zoom_out": "축소",
       "reset_zoom": "확대/축소 재설정",
-      "close_dialog": "대화상자 또는 메뉴 닫기"
+      "close_dialog": "대화상자 또는 메뉴 닫기",
+      "open_link_new_tab": "링크를 새 탭에서 열기",
+      "click_word": "클릭"
     }
   },
   "chat": {

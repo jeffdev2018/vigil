@@ -324,7 +324,9 @@
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out",
       "reset_zoom": "Reset zoom",
-      "close_dialog": "Close dialog or menu"
+      "close_dialog": "Close dialog or menu",
+      "open_link_new_tab": "Open a link in a new tab",
+      "click_word": "Click"
     }
   },
   "chat": {

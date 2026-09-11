@@ -148,7 +148,8 @@
     "cost": "成本",
     "cost_per_issue": "每议题成本",
     "none": "没有关闭议题",
-    "floor": "下限"
+    "floor": "下限",
+    "floor_hint": "此总额为下限：该智能体的部分运行使用了价格未知的模型。"
   },
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",

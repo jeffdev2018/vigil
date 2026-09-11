@@ -324,7 +324,9 @@
       "zoom_in": "放大",
       "zoom_out": "缩小",
       "reset_zoom": "重置缩放",
-      "close_dialog": "关闭对话框或菜单"
+      "close_dialog": "关闭对话框或菜单",
+      "open_link_new_tab": "在新标签页中打开链接",
+      "click_word": "点击"
     }
   },
   "chat": {

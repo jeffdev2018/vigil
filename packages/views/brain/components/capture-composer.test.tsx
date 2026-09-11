@@ -56,4 +56,28 @@ describe("CaptureComposer voice memo", () => {
     expect(recorders[0]?.stop).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(track.stop).toHaveBeenCalled());
   });
+
+  // Regression: every getUserMedia failure (permission refused, no device,
+  // device busy) collapsed into one generic "the capture failed" with no
+  // cause or action. The DOMException's `name` already says which; use it.
+  it.each([
+    ["NotAllowedError", "Microphone access was denied. Allow it in your browser settings and try again."],
+    ["NotFoundError", "No microphone was found. Connect one and try again."],
+    ["NotReadableError", "The microphone could not be read. Close other apps using it and try again."],
+  ])("explains a %s getUserMedia failure instead of a generic message", async (name, expected) => {
+    // Record button feature-detects both APIs (capture-composer.tsx ~l.81);
+    // MediaRecorder just needs to exist, getUserMedia is what rejects.
+    vi.stubGlobal("MediaRecorder", FakeRecorder);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockRejectedValue(new DOMException("denied", name)) },
+    });
+    const file = { capture: vi.fn(), isPending: false, error: "", detail: "", clearError: vi.fn() };
+    renderWithI18n(<CaptureComposer wsId="ws-1" file={file} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Record a voice memo" }));
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    expect(screen.queryByText("The capture failed")).not.toBeInTheDocument();
+  });
 });

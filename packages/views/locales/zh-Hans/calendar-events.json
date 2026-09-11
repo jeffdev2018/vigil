@@ -51,6 +51,7 @@
     "find_slot_pick_participants": "请先选择至少一位参与者以查找空档。",
     "find_slot_use": "使用此空档",
     "cancel": "取消",
+    "remove_participant": "移除{{name}}",
     "create": "创建事件",
     "save": "保存",
     "error": "无法保存该事件",

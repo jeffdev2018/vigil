@@ -30,6 +30,8 @@ import { IssueNotFound, IssueDetailSkeleton } from "./issue-detail";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
 import { useStatusLabel } from "../utils/status-label";
+import { taskStatusLabel } from "./task-run-labels";
+import { BlockerLabel } from "./merge-readiness-panel";
 
 /**
  * Review cockpit (K16): the reviewer's single screen for an issue's run —
@@ -167,7 +169,7 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
             <Select
               items={data.runs.map((r) => ({
                 value: r.id,
-                label: `${r.status} · ${r.created_at.slice(0, 16).replace("T", " ")}`,
+                label: `${taskStatusLabel(t, r.status)} · ${r.created_at.slice(0, 16).replace("T", " ")}`,
               }))}
               value={runId ?? data.run?.id ?? ""}
               onValueChange={(value) => value !== null && setRunId(value || undefined)}
@@ -178,7 +180,7 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
               <SelectContent>
                 {data.runs.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    {r.status} · {r.created_at.slice(0, 16).replace("T", " ")}
+                    {taskStatusLabel(t, r.status)} · {r.created_at.slice(0, 16).replace("T", " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -277,7 +279,7 @@ function RunSummary({ run }: { run: NonNullable<ReviewCockpit["run"]> }) {
   const timeAgo = useTimeAgo();
   return (
     <div className="flex flex-col gap-1 text-caption">
-      <span className="font-medium">{run.status}</span>
+      <span className="font-medium">{taskStatusLabel(t, run.status)}</span>
       <span className="text-muted-foreground">
         {timeAgo(run.created_at)}
         {run.completed_at && <span> · {t(($) => $.review_cockpit.run_completed, { ago: timeAgo(run.completed_at) })}</span>}
@@ -335,8 +337,7 @@ function PullRequests({ cockpit }: { cockpit: ReviewCockpit }) {
         <ul className="flex flex-col gap-0.5 text-muted-foreground">
           {mr.blockers.map((b, i) => (
             <li key={`${b.kind}-${i}`}>
-              {b.label}
-              {b.count ? ` (${b.count})` : ""}
+              <BlockerLabel blocker={b} />
             </li>
           ))}
         </ul>

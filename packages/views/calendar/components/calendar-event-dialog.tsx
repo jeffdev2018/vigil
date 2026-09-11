@@ -178,7 +178,7 @@ function ParticipantsPicker({
               <span className="max-w-32 truncate">{nameOf(p.type, p.id)}</span>
               <button
                 type="button"
-                aria-label={t(($) => $.form.cancel)}
+                aria-label={t(($) => $.form.remove_participant, { name: nameOf(p.type, p.id) })}
                 className="text-muted-foreground hover:text-foreground"
                 onClick={() => toggle(p.type, p.id)}
               >

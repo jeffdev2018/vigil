@@ -126,7 +126,7 @@ export function WatchdogSection({ issueId, canManage = true }: { issueId: string
     <div data-testid="watchdog" data-state={watchdog ? (watchdog.enabled ? "on" : "off") : "none"} className="flex flex-col gap-2 rounded-md border p-2 text-caption">
       <div className="flex flex-wrap items-center gap-2 font-medium">
         <Eye className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <span>{t(($) => $.watchdog.section)}</span>
+        <span title={t(($) => $.watchdog.intro)}>{t(($) => $.watchdog.section)}</span>
         {watchdog && <span className="font-normal text-muted-foreground">{t(($) => $.watchdog.by, { name: watchdog.agent_name || watchdog.agent_id.slice(0, 8), rest: watchdog.rest_minutes })}</span>}
         {watchdog && canManage && (
           <div className="ml-auto flex items-center gap-2">

@@ -100,8 +100,19 @@ export function AgentRoiCard({
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.issues_closed}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.prs_merged}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
-                    {usd(row.cost_usd_ticks)}
-                    {row.uncosted_runs > 0 && <span className="ml-1 text-muted-foreground">{t(($) => $.agent_roi.floor)}</span>}
+                    <CurrencyNumberFlow
+                      value={row.cost_usd_ticks / 1e10}
+                      locales={locales}
+                      aria-label={usd(row.cost_usd_ticks)}
+                    />
+                    {row.uncosted_runs > 0 && (
+                      <span
+                        className="ml-1 cursor-help text-muted-foreground underline decoration-dotted underline-offset-2"
+                        title={t(($) => $.agent_roi.floor_hint)}
+                      >
+                        {t(($) => $.agent_roi.floor)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">
                     {row.cost_per_issue_usd_ticks === null ? (

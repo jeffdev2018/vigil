@@ -93,6 +93,22 @@ describe("AgentRoiCard", () => {
     expect(screen.getByTestId("agent-roi-headline").textContent).toBe("Claude Code closed 2 issues at $0.00/issue");
   });
 
+  // Regression: the "floor" badge next to an uncosted agent's total was a
+  // bare, unexplained word — add a title explaining it is a minimum, not the
+  // full cost (UX audit).
+  it("explains the 'floor' badge instead of leaving it as a bare word", async () => {
+    state.data = {
+      days: 30,
+      agents: [row({ agent_id: "a1", cost_usd_ticks: 1000, uncosted_runs: 2 })],
+    };
+    renderCard();
+    const badge = await screen.findByText("floor");
+    expect(badge).toHaveAttribute(
+      "title",
+      "This total is a minimum: some of this agent's runs used a model with no known price.",
+    );
+  });
+
   it("names the server's restricted bucket rather than its synthetic id", async () => {
     state.data = {
       days: 30,

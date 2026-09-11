@@ -103,7 +103,14 @@ export function DuelSection({ issueId, canManage = true }: { issueId: string; ca
             <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>{t(($) => $.duel.cancel)}</Button>
           </form>
         ) : (
-          <button type="button" className="self-start text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>{t(($) => $.duel.open)}</button>
+          <button
+            type="button"
+            className="self-start text-muted-foreground hover:text-foreground"
+            title={t(($) => $.duel.open_hint)}
+            onClick={() => setOpen(true)}
+          >
+            {t(($) => $.duel.open)}
+          </button>
         )
       )}
     </div>

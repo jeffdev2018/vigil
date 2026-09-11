@@ -76,6 +76,9 @@
     "too_large": "每次捕获的文件不能超过 {{size}}。",
     "storage_off": "此服务器未配置文件捕获。",
     "error": "捕获失败",
+    "mic_permission_denied": "麦克风访问被拒绝。请在浏览器设置中允许后重试。",
+    "mic_not_found": "未检测到麦克风。请连接麦克风后重试。",
+    "mic_unreadable": "无法读取麦克风。请关闭其他正在使用麦克风的应用后重试。",
     "captured_toast": "已捕获"
   },
   "inbox": {
