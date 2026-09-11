@@ -495,6 +495,8 @@ var concurrentIndexCleanups = map[string]string{
 	"909_run_branch_action_request_pending":                     "idx_run_branch_action_request_pending",
 	"895_agent_task_pending_thread_unique":                      "idx_one_pending_task_per_issue_agent_thread",
 	"916_project_sandbox_policy_pkey_index":                     "project_sandbox_policy_pkey_uidx",
+	"918_budget_reservation_task_index":                         "idx_budget_reservation_task",
+	"919_workspace_model_key_active_unique_index":               "idx_workspace_model_key_active_unique",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
