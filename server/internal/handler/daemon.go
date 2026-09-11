@@ -558,7 +558,10 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			state["provider"] = provider
 			metadataFields["cli_auth"] = state
 		}
-		metadata, _ := json.Marshal(metadataFields)
+		metadata, err := json.Marshal(metadataFields)
+		if err != nil {
+			slog.Warn("daemon register: marshal metadata failed", "error", err)
+		}
 
 		var registered db.AgentRuntime
 		var inserted bool
@@ -759,7 +762,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				// worktree gates read the newest row. Omitting them made a failed
 				// profile look, for that window, like a daemon that advertises
 				// nothing (and now like a capability-blind server).
-				metadata, _ := json.Marshal(map[string]any{
+				metadata, merr := json.Marshal(map[string]any{
 					"version":                            "",
 					"cli_version":                        req.CLIVersion,
 					"launched_by":                        req.LaunchedBy,
@@ -769,6 +772,9 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					"command_name":                       resolvedCommandName,
 					"skipped_agents":                     skippedAgents,
 				})
+				if merr != nil {
+					slog.Warn("daemon register: marshal failed-profile metadata failed", "error", merr)
+				}
 				return db.UpsertAgentRuntimeWithProfileParams{
 					WorkspaceID: wsUUID,
 					DaemonID:    strToText(req.DaemonID),
@@ -5594,7 +5600,9 @@ func (h *Handler) AckTaskCancelled(w http.ResponseWriter, r *http.Request) {
 func taskMessageToPayload(m db.TaskMessage, taskID, issueID string) protocol.TaskMessagePayload {
 	var input map[string]any
 	if m.Input != nil {
-		json.Unmarshal(m.Input, &input)
+		if err := json.Unmarshal(m.Input, &input); err != nil {
+			slog.Warn("task message: unmarshal input failed", "message_id", uuidToString(m.ID), "error", err)
+		}
 	}
 	createdAt := ""
 	if m.CreatedAt.Valid {
@@ -5666,6 +5674,7 @@ func (h *Handler) GetActiveTaskForIssue(w http.ResponseWriter, r *http.Request) 
 
 	tasks, err := h.Queries.ListActiveTasksByIssue(r.Context(), issue.ID)
 	if err != nil {
+		slog.Warn("get active task for issue: list failed", "issue_id", uuidToString(issue.ID), "error", err)
 		tasks = nil
 	}
 
@@ -6513,7 +6522,9 @@ func (h *Handler) recordSandboxOutcome(ctx context.Context, task db.AgentTaskQue
 	}
 	requested, effective := nonEmptySandboxMode(req.SandboxRequested), nonEmptySandboxMode(req.SandboxMode)
 	if task.RuntimeID.Valid {
-		_ = h.Queries.UpdateAgentRuntimeSandboxEffective(ctx, db.UpdateAgentRuntimeSandboxEffectiveParams{ID: task.RuntimeID, SandboxEffective: effective})
+		if err := h.Queries.UpdateAgentRuntimeSandboxEffective(ctx, db.UpdateAgentRuntimeSandboxEffectiveParams{ID: task.RuntimeID, SandboxEffective: effective}); err != nil {
+			slog.Warn("record sandbox outcome: update runtime sandbox effective failed", "runtime_id", uuidToString(task.RuntimeID), "error", err)
+		}
 	}
 	if requested == effective {
 		return

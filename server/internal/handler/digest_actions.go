@@ -40,7 +40,10 @@ func (h *Handler) briefingDigestActions(ctx context.Context, wsID pgtype.UUID, b
 				continue
 			}
 			var options []DecisionOption
-			_ = json.Unmarshal(d.Options, &options)
+			if err := json.Unmarshal(d.Options, &options); err != nil {
+				slog.Warn("briefing digest actions: unmarshal decision options failed", "decision_id", uuidToString(d.ID), "error", err)
+				continue
+			}
 			label, index := "", -1
 			for i, o := range options {
 				if o.ID == d.RecommendedOptionID.String {
