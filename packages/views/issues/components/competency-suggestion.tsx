@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { assigneeSuggestionOptions, competencyDomainLabel, competencyRate, estimateCostRange, estimateDurationRange, issueEstimateOptions } from "@multica/core/agents/competency";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
@@ -39,7 +40,7 @@ export function CompetencySuggestion({ issueId }: { issueId: string }) {
               <span>{t(($) => $.competency.row, { name: c.agent_name || c.agent_id.slice(0, 8), rate: competencyRate(c.score), count: c.total_count })}</span>
               {(c.duel_wins > 0 || c.duel_losses > 0) && <span className="text-muted-foreground">{t(($) => $.competency.duels, { wins: c.duel_wins, losses: c.duel_losses })}</span>}
               {!c.reliable && <span className="italic">{t(($) => $.competency.low_sample, { count: c.sample_size, min: data.min_sample })}</span>}
-              {estimatePending && <span data-testid="estimate-loading" className="inline-block h-3 w-24 animate-pulse rounded bg-muted" />}
+              {estimatePending && <Skeleton data-testid="estimate-loading" className="inline-block h-3 w-24" />}
               {!estimatePending &&
                 (duration && cost ? (
                   <span data-testid="estimate" className="text-muted-foreground">
