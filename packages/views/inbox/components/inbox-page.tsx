@@ -736,6 +736,7 @@ export function InboxPage() {
             <Button
               variant="outline"
               size="sm"
+              data-testid="inbox-clear-filters"
               onClick={() => clearFilters(wsId)}
             >
               {t(($) => $.filters.clear)}
