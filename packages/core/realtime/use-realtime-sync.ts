@@ -10,6 +10,7 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { deliveryKeys } from "../issues/delivery";
 import { goalKeys } from "../issues/goal-loop";
 import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
 import { rememberWorkflowSelection } from "../issues/workflow-policy";
@@ -1733,6 +1734,16 @@ export function useRealtimeSync(
       }
     });
 
+    // delivery:changed — the acceptance criteria or the reported result of an
+    // issue moved; the delivery panel and its task list refetch.
+    const unsubDeliveryChanged = ws.on("delivery:changed", (p) => {
+      const { issue_id } = (p ?? {}) as { issue_id?: string };
+      const wsId = getCurrentWsId();
+      if (!issue_id || !wsId) return;
+      qc.invalidateQueries({ queryKey: deliveryKeys.detail(wsId, issue_id) });
+      qc.invalidateQueries({ queryKey: ["issues", "tasks", wsId, issue_id] });
+    });
+
     const unsubMemberAdded = ws.on("member:added", (p) => {
       const { member, workspace_name } = p as Partial<MemberAddedPayload>;
       const myUserId = authStore.getState().user?.id;
@@ -2265,6 +2276,7 @@ export function useRealtimeSync(
       unsubWsDeleted();
       unsubMemberRemoved();
       unsubMemberAdded();
+      unsubDeliveryChanged();
       unsubInvitationCreated();
       unsubInvitationAccepted();
       unsubInvitationDeclined();

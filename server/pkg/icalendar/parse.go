@@ -385,6 +385,9 @@ func exclusions(props map[string]property) map[int64]bool {
 // rrule is the subset of RRULE this package expands: daily and weekly, with
 // INTERVAL, COUNT, UNTIL and (weekly) BYDAY. A monthly or yearly rule is not
 // recognized, so the event contributes only its first occurrence.
+// maxRRuleInterval caps INTERVAL from a feed; larger values are ignored (interval 1).
+const maxRRuleInterval = 1000
+
 type rrule struct {
 	weekly   bool
 	interval int
@@ -413,7 +416,9 @@ func parseRRule(value string) (rrule, bool) {
 		case "FREQ":
 			freq = strings.ToUpper(strings.TrimSpace(raw))
 		case "INTERVAL":
-			if n, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && n > 0 {
+			// A subscribed feed is untrusted input: an absurd interval would
+			// make the weekly expansion loop for thousands of iterations.
+			if n, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil && n > 0 && n <= maxRRuleInterval {
 				out.interval = n
 			}
 		case "COUNT":

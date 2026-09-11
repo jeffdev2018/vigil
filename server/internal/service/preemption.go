@@ -145,7 +145,9 @@ func (s *TaskService) resumePausedOnOwnSession(ctx context.Context, t db.AgentTa
 		return db.AgentTaskQueue{}, false
 	}
 	if t.SessionID.Valid && t.SessionID.String != "" {
-		_ = s.Queries.SetTaskResumeContext(ctx, db.SetTaskResumeContextParams{ID: child.ID, SessionID: t.SessionID, WorkDir: t.WorkDir})
+		if err := s.Queries.SetTaskResumeContext(ctx, db.SetTaskResumeContextParams{ID: child.ID, SessionID: t.SessionID, WorkDir: t.WorkDir}); err != nil {
+			slog.Warn("preemption: resume context not copied to the child run", "child_id", util.UUIDToString(child.ID), "error", err)
+		}
 	}
 	if _, err := s.Queries.MarkTaskResumed(ctx, db.MarkTaskResumedParams{ID: t.ID, ResumedByTaskID: child.ID}); err != nil {
 		slog.Warn("resume: mark resumed failed", "task_id", util.UUIDToString(t.ID), "error", err)

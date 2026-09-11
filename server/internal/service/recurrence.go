@@ -127,7 +127,10 @@ func (s *RecurrenceService) Spawn(ctx context.Context, rec db.IssueRecurrence) (
 		source, err = s.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: rec.IssueID, WorkspaceID: rec.WorkspaceID})
 	}
 	if err != nil {
-		_ = s.Queries.DeleteIssueRecurrenceByID(ctx, rec.ID)
+		if delErr := s.Queries.DeleteIssueRecurrenceByID(ctx, rec.ID); delErr != nil {
+			slog.Warn("recurrence: orphan rule not removed", "recurrence_id", util.UUIDToString(rec.ID), "error", delErr)
+			return db.Issue{}, fmt.Errorf("recurrence %s: its issue is gone and the rule could not be removed", util.UUIDToString(rec.ID))
+		}
 		return db.Issue{}, fmt.Errorf("recurrence %s: its issue is gone, rule removed", util.UUIDToString(rec.ID))
 	}
 	now := s.Now()

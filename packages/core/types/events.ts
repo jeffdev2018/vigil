@@ -19,6 +19,7 @@ export type WSEventType =
   | "issue:deleted"
   | "issue:aux_changed"
   | "comment:created"
+  | "delivery:changed"
   | "comment:updated"
   | "comment:deleted"
   | "comment:resolved"
