@@ -9,9 +9,9 @@ import enSquads from "../../locales/en/squads.json";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 const api = vi.hoisted(() => ({
-  getSquad: vi.fn(() => new Promise(() => {})),
-  listSquadMembers: vi.fn(() => new Promise(() => {})),
-  getSquadMemberStatus: vi.fn(() => new Promise(() => {})),
+  getSquad: vi.fn((_id: string) => new Promise(() => {})),
+  listSquadMembers: vi.fn((_id: string) => new Promise(() => {})),
+  getSquadMemberStatus: vi.fn((_id: string) => new Promise(() => {})),
 }));
 
 vi.mock("@multica/core/api", () => ({ api }));
