@@ -1098,7 +1098,7 @@ func (h *Handler) ServeCalendarFeed(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to build the feed")
 		return
 	}
-	all, err := h.Queries.ListCalendarEventsInWindow(r.Context(), db.ListCalendarEventsInWindowParams{WorkspaceID: row.WorkspaceID, Since: tsz(now.Add(-31 * 24 * time.Hour)), Until: tsz(now.Add(366 * 24 * time.Hour)), IncludeCancelled: true})
+	ownCreated, err := h.Queries.ListCalendarEventsCreatedByInWindow(r.Context(), db.ListCalendarEventsCreatedByInWindowParams{WorkspaceID: row.WorkspaceID, CreatedByType: "member", CreatedByID: row.UserID, Since: tsz(now.Add(-31 * 24 * time.Hour)), Until: tsz(now.Add(366 * 24 * time.Hour)), IncludeCancelled: true})
 	if err != nil {
 		slog.Error("calendar feed: list events failed", "workspace_id", uuidToString(row.WorkspaceID), "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to build the feed")
@@ -1124,10 +1124,8 @@ func (h *Handler) ServeCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	for _, e := range rows {
 		add(e)
 	}
-	for _, e := range all {
-		if e.CreatedByType == "member" && e.CreatedByID == row.UserID {
-			add(e)
-		}
+	for _, e := range ownCreated {
+		add(e)
 	}
 	name := "Vigil"
 	if ws, err := h.Queries.GetWorkspace(r.Context(), row.WorkspaceID); err == nil {

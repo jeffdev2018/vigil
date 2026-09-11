@@ -281,6 +281,37 @@ func TestCalendarFeedTokenServesTheMembersEvents(t *testing.T) {
 	testutil.Call(t, testHandler.ServeCalendarFeed, testutil.WithURLParams(httptest.NewRequest(http.MethodGet, minted.Path, nil), "token", token)).Want(http.StatusNotFound)
 }
 
+// TestCalendarFeedIncludesOwnCreatedEventEvenWithoutParticipating is the
+// regression test for the ListCalendarEventsCreatedByInWindow fix:
+// ServeCalendarFeed used to fetch the whole workspace's window via
+// ListCalendarEventsInWindow and filter in Go for events the member created,
+// alongside a SQL-side query for events the member participates in. The
+// created-but-not-participating case now goes through the SQL-side
+// ListCalendarEventsCreatedByInWindow query instead — this test creates an
+// event with no participants at all, so it only shows up in the feed via the
+// creator branch.
+func TestCalendarFeedIncludesOwnCreatedEventEvenWithoutParticipating(t *testing.T) {
+	calendarCleanup(t)
+	start := time.Now().UTC().Add(96 * time.Hour).Truncate(time.Hour)
+	e, resp := createCalendarEvent(t, map[string]any{"title": "Solo planning", "starts_at": start.Format(time.RFC3339), "ends_at": start.Add(time.Hour).Format(time.RFC3339)})
+	resp.Want(http.StatusCreated)
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM calendar_event_participant WHERE event_id = $1`, e.ID); n != 0 {
+		t.Fatalf("expected no participants on this event, got %d", n)
+	}
+
+	var minted struct {
+		Path string `json:"path"`
+	}
+	testutil.Call(t, testHandler.MintCalendarFeedToken, newRequest(http.MethodPost, "/api/calendar/feed-token", nil)).Want(http.StatusCreated).JSON(&minted)
+	token := strings.TrimPrefix(minted.Path, "/api/calendar/ics/")
+
+	req := httptest.NewRequest(http.MethodGet, minted.Path, nil)
+	body := testutil.Call(t, testHandler.ServeCalendarFeed, testutil.WithURLParams(req, "token", token)).Want(http.StatusOK).Body.String()
+	if !strings.Contains(body, "UID:"+e.ID+"@vigil") {
+		t.Fatalf("feed missing the member's own created (non-participant) event: %s", body)
+	}
+}
+
 func TestAgentProposalIsSettledByItsDecisionCard(t *testing.T) {
 	calendarCleanup(t)
 	issue, task, agent := runningAgentRun(t, "calendar proposal")

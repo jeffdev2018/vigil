@@ -399,6 +399,77 @@ func (q *Queries) ListCalendarEventParticipants(ctx context.Context, eventIds []
 	return items, nil
 }
 
+const listCalendarEventsCreatedByInWindow = `-- name: ListCalendarEventsCreatedByInWindow :many
+SELECT id, workspace_id, title, description, starts_at, ends_at, all_day, timezone, location, issue_id, project_id, status, created_by_type, created_by_id, source, external_id, decision_id, reminded_at, created_at, updated_at FROM calendar_event
+WHERE workspace_id = $1
+  AND created_by_type = $2 AND created_by_id = $3
+  AND starts_at < $4::timestamptz AND ends_at > $5::timestamptz
+  AND ($6::boolean OR status <> 'cancelled')
+ORDER BY starts_at ASC, id ASC
+LIMIT 1000
+`
+
+type ListCalendarEventsCreatedByInWindowParams struct {
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	CreatedByType    string             `json:"created_by_type"`
+	CreatedByID      pgtype.UUID        `json:"created_by_id"`
+	Until            pgtype.Timestamptz `json:"until"`
+	Since            pgtype.Timestamptz `json:"since"`
+	IncludeCancelled bool               `json:"include_cancelled"`
+}
+
+// SQL-side counterpart to ListCalendarEventsInWindow, filtered to one
+// creator instead of the whole workspace — used by ServeCalendarFeed so a
+// member's own-created events don't require fetching and Go-side filtering
+// every event in the workspace's window.
+func (q *Queries) ListCalendarEventsCreatedByInWindow(ctx context.Context, arg ListCalendarEventsCreatedByInWindowParams) ([]CalendarEvent, error) {
+	rows, err := q.db.Query(ctx, listCalendarEventsCreatedByInWindow,
+		arg.WorkspaceID,
+		arg.CreatedByType,
+		arg.CreatedByID,
+		arg.Until,
+		arg.Since,
+		arg.IncludeCancelled,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CalendarEvent{}
+	for rows.Next() {
+		var i CalendarEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.AllDay,
+			&i.Timezone,
+			&i.Location,
+			&i.IssueID,
+			&i.ProjectID,
+			&i.Status,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.Source,
+			&i.ExternalID,
+			&i.DecisionID,
+			&i.RemindedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCalendarEventsForIssue = `-- name: ListCalendarEventsForIssue :many
 SELECT id, workspace_id, title, description, starts_at, ends_at, all_day, timezone, location, issue_id, project_id, status, created_by_type, created_by_id, source, external_id, decision_id, reminded_at, created_at, updated_at FROM calendar_event WHERE workspace_id = $1 AND issue_id = $2 AND status <> 'cancelled' ORDER BY starts_at ASC
 `
