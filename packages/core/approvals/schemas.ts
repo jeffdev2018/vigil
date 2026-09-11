@@ -46,6 +46,7 @@ export const ApprovalTransitionSchema = z.object({
   rule_id: z.string().nullable().catch(null),
   approver_roles: z.array(z.string()).catch([]),
 }).loose();
+export type ApprovalTransition = z.infer<typeof ApprovalTransitionSchema>;
 
 export const ApprovalGoalQuestionSchema = z.object({
   kind: z.string().catch("text"),
@@ -54,6 +55,7 @@ export const ApprovalGoalQuestionSchema = z.object({
   run_id: z.string().catch(""),
   asked_at: z.string().catch(""),
 }).loose();
+export type ApprovalGoalQuestion = z.infer<typeof ApprovalGoalQuestionSchema>;
 
 export const ApprovalItemSchema = z.object({
   id: z.string().catch(""),
