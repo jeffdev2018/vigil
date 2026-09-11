@@ -335,13 +335,13 @@ func TestCreateWorkspaceSeedsFromAPack(t *testing.T) {
 		}
 	})
 	var resp struct {
-		ID            string         `json:"id"`
-		Template      map[string]any `json:"template"`
-		TemplateError string         `json:"template_error"`
+		ID        string         `json:"id"`
+		Pack      map[string]any `json:"pack"`
+		PackError string         `json:"pack_error"`
 	}
 	testutil.Call(t, testHandler.CreateWorkspace, newRequest(http.MethodPost, "/api/workspaces", map[string]any{"name": "Pack seed probe", "slug": slug, "pack_id": "helpdesk-it"})).Want(http.StatusCreated).JSON(&resp)
-	if resp.TemplateError != "" || resp.Template == nil || resp.Template["pack_id"] != "helpdesk-it" {
-		t.Fatalf("workspace pack seed = %+v / %q", resp.Template, resp.TemplateError)
+	if resp.PackError != "" || resp.Pack == nil || resp.Pack["pack_id"] != "helpdesk-it" {
+		t.Fatalf("workspace pack seed = %+v / %q", resp.Pack, resp.PackError)
 	}
 	var n int
 	dbfx.QueryRow(t, `SELECT COUNT(*) FROM workspace_pack_install WHERE workspace_id = $1 AND status = 'installed'`, resp.ID).Scan(&n)
@@ -357,8 +357,37 @@ func TestCreateWorkspaceSeedsFromAPack(t *testing.T) {
 	_, _ = testPool.Exec(ctx, `DELETE FROM workspace WHERE slug = $1`, slug+"-2")
 	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM workspace WHERE slug = $1`, slug+"-2") })
 	testutil.Call(t, testHandler.CreateWorkspace, newRequest(http.MethodPost, "/api/workspaces", map[string]any{"name": "Pack seed probe 2", "slug": slug + "-2", "pack_id": "nope"})).Want(http.StatusCreated).JSON(&resp)
-	if resp.TemplateError == "" {
+	if resp.PackError == "" {
 		t.Fatal("an unknown pack must be reported")
+	}
+
+	// Audit fix: template and pack outcomes used to share one pair of
+	// response fields (template/template_error), so supplying both
+	// template_run_id and pack_id and having both fail let the pack's error
+	// silently clobber the template's — the template's failure reason was
+	// lost even though the request named both problems. They must now be
+	// reported independently.
+	const dualSlug = slug + "-dual"
+	_, _ = testPool.Exec(ctx, `DELETE FROM workspace WHERE slug = $1`, dualSlug)
+	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM workspace WHERE slug = $1`, dualSlug) })
+	var dualResp struct {
+		ID            string         `json:"id"`
+		Template      map[string]any `json:"template"`
+		TemplateError string         `json:"template_error"`
+		Pack          map[string]any `json:"pack"`
+		PackError     string         `json:"pack_error"`
+	}
+	testutil.Call(t, testHandler.CreateWorkspace, newRequest(http.MethodPost, "/api/workspaces", map[string]any{
+		"name": "Pack seed probe dual", "slug": dualSlug, "template_run_id": "00000000-0000-0000-0000-000000000000", "pack_id": "nope",
+	})).Want(http.StatusCreated).JSON(&dualResp)
+	if dualResp.TemplateError == "" {
+		t.Fatal("the template failure must be reported even when a pack was also requested")
+	}
+	if dualResp.PackError == "" {
+		t.Fatal("the pack failure must be reported even when a template was also requested")
+	}
+	if dualResp.TemplateError == dualResp.PackError {
+		t.Fatalf("template_error and pack_error must not be the same clobbered value: %q", dualResp.TemplateError)
 	}
 }
 
@@ -461,3 +490,73 @@ func TestPackExportLeavesMachineSkillsOut(t *testing.T) {
 }
 
 func uuidShort() string { return uuidToString(dbid.NewV7())[:8] }
+
+// TestPackInstallLedgerFailureMarksInstallFailed covers the audit finding
+// that a CreatePackItem failure after importTransferBundle already committed
+// was only slog.Error'd: FinishPackInstall still marked the install
+// "installed", so the row the pack created had no ledger entry and could
+// never be found (and removed) by Uninstall again. A BEFORE INSERT trigger
+// on workspace_pack_item forces the same failure production would see (a
+// constraint or transient DB error), and the test asserts installPack now
+// returns an error and persists status "failed" instead of "installed".
+func TestPackInstallLedgerFailureMarksInstallFailed(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	doctrineCleanup(t)
+	all, err := packs.Builtin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) == 0 {
+		t.Fatal("no built-in packs")
+	}
+	p := all[0]
+	ctx := context.Background()
+
+	const functionName = "pack_item_fail_fn"
+	const triggerName = "pack_item_fail_trg"
+	if _, err := testPool.Exec(ctx, `
+CREATE OR REPLACE FUNCTION `+functionName+`() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	RAISE EXCEPTION 'forced pack item ledger failure';
+END;
+$$;`); err != nil {
+		t.Fatalf("install failure function: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, `
+CREATE TRIGGER `+triggerName+`
+BEFORE INSERT ON workspace_pack_item
+FOR EACH ROW EXECUTE FUNCTION `+functionName+`();`); err != nil {
+		t.Fatalf("install failure trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DROP TRIGGER IF EXISTS `+triggerName+` ON workspace_pack_item`)
+		testPool.Exec(ctx, `DROP FUNCTION IF EXISTS `+functionName+`()`)
+	})
+
+	b, err := packBundle(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []transferItem
+	t.Cleanup(func() { cleanupPackRows(t, items) })
+
+	install, report, err := testHandler.installPack(ctx, parseUUID(testWorkspaceID), p, packSourceBuiltin, "", parseUUID(testUserID), false)
+	items = append(items, report.Items...)
+	if err == nil {
+		t.Fatal("installPack must return an error when the ledger write fails")
+	}
+	if install.ID.Valid {
+		var status string
+		if scanErr := testPool.QueryRow(ctx, `SELECT status FROM workspace_pack_install WHERE id = $1`, install.ID).Scan(&status); scanErr != nil {
+			t.Fatalf("read install status: %v", scanErr)
+		}
+		if status != "failed" {
+			t.Fatalf("install status = %q, want %q: a broken ledger must not be reported as a successful install", status, "failed")
+		}
+	} else {
+		t.Fatal("installPack must still return the (failed) install row for the caller to see")
+	}
+	_ = b
+}

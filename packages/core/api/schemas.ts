@@ -7229,6 +7229,11 @@ export const WorkspaceSchema = z.object({
   // created. Optional everywhere else, so EMPTY_WORKSPACE stays valid.
   template: z.record(z.string(), z.unknown()).optional(),
   template_error: z.string().optional(),
+  // Same as template/template_error, for a catalogue pack seed (K76): a
+  // create request can supply both template_run_id and pack_id, and the
+  // two outcomes are reported separately so neither can clobber the other.
+  pack: z.record(z.string(), z.unknown()).optional(),
+  pack_error: z.string().optional(),
 }).loose();
 
 export const WorkspaceListSchema = z.array(WorkspaceSchema);

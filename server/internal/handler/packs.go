@@ -466,6 +466,12 @@ func (h *Handler) installPack(ctx context.Context, wsUUID pgtype.UUID, p *packs.
 	}
 	// Carry the previous install's rows forward on an upgrade: what an older
 	// version created and this one skipped still belongs to the pack.
+	// ledgerErr tracks any failed write below: importTransferBundle already
+	// committed its own transaction, so a ledger row cannot be rolled back
+	// here, but the install must not be marked "installed" (the status
+	// uninstall and upgrade both trust) when the ledger it depends on is
+	// known incomplete.
+	var ledgerErr error
 	seen := map[string]bool{}
 	for _, it := range report.Items {
 		seen[it.Kind+":"+it.ID] = true
@@ -473,6 +479,7 @@ func (h *Handler) installPack(ctx context.Context, wsUUID pgtype.UUID, p *packs.
 		// can never be removed again.
 		if err := h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: parseUUID(it.ID), Name: it.Name, Action: it.Action}); err != nil {
 			slog.Error("pack install: ledger write failed", "install_id", uuidToString(install.ID), "kind", it.Kind, "row_id", it.ID, "error", err)
+			ledgerErr = err
 		}
 	}
 	if preview.Installed != nil {
@@ -484,13 +491,21 @@ func (h *Handler) installPack(ctx context.Context, wsUUID pgtype.UUID, p *packs.
 				}
 				if err := h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: it.RowID, Name: it.Name, Action: it.Action}); err != nil {
 					slog.Error("pack install: ledger carry-over failed", "install_id", uuidToString(install.ID), "kind", it.Kind, "error", err)
+					ledgerErr = err
 				}
 			}
 		}
 	}
-	install, err = h.Queries.FinishPackInstall(ctx, db.FinishPackInstallParams{ID: install.ID, WorkspaceID: wsUUID, Status: "installed", Report: reportJSON})
+	finishStatus := "installed"
+	if ledgerErr != nil {
+		finishStatus = "failed"
+	}
+	install, err = h.Queries.FinishPackInstall(ctx, db.FinishPackInstallParams{ID: install.ID, WorkspaceID: wsUUID, Status: finishStatus, Report: reportJSON})
 	if err != nil {
 		return db.WorkspacePackInstall{}, report, err
+	}
+	if ledgerErr != nil {
+		return install, report, fmt.Errorf("pack data imported but its install ledger is incomplete: %w", ledgerErr)
 	}
 	h.audit(ctx, wsUUID, "member", uuidToString(importer), AuditPackInstalled, "workspace_pack_install", install.ID, map[string]any{"pack_id": p.Manifest.ID, "version": p.Manifest.Version, "source": source, "strategy": strategy, "created": report.Created, "merged": report.Merged, "skipped": len(report.Skipped)}, nil)
 	h.publish(protocol.EventPackChanged, uuidToString(wsUUID), "member", uuidToString(importer), map[string]any{"pack_id": p.Manifest.ID, "version": p.Manifest.Version, "change": "installed"})
