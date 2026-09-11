@@ -130,6 +130,7 @@
     "local_on_device": "{{device}}에 연결됨",
     "local_this_machine": "이 기기",
     "local_daemon_offline": "데몬이 오프라인입니다. 로컬 디렉터리를 연결하려면 데몬을 시작하세요.",
+    "local_daemon_dropped": "폴더를 선택하는 동안 데몬이 오프라인 상태가 되었습니다. 프로젝트를 만들기 전에 다시 연결하세요.",
     "local_pick": "디렉터리 선택...",
     "local_picking": "선택 창 여는 중...",
     "local_change": "디렉터리 변경...",
