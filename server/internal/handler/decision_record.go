@@ -18,6 +18,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -305,7 +306,7 @@ func (h *Handler) issueAccepted(ctx context.Context, issue db.Issue) bool {
 // change must not wait for a model call.
 func (h *Handler) extractDecisionsAsync(issue db.Issue) {
 	model := h.LLM
-	goBackground("decision extraction", func() {
+	util.GoBackground("decision extraction", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		if _, err := h.extractDecisionsWith(ctx, model, issue); err != nil {

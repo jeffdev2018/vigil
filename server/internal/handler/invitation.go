@@ -14,6 +14,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -236,11 +237,11 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 			inviterName = inviter.Name
 		}
 		invID := uuidToString(inv.ID)
-		go func() {
+		util.GoBackground("invitation email", func() {
 			if err := h.EmailService.SendInvitationEmail(email, inviterName, workspaceName, invID); err != nil {
 				slog.Warn("failed to send invitation email", "email", email, "error", err)
 			}
-		}()
+		})
 	}
 
 	writeJSON(w, http.StatusCreated, resp)

@@ -189,3 +189,23 @@ func TestRPCDispatch_ServerTimeoutCancelsHandler(t *testing.T) {
 		t.Fatal("handler context was not cancelled at the server-side TimeoutMs deadline")
 	}
 }
+
+// TestRPCDispatch_HandlerPanicAnswers500 pins that a panicking RPC handler is
+// recovered on its goroutine: the process survives (a bare panic would kill
+// the test binary) and the daemon gets a 500 so it falls back to HTTP.
+func TestRPCDispatch_HandlerPanicAnswers500(t *testing.T) {
+	hub := NewHub()
+	hub.SetRPCHandler(func(ctx context.Context, identity ClientIdentity, method string, body json.RawMessage) (int, json.RawMessage, error) {
+		panic("boom")
+	})
+	conn := dialRPCTestConn(t, hub, ClientIdentity{DaemonID: "daemon-1", RuntimeIDs: []string{"rt-1"}})
+	resp := sendRPCRequest(t, conn, protocol.RPCRequestPayload{RequestID: "req-panic", Method: "tasks.claim"})
+	if resp.RequestID != "req-panic" || resp.Status != http.StatusInternalServerError || resp.Error == "" {
+		t.Fatalf("resp = %+v, want req-panic with 500 + error", resp)
+	}
+	// The in-flight slot is released: a second request still gets an answer.
+	resp = sendRPCRequest(t, conn, protocol.RPCRequestPayload{RequestID: "req-panic-2", Method: "tasks.claim"})
+	if resp.RequestID != "req-panic-2" || resp.Status != http.StatusInternalServerError {
+		t.Fatalf("second resp = %+v, want req-panic-2 with 500", resp)
+	}
+}
