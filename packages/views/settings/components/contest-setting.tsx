@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { CONTEST_TARGET_TYPES, contestSettingsOptions, useSaveContestSettings, type ContestSettings } from "@multica/core/issues/contest";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
@@ -51,7 +52,7 @@ export function ContestSetting({ canEdit }: { canEdit: boolean }) {
                 const out = draft.opt_out_project_ids.includes(p.id);
                 return (
                   <label key={p.id} className="flex items-center gap-2 text-caption">
-                    <input type="checkbox" aria-label={p.title} checked={out} disabled={disabled} onChange={(e) => persist({ ...draft, opt_out_project_ids: e.target.checked ? [...draft.opt_out_project_ids, p.id] : draft.opt_out_project_ids.filter((id) => id !== p.id) })} />
+                    <Checkbox checked={out} disabled={disabled} onCheckedChange={(v) => persist({ ...draft, opt_out_project_ids: v === true ? [...draft.opt_out_project_ids, p.id] : draft.opt_out_project_ids.filter((id) => id !== p.id) })} />
                     <span>{p.title}</span>
                   </label>
                 );
