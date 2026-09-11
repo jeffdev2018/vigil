@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
@@ -356,9 +357,11 @@ describe("StepWorkspace — issue prefix", () => {
     mockTemplates.list = [{ id: "run-1", name: "Agency starter", workspace_name: "Agency" }];
     renderStep({ existing: null, disabled: false });
 
-    const picker = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
-    expect(picker.value).toBe("");
-    fireEvent.change(picker, { target: { value: "run-1" } });
+    const picker = await screen.findByRole("combobox", { name: "Start from" });
+    expect(picker.textContent).toContain("Start from scratch");
+    const user = userEvent.setup();
+    await user.click(picker);
+    await user.click(await screen.findByRole("option", { name: "Agency starter" }));
     fireEvent.change(screen.getByLabelText("Workspace name"), {
       target: { value: "Acme Inc" },
     });

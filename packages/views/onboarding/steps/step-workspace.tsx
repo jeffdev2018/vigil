@@ -13,6 +13,13 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@multica/ui/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { useCreateWorkspace } from "@multica/core/workspace/mutations";
 import { workspaceTemplatesOptions } from "@multica/core/workspace/transfer";
@@ -421,19 +428,26 @@ export function StepWorkspace({
           <FieldLabel htmlFor="ws-template">
             {t(($) => $.step_workspace.template_label)}
           </FieldLabel>
-          <select
-            id="ws-template"
-            className="h-9 w-full rounded-md border bg-background px-2 text-body"
+          <Select
+            items={[
+              { value: "", label: t(($) => $.step_workspace.template_scratch) },
+              ...templates.map((tpl) => ({ value: tpl.id, label: tpl.name || tpl.workspace_name })),
+            ]}
             value={templateRunId}
-            onChange={(e) => setTemplateRunId(e.target.value)}
+            onValueChange={(value) => value !== null && setTemplateRunId(value)}
           >
-            <option value="">{t(($) => $.step_workspace.template_scratch)}</option>
-            {templates.map((tpl) => (
-              <option key={tpl.id} value={tpl.id}>
-                {tpl.name || tpl.workspace_name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="ws-template" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">{t(($) => $.step_workspace.template_scratch)}</SelectItem>
+              {templates.map((tpl) => (
+                <SelectItem key={tpl.id} value={tpl.id}>
+                  {tpl.name || tpl.workspace_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <FieldDescription>{t(($) => $.step_workspace.template_hint)}</FieldDescription>
         </Field>
       )}
