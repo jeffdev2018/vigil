@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/internal/util/netguard"
 )
 
@@ -248,5 +249,5 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return util.TruncateUTF8Bytes(s, n) + "…"
 }

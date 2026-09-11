@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/redact"
 )
 
@@ -3129,7 +3130,7 @@ func applyCodexPatchBudget(changes []any) {
 				remaining -= len(body)
 				continue
 			}
-			if kept := truncateUTF8(body, remaining); kept != "" {
+			if kept := util.TruncateUTF8Bytes(body, remaining); kept != "" {
 				entry[key] = kept
 			} else {
 				delete(entry, key)
@@ -3138,18 +3139,6 @@ func applyCodexPatchBudget(changes []any) {
 			remaining = 0
 		}
 	}
-}
-
-// truncateUTF8 cuts s to at most max bytes without leaving a split rune, so the
-// result still marshals as valid JSON.
-func truncateUTF8(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	if len(s) <= max {
-		return s
-	}
-	return strings.ToValidUTF8(s[:max], "")
 }
 
 // codexNormalizePatchStatus maps both protocols' status spellings onto one

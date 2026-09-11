@@ -360,10 +360,7 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
+	return util.TruncateUTF8Bytes(s, n)
 }
 
 // reverseEffect applies the inverse of one journaled effect.
