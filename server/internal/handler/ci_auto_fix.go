@@ -274,15 +274,26 @@ func (h *Handler) RetryCIAutoFix(w http.ResponseWriter, r *http.Request) {
 	var run db.CiAutoFixRun
 	var err error
 	var wsID pgtype.UUID
+	// The pull request row is loaded by id alone, so authorize against ITS
+	// workspace — never the caller's X-Workspace-ID — with the same bar as
+	// the CI auto-fix settings.
+	authorized := func(prWorkspace pgtype.UUID) bool {
+		if h.resolveWorkspaceID(r) != uuidToString(prWorkspace) {
+			writeError(w, http.StatusNotFound, "pull request not found")
+			return false
+		}
+		_, ok := h.requireWorkspaceRole(w, r, uuidToString(prWorkspace), "pull request not found", "owner", "admin")
+		return ok
+	}
 	if pr, gerr := h.Queries.GetGitHubPullRequestByID(r.Context(), prID); gerr == nil {
 		wsID = pr.WorkspaceID
-		if _, ok := h.permissionProfileScope(w, r); !ok {
+		if !authorized(wsID) {
 			return
 		}
 		run, err = h.autoFixGitHubPRManual(r.Context(), pr)
 	} else if pr, verr := h.Queries.GetVCSPullRequestByID(r.Context(), prID); verr == nil {
 		wsID = pr.WorkspaceID
-		if _, ok := h.permissionProfileScope(w, r); !ok {
+		if !authorized(wsID) {
 			return
 		}
 		run, err = h.autoFixVCSPR(r.Context(), pr, true)
