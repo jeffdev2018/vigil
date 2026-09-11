@@ -357,7 +357,7 @@ func (h *Handler) CreateProjectCodeWikiSnapshot(w http.ResponseWriter, r *http.R
 		return
 	}
 	var req CreateCodeWikiSnapshotRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -425,7 +425,7 @@ func (h *Handler) CreateProjectCodeWikiPage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req CreateCodeWikiPageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

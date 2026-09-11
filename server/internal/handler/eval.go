@@ -499,7 +499,7 @@ func (h *Handler) startEvalCase(r *http.Request, run db.EvalRun, c db.EvalCase, 
 	}
 	raw, err := json.Marshal(stripped)
 	if err == nil {
-		if _, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: res.Issue.ID, AcceptanceCriteria: raw}); err != nil {
+		if _, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: res.Issue.ID, AcceptanceCriteria: raw, WorkspaceID: res.Issue.WorkspaceID}); err != nil {
 			slog.Warn("eval: write replay criteria failed", "issue_id", uuidToString(res.Issue.ID), "error", err)
 		}
 	}

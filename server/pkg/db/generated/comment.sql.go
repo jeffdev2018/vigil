@@ -1269,6 +1269,7 @@ const listCommentContentsByIssue = `-- name: ListCommentContentsByIssue :many
 SELECT content FROM comment
 WHERE issue_id = $1 AND author_type <> 'system'
 ORDER BY created_at ASC
+LIMIT 1000
 `
 
 // Merge readiness (F10): the markdown bodies the open-todo counter scans.

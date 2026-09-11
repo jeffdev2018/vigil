@@ -84,6 +84,12 @@ SELECT workspace_id, status, updated_at
 FROM issue
 WHERE id = $1;
 
+-- name: ListIssuesByIDsInWorkspace :many
+-- One round trip for a page of runs or inbox rows that point at issues.
+SELECT * FROM issue
+WHERE workspace_id = sqlc.arg('workspace_id')
+  AND id = ANY(sqlc.arg('issue_ids')::uuid[]);
+
 -- name: ListIssueGCStatuses :many
 SELECT id, status, updated_at
 FROM issue
@@ -704,7 +710,7 @@ ORDER BY depth ASC;
 -- Every criteria write is a new contract revision (K73 cites it).
 UPDATE issue
 SET acceptance_criteria = $2, contract_revision = contract_revision + 1, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND workspace_id = $3
 RETURNING *;
 
 -- name: SetIssueContractRisk :one

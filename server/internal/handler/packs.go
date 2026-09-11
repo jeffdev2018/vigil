@@ -780,15 +780,28 @@ func (h *Handler) uninstallPackItems(ctx context.Context, wsUUID, actor pgtype.U
 			case "business_rules":
 				err = h.Queries.DeleteBusinessRule(ctx, db.DeleteBusinessRuleParams{ID: it.RowID, WorkspaceID: wsUUID})
 			case "autopilots":
-				err = h.Queries.ArchiveAutopilot(ctx, it.RowID)
+				// These three queries are not workspace-scoped: check the row first.
+				if ap, gerr := h.Queries.GetAutopilot(ctx, it.RowID); gerr != nil || ap.WorkspaceID != wsUUID {
+					err = fmt.Errorf("autopilot %s is not in this workspace", uuidToString(it.RowID))
+				} else {
+					err = h.Queries.ArchiveAutopilot(ctx, it.RowID)
+				}
 			case "agents":
-				_, err = h.Queries.ArchiveAgent(ctx, db.ArchiveAgentParams{ID: it.RowID, ArchivedBy: actor})
+				if ag, gerr := h.Queries.GetAgent(ctx, it.RowID); gerr != nil || ag.WorkspaceID != wsUUID {
+					err = fmt.Errorf("agent %s is not in this workspace", uuidToString(it.RowID))
+				} else {
+					_, err = h.Queries.ArchiveAgent(ctx, db.ArchiveAgentParams{ID: it.RowID, ArchivedBy: actor})
+				}
 			case "skills":
 				if err = h.Queries.DeleteSkillFilesBySkill(ctx, it.RowID); err == nil {
 					err = h.Queries.DeleteSkill(ctx, db.DeleteSkillParams{ID: it.RowID, WorkspaceID: wsUUID})
 				}
 			case "permission_profiles":
-				_, err = h.Queries.DeletePermissionProfile(ctx, it.RowID)
+				if pp, gerr := h.Queries.GetPermissionProfile(ctx, it.RowID); gerr != nil || pp.WorkspaceID != wsUUID {
+					err = fmt.Errorf("permission profile %s is not in this workspace", uuidToString(it.RowID))
+				} else {
+					_, err = h.Queries.DeletePermissionProfile(ctx, it.RowID)
+				}
 			case "properties":
 				_, err = h.Queries.UpdateIssueProperty(ctx, db.UpdateIssuePropertyParams{ID: it.RowID, WorkspaceID: wsUUID, ArchivedSet: true, ArchivedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}})
 			case "labels":

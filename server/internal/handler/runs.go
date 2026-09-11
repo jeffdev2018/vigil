@@ -320,9 +320,13 @@ func (h *Handler) buildRunRows(ctx context.Context, wsUUID pgtype.UUID, rows []d
 		}
 	}
 	issues := map[string]RunIssueRef{}
-	for _, id := range issueIDs {
-		if issue, err := h.Queries.GetIssue(ctx, id); err == nil && issue.WorkspaceID == wsUUID {
-			issues[uuidToString(id)] = RunIssueRef{ID: uuidToString(id), Identifier: prefix + "-" + strconv.Itoa(int(issue.Number)), Title: issue.Title, Status: issue.Status}
+	if len(issueIDs) > 0 {
+		if rows, err := h.Queries.ListIssuesByIDsInWorkspace(ctx, db.ListIssuesByIDsInWorkspaceParams{WorkspaceID: wsUUID, IssueIds: issueIDs}); err == nil {
+			for _, issue := range rows {
+				issues[uuidToString(issue.ID)] = RunIssueRef{ID: uuidToString(issue.ID), Identifier: prefix + "-" + strconv.Itoa(int(issue.Number)), Title: issue.Title, Status: issue.Status}
+			}
+		} else {
+			slog.Warn("runs: list issues for page failed", "workspace_id", uuidToString(wsUUID), "error", err)
 		}
 	}
 	usage := map[string][]TaskUsageData{}

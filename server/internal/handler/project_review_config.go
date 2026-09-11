@@ -105,6 +105,11 @@ func (h *Handler) PutProjectReviewConfig(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	// Same gate as the other project writes: a viewer reads the policy,
+	// only a contributor or admin changes it.
+	if !h.requireProjectWrite(w, r, project.ID) {
+		return
+	}
 	var req putProjectReviewConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

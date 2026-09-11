@@ -138,7 +138,7 @@ func (q *Queries) ListHandoffPackets(ctx context.Context, issueID pgtype.UUID) (
 }
 
 const listHandoffPacketsForRun = `-- name: ListHandoffPacketsForRun :many
-SELECT id, run_id, workspace_id, issue_id, objective, decisions, evidence, failed_attempts, next_action, created_by_type, created_by_id, created_at FROM handoff_packet WHERE run_id = $1 ORDER BY created_at ASC, id ASC
+SELECT id, run_id, workspace_id, issue_id, objective, decisions, evidence, failed_attempts, next_action, created_by_type, created_by_id, created_at FROM handoff_packet WHERE run_id = $1 ORDER BY created_at ASC, id ASC LIMIT 100
 `
 
 func (q *Queries) ListHandoffPacketsForRun(ctx context.Context, runID pgtype.UUID) ([]HandoffPacket, error) {

@@ -175,7 +175,7 @@ func (s *RecurrenceService) Spawn(ctx context.Context, rec db.IssueRecurrence) (
 		}
 	}
 	if len(source.AcceptanceCriteria) > 0 && strings.TrimSpace(string(source.AcceptanceCriteria)) != "" && string(source.AcceptanceCriteria) != "null" && string(source.AcceptanceCriteria) != "[]" {
-		if _, err := s.Queries.UpdateIssueAcceptanceCriteria(ctx, db.UpdateIssueAcceptanceCriteriaParams{ID: created.ID, AcceptanceCriteria: source.AcceptanceCriteria}); err != nil {
+		if _, err := s.Queries.UpdateIssueAcceptanceCriteria(ctx, db.UpdateIssueAcceptanceCriteriaParams{ID: created.ID, AcceptanceCriteria: source.AcceptanceCriteria, WorkspaceID: created.WorkspaceID}); err != nil {
 			slog.Warn("recurrence: criteria copy failed", "error", err)
 		}
 	}

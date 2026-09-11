@@ -173,8 +173,13 @@ func (h *Handler) autoFix(ctx context.Context, pr ciPullRequest, manual bool) (d
 		_ = h.Queries.DeleteCIAutoFixRun(ctx, row.ID) // the head stays eligible for a later red
 		return db.CiAutoFixRun{}, err
 	}
-	_ = h.Queries.SetCIAutoFixRunTask(ctx, db.SetCIAutoFixRunTaskParams{ID: row.ID, TaskID: task.ID})
-	row.TaskID = task.ID
+	if err := h.Queries.SetCIAutoFixRunTask(ctx, db.SetCIAutoFixRunTaskParams{ID: row.ID, TaskID: task.ID}); err != nil {
+		// The run is queued either way; without the link the auto-fix row
+		// cannot report it, so say so loudly rather than pretend.
+		slog.Error("ci auto-fix: run link failed", "run_id", uuidToString(row.ID), "task_id", uuidToString(task.ID), "error", err)
+	} else {
+		row.TaskID = task.ID
+	}
 	h.audit(ctx, pr.wsID, "system", "", AuditCIAutoFix, "issue", issue.ID, map[string]any{"run_id": uuidToString(row.ID), "task_id": uuidToString(task.ID), "pull_request_id": uuidToString(pr.id), "provider": pr.provider, "head_sha": pr.headSha, "attempt": attempts + 1, "manual": manual, "budget_usd_ticks": cfg.BudgetUsdTicks}, nil)
 	h.publish("ci_auto_fix:queued", uuidToString(pr.wsID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "pull_request_id": uuidToString(pr.id), "task_id": uuidToString(task.ID)})
 	return row, nil

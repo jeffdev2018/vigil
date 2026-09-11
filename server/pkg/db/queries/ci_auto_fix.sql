@@ -15,7 +15,8 @@ SELECT count(*)::int FROM ci_auto_fix_run WHERE pull_request_id = $1;
 -- name: ListCIAutoFixRunsForIssue :many
 SELECT r.*, t.status AS task_status FROM ci_auto_fix_run r
 LEFT JOIN agent_task_queue t ON t.id = r.task_id
-WHERE r.issue_id = $1 ORDER BY r.created_at DESC;
+WHERE r.issue_id = $1 ORDER BY r.created_at DESC
+LIMIT 200;
 
 -- name: GetCIAutoFixRunForTask :one
 SELECT * FROM ci_auto_fix_run WHERE task_id = $1;

@@ -7065,32 +7065,39 @@ func (s *TaskService) dispatchDelegatedFailureRecovery(ctx context.Context, targ
 			ruleVersionID = target.source.RuleVersionID
 		}
 		overlay := s.buildRuntimeMCPOverlay(ctx, originator, target.agent)
-		task, err := s.Queries.CreateAgentTask(ctx, db.CreateAgentTaskParams{
-			ID:                   dbid.NewV7(),
-			AgentID:              target.agent.ID,
-			RuntimeID:            target.agent.RuntimeID,
-			IssueID:              target.issue.ID,
-			Priority:             priorityToInt(target.issue.Priority),
-			TriggerCommentID:     target.comment.ID,
-			TriggerSummary:       s.buildCommentTriggerSummary(ctx, target.issue.WorkspaceID, target.comment.ID),
-			IsLeaderTask:         pgtype.Bool{Bool: target.source.IsLeaderTask, Valid: target.source.IsLeaderTask},
-			SquadID:              target.source.SquadID,
-			OriginatorUserID:     originator,
-			AccountableUserID:    accountable,
-			RuntimeMcpOverlay:    overlay.Overlay,
-			RuntimeConnectedApps: overlay.ConnectedApps,
-			OriginatorSource:     pgtype.Text{String: string(source), Valid: true},
-			DelegatedFromTaskID:  target.failed.ID,
-			RuleVersionID:        ruleVersionID,
-			TriggerEvidenceKind:  pgtype.Text{String: string(attribution.EvidenceDelegatedFailure), Valid: true},
-			TriggerEvidenceRefID: target.failed.ID,
-			// A2A hop distance (F19). Carried over from the DELEGATING run, not
-			// recomputed: the trigger here is a system-authored recovery comment
-			// with no a2a_intent, so deriving it would reset an A2A chain to 0 and
-			// hide the recovery run from the per-issue budget. Same depth rather
-			// than +1 — this re-runs the hop that failed, it is not a new one.
-			A2aDepth: pgtype.Int4{Int32: target.source.A2aDepth, Valid: true},
-			HeadSha:  headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
+		// Same budget admission as every other run creation: a workspace at
+		// its enforced ceiling must not slip a recovery run past it.
+		recoveryTaskID := dbid.NewV7()
+		task, err := s.createTaskWithBudget(ctx, BudgetScope{
+			WorkspaceID: target.issue.WorkspaceID, ProjectID: target.issue.ProjectID, AgentID: target.agent.ID,
+		}, recoveryTaskID, func(q *db.Queries) (db.AgentTaskQueue, error) {
+			return q.CreateAgentTask(ctx, db.CreateAgentTaskParams{
+				ID:                   recoveryTaskID,
+				AgentID:              target.agent.ID,
+				RuntimeID:            target.agent.RuntimeID,
+				IssueID:              target.issue.ID,
+				Priority:             priorityToInt(target.issue.Priority),
+				TriggerCommentID:     target.comment.ID,
+				TriggerSummary:       s.buildCommentTriggerSummary(ctx, target.issue.WorkspaceID, target.comment.ID),
+				IsLeaderTask:         pgtype.Bool{Bool: target.source.IsLeaderTask, Valid: target.source.IsLeaderTask},
+				SquadID:              target.source.SquadID,
+				OriginatorUserID:     originator,
+				AccountableUserID:    accountable,
+				RuntimeMcpOverlay:    overlay.Overlay,
+				RuntimeConnectedApps: overlay.ConnectedApps,
+				OriginatorSource:     pgtype.Text{String: string(source), Valid: true},
+				DelegatedFromTaskID:  target.failed.ID,
+				RuleVersionID:        ruleVersionID,
+				TriggerEvidenceKind:  pgtype.Text{String: string(attribution.EvidenceDelegatedFailure), Valid: true},
+				TriggerEvidenceRefID: target.failed.ID,
+				// A2A hop distance (F19). Carried over from the DELEGATING run, not
+				// recomputed: the trigger here is a system-authored recovery comment
+				// with no a2a_intent, so deriving it would reset an A2A chain to 0 and
+				// hide the recovery run from the per-issue budget. Same depth rather
+				// than +1 — this re-runs the hop that failed, it is not a new one.
+				A2aDepth: pgtype.Int4{Int32: target.source.A2aDepth, Valid: true},
+				HeadSha:  headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
+			})
 		})
 		if err == nil {
 			slog.Info("delegated failure recovery task enqueued",

@@ -145,7 +145,7 @@ func (h *Handler) writeAcceptanceCriteria(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "failed to encode acceptance criteria")
 		return
 	}
-	updated, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: issue.ID, AcceptanceCriteria: raw})
+	updated, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: issue.ID, AcceptanceCriteria: raw, WorkspaceID: issue.WorkspaceID})
 	if err != nil {
 		slog.Warn("update acceptance criteria failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeError(w, http.StatusInternalServerError, "failed to update acceptance criteria")

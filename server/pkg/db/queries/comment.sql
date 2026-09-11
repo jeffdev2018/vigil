@@ -824,7 +824,8 @@ FROM (
 -- Merge readiness (F10): the markdown bodies the open-todo counter scans.
 SELECT content FROM comment
 WHERE issue_id = $1 AND author_type <> 'system'
-ORDER BY created_at ASC;
+ORDER BY created_at ASC
+LIMIT 1000;
 
 -- Comment threads anchored to a diff line (F07 / JEF-21).
 

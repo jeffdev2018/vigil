@@ -192,6 +192,7 @@ const listCIAutoFixRunsForIssue = `-- name: ListCIAutoFixRunsForIssue :many
 SELECT r.id, r.workspace_id, r.provider, r.pull_request_id, r.head_sha, r.issue_id, r.task_id, r.source_task_id, r.attempt, r.budget_usd_ticks, r.manual, r.created_at, t.status AS task_status FROM ci_auto_fix_run r
 LEFT JOIN agent_task_queue t ON t.id = r.task_id
 WHERE r.issue_id = $1 ORDER BY r.created_at DESC
+LIMIT 200
 `
 
 type ListCIAutoFixRunsForIssueRow struct {

@@ -45,6 +45,14 @@ INSERT INTO workspace (name, slug, description, context, issue_prefix)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
+-- name: MergeWorkspaceSettings :one
+-- Merges one settings key server-side: a PUT that read the blob, changed a
+-- key and wrote it all back lost the writes of any concurrent PUT.
+UPDATE workspace
+SET settings = COALESCE(settings, '{}'::jsonb) || sqlc.arg('settings')::jsonb, updated_at = now()
+WHERE id = sqlc.arg('id')
+RETURNING *;
+
 -- name: UpdateWorkspace :one
 UPDATE workspace SET
     name = COALESCE(sqlc.narg('name'), name),
