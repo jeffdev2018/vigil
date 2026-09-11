@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { AttachmentPreviewPage } from "@multica/views/attachments";
 import { ErrorBoundary } from "@multica/ui/components/common/error-boundary";
@@ -15,12 +15,19 @@ export default function AttachmentPreviewWebPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const search = useSearchParams();
-  const filename = search.get("name") ?? undefined;
 
+  // useSearchParams requires a Suspense boundary in the app router.
   return (
     <ErrorBoundary resetKeys={[id]}>
-      <AttachmentPreviewPage attachmentId={id} filename={filename} />
+      <Suspense fallback={null}>
+        <AttachmentPreviewContent attachmentId={id} />
+      </Suspense>
     </ErrorBoundary>
   );
+}
+
+function AttachmentPreviewContent({ attachmentId }: { attachmentId: string }) {
+  const search = useSearchParams();
+  const filename = search.get("name") ?? undefined;
+  return <AttachmentPreviewPage attachmentId={attachmentId} filename={filename} />;
 }
