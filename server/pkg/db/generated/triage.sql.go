@@ -360,6 +360,68 @@ func (q *Queries) ExpirePendingTriageItems(ctx context.Context, pageLimit int32)
 	return result.RowsAffected(), nil
 }
 
+const foldTriageItemByDedupeKey = `-- name: FoldTriageItemByDedupeKey :one
+UPDATE triage_item
+SET collapse_count = collapse_count + 1, updated_at = now()
+WHERE workspace_id = $1 AND source_id = $2 AND dedupe_key = $3 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
+`
+
+type FoldTriageItemByDedupeKeyParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	SourceID    pgtype.UUID `json:"source_id"`
+	DedupeKey   string      `json:"dedupe_key"`
+}
+
+// uq_triage_item_dedupe (workspace_id, source_id, dedupe_key) WHERE pending
+// guards a second transport-level axis that UpsertTriageItem's own ON
+// CONFLICT arbiter (uq_triage_item_pending_title) cannot also target —
+// Postgres allows only one arbiter per INSERT. Two deliveries that share a
+// dedupe_key but land on different normalized_title (both pending) hit this
+// index as a hard unique_violation instead of the graceful DO UPDATE; the
+// caller catches that specific constraint violation and folds into the
+// existing row here instead of losing the delivery.
+func (q *Queries) FoldTriageItemByDedupeKey(ctx context.Context, arg FoldTriageItemByDedupeKeyParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, foldTriageItemByDedupeKey, arg.WorkspaceID, arg.SourceID, arg.DedupeKey)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.SnoozedUntil,
+	)
+	return i, err
+}
+
 const getTriageSource = `-- name: GetTriageSource :one
 SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at, token_hash FROM triage_source
 WHERE id = $1 AND workspace_id = $2

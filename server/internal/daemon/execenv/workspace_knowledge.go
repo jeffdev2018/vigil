@@ -83,7 +83,12 @@ func selectKnowledgeNotes(notes []WorkspaceNoteForEnv) ([]WorkspaceNoteForEnv, i
 	for _, note := range notes {
 		size := len(knowledgeNoteBody(note))
 		if len(kept) > 0 && used+size > knowledgeByteBudget {
-			continue
+			// Prefix truncation, matching the doc comment above and the
+			// README's "older note(s) were left out" message: once the
+			// budget is spent, everything after this point in the
+			// pinned-then-newest order is the tail being dropped, never a
+			// later, higher-priority note skipped over an earlier one kept.
+			break
 		}
 		kept = append(kept, note)
 		used += size
