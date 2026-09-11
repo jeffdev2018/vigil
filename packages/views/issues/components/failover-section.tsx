@@ -5,7 +5,7 @@ import { AlertTriangle, Shuffle } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { runtimeDisplayLabel, runtimeListOptions } from "@multica/core/runtimes";
 import { issueFailoverHistoryOptions } from "@multica/core/runtimes/pools";
-import { useT, useTimeAgo } from "../../i18n";
+import { tKnown, useT, useTimeAgo } from "../../i18n";
 
 /**
  * Runtime failover (K28): which runs of this issue moved runtime, from
@@ -52,7 +52,7 @@ export function FailoverSection({ issueId }: { issueId: string }) {
                   <span>{name(m.from_runtime_id)}</span>
                   <span className="text-muted-foreground">→</span>
                   <span className={m.degraded ? "text-warning" : ""}>{name(m.to_runtime_id)}</span>
-                  <span className="text-muted-foreground">· {t(($) => $.failover.reasons[m.reason as "runtime_offline"] ?? m.reason)}</span>
+                  <span className="text-muted-foreground">· {tKnown(t, "failover.reasons", m.reason, m.reason)}</span>
                   {m.at && <span className="ml-auto text-muted-foreground">{timeAgo(m.at)}</span>}
                 </li>
               ))}

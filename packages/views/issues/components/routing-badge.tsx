@@ -5,7 +5,7 @@ import { Route, TrendingUp } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { issueRoutingOptions, type RiskLevel } from "@multica/core/issues/routing";
 import { cn } from "@multica/ui/lib/utils";
-import { useT } from "../../i18n";
+import { tKnown, useT } from "../../i18n";
 
 const RISK_TONE: Record<RiskLevel, string> = {
   low: "text-success",
@@ -28,7 +28,7 @@ export function RoutingBadge({ issueId }: { issueId: string }) {
     <div data-testid="routing-badge" data-escalated={d.escalated ? "true" : "false"} className="flex flex-wrap items-center gap-2 px-2 py-1 text-caption">
       <Route className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
       <span className="font-medium">{t(($) => $.routing.label)}</span>
-      <span className={cn("rounded border border-border px-1", RISK_TONE[d.risk_level] ?? RISK_TONE.normal)}>{t(($) => $.routing.risk[d.risk_level] ?? $.routing.risk.normal)}</span>
+      <span className={cn("rounded border border-border px-1", RISK_TONE[d.risk_level] ?? RISK_TONE.normal)}>{tKnown(t, "routing.risk", d.risk_level, t(($) => $.routing.risk.normal))}</span>
       <span className="text-muted-foreground">{d.target_pool_name ? t(($) => $.routing.pool, { name: d.target_pool_name }) : t(($) => $.routing.agent_pool)}</span>
       {d.matched_paths.length > 0 && <span className="font-mono text-muted-foreground" title={d.matched_paths.join(", ")}>{t(($) => $.routing.paths, { count: d.matched_paths.length })}</span>}
       {d.escalated && (

@@ -27,7 +27,7 @@ import {
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
-import { useT, useTimeAgo } from "../../i18n";
+import { tKnown, useT, useTimeAgo } from "../../i18n";
 
 /**
  * Task watchdog (K73): an optional agent, different from the assignee, that
@@ -185,7 +185,7 @@ function VerdictRow({ verdict: v, canManage, onReview }: { verdict: WatchdogVerd
         <ul className="list-disc pl-4">
           {v.findings.map((f, i) => (
             <li key={i}>
-              <span className="font-medium">{f.issue}</span> · {t(($) => $.watchdog.actions[f.action as "reopen" | "ask_proof" | "none"] ?? $.watchdog.actions.none)}
+              <span className="font-medium">{f.issue}</span> · {tKnown(t, "watchdog.actions", f.action, t(($) => $.watchdog.actions.none))}
               {f.reason && <> · {f.reason}</>}
               {f.missing_criterion && <> · {t(($) => $.watchdog.missing, { criterion: f.missing_criterion })}</>}
             </li>

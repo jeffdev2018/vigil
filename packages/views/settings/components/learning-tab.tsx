@@ -7,7 +7,7 @@ import { busiestHours, formatReviewLoad, ruleSummary, useForgetObservation, useS
 import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { cn } from "@multica/ui/lib/utils";
-import { useT, useTimeAgo } from "../../i18n";
+import { tKnown, useT, useTimeAgo } from "../../i18n";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 
 /**
@@ -61,7 +61,7 @@ export function LearningTab() {
             <span className="tabular-nums">{data?.auto_decided ?? 0}</span>
           </SettingsRow>
           <SettingsRow label={t(($) => $.learning.surface)} description={t(($) => $.learning.surface_description)}>
-            <span className="text-muted-foreground">{(data?.adaptation_surface ?? []).map((s) => t(($) => $.learning.surfaces[s as "decision_rules" | "decision_hours"] ?? s)).join(" · ") || "–"}</span>
+            <span className="text-muted-foreground">{(data?.adaptation_surface ?? []).map((s) => tKnown(t, "learning.surfaces", s, s)).join(" · ") || "–"}</span>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
@@ -78,7 +78,7 @@ export function LearningTab() {
                 key={o.id}
                 label={
                   <span data-testid="learning-rule" data-state={o.state} data-auto={o.auto ? "on" : "off"} className="flex flex-wrap items-center gap-2">
-                    <span>{t(($) => $.learning.rule_label, { family: t(($) => $.learning.families[r.family as "gate" | "preview" | "watchdog" | "plan" | "pipeline_gate" | "second_approval" | "interview" | "question"] ?? r.family), label: r.option_label })}</span>
+                    <span>{t(($) => $.learning.rule_label, { family: tKnown(t, "learning.families", r.family, r.family), label: r.option_label })}</span>
                     <span className={cn("rounded px-1 text-caption", o.state === "proposed" ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground")}>
                       {t(($) => $.learning.states[o.state])}
                     </span>
