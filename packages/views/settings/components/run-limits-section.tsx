@@ -224,16 +224,33 @@ function RunLimitEditor({ policy, projects, agents, pending, onSave, onCancel }:
   const [warn, setWarn] = useState(String((policy?.warn_bps ?? 8000) / 100));
   const [action, setAction] = useState<RunLimitPolicy["action"]>(policy?.action ?? "enforce");
   const targets = scope === "project" ? projects.map((p) => ({ id: p.id, label: p.title })) : scope === "agent" ? agents.map((a) => ({ id: a.id, label: a.name })) : [];
-  const num = (s: string) => (s.trim() === "" ? null : Math.max(0, Number(s) || 0) || null);
+  // A typed 0 is a meaningful, distinct limit (e.g. 0 tool calls allowed) —
+  // not "unset". The old `|| null` chain treated 0 as falsy at every step
+  // (inside num() AND at each call site below) and silently coerced it to
+  // "no limit" instead, the opposite of what the field just said.
+  const num = (s: string) => {
+    if (s.trim() === "") return null;
+    const n = Number(s);
+    return Number.isNaN(n) ? null : Math.max(0, n);
+  };
+  const numCost = num(cost);
+  const numMinutes = num(minutes);
+  const numTurns = num(turns);
+  const numTools = num(tools);
   const input: RunLimitPolicyInput = {
     scope_type: scope, scope_id: scope === "workspace" ? null : scopeId || null,
-    max_cost_usd_ticks: num(cost) ? Math.round((num(cost) as number) * TICKS_PER_USD) : null,
-    max_duration_seconds: num(minutes) ? Math.round((num(minutes) as number) * 60) : null,
-    max_turns: num(turns) ? Math.round(num(turns) as number) : null,
-    max_tool_calls: num(tools) ? Math.round(num(tools) as number) : null,
+    max_cost_usd_ticks: numCost !== null ? Math.round(numCost * TICKS_PER_USD) : null,
+    max_duration_seconds: numMinutes !== null ? Math.round(numMinutes * 60) : null,
+    max_turns: numTurns !== null ? Math.round(numTurns) : null,
+    max_tool_calls: numTools !== null ? Math.round(numTools) : null,
     warn_bps: Math.round(Math.min(100, Math.max(0, Number(warn) || 0)) * 100), action,
   };
-  const valid = (scope === "workspace" || !!scopeId) && (input.max_cost_usd_ticks || input.max_duration_seconds || input.max_turns || input.max_tool_calls);
+  // Same truthiness trap as num() above: a limit of 0 is real and must count
+  // as "at least one gate is set", not fall out because 0 is falsy.
+  const valid = (scope === "workspace" || !!scopeId) && (
+    input.max_cost_usd_ticks != null || input.max_duration_seconds != null ||
+    input.max_turns != null || input.max_tool_calls != null
+  );
   return (
     <form data-testid="run-limit-editor" className="flex flex-col gap-2 rounded-md border border-border p-3 text-caption" onSubmit={(e) => { e.preventDefault(); if (valid) onSave(input); }}>
       {!policy && (
