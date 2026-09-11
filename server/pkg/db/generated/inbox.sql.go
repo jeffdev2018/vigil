@@ -602,6 +602,99 @@ func (q *Queries) ListAttentionInboxItems(ctx context.Context, arg ListAttention
 	return items, nil
 }
 
+const listInboxDecisionSourceItems = `-- name: ListInboxDecisionSourceItems :many
+SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
+       iss.status AS issue_status,
+       iss.priority AS issue_priority
+FROM inbox_item i
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue_decision d ON i.type IN ('decision_request', 'decision_escalated')
+    AND (i.details->>'decision_id') ~ '^[0-9a-f-]{36}$'
+    AND d.id = (i.details->>'decision_id')::uuid
+WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
+  AND i.archived = false
+  AND i.type = ANY($4::text[])
+  AND (i.type NOT IN ('decision_request', 'decision_escalated') OR (d.id IS NOT NULL AND d.response IS NULL))
+ORDER BY i.created_at DESC
+LIMIT 200
+`
+
+type ListInboxDecisionSourceItemsParams struct {
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	RecipientType string      `json:"recipient_type"`
+	RecipientID   pgtype.UUID `json:"recipient_id"`
+	Types         []string    `json:"types"`
+}
+
+type ListInboxDecisionSourceItemsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	RecipientType string             `json:"recipient_type"`
+	RecipientID   pgtype.UUID        `json:"recipient_id"`
+	Type          string             `json:"type"`
+	Severity      string             `json:"severity"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	Title         string             `json:"title"`
+	Body          pgtype.Text        `json:"body"`
+	Read          bool               `json:"read"`
+	Archived      bool               `json:"archived"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ActorType     pgtype.Text        `json:"actor_type"`
+	ActorID       pgtype.UUID        `json:"actor_id"`
+	Details       []byte             `json:"details"`
+	IssueStatus   pgtype.Text        `json:"issue_status"`
+	IssuePriority pgtype.Text        `json:"issue_priority"`
+}
+
+// Inbox zero (K63, JEF-244): the rows the decisions endpoint projects, of the
+// types the caller asked for — Decision Cards always, held status moves
+// (transition_approval_requested) and goal-loop questions (goal_question)
+// when ?include= names them. Same join and column set as
+// ListAttentionInboxItems so the row converts to ListInboxItemsRow; the
+// decision join keeps dropping rows whose card is already answered.
+func (q *Queries) ListInboxDecisionSourceItems(ctx context.Context, arg ListInboxDecisionSourceItemsParams) ([]ListInboxDecisionSourceItemsRow, error) {
+	rows, err := q.db.Query(ctx, listInboxDecisionSourceItems,
+		arg.WorkspaceID,
+		arg.RecipientType,
+		arg.RecipientID,
+		arg.Types,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInboxDecisionSourceItemsRow{}
+	for rows.Next() {
+		var i ListInboxDecisionSourceItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.RecipientType,
+			&i.RecipientID,
+			&i.Type,
+			&i.Severity,
+			&i.IssueID,
+			&i.Title,
+			&i.Body,
+			&i.Read,
+			&i.Archived,
+			&i.CreatedAt,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Details,
+			&i.IssueStatus,
+			&i.IssuePriority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInboxItems = `-- name: ListInboxItems :many
 SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
        iss.status AS issue_status,

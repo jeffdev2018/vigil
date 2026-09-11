@@ -6560,9 +6560,14 @@ export class ApiClient {
   // Archived notifications, backing the inbox's "Archived" sub-view. Capped
   // server-side (no pagination in v1). Schema-guarded so a contract drift
   // renders an empty archive instead of taking the inbox down with it.
-  // Inbox zero (K63).
-  async listInboxDecisions(): Promise<import("../inbox/queries").InboxDecisions> {
-    const raw = await this.fetch<unknown>("/api/inbox/decisions");
+  // Inbox zero (K63). JEF-244: `include` widens the feed beyond Decision
+  // Cards ("transitions", "goal_questions"); omitted, the call is exactly
+  // what pre-JEF-244 servers answered.
+  async listInboxDecisions(include?: string[]): Promise<import("../inbox/queries").InboxDecisions> {
+    const search = new URLSearchParams();
+    if (include && include.length > 0) search.set("include", include.join(","));
+    const encoded = search.toString();
+    const raw = await this.fetch<unknown>(`/api/inbox/decisions${encoded ? `?${encoded}` : ""}`);
     return parseWithFallback(raw, InboxDecisionsSchema, { decisions: [], total: 0 }, { endpoint: "GET /api/inbox/decisions" }) as import("../inbox/queries").InboxDecisions;
   }
 

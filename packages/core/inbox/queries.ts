@@ -1,6 +1,7 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import type { InboxItem, InboxWorkspaceUnread, IssueDecision } from "../types";
+import type { ApprovalGoalQuestion, ApprovalSource, ApprovalTransition } from "../approvals/schemas";
 
 export const inboxKeys = {
   all: (wsId: string) => ["inbox", wsId] as const,
@@ -8,8 +9,14 @@ export const inboxKeys = {
   archived: (wsId: string) => [...inboxKeys.all(wsId), "archived"] as const,
   attention: (wsId: string) => [...inboxKeys.all(wsId), "attention"] as const,
   briefing: (wsId: string) => [...inboxKeys.all(wsId), "briefing"] as const,
-  // Inbox zero (K63): my pending Decision Cards, capped at five.
-  decisions: (wsId: string) => [...inboxKeys.all(wsId), "decisions"] as const,
+  // Inbox zero (K63): my pending asks, capped at five. The requested sources
+  // (JEF-244 `include`) are part of the key so the plain call and a widened
+  // one don't share a cache entry; the key keeps the "decisions" prefix so
+  // the approval:asked/decided invalidation reaches both.
+  decisions: (wsId: string, include?: string[]) =>
+    include && include.length > 0
+      ? ([...inboxKeys.all(wsId), "decisions", include.join(",")] as const)
+      : ([...inboxKeys.all(wsId), "decisions"] as const),
   // Account-level (not workspace-scoped): a single shared cache entry that
   // holds unread counts for every workspace the user belongs to.
   unreadSummary: () => ["inbox", "unread-summary"] as const,
@@ -143,15 +150,24 @@ function groupInboxItemsByIssue(items: InboxItem[]): InboxItem[] {
   );
 }
 
-// Inbox zero (K63): the cards waiting for me, options included, ordered and
-// capped on the server (risk then deadline, five plus the total).
+// Inbox zero (K63): the asks waiting for me — Decision Cards, and with the
+// JEF-244 `include` param also held status transitions and goal-loop
+// questions — ordered and capped on the server (risk then deadline, five
+// plus the total).
 export interface InboxDecision {
   inbox_item_id: string;
   issue_id: string;
   issue_identifier: string;
   issue_title: string;
   risk_score: number;
-  decision: IssueDecision;
+  /** Which pending ask the entry carries; pre-JEF-244 servers omit it and every entry is a Decision Card. */
+  source: ApprovalSource;
+  /** Set iff source is "decision". */
+  decision: IssueDecision | null;
+  /** Set iff source is "transition" (a held status change). */
+  transition: ApprovalTransition | null;
+  /** Set iff source is "goal_question" (the goalstate.Question wire shape). */
+  goal_question: ApprovalGoalQuestion | null;
 }
 
 export interface InboxDecisions {
@@ -159,10 +175,10 @@ export interface InboxDecisions {
   total: number;
 }
 
-export const inboxDecisionsOptions = (wsId: string) =>
+export const inboxDecisionsOptions = (wsId: string, include?: string[]) =>
   queryOptions({
-    queryKey: inboxKeys.decisions(wsId),
-    queryFn: () => api.listInboxDecisions(),
+    queryKey: inboxKeys.decisions(wsId, include),
+    queryFn: () => api.listInboxDecisions(include),
     enabled: wsId.length > 0,
     refetchInterval: 30_000,
   });

@@ -351,19 +351,30 @@ func (b *approvalFeedBuilder) fromDecision(d db.IssueDecision, userID string) (A
 	return item, true
 }
 
+// transitionRule resolves the rule a held request names, actors attached.
+// nil when the request carries none or it is gone; the approver set then
+// falls back to the workspace default in issuestatus.ApproverRolesFor.
+func (h *Handler) transitionRule(ctx context.Context, req db.IssueTransitionRequest) *issuestatus.TransitionRule {
+	if !req.RuleID.Valid {
+		return nil
+	}
+	row, err := h.Queries.GetIssueTransitionRule(ctx, db.GetIssueTransitionRuleParams{ID: req.RuleID, WorkspaceID: req.WorkspaceID})
+	if err != nil {
+		return nil
+	}
+	rules, err := h.attachRuleActors(ctx, []db.IssueTransitionRule{row})
+	if err != nil || len(rules) == 0 {
+		return nil
+	}
+	return &rules[0]
+}
+
 func (b *approvalFeedBuilder) fromTransition(req db.IssueTransitionRequest, actor issuestatus.TransitionActor) (ApprovalItem, bool) {
 	ref, ok := b.issue(req.IssueID)
 	if !ok {
 		return ApprovalItem{}, false
 	}
-	var rule *issuestatus.TransitionRule
-	if req.RuleID.Valid {
-		if row, err := b.h.Queries.GetIssueTransitionRule(b.ctx, db.GetIssueTransitionRuleParams{ID: req.RuleID, WorkspaceID: req.WorkspaceID}); err == nil {
-			if rules, err := b.h.attachRuleActors(b.ctx, []db.IssueTransitionRule{row}); err == nil && len(rules) > 0 {
-				rule = &rules[0]
-			}
-		}
-	}
+	rule := b.h.transitionRule(b.ctx, req)
 	item := ApprovalItem{
 		ID: uuidToString(req.ID), Source: ApprovalSourceTransition, Kind: ApprovalKindTransition, Issue: ref,
 		AskedBy: b.actor(req.RequestedByType, req.RequestedByID), Question: "Move " + ref.Identifier + " from " + req.FromStatus + " to " + req.ToStatus,

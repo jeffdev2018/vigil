@@ -3733,6 +3733,27 @@ export const EMPTY_INBOX_ITEMS: InboxItem[] = [];
 
 // Attention Inbox (K02): the same rows plus a server-computed risk.
 // Inbox zero (K63): my pending Decision Cards, options included.
+// JEF-244 widened one entry into any pending ask: `source` says which
+// ("decision" | "transition" | "goal_question") and only that source's
+// payload is set. Servers older than JEF-244 send no `source` and always a
+// `decision`, so the field defaults to "decision" and `decision` is optional
+// only for the newer sources.
+export const InboxDecisionTransitionSchema = z.object({
+  request_id: z.string().catch("").default(""),
+  from_status: z.string().catch("").default(""),
+  to_status: z.string().catch("").default(""),
+  rule_id: z.string().nullable().catch(null).default(null),
+  approver_roles: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const InboxDecisionGoalQuestionSchema = z.object({
+  kind: z.string().catch("text").default("text"),
+  prompt: z.string().catch("").default(""),
+  options: z.array(z.string()).catch([]).default([]),
+  run_id: z.string().catch("").default(""),
+  asked_at: z.string().catch("").default(""),
+}).loose();
+
 export const InboxDecisionsSchema = z.object({
   decisions: z.array(z.object({
     inbox_item_id: z.string().default(""),
@@ -3740,7 +3761,10 @@ export const InboxDecisionsSchema = z.object({
     issue_identifier: z.string().catch("").default(""),
     issue_title: z.string().catch("").default(""),
     risk_score: z.number().catch(0).default(0),
-    decision: IssueDecisionSchema,
+    source: z.string().catch("decision").default("decision"),
+    decision: IssueDecisionSchema.nullable().catch(null).default(null),
+    transition: InboxDecisionTransitionSchema.nullable().catch(null).default(null),
+    goal_question: InboxDecisionGoalQuestionSchema.nullable().catch(null).default(null),
   }).loose()).catch([]).default([]),
   total: z.number().int().catch(0).default(0),
 }).loose();

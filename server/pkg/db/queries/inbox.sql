@@ -237,3 +237,25 @@ WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
   AND (i.type NOT IN ('decision_request', 'decision_escalated') OR (d.id IS NOT NULL AND d.response IS NULL))
 ORDER BY i.created_at DESC
 LIMIT 200;
+
+-- name: ListInboxDecisionSourceItems :many
+-- Inbox zero (K63, JEF-244): the rows the decisions endpoint projects, of the
+-- types the caller asked for — Decision Cards always, held status moves
+-- (transition_approval_requested) and goal-loop questions (goal_question)
+-- when ?include= names them. Same join and column set as
+-- ListAttentionInboxItems so the row converts to ListInboxItemsRow; the
+-- decision join keeps dropping rows whose card is already answered.
+SELECT i.*,
+       iss.status AS issue_status,
+       iss.priority AS issue_priority
+FROM inbox_item i
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue_decision d ON i.type IN ('decision_request', 'decision_escalated')
+    AND (i.details->>'decision_id') ~ '^[0-9a-f-]{36}$'
+    AND d.id = (i.details->>'decision_id')::uuid
+WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
+  AND i.archived = false
+  AND i.type = ANY(sqlc.arg('types')::text[])
+  AND (i.type NOT IN ('decision_request', 'decision_escalated') OR (d.id IS NOT NULL AND d.response IS NULL))
+ORDER BY i.created_at DESC
+LIMIT 200;
