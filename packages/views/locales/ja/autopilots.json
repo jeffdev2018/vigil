@@ -539,7 +539,8 @@
       "warning": "この操作は取り消せません。",
       "cancel": "キャンセル",
       "confirm": "完全に削除",
-      "deleting": "削除中…"
+      "deleting": "削除中…",
+      "partial": "{{succeeded}} 件削除、{{failed}} 件失敗。"
     }
   },
   "daemon_import": {

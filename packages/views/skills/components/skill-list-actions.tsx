@@ -19,6 +19,7 @@ import type { Agent, SkillSummary } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import { useWorkspacePaths } from "@multica/core/paths";
+import { runBulk } from "@multica/core/utils";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
@@ -283,32 +284,35 @@ export function AddToAgentDialog({
     const targets = [...mine, ...others].filter((a) => selectedIds.has(a.id));
     if (targets.length === 0) return;
     setSaving(true);
-    try {
-      for (const agent of targets) {
-        const missing = skillIds.filter(
-          (id) => !agent.skills.some((s) => s.id === id),
-        );
-        if (missing.length > 0) {
-          await api.addAgentSkills(agent.id, { skill_ids: missing });
-        }
+    // Per-agent, failure-tolerant: one agent's addAgentSkills rejecting must
+    // not lose the skills that were already, durably, added to the others —
+    // and the cache must reflect that regardless of how many failed.
+    const { succeeded, failed } = await runBulk(targets, async (agent) => {
+      const missing = skillIds.filter(
+        (id) => !agent.skills.some((s) => s.id === id),
+      );
+      if (missing.length > 0) {
+        await api.addAgentSkills(agent.id, { skill_ids: missing });
       }
-      qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    });
+    qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    setSaving(false);
+    if (failed.length === 0) {
       toast.success(
-        targets.length === 1 && targets[0]
-          ? t(($) => $.actions.added_toast, { name: targets[0].name })
-          : t(($) => $.actions.added_multi_toast, { count: targets.length }),
+        succeeded.length === 1 && succeeded[0]
+          ? t(($) => $.actions.added_toast, { name: succeeded[0].name })
+          : t(($) => $.actions.added_multi_toast, { count: succeeded.length }),
       );
       setSelectedIds(new Set());
       onOpenChange(false);
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? e.message
-          : t(($) => $.actions.add_failed_toast),
-      );
-    } finally {
-      setSaving(false);
+      return;
     }
+    toast.error(
+      t(($) => $.actions.add_partial_toast, {
+        count: succeeded.length,
+        failed: failed.length,
+      }),
+    );
   };
 
   return (
@@ -427,24 +431,27 @@ export function DeleteSkillsDialog({
 
   const handleConfirm = async () => {
     setDeleting(true);
-    try {
-      for (const row of rows) {
-        await api.deleteSkill(row.skill.id);
-      }
-      qc.invalidateQueries({ queryKey: workspaceKeys.skills(ctx.wsId) });
-      qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    // Failure-tolerant per row, same shape as AddToAgentDialog / UpdateSkillsDialog:
+    // one row's deleteSkill rejecting must not leave the others' already-committed
+    // deletion unreflected in the cache.
+    const { succeeded, failed } = await runBulk(rows, (row) =>
+      api.deleteSkill(row.skill.id),
+    );
+    qc.invalidateQueries({ queryKey: workspaceKeys.skills(ctx.wsId) });
+    qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    setDeleting(false);
+    if (failed.length === 0) {
       toast.success(t(($) => $.actions.deleted_toast, { count }));
       onOpenChange(false);
       onDeleted?.();
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? e.message
-          : t(($) => $.actions.delete_failed_toast),
-      );
-    } finally {
-      setDeleting(false);
+      return;
     }
+    toast.error(
+      t(($) => $.actions.delete_partial_toast, {
+        count: succeeded.length,
+        failed: failed.length,
+      }),
+    );
   };
 
   return (

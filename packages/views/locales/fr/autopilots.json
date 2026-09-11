@@ -542,7 +542,8 @@
       "warning": "Cette action est irréversible.",
       "cancel": "Annuler",
       "confirm": "Supprimer définitivement",
-      "deleting": "Suppression…"
+      "deleting": "Suppression…",
+      "partial": "{{succeeded}} supprimé(s), {{failed}} échoué(s)."
     }
   },
   "daemon_import": {

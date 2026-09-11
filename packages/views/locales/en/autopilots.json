@@ -542,7 +542,8 @@
       "warning": "This action cannot be undone.",
       "cancel": "Cancel",
       "confirm": "Delete permanently",
-      "deleting": "Deleting…"
+      "deleting": "Deleting…",
+      "partial": "{{succeeded}} deleted, {{failed}} failed."
     }
   },
   "daemon_import": {

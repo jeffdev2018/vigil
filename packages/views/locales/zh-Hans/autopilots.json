@@ -539,7 +539,8 @@
       "warning": "此操作无法撤销。",
       "cancel": "取消",
       "confirm": "永久删除",
-      "deleting": "删除中…"
+      "deleting": "删除中…",
+      "partial": "已删除 {{succeeded}} 个,失败 {{failed}} 个。"
     }
   },
   "daemon_import": {

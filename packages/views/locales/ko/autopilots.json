@@ -539,7 +539,8 @@
       "warning": "이 작업은 되돌릴 수 없습니다.",
       "cancel": "취소",
       "confirm": "영구 삭제",
-      "deleting": "삭제 중…"
+      "deleting": "삭제 중…",
+      "partial": "{{succeeded}}개 삭제, {{failed}}개 실패."
     }
   },
   "daemon_import": {
