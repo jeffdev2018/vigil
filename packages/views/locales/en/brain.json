@@ -76,6 +76,9 @@
     "too_large": "A file cannot exceed {{size}} per capture.",
     "storage_off": "File capture is not configured on this server.",
     "error": "The capture failed",
+    "mic_permission_denied": "Microphone access was denied. Allow it in your browser settings and try again.",
+    "mic_not_found": "No microphone was found. Connect one and try again.",
+    "mic_unreadable": "The microphone could not be read. Close other apps using it and try again.",
     "captured_toast": "Captured"
   },
   "inbox": {

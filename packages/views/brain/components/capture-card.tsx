@@ -205,9 +205,14 @@ export function CaptureCard({
         </a>
       ) : null}
 
-      {suggestion ? (
+      {suggestion && !error ? (
         // A section inside the card, not a card inside the card: the heading
-        // and the spacing above carry the separation.
+        // and the spacing above carry the separation. Hidden while `error` is
+        // set: the Suggest button re-requests a suggestion for a capture that
+        // may already carry one (regenerate), and a failed regeneration left
+        // the earlier suggestion on screen next to the failure — showing a
+        // proposal and "the model could not be reached" at once (UX audit).
+        // Only the real, current state (the error) should be visible.
         <div className="mt-1 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-caption font-medium">
             <Sparkles aria-hidden="true" className="size-3.5" />

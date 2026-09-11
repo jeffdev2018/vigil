@@ -345,6 +345,39 @@ describe("CaptureInbox", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Regression: the Suggest button re-requests a suggestion even for a
+  // capture that already carries one (regenerate). When that regeneration
+  // failed, the earlier suggestion stayed on screen right next to "the model
+  // could not be reached" — a proposal and an error shown at once, so the
+  // reader could not tell which state was real (UX audit).
+  it("hides the earlier suggestion once regenerating it fails, showing only the error", async () => {
+    data.response = {
+      captures: [
+        capture({
+          suggestion: {
+            title: "pgbouncer listens on 6432",
+            tags: ["db", "infra"],
+            summary: "Connection pooling port.",
+            action: "note",
+            merge_note: null,
+            candidates: [],
+            reason: "New fact.",
+            model: "test",
+          },
+        }),
+      ],
+      raw_count: 1,
+    };
+    mutations.suggest.mockRejectedValue(new Error("boom"));
+    renderInbox();
+    expect(await screen.findByText("Connection pooling port.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Suggest" }));
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByText("Connection pooling port.")).not.toBeInTheDocument();
+  });
+
   it("shows a link capture's URL and an image capture's thumbnail", async () => {
     data.response = {
       captures: [
