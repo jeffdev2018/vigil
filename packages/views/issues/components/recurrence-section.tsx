@@ -8,6 +8,7 @@ import { ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { formatCountdown } from "@multica/core/approvals";
+import { formatDateOnly } from "@multica/core/issues/date";
 import { cronPreviewOptions } from "@multica/core/autopilots";
 import {
   DEFAULT_RECURRENCE_HOUR,
@@ -353,7 +354,13 @@ function OccurrenceRow({
       </span>
       {occurrence.due_date && (
         <span className="shrink-0 text-muted-foreground">
-          {t(($) => $.recurrence.occurrence_due, { when: occurrence.due_date })}
+          {t(($) => $.recurrence.occurrence_due, {
+            // due_date is a date-only "YYYY-MM-DD" server string — formatDateOnly
+            // parses it as a UTC calendar day rather than letting `new Date(...)`
+            // reinterpret it in the viewer's local timezone (which can shift the
+            // displayed day by ±1 near midnight in negative-offset zones).
+            when: formatDateOnly(occurrence.due_date, undefined, locale),
+          })}
         </span>
       )}
     </li>
