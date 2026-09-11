@@ -39,7 +39,8 @@ import { useT } from "../i18n";
  * Not covered by DOM tests: MediaRecorder, getUserMedia and getDisplayMedia
  * do not exist in jsdom, and faking all three tests the fakes rather than the
  * recorder. The parsing and error-code branches this hook depends on are
- * covered in `packages/core/meetings/meetings.test.ts`.
+ * covered in `packages/core/meetings/meetings.test.ts`; its mount/unmount
+ * lifecycle in `use-meeting-recorder.test.tsx`.
  */
 
 /**
@@ -387,23 +388,37 @@ export function useMeetingRecorder() {
 
   // Nonce watchers. `start`/`stop` change identity on every render (they close
   // over mutations), so the effects key off the nonce alone and reach the
-  // current implementation through a ref.
+  // current implementation through a ref. The store outlives this hook, so a
+  // nonce already bumped when it mounts is a request an earlier instance
+  // answered: acting on it would start a recording nobody asked for.
   const startRef = useRef(start);
   startRef.current = start;
+  const seenOpenNonceRef = useRef(openNonce);
+  const seenStopNonceRef = useRef(stopNonce);
 
   useEffect(() => {
-    if (openNonce === 0) return;
+    if (openNonce === seenOpenNonceRef.current) return;
+    seenOpenNonceRef.current = openNonce;
     void startRef.current(
       useMeetingRecorderStore.getState().openOptions ?? undefined,
     );
   }, [openNonce]);
 
   useEffect(() => {
-    if (stopNonce === 0) return;
+    if (stopNonce === seenStopNonceRef.current) return;
+    seenStopNonceRef.current = stopNonce;
     void stopRef.current();
   }, [stopNonce]);
 
-  // Leaving the workspace shell must release the microphone even though the
-  // meeting cannot be finished from an unmounting component.
-  useEffect(() => releaseMedia, [releaseMedia]);
+  // Leaving the workspace shell (logout included) must release the microphone
+  // even though the meeting cannot be finished from an unmounting component.
+  // The recording dies with this hook, so the store must say so too: left at
+  // "recording", the next mount shows a dead pill and start() refuses to run.
+  useEffect(
+    () => () => {
+      releaseMedia();
+      useMeetingRecorderStore.getState().reset();
+    },
+    [releaseMedia],
+  );
 }
