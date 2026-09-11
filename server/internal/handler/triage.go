@@ -724,7 +724,6 @@ func (h *Handler) BatchAcceptTriageItems(w http.ResponseWriter, r *http.Request)
 	}{Items: results})
 }
 
-
 // ExpireStaleTriageItems is the retention sweep behind the scheduler's
 // triage_retention_sweep job. triage.Capture stamps every item with an
 // expires_at (triage.DefaultRetention); an item nobody resolved by then

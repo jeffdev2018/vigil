@@ -1249,10 +1249,10 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 				}
 				if err := q.MergeImportedAutopilot(ctx, db.MergeImportedAutopilotParams{
 					ID: existing.ID, WorkspaceID: wsUUID,
-					Description: pgtype.Text{String: a.Description, Valid: a.Description != ""},
-					ExecutionMode: nonEmpty(a.ExecutionMode, existing.ExecutionMode),
+					Description:        pgtype.Text{String: a.Description, Valid: a.Description != ""},
+					ExecutionMode:      nonEmpty(a.ExecutionMode, existing.ExecutionMode),
 					IssueTitleTemplate: pgtype.Text{String: a.IssueTitleTemplate, Valid: a.IssueTitleTemplate != ""},
-					AssigneeType: assigneeType, AssigneeID: assigneeID,
+					AssigneeType:       assigneeType, AssigneeID: assigneeID,
 				}); err != nil {
 					return fmt.Errorf("merge autopilot %q: %w", a.Title, err)
 				}

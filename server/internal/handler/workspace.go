@@ -102,17 +102,17 @@ type WorkspaceResponse struct {
 	// Template/TemplateError: a create request can supply both
 	// template_run_id and pack_id, and the two outcomes must not be able to
 	// silently clobber each other in the response.
-	Pack      map[string]any `json:"pack,omitempty"`
-	PackError string         `json:"pack_error,omitempty"`
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Slug          string         `json:"slug"`
-	Description   *string        `json:"description"`
-	Context       *string        `json:"context"`
-	Settings      any            `json:"settings"`
-	Repos         any            `json:"repos"`
-	IssuePrefix   string         `json:"issue_prefix"`
-	AvatarURL     *string        `json:"avatar_url"`
+	Pack        map[string]any `json:"pack,omitempty"`
+	PackError   string         `json:"pack_error,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Slug        string         `json:"slug"`
+	Description *string        `json:"description"`
+	Context     *string        `json:"context"`
+	Settings    any            `json:"settings"`
+	Repos       any            `json:"repos"`
+	IssuePrefix string         `json:"issue_prefix"`
+	AvatarURL   *string        `json:"avatar_url"`
 	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
 	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
 	// null disables the trigger, which is every workspace's default.
