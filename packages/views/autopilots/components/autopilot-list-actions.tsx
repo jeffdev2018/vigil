@@ -135,15 +135,25 @@ export function DeleteAutopilotsDialog({
 // ---------------------------------------------------------------------------
 
 function useSetStatus() {
+  const { t } = useT("autopilots");
   const updateAutopilot = useUpdateAutopilot();
   return async (rows: Autopilot[], status: "active" | "paused") => {
-    try {
-      for (const row of rows) {
-        if (row.status === status) continue;
-        await updateAutopilot.mutateAsync({ id: row.id, status });
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+    // Same failure-tolerant shape as AutopilotDeleteDialog.handleDelete
+    // above: every row is attempted independently (runBulk uses
+    // Promise.allSettled) so one 5xx/network failure never strands rows
+    // that would have updated fine — the old sequential for-loop aborted
+    // the whole batch on the first rejection.
+    const targets = rows.filter((row) => row.status !== status);
+    const { succeeded, failed } = await runBulk(targets, (row) =>
+      updateAutopilot.mutateAsync({ id: row.id, status }),
+    );
+    if (failed.length > 0) {
+      toast.error(
+        t(($) => $.actions.status_partial, {
+          succeeded: succeeded.length,
+          failed: failed.length,
+        }),
+      );
     }
   };
 }

@@ -533,6 +533,7 @@
     "delete": "삭제",
     "selected_other": "{{count}}개 선택됨",
     "clear_selection": "선택 해제",
+    "status_partial": "{{succeeded}}개 업데이트, {{failed}}개 실패.",
     "delete_dialog": {
       "title": "자동화를 삭제할까요?",
       "description_other": "자동화 {{count}}개와 실행 기록이 영구 삭제됩니다.",

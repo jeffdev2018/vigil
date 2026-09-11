@@ -6,10 +6,11 @@ import type { Autopilot } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
 const mockDeleteAutopilot = vi.hoisted(() => vi.fn());
+const mockUpdateAutopilot = vi.hoisted(() => vi.fn());
 
 vi.mock("@multica/core/autopilots", () => ({
   useDeleteAutopilot: () => ({ mutateAsync: mockDeleteAutopilot }),
-  useUpdateAutopilot: () => ({ mutateAsync: vi.fn() }),
+  useUpdateAutopilot: () => ({ mutateAsync: mockUpdateAutopilot }),
 }));
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({ autopilotDetail: (id: string) => `/autopilots/${id}` }),
@@ -22,14 +23,15 @@ vi.mock("sonner", () => ({
 }));
 
 import { toast } from "sonner";
-import { DeleteAutopilotsDialog } from "./autopilot-list-actions";
+import { AutopilotBatchToolbar, DeleteAutopilotsDialog } from "./autopilot-list-actions";
 
-function makeRow(id: string, title = `Autopilot ${id}`): Autopilot {
-  return { id, title } as Autopilot;
+function makeRow(id: string, title = `Autopilot ${id}`, status: Autopilot["status"] = "active"): Autopilot {
+  return { id, title, status } as Autopilot;
 }
 
 beforeEach(() => {
   mockDeleteAutopilot.mockReset();
+  mockUpdateAutopilot.mockReset();
   vi.mocked(toast.error).mockClear();
 });
 
@@ -88,6 +90,49 @@ describe("DeleteAutopilotsDialog — partial failure", () => {
 
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+// P3 audit finding: useSetStatus (batch pause/resume) was a plain
+// `for...await` in a single try/catch — one row's failure aborted every
+// row after it in the loop, with no indication which rows had already
+// updated. Now runs every row independently via runBulk, same as delete.
+describe("AutopilotBatchToolbar — batch status change partial failure", () => {
+  it("attempts every row independently and reports a partial-failure summary", async () => {
+    mockUpdateAutopilot.mockImplementation(async ({ id }: { id: string }) => {
+      if (id === "b") throw new Error("network blip");
+      return {};
+    });
+
+    renderWithI18n(
+      <AutopilotBatchToolbar
+        rows={[makeRow("a"), makeRow("b"), makeRow("c")]}
+        onClear={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    await waitFor(() => expect(mockUpdateAutopilot).toHaveBeenCalledTimes(3));
+    expect(
+      mockUpdateAutopilot.mock.calls.map((c) => (c[0] as { id: string }).id).sort(),
+    ).toEqual(["a", "b", "c"]);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("2 updated, 1 failed.");
+  });
+
+  it("shows no toast when every row updates", async () => {
+    mockUpdateAutopilot.mockResolvedValue({});
+
+    renderWithI18n(
+      <AutopilotBatchToolbar rows={[makeRow("a"), makeRow("b")]} onClear={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    await waitFor(() => expect(mockUpdateAutopilot).toHaveBeenCalledTimes(2));
     expect(toast.error).not.toHaveBeenCalled();
   });
 });
