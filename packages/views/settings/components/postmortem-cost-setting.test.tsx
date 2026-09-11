@@ -86,6 +86,23 @@ describe("PostmortemCostSetting", () => {
     );
   });
 
+  // Regression: another admin's save patches the workspace in place. The
+  // buffered amount kept the old value and a plain blur wrote it back.
+  it("follows a threshold changed elsewhere and does not write it back on blur", () => {
+    const qc = new QueryClient();
+    const ui = (ticks: number) => (
+      <QueryClientProvider client={qc}>
+        <PostmortemCostSetting workspace={workspace(ticks)} canEdit />
+      </QueryClientProvider>
+    );
+    const { rerender } = renderWithI18n(ui(FIVE_DOLLARS));
+    rerender(ui(7e10));
+    const input = screen.getByRole("spinbutton");
+    expect(input).toHaveValue(7);
+    fireEvent.blur(input);
+    expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
   it("switches the trigger off with the documented 0 sentinel", async () => {
     render(FIVE_DOLLARS);
 

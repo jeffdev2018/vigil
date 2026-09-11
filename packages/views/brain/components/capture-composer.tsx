@@ -113,6 +113,17 @@ export function CaptureComposer({
   // and the first client paint disagree.
   useEffect(() => setCanRecord(recordingSupported()), []);
 
+  // Leaving the inbox mid-recording (a tab switch unmounts it) must not leave
+  // the microphone live. stop() fires onstop, which releases the tracks and
+  // sends what was recorded.
+  useEffect(
+    () => () => {
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!recording) return;
     const id = setInterval(() => setElapsed((n) => n + 1), 1000);

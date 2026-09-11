@@ -1560,6 +1560,19 @@ describe("computeCostInWindow", () => {
     vi.setSystemTime(new Date("2026-05-20T12:00:00Z"));
     expect(computeCostInWindow([], 7, "UTC")).toBe(0);
   });
+
+  // The cost cell memoizes on its arguments. Without the rate table among
+  // them, a custom price added while the list is open never reached the cell.
+  it("prices an unmapped model from the rate table it is given", () => {
+    vi.setSystemTime(new Date("2026-05-20T12:00:00Z"));
+    const rows: RuntimeUsage[] = [
+      { ...priced("2026-05-19", 1_000_000), model: "totally-made-up-model" },
+    ];
+    const pricings = {
+      "totally-made-up-model": { input: 2, output: 0, cacheRead: 0, cacheWrite: 0 },
+    };
+    expect(computeCostInWindow(rows, 7, "UTC", 0, pricings)).toBeCloseTo(2, 5);
+  });
 });
 
 describe("summarizeTaskUsage", () => {

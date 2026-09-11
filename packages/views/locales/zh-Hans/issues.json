@@ -751,7 +751,10 @@
       "fanout": "分发",
       "shard": "分片",
       "eval": "评测",
+      "benchmark": "基准测试",
       "escalation": "升级",
+      "pr_walkthrough": "导读",
+      "epic_step": "史诗步骤",
       "other": "环节",
       "continuation": "延续",
       "subagent": "子智能体"

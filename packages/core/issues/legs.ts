@@ -75,7 +75,10 @@ const KNOWN_LEG_ROLES = new Set([
   "fanout",
   "shard",
   "eval",
+  "benchmark",
   "escalation",
+  "pr_walkthrough",
+  "epic_step",
   "continuation",
   "subagent",
 ]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +44,11 @@ export function PostmortemCostSetting({
   const [amount, setAmount] = useState(
     String(stored ?? DEFAULT_THRESHOLD_USD),
   );
+  // The buffer follows the stored threshold: a workspace:updated patch changes
+  // the prop without a remount, and a blur must not write the old value back.
+  useEffect(() => {
+    if (stored !== null) setAmount(String(stored));
+  }, [stored]);
   const [saving, setSaving] = useState(false);
   const disabled = !canEdit || saving;
 

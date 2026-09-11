@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { issueKeys } from "./queries";
+import { isRunSettled, runStateOf } from "../agents/run-state";
 
 // Run replay (K70): the run as one ordered, hash-chained event stream, and
 // a resume point that starts a new run with a new instruction.
@@ -166,7 +167,11 @@ export function sealState(replay: Pick<RunReplay, "sealed">): SealState {
   return replay.sealed.verified === true ? "verified" : "broken";
 }
 
-/** True once the run can be resumed from a point (it is no longer live). */
+/**
+ * True once the run can be resumed from a point (it is no longer live). Reads
+ * the shared status mapping so deferred, paused and waiting_local_directory
+ * runs — and any status a newer backend adds — count as live.
+ */
 export function replayResumable(status: string): boolean {
-  return !["queued", "dispatched", "running", "parked"].includes(status);
+  return isRunSettled(runStateOf(status));
 }

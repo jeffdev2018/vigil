@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,9 @@ export function StandupSetting({ workspace, canEdit }: { workspace: Workspace; c
   const qc = useQueryClient();
   const policy = standupPolicy(workspace);
   const [hours, setHours] = useState(String(policy.blocked_hours));
+  // The buffer follows the stored value: a workspace:updated patch changes the
+  // prop without a remount, and a blur must not write the old value back.
+  useEffect(() => setHours(String(policy.blocked_hours)), [policy.blocked_hours]);
   const [saving, setSaving] = useState(false);
 
   async function persist(next: StandupPolicy) {

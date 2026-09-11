@@ -159,6 +159,15 @@ describe("ParticipantBar", () => {
     expect(removeMutate).toHaveBeenCalledWith("user-2");
   });
 
+  // Regression: the button fades in on `group-hover`, but no ancestor carried
+  // `group`, so it only appeared when the pointer found its 16px box.
+  it("reveals the remove control while its avatar is hovered", () => {
+    roster.current = { participants: [owner(), peer()] };
+    renderBar();
+    const avatar = screen.getAllByTestId("chat-participant")[1];
+    expect(screen.getByLabelText("Remove Grace").closest(".group")).toBe(avatar);
+  });
+
   it("offers a participant only the leave control, never the roster controls", () => {
     selfId.current = "user-2";
     roster.current = { participants: [owner(), peer()] };

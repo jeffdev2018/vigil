@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { InvitePage } from "@multica/views/invite";
 import { InvitationsPage } from "@multica/views/invitations";
@@ -41,12 +42,31 @@ function WindowOverlayInner() {
   // flash "no runtime found" while the daemon is still probing CLI versions.
   const runtimesPending = useLocalRuntimesPending();
 
-  if (!overlay) return null;
-
   // Back is only meaningful when there's somewhere to go — i.e. the user
   // has at least one workspace. Zero-workspace users can only Log out or
   // complete the flow.
-  const onBack = wsList.length > 0 ? close : undefined;
+  const canGoBack = wsList.length > 0;
+  const hasBack =
+    canGoBack &&
+    (overlay?.type === "new-workspace" || overlay?.type === "invite");
+
+  // This is a full-window takeover, not a dialog, so nothing handled Escape.
+  // It does what Back does, and only where Back is offered. Listening on
+  // window lets an open popover inside the flow consume Escape first: Base UI
+  // stops its propagation at the document.
+  useEffect(() => {
+    if (!hasBack) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      close();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hasBack, close]);
+
+  if (!overlay) return null;
+
+  const onBack = canGoBack ? close : undefined;
 
   // The daemon's PATH probe runs once at boot, so a newly-installed CLI
   // (Claude / Codex / Cursor) does not show up until the daemon is bounced.

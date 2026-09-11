@@ -29,7 +29,7 @@ vi.mock("@multica/core/org", async (importOriginal) => ({
 import { IssueOrgSection } from "./issue-org-section";
 
 const offer = (over: Partial<OrgOffer>): OrgOffer => ({
-  id: "o", agent_id: "a-1", agent_name: "Codex", confidence: 0.8, cost_usd_ticks: 1_250_000, eta_hours: 4, status: "pending", created_at: "", ...over,
+  id: "o", agent_id: "a-1", agent_name: "Codex", confidence: 0.8, cost_usd_ticks: 12_500_000_000, eta_hours: 4, status: "pending", created_at: "", ...over,
 });
 const active: OrgStructure = {
   id: "s", workspace_id: "ws-1", project_id: "p1", model: "market", name: "Market", status: "active", revision: 1, revision_id: null,
@@ -54,7 +54,7 @@ describe("IssueOrgSection", () => {
   });
 
   it("lists the offers with confidence, cost, eta and status", () => {
-    state.offers = [offer({}), offer({ id: "o2", agent_name: "Claude", confidence: 0.55, cost_usd_ticks: 3_000_000, eta_hours: 2, status: "over_cap" })];
+    state.offers = [offer({}), offer({ id: "o2", agent_name: "Claude", confidence: 0.55, cost_usd_ticks: 30_000_000_000, eta_hours: 2, status: "over_cap" })];
     renderWithI18n(<IssueOrgSection issueId="i1" issue={{ project_id: "p1", assignee_id: "a-1" }} />);
     const rows = screen.getAllByTestId("org-offer").map((r) => r.textContent);
     expect(rows[0]).toBe("Codex80%$1.254 hPending");

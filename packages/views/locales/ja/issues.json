@@ -751,7 +751,10 @@
       "fanout": "分散",
       "shard": "シャード",
       "eval": "評価",
+      "benchmark": "ベンチマーク",
       "escalation": "エスカレーション",
+      "pr_walkthrough": "ウォークスルー",
+      "epic_step": "エピックのステップ",
       "other": "工程",
       "continuation": "継続",
       "subagent": "サブエージェント"

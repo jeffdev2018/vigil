@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
 import { legRoleLabelKey, workflowRootOf } from "./legs";
@@ -24,6 +26,17 @@ describe("legRoleLabelKey", () => {
     for (const role of ["draft", "retry", "fallback", "rerun", "review", "critique", "answer", "revision", "watchdog", "duel", "fanout", "shard", "eval", "escalation", "continuation", "subagent"]) {
       expect(legRoleLabelKey(role)).toBe(role);
     }
+  });
+
+  // The Go constants are the source of truth: a role stamped by the server
+  // but missing here renders as a generic "Leg" badge.
+  it("knows every leg role the server declares", () => {
+    const dir = fileURLToPath(new URL("../../../server/internal/service/", import.meta.url));
+    const roles = readdirSync(dir)
+      .filter((f) => f.endsWith(".go") && !f.endsWith("_test.go"))
+      .flatMap((f) => [...readFileSync(dir + f, "utf8").matchAll(/\bLegRole\w+\s*=\s*"([^"]+)"/g)].map((m) => m[1]!));
+    expect(roles.length).toBeGreaterThan(10);
+    expect(roles.filter((role) => legRoleLabelKey(role) !== role)).toEqual([]);
   });
 
   // A newer backend can add a producer this client has never heard of. The

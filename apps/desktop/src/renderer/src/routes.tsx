@@ -32,7 +32,8 @@ import {
   ChooseCreateMethodPage,
   ManualCreateAgentPage,
 } from "@multica/views/agents";
-import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@multica/views/squads/components";
+import { SquadsPage } from "@multica/views/squads/components";
+import { SquadDetailPage } from "./pages/squad-detail-page";
 import { InboxPage } from "@multica/views/inbox";
 import { TriagePage } from "@multica/views/triage";
 import { RunsPage } from "@multica/views/runs";
@@ -259,7 +260,7 @@ export const appRoutes: RouteObject[] = [
           { path: "squads", element: <SquadsPage />, handle: { title: "Squads" } },
           {
             path: "squads/:id",
-            element: <SquadDetailPageView />,
+            element: <SquadDetailPage />,
             handle: { title: "Squad" },
           },
           { path: "inbox", element: <InboxPage />, handle: { title: "Inbox" } },

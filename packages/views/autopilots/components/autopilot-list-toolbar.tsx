@@ -294,22 +294,6 @@ export function AutopilotListToolbar({
                     {t(($) => $.toolbar.filter_label)}
                   </span>
                 )}
-                {hasActiveFilters && (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label={t(($) => $.toolbar.clear_filters)}
-                    className="-mr-1 ml-0.5 hidden rounded-sm p-0.5 hover:bg-white/20 md:inline-flex"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onClearFilters();
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <X className="size-3" />
-                  </span>
-                )}
               </Button>
             }
           />
@@ -447,6 +431,19 @@ export function AutopilotListToolbar({
             </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* A sibling, not a child of the trigger: nothing nested inside a
+            native <button> is reachable from the keyboard. */}
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t(($) => $.toolbar.clear_filters)}
+            className="text-muted-foreground"
+            onClick={() => onClearFilters()}
+          >
+            <X className="size-3.5" />
+          </Button>
+        )}
 
         {/* Display settings — same paradigm as skills: sort select +
             direction toggle + column switches, mutating the same store the

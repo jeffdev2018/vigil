@@ -38,7 +38,7 @@ vi.mock("@tanstack/react-query", () => ({
     }
     if (key === "org-templates") return { data: state.templates, isPending: false };
     if (key === "org-health") return { data: state.health, isPending: false };
-    if (key === "org-preflight") return { data: { model: "hierarchy", pattern: "manager → workers", coordination_runs_per_issue: 2, coordination_cost_usd_ticks_per_issue: 1_500_000, human_review_items_per_issue: 1, human_review_seconds_per_issue: 90, units: 2, units_without_owner: 0, agents: 3, activation_requirements: [] } };
+    if (key === "org-preflight") return { data: { model: "hierarchy", pattern: "manager → workers", coordination_runs_per_issue: 2, coordination_cost_usd_ticks_per_issue: 15_000_000_000, human_review_items_per_issue: 1, human_review_seconds_per_issue: 90, units: 2, units_without_owner: 0, agents: 3, activation_requirements: [] } };
     if (key === "agents") return { data: [{ id: "a-1", name: "Mika", trust_mode: "approval" }, { id: "a-2", name: "Nia", trust_mode: "approval" }, { id: "a-3", name: "Sol", trust_mode: "approval" }] };
     if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner" }], isLoading: false };
     if (key === "projects") return { data: [{ id: "p-1", title: "Apollo" }], isLoading: false };
@@ -281,7 +281,7 @@ describe("OrgPage", () => {
     state.structures = [structure({ id: "s", status: "active" })];
     state.health = {
       structure_id: "s", window_days: 7, routed: 12, unrouted: 1, escalations: 2, stacked_escalations: 0, reassigned_outside: 1, market_short: 0, breakers: 0, human_review_items: 3, drift_rate: 0.25,
-      units: [{ unit_id: "dev", name: "Dev", routed: 10, escalations: 2, reassigned_outside: 1, vacant_roles: ["reviewer"], saturated_agents: ["a-1"], paused: false, spend_usd_ticks: 2_000_000, budget_usd_ticks: 5_000_000, human_review_items: 1 }],
+      units: [{ unit_id: "dev", name: "Dev", routed: 10, escalations: 2, reassigned_outside: 1, vacant_roles: ["reviewer"], saturated_agents: ["a-1"], paused: false, spend_usd_ticks: 20_000_000_000, budget_usd_ticks: 50_000_000_000, human_review_items: 1 }],
       proposals: [{ key: "vacant-dev", unit_id: "dev", title: "Fill the reviewer role", body: "Dev has had no reviewer for 7 days.", measure: "vacant_roles = 0" }],
     };
     renderWithI18n(<OrgPage />);

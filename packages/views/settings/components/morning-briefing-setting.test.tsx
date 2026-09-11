@@ -42,4 +42,23 @@ describe("MorningBriefingSetting channels", () => {
     const settings = state.update.mock.calls.at(-1)![1].settings as { morning_briefing: { channels: unknown } };
     expect(settings.morning_briefing.channels).toEqual([{ type: "slack", chat_id: "C0123" }, { type: "telegram", chat_id: "-1001" }]);
   });
+
+  // Regression: a workspace:updated patch changes the prop without a remount.
+  // The buffered hour kept 8 and a blur wrote it over the other admin's 10.
+  it("follows an hour changed elsewhere and does not write it back on blur", () => {
+    state.update.mockReset();
+    const qc = new QueryClient();
+    const at = (hour: number) => ({ id: "ws-1", settings: { morning_briefing: { enabled: true, hour, timezone: "UTC", channels: [] } } }) as unknown as Workspace;
+    const ui = (ws: Workspace) => (
+      <QueryClientProvider client={qc}>
+        <MorningBriefingSetting workspace={ws} canEdit />
+      </QueryClientProvider>
+    );
+    const { rerender } = renderWithI18n(ui(at(8)));
+    rerender(ui(at(10)));
+    const input = screen.getByRole("spinbutton");
+    expect(input).toHaveValue(10);
+    fireEvent.blur(input);
+    expect(state.update).not.toHaveBeenCalled();
+  });
 });

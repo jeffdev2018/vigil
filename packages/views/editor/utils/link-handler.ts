@@ -260,8 +260,10 @@ export function openLink(
   appOrigin?: string | null,
   intent: LinkClickIntent = "push",
 ): void {
+  // A relative href resolves through the URL parser, not a prefix test:
+  // `//host/x` and `/\host/x` start with a slash and still name another host.
   const internalPath = href.startsWith("/")
-    ? href
+    ? toSameOriginPath(href, appOrigin)
     : toInternalAppPath(href, appOrigin);
   if (internalPath) {
     let path = internalPath;

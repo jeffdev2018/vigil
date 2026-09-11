@@ -653,6 +653,18 @@ describe("AgentTranscriptDialog", () => {
     expect(container.querySelector(".bg-success\\/10")).toBeNull();
   });
 
+  // Regression: the inspector title only knew thinking and fell back to
+  // "Error", so a successful response opened under an error heading.
+  it("titles the inspector with the step's own kind", () => {
+    renderDialog([{ seq: 1, type: "response", content: "Final answer" }]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Response/ }));
+
+    const inspector = within(screen.getByRole("complementary"));
+    expect(inspector.getAllByText("Response").length).toBeGreaterThan(0);
+    expect(inspector.queryByText("Error")).not.toBeInTheDocument();
+  });
+
   it("clamps a long body behind the show-all affordance", () => {
     const content = Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n");
     const { container } = renderDialog([

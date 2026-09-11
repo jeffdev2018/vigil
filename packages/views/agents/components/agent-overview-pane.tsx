@@ -463,7 +463,12 @@ export function AgentOverviewPane({
                   </h2>
                 </header>
 
-                <div className="mt-6">
+                {/* Keyed by agent: the editors buffer their fields from the
+                    agent they mounted with, and this pane stays mounted when
+                    the route moves to another agent (one router serves every
+                    desktop tab). Without a remount, Save would write the
+                    previous agent's fields onto the new one. */}
+                <div className="mt-6" key={agent.id}>
                   {effectiveView === "instructions" && (
                     <InstructionsTab
                       agent={agent}
