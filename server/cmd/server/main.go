@@ -805,8 +805,6 @@ func main() {
 		slog.Error("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
 		os.Exit(1)
 	}
-	// Decision SLA (K35): overdue Decision Cards step to their substitute,
-	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.SkillMinerJob(pool, h.MineSkills)); err != nil {
 		slog.Error("scheduler: failed to register skill_miner job", "error", err)
 		os.Exit(1)
@@ -815,8 +813,6 @@ func main() {
 		slog.Error("scheduler: failed to register watchdog_scan job", "error", err)
 		os.Exit(1)
 	}
-	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
-	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
 	if err := schedulerMgr.Register(scheduler.IssueRecurrenceTickJob(h.TickIssueRecurrences)); err != nil {
 		slog.Error("scheduler: register issue recurrence tick job failed", "error", err)
 		os.Exit(1)
@@ -829,6 +825,8 @@ func main() {
 		slog.Error("scheduler: register calendar reminder job failed", "error", err)
 		os.Exit(1)
 	}
+	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
+	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
 	if err := schedulerMgr.Register(scheduler.NativeAgentTickJob(h.NativeAgents.Tick)); err != nil {
 		slog.Error("scheduler: failed to register native_agent_tick job", "error", err)
 		os.Exit(1)
@@ -872,6 +870,8 @@ func main() {
 		slog.Error("scheduler: failed to register mcp_binding_review job", "error", err)
 		os.Exit(1)
 	}
+	// Decision SLA (K35): overdue Decision Cards step to their substitute,
+	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
 		slog.Error("scheduler: failed to register decision_sla_escalation job", "error", err)
 		os.Exit(1)
