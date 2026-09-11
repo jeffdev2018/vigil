@@ -1,0 +1,34 @@
+---
+title: 将来の進化 — Agent2Agent 相互運用
+description: オープンな Agent2Agent プロトコルによるアプリ間エージェント連携の将来方向。現行の Multica ランタイム経路は変えません。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="warn">
+このページは**将来の進化**であり、出荷済み機能ではありません。Multica はまだオープンな Agent2Agent プロトコルを話していません。実装コミットや API 契約として扱わないでください。
+</Callout>
+
+## なぜ必要か
+
+チームは、同一 issue 上の Multica エージェント同士だけでなく、**別アプリのエージェント**同士の連携を必要とします。[Agent2Agent (A2A)](https://a2a-protocol.org/latest/) とその公式 CLI（[`a2a-cli`](https://github.com/a2aproject/a2a-cli)）がその相互運用の業界方向です。
+
+Multica の賭けは、**統治付きオーケストレータ**（ワークスペース、originator、depth/budget、issue 監査）であり続け、実在の外部パートナーが現れたときにプロトコルゲートウェイを足すことです。早期に CLI を製品依存にはしません。
+
+## 名称の衝突：二つの「A2A」
+
+| 今日の Multica | オープン Agent2Agent |
+| --- | --- |
+| issue 上の内部エージェント間メッセージ | agent card 経由の HTTP（JSON-RPC / REST / gRPC） |
+| ローカル daemon がコーディング CLI を起動 | URL + card で指すリモートエージェント |
+
+内部経路の新規ドキュメントでは **agent message** / **delegation** など製品語を優先し、プロトコルと混同しないようにします。
+
+## 段階
+
+1. **今** — 内部メッセージを堅牢に；プロトコルを監視；製品依存なし。
+2. **最初の実外部エージェント** — 既存ゲート背後の Go SDK 出方向；翻訳レイヤ；smoke 専用の `a2a-cli`。
+3. **入方向** — 任意の Multica agent card + 認証。
+4. **エコシステム** — 実証後のカタログ。
+
+詳細（英語）: [Future evolution — Agent2Agent interop](/developers/future-agent2agent) · リポジトリ: `docs/research/future-agent2agent-interop-2026-09-11.md`

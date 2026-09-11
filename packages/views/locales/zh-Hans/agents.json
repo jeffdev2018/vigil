@@ -1341,6 +1341,7 @@
       "handoff": "交接",
       "cost": "成本",
       "audit": "审计",
+      "mcp_call": "MCP 调用",
       "unknown": "事件"
     },
     "relations": {
@@ -1364,5 +1365,19 @@
     "safe_hint": "安全模式会保留所有 Multica 写入等待你批准，并要求智能体描述外部操作而不是执行；保留的负载就是证据。",
     "safe_started": "安全回放已启动",
     "safe_failed": "无法启动安全回放"
+  },
+  "mcp_calls": {
+    "button": "本运行的 MCP 调用",
+    "dialog_title": "MCP 调用",
+    "panel_title": "{{n}} 次 MCP 调用",
+    "so_far": "{{n}} 次 MCP 调用",
+    "loading": "正在加载 MCP 调用…",
+    "error": "无法加载 MCP 调用。",
+    "empty": "此运行没有记录的 MCP 调用。",
+    "col_tool": "工具",
+    "col_class": "类别",
+    "col_result": "结果",
+    "col_gate": "门控",
+    "col_ms": "耗时"
   }
 }

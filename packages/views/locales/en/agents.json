@@ -1363,6 +1363,7 @@
       "handoff": "Handoff",
       "cost": "Cost",
       "audit": "Audit",
+      "mcp_call": "MCP call",
       "unknown": "Event"
     },
     "relations": {
@@ -1386,5 +1387,19 @@
     "safe_hint": "Safe mode holds every Multica write for your approval and asks the agent to describe external actions instead of doing them; the held payloads are the proof.",
     "safe_started": "Safe replay started",
     "safe_failed": "Could not start the safe replay"
+  },
+  "mcp_calls": {
+    "button": "MCP calls in this run",
+    "dialog_title": "MCP calls",
+    "panel_title": "{{n}} MCP calls",
+    "so_far": "{{n}} MCP calls",
+    "loading": "Loading MCP calls…",
+    "error": "Could not load MCP calls.",
+    "empty": "No MCP calls recorded for this run.",
+    "col_tool": "Tool",
+    "col_class": "Class",
+    "col_result": "Result",
+    "col_gate": "Gate",
+    "col_ms": "Duration"
   }
 }

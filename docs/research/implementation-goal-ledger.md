@@ -23,6 +23,7 @@ Objectif utilisateur : terminer les améliorations, la mémoire et les fonctionn
 | Surfaces orientées décision, dont mobile | Partiel : décisions + livraison mobile v1.5 | Inbox Décisions + accept/corriger sur fiche ; checklist [mobile-delivery-smoke-checklist-2026-09-07.md](mobile-delivery-smoke-checklist-2026-09-07.md) ; tests mobile delivery 6/6 + capture honesty 390px ; **simu iOS bloquée** (pas de Xcode/`simctl`) — [mobile-delivery-smoke-pilot-2026-09-07.md](mobile-delivery-smoke-pilot-2026-09-07.md) |
 | Qualité et intégration globales | Partiel vérifié | Build/typecheck/core/handler/smoke OK ; sidebar-resize flake **fixé** ; PW post-login exigait `--hostname 127.0.0.1` ([quality-pw-sidebar-diag-2026-09-08.md](quality-pw-sidebar-diag-2026-09-08.md)) ; reste suite e2e complète + mobile sim. |
 | Recherche de LA killer feature | **Plafond dogfood #1** | Équipe #1 = Jeff/vigil-482 seulement. **Non clos commercialement** (seuil ≥2 équipes externes) — bloqué outreach humain ; sim Northline ≠ preuve. |
+| Interop Agent2Agent (cross-app) | **Évolution future** (non démarré) | Destination stratégique documentée ([future-agent2agent-interop-2026-09-11.md](future-agent2agent-interop-2026-09-11.md) + docs developers) ; pas de dépendance `a2a-cli` ; démarrage Phase 1 seulement avec partenaire A2A réel |
 
 ## Ordre de travail
 
@@ -381,3 +382,17 @@ Push `55bdb4955`. Views : 4900/4901 (flake sidebar-resize). PW beyond-smoke issu
 ### 8 septembre — diag PW/sidebar + vague 3 + plafonds ledger
 
 Sidebar spy happy-dom fixé. PW issues OK après Next `--hostname 127.0.0.1`. Vague 3 `rift-2` 2+2. Ledger : fermeture honnête des cases qui n’auront jamais facture fournisseur / apprentissage autonome / USD fournisseur ; killer-feature reste plafond dogfood #1.
+
+### 11 septembre — évolution future Agent2Agent (cross-app)
+
+Note stratégique : interop agents d’apps différentes via le protocole ouvert Agent2Agent. Homonymie documentée (A2A interne Multica ≠ protocole). Phases 0→3, critères de démarrage Phase 1, non-objectifs. Docs : [future-agent2agent-interop-2026-09-11.md](future-agent2agent-interop-2026-09-11.md) + `apps/docs/.../future-agent2agent.mdx`. Linear : à créer (MCP Linear non authentifié dans la session d’écriture).
+
+### 11 septembre — kokpit patterns (Scenario → ADR-lite → finish-first)
+
+- Scenario skill PoC + dogfood daemon/LLM : [scenario-skill-poc/](scenario-skill-poc/) (`multica-plan-verification`, DEV-27/30).
+- ADR-lite MCP gateway : [adr-lite-mcp-gateway-2026-09-11.md](adr-lite-mcp-gateway-2026-09-11.md) + tests abuse `TestMcpGatewayAbuseTable` / `TestGateParamPathsAbuse` ; UI list `GET /api/tasks/{id}/mcp-calls` + panel replay/execution log.
+- Soft skills : builtin `multica-finish-first` + Workspine-lite `references/workspine.md` ; router platform `references/finish-first.md`.
+- Dogfood live 2026-09-11 : ADR `go test` abuse **PASS** ; finish-first/Workspine **DEV-31** Claude completed (~1m21s), fichier `.multica/plans/DEV-31.md`, `children=0`, commentaire path (leg Codex review failed = quota, hors scope).
+- Latitude-lite : [latitude-traces-replay-2026-09-11.md](latitude-traces-replay-2026-09-11.md) — mapping traces→retry/resume/simulate, **pas** d’install Latitude.
+- Nodeterm/Claw : skip.
+

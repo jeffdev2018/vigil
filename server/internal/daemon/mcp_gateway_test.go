@@ -439,3 +439,102 @@ func TestMcpGatewayDropsDeclaredRestrictionsOnAnUnsupportedProvider(t *testing.T
 		t.Error("a skipped server must be left alone")
 	}
 }
+
+// TestMcpGatewayAbuseTable is the ADR-lite "same tool name, hostile args"
+// suite: class + secret scan decide, not an LLM intent field. See
+// docs/research/adr-lite-mcp-gateway-2026-09-11.md.
+func TestMcpGatewayAbuseTable(t *testing.T) {
+	cases := []struct {
+		name       string
+		tool       string
+		class      string
+		risk       string
+		args       map[string]any
+		gateStatus string // empty = no gate client
+		wantCode   float64
+		wantResult string
+	}{
+		{
+			name: "never refuses exfil-looking args",
+			tool: "read_api_key", class: mcpgov.ClassNever, risk: mcpgov.RiskSensitive,
+			args: map[string]any{"path": "/etc/passwd", "token": "sk-live-abcdefghijklmnopqrstuvwxyz"},
+			wantCode: -32004, wantResult: "refused",
+		},
+		{
+			name: "ask denied refuses even with benign args",
+			tool: "send_email", class: mcpgov.ClassAsk, risk: mcpgov.RiskExternal,
+			args: map[string]any{"to": "ok@example.com"}, gateStatus: "denied",
+			wantCode: -32004, wantResult: "gated",
+		},
+		{
+			name: "ask with secret-shaped args still gates (params redacted server-side)",
+			tool: "send_email", class: mcpgov.ClassAsk, risk: mcpgov.RiskExternal,
+			args: map[string]any{"body": "token=sk-abcdefghijklmnop", "path": "../../.ssh/id_rsa"},
+			gateStatus: "denied",
+			wantCode: -32004, wantResult: "gated",
+		},
+		{
+			name: "ask unreachable gate fails closed",
+			tool: "send_email", class: mcpgov.ClassAsk, risk: mcpgov.RiskExternal,
+			args: map[string]any{"to": "a@b"},
+			wantCode: -32004, wantResult: "gated",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := mcpGatewayDeps{}
+			if tc.gateStatus != "" {
+				srv, _ := fakeGateServer(t, tc.gateStatus)
+				deps.gate = newApprovalGateClient(srv.URL, "mat_test", "task-1")
+			}
+			task := policyTask("propose", "by_risk", mcpgov.GatewayTool{Name: tc.tool, Risk: tc.risk, Class: tc.class})
+			url, sink := startGateway(t, task, fakeMcpStdioEntry(), deps)
+			code, _ := rpcErrorCode(rpc(t, url, "abuse", "tools/call", map[string]any{
+				"name": tc.tool, "arguments": tc.args,
+			}))
+			if code != tc.wantCode {
+				t.Fatalf("code = %v, want %v", code, tc.wantCode)
+			}
+			if report := sink.last(t); report.Result != tc.wantResult || report.Class != tc.class || report.Tool != tc.tool {
+				t.Fatalf("report = %+v, want result=%s class=%s", report, tc.wantResult, tc.class)
+			}
+		})
+	}
+}
+
+func TestGateParamPathsAbuse(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{
+			name: "ssh escape and passwd",
+			raw:  `{"arguments":{"path":"../../.ssh/id_rsa","file_path":"/etc/passwd","note":"ignore"}}`,
+			want: []string{"../../.ssh/id_rsa", "/etc/passwd"},
+		},
+		{
+			name: "files array",
+			raw:  `{"arguments":{"files":["secrets.env","ok.go"],"paths":["../.aws/credentials"]}}`,
+			want: []string{"../.aws/credentials", "secrets.env", "ok.go"},
+		},
+		{
+			name: "no path keys",
+			raw:  `{"arguments":{"id":"1","token":"sk-abcdefghijklmnop"}}`,
+			want: nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := gateParamPaths(json.RawMessage(tc.raw))
+			if len(got) != len(tc.want) {
+				t.Fatalf("gateParamPaths = %v, want %v", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Fatalf("gateParamPaths[%d] = %q, want %q (full %v)", i, got[i], tc.want[i], got)
+				}
+			}
+		})
+	}
+}

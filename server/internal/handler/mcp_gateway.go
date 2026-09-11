@@ -471,6 +471,65 @@ func (h *Handler) ReportMcpCall(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"recorded": true})
 }
 
+// TaskMcpCall is one governed MCP call attributed to a run (audit action
+// run.mcp_tool_call). Fields match the daemon report surface used by the
+// run UI panel: tool · class · result · gate_id.
+type TaskMcpCall struct {
+	ID         string   `json:"id"`
+	At         string   `json:"at"`
+	Server     string   `json:"server"`
+	Tool       string   `json:"tool"`
+	Risk       string   `json:"risk"`
+	Class      string   `json:"class"`
+	Result     string   `json:"result"`
+	GateID     string   `json:"gate_id"`
+	DurationMs int64    `json:"duration_ms"`
+	Flags      []string `json:"flags"`
+}
+
+// ListTaskMcpCalls: GET /api/tasks/{taskId}/mcp-calls — chronological list of
+// governed MCP calls for the run UI (and ops), without loading the full replay.
+func (h *Handler) ListTaskMcpCalls(w http.ResponseWriter, r *http.Request) {
+	task, wsID, ok := h.runReplayTask(w, r)
+	if !ok {
+		return
+	}
+	entries, err := h.Queries.ListAuditLogEntries(r.Context(), db.ListAuditLogEntriesParams{
+		WorkspaceID: wsID,
+		EntityID:    task.ID,
+		Action:      pgtype.Text{String: AuditMcpToolCall, Valid: true},
+		PageSize:    200,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list mcp calls")
+		return
+	}
+	calls := make([]TaskMcpCall, 0, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		a := entries[i]
+		var d struct {
+			Server     string   `json:"server"`
+			Tool       string   `json:"tool"`
+			Risk       string   `json:"risk"`
+			Class      string   `json:"class"`
+			Result     string   `json:"result"`
+			GateID     string   `json:"gate_id"`
+			DurationMs int64    `json:"duration_ms"`
+			Flags      []string `json:"flags"`
+		}
+		_ = json.Unmarshal(a.Details, &d)
+		if d.Flags == nil {
+			d.Flags = []string{}
+		}
+		calls = append(calls, TaskMcpCall{
+			ID: uuidToString(a.ID), At: a.OccurredAt.Time.UTC().Format(time.RFC3339Nano),
+			Server: d.Server, Tool: d.Tool, Risk: d.Risk, Class: d.Class, Result: d.Result,
+			GateID: d.GateID, DurationMs: d.DurationMs, Flags: d.Flags,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"calls": calls, "total": len(calls)})
+}
+
 func (h *Handler) mcpAlert(ctx context.Context, wsID, recipient, issueID pgtype.UUID, title, body string, details map[string]any) {
 	raw, _ := json.Marshal(details)
 	item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{

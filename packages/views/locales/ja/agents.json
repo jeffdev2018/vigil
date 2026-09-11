@@ -1341,6 +1341,7 @@
       "handoff": "引き継ぎ",
       "cost": "コスト",
       "audit": "監査",
+      "mcp_call": "MCP 呼び出し",
       "unknown": "イベント"
     },
     "relations": {
@@ -1364,5 +1365,19 @@
     "safe_hint": "セーフモードでは Multica への書き込みをすべて承認待ちにし、外部アクションは実行せず説明するようエージェントに求めます。保留された payload が証拠になります。",
     "safe_started": "セーフ再生を開始しました",
     "safe_failed": "セーフ再生を開始できませんでした"
+  },
+  "mcp_calls": {
+    "button": "この実行の MCP 呼び出し",
+    "dialog_title": "MCP 呼び出し",
+    "panel_title": "MCP 呼び出し {{n}} 件",
+    "so_far": "MCP 呼び出し {{n}} 件",
+    "loading": "MCP 呼び出しを読み込み中…",
+    "error": "MCP 呼び出しを読み込めませんでした。",
+    "empty": "この実行に記録された MCP 呼び出しはありません。",
+    "col_tool": "ツール",
+    "col_class": "クラス",
+    "col_result": "結果",
+    "col_gate": "ゲート",
+    "col_ms": "所要時間"
   }
 }

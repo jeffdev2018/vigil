@@ -1,0 +1,34 @@
+---
+title: 향후 진화 — Agent2Agent 상호운용
+description: 개방형 Agent2Agent 프로토콜을 통한 앱 간 에이전트 협업의 향후 방향. 현재 Multica 런타임 경로는 바꾸지 않습니다.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="warn">
+이 페이지는 **향후 진화**이며 출시된 기능이 아닙니다. Multica는 아직 개방형 Agent2Agent 프로토콜을 말하지 않습니다. 구현 약속이나 API 계약으로 취급하지 마세요.
+</Callout>
+
+## 왜 필요한가
+
+팀은 같은 이슈 위의 Multica 에이전트뿐 아니라 **다른 앱의 에이전트**와도 협업해야 합니다. [Agent2Agent (A2A)](https://a2a-protocol.org/latest/)와 공식 CLI([`a2a-cli`](https://github.com/a2aproject/a2a-cli))가 그 상호운용 방향입니다.
+
+Multica의 포지션은 **거버넌스가 있는 오케스트레이터**(워크스페이스, originator, depth/budget, 이슈 감사)로 남고, 실제 외부 파트너가 생길 때 프로토콜 게이트웨이를 더하는 것입니다. CLI를 제품 의존성으로 일찍 채택하지 않습니다.
+
+## 이름 충돌: 두 가지 「A2A」
+
+| 오늘의 Multica | 개방형 Agent2Agent |
+| --- | --- |
+| 이슈 위 내부 에이전트→에이전트 메시지 | agent card 기반 HTTP (JSON-RPC / REST / gRPC) |
+| 로컬 daemon이 코딩 CLI 실행 | URL + card로 주소 지정되는 원격 에이전트 |
+
+내부 경로 문서에서는 **agent message** / **delegation** 등 제품 용어를 우선해 프로토콜과 혼동하지 않습니다.
+
+## 단계
+
+1. **지금** — 내부 메시지 강화; 프로토콜 관찰; 제품 의존 없음.
+2. **첫 실제 외부 에이전트** — 기존 게이트 뒤 Go SDK outbound; 변환 계층; smoke 전용 `a2a-cli`.
+3. **inbound** — 선택적 Multica agent card + 인증.
+4. **생태계** — 검증 후 카탈로그.
+
+상세(영어): [Future evolution — Agent2Agent interop](/developers/future-agent2agent) · 저장소: `docs/research/future-agent2agent-interop-2026-09-11.md`

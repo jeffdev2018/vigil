@@ -1,0 +1,60 @@
+---
+title: Future evolution — Agent2Agent interop
+description: Planned direction for cross-app agent-to-agent collaboration via the open Agent2Agent protocol, without changing today's Multica runtime loop.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="warn">
+This page describes a **future evolution**, not a shipped feature. Multica does not speak the open Agent2Agent protocol yet. Do not treat this as an implementation commitment or API contract.
+</Callout>
+
+## Why this exists
+
+Teams will need agents in **different apps** to collaborate — not only Multica agents talking to each other on the same issue. The open [Agent2Agent (A2A) protocol](https://a2a-protocol.org/latest/) and its official CLI ([`a2a-cli`](https://github.com/a2aproject/a2a-cli)) are the industry direction for that interop.
+
+Multica's bet: remain the **governed orchestrator** (workspace, originator, depth/budget, issue audit) and add a protocol gateway when a real external partner appears — not adopt the CLI as a product dependency early.
+
+## Name collision: two different "A2A"s
+
+| Today in Multica | Open Agent2Agent protocol |
+| --- | --- |
+| Internal agent→agent messaging on an issue (`agent-messages`, intents `question` / `review` / `handoff`, `a2a_depth`, per-issue budget) | HTTP discovery + messaging via agent cards (JSON-RPC / REST / gRPC) |
+| Local daemon spawning coding CLIs | Remote agents addressed by URL + card |
+
+Prefer product language such as **agent message** or **delegation** for the internal path when writing new docs or skills, so it is not confused with the protocol.
+
+## What we keep
+
+Internal agent messaging and its circuit breakers stay. Cross-app hops must map onto the same policy:
+
+- Closed intents and live-run caller checks
+- Max hop depth and per-issue A2A budget
+- Access judged by the **top-of-chain human originator**
+- Durable trail on the issue (comments / runs)
+
+## What we do not do yet
+
+- Ship or depend on `a2a-cli` in the product path (operator smoke only, later)
+- Expose Multica agent cards or A2A server endpoints
+- Replace local runtimes with remote A2A agents
+
+## Phased approach
+
+1. **Now** — Keep internal messaging solid; watch the protocol (still early, e.g. CLI v0.2); no product dependency.
+2. **First real external agent** — Outbound client via Go SDK behind existing gates; translate external A2A messages ↔ Multica comments/tasks; use `a2a-cli` only for smoke.
+3. **Inbound** — Optional Multica agent card + auth (workspace tokens / OIDC / mTLS) so other apps can call us under the same gates.
+4. **Ecosystem** — Partner catalog / marketplace once inbound and outbound are proven.
+
+## Start criteria for phase 2
+
+- A concrete external agent with a stable A2A card
+- A clear product path (result visible on a Multica issue)
+- A documented trust/auth model
+
+## Related
+
+- [Project architecture](/developers/architecture) — current runtime loop
+- Research note (repo): `docs/research/future-agent2agent-interop-2026-09-11.md`
+- Protocol: [a2a-protocol.org](https://a2a-protocol.org/latest/)
+- CLI: [github.com/a2aproject/a2a-cli](https://github.com/a2aproject/a2a-cli)

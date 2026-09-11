@@ -134,6 +134,7 @@ export function useSimulateTaskReplay(wsId: string, taskId: string) {
 
 export interface ReplayCounts {
   tool_calls: number;
+  mcp_calls: number;
   effects: number;
   decisions: number;
   steers: number;
@@ -145,11 +146,12 @@ export interface ReplayCounts {
 
 /** What happened up to and including position `seq` (inclusive index into events). */
 export function replayCountsUpTo(events: ReplayEvent[], seq: number): ReplayCounts {
-  const c: ReplayCounts = { tool_calls: 0, effects: 0, decisions: 0, steers: 0, errors: 0, handoffs: 0, drift: 0, redacted: 0 };
+  const c: ReplayCounts = { tool_calls: 0, mcp_calls: 0, effects: 0, decisions: 0, steers: 0, errors: 0, handoffs: 0, drift: 0, redacted: 0 };
   for (const e of events.slice(0, Math.max(0, seq + 1))) {
     if (e.data_class === "confidential") c.redacted += 1;
     if (e.in_plan === false) c.drift += 1;
     if (e.kind === "tool_use") c.tool_calls += 1;
+    else if (e.kind === "mcp_call") c.mcp_calls += 1;
     else if (e.kind === "effect") c.effects += 1;
     else if (e.kind === "decision_asked") c.decisions += 1;
     else if (e.kind === "steer") c.steers += 1;

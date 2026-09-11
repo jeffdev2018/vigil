@@ -458,6 +458,7 @@ import {
   TrustModeEnvelopeSchema,
   EffectModeEnvelopeSchema,
   RunReplaySchema,
+  TaskMcpCallsListSchema,
   WorkflowLegsSchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
@@ -4927,6 +4928,17 @@ export class ApiClient {
     return parseWithFallback(raw, OrgStructureListSchema, { structures: [] }, { endpoint: "GET /api/org" }).structures as import("../types").OrgStructure[];
   }
 
+  async simulateOrg(body: import("../types").OrgSimulationRequest): Promise<import("../types").OrgSimulation> {
+    const raw = await this.fetch<unknown>("/api/org/simulate", { method: "POST", body: JSON.stringify(body) });
+    const parsed = parseWithFallback<import("../types").OrgSimulation | null>(raw, OrgSimulationSchema, null, {
+      endpoint: "POST /api/org/simulate",
+    });
+    // An empty fallback would read as a real answer ("nobody takes this"),
+    // which is worse than no answer: this result is shown to a person.
+    if (!parsed) throw new Error("POST /api/org/simulate returned a malformed simulation");
+    return parsed;
+  }
+
   async resolveOrgStructure(projectId?: string | null): Promise<import("../types").OrgStructure | null> {
     const search = new URLSearchParams();
     if (projectId) search.set("project_id", projectId);
@@ -5526,6 +5538,12 @@ export class ApiClient {
       run: { id: taskId, safe_mode: false, snapshot: null, plan: null, drift: 0, issue_id: "", agent_id: "", agent_name: "", status: "", trust_mode: "", effect_mode: "", model: "", created_at: null, started_at: null, completed_at: null, links: [] },
       events: [], total: 0, next_cursor: null, head_hash: "", cost: { input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }, sealed: null,
     }, { endpoint: "GET /api/tasks/:id/replay" });
+  }
+
+  /** Governed MCP calls attributed to the run (audit run.mcp_tool_call). */
+  async listTaskMcpCalls(taskId: string): Promise<{ calls: import("../issues/mcp-calls").TaskMcpCall[]; total: number }> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/mcp-calls`);
+    return parseWithFallback(raw, TaskMcpCallsListSchema, { calls: [], total: 0 }, { endpoint: "GET /api/tasks/:id/mcp-calls" });
   }
 
   async simulateTaskReplay(taskId: string): Promise<import("../issues/run-replay").ReplaySimulateResult> {

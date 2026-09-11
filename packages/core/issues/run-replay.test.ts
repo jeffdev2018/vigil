@@ -47,10 +47,11 @@ describe("run replay", () => {
 
   it("counts what happened up to a position and knows when a run can be resumed", () => {
     const events = [ev(0, "text"), ev(1, "tool_use"), ev(2, "effect"), ev(3, "steer"), ev(4, "decision_asked"), ev(5, "handoff"), ev(6, "error")];
-    expect(replayCountsUpTo(events, 2)).toEqual({ tool_calls: 1, effects: 1, decisions: 0, steers: 0, errors: 0, handoffs: 0, drift: 0, redacted: 0 });
-    expect(replayCountsUpTo(events, 6)).toEqual({ tool_calls: 1, effects: 1, decisions: 1, steers: 1, errors: 1, handoffs: 1, drift: 0, redacted: 0 });
+    expect(replayCountsUpTo(events, 2)).toEqual({ tool_calls: 1, mcp_calls: 0, effects: 1, decisions: 0, steers: 0, errors: 0, handoffs: 0, drift: 0, redacted: 0 });
+    expect(replayCountsUpTo(events, 6)).toEqual({ tool_calls: 1, mcp_calls: 0, effects: 1, decisions: 1, steers: 1, errors: 1, handoffs: 1, drift: 0, redacted: 0 });
     const flagged = [ev(0, "text", { data_class: "confidential" }), ev(1, "tool_use", { in_plan: false }), ev(2, "tool_use", { in_plan: true })];
     expect(replayCountsUpTo(flagged, 2)).toMatchObject({ tool_calls: 2, drift: 1, redacted: 1 });
+    expect(replayCountsUpTo([ev(0, "mcp_call"), ev(1, "tool_use")], 1)).toMatchObject({ mcp_calls: 1, tool_calls: 1 });
     expect(replayCountsUpTo(events, -1).tool_calls).toBe(0);
     expect(replayResumable("running")).toBe(false);
     expect(replayResumable("completed")).toBe(true);

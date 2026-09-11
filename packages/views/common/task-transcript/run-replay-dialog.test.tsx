@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RunReplay, ReplayEvent } from "@multica/core/issues/run-replay";
 import { renderWithI18n } from "../../test/i18n";
@@ -48,7 +48,9 @@ describe("RunReplayDialog", () => {
   beforeEach(() => {
     state.replay = replay();
     state.resume.mockReset();
+    state.simulate.mockReset();
   });
+  afterEach(() => cleanup());
 
   it("opens on the last event, scrubs back through the chain and counts what happened so far", async () => {
     render();
@@ -75,10 +77,32 @@ describe("RunReplayDialog", () => {
     expect(state.resume).toHaveBeenCalledWith({ seq: 1, instruction: "Read the other file" }, expect.anything());
   });
 
+  it("shows the MCP calls panel when the film includes mcp_call events", async () => {
+    state.replay = replay({
+      events: [
+        ev(0, "text", { title: "Agent says", text: "Starting" }),
+        ev(1, "mcp_call", {
+          title: "MCP mail/send_email",
+          source_id: "a1",
+          data: { server: "mail", tool: "send_email", class: "ask", result: "success", gate_id: "g1", duration_ms: 12 },
+        }),
+        ev(2, "effect", { title: "Effect: issue_status" }),
+      ],
+      total: 3,
+    });
+    render();
+    await screen.findByTestId("replay-event");
+    expect(screen.getByTestId("replay-mcp-calls")).toBeTruthy();
+    expect(screen.getByTestId("mcp-calls-panel").textContent).toContain("mail/send_email");
+    expect(screen.getByTestId("mcp-calls-panel").textContent).toContain("ask");
+    expect(screen.getByTestId("mcp-calls-panel").textContent).toContain("g1");
+  });
+
   it("flags a broken seal and hides the resume form while the run is live", async () => {
     state.replay = replay({ run: { ...replay().run, status: "running" }, sealed: { events: 3, head_hash: "other", sealed_at: "x", verified: false } });
     render();
-    await screen.findByTestId("replay-event");
+    const card = await screen.findByTestId("replay-event");
+    expect(card.getAttribute("data-kind")).toBe("effect");
     expect(screen.getByTestId("replay-seal").getAttribute("data-state")).toBe("broken");
     expect(screen.queryByTestId("replay-resume")).toBeNull();
   });

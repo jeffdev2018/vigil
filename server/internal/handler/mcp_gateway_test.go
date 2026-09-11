@@ -166,6 +166,36 @@ func TestMcpGateway(t *testing.T) {
 	if dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE entity_id = $1 AND action = 'run.mcp_tool_call'`, taskID) != 3 {
 		t.Fatal("every call is an audit event of the run")
 	}
+	var listed struct {
+		Calls []TaskMcpCall `json:"calls"`
+		Total int           `json:"total"`
+	}
+	testutil.Call(t, testHandler.ListTaskMcpCalls, testutil.WithURLParams(
+		newRequest(http.MethodGet, "/api/tasks/"+taskID+"/mcp-calls", nil), "taskId", taskID)).Want(http.StatusOK).JSON(&listed)
+	if listed.Total != 3 || len(listed.Calls) != 3 {
+		t.Fatalf("list mcp-calls: %+v", listed)
+	}
+	if listed.Calls[0].Tool != "send_email" || listed.Calls[0].Class != "ask" || listed.Calls[0].Result != "success" || listed.Calls[0].GateID != "g1" {
+		t.Fatalf("first call fields: %+v", listed.Calls[0])
+	}
+	if listed.Calls[2].Tool != "read_api_key" || listed.Calls[2].Result != "refused" {
+		t.Fatalf("last call fields: %+v", listed.Calls[2])
+	}
+	var replay RunReplayResponse
+	testutil.Call(t, testHandler.GetTaskReplay, testutil.WithURLParams(
+		newRequest(http.MethodGet, "/api/tasks/"+taskID+"/replay", nil), "taskId", taskID)).Want(http.StatusOK).JSON(&replay)
+	mcpEvents := 0
+	for _, e := range replay.Events {
+		if e.Kind == "mcp_call" {
+			mcpEvents++
+			if e.Data["tool"] == nil || e.Data["class"] == nil || e.Data["result"] == nil {
+				t.Fatalf("mcp_call event missing fields: %+v", e)
+			}
+		}
+	}
+	if mcpEvents != 3 {
+		t.Fatalf("replay promotes mcp calls: %d of %d events", mcpEvents, len(replay.Events))
+	}
 	if dbfx.Count(t, `SELECT COUNT(*) FROM agent_mcp_server WHERE agent_id = $1 AND server_id = $2 AND tool_usage ? 'send_email'`, agent, serverID) != 1 {
 		t.Fatal("a successful call stamps the tool's usage on the binding")
 	}

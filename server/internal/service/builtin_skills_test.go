@@ -379,6 +379,7 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		"references/run-preview.md":            "run preview",
 		"references/spending.md":               "spend",
 		"references/racing.md":                 "racing",
+		"references/finish-first.md":           "finish-first",
 	}
 
 	skill, ok := findSkill(t, PlatformSkillName)
@@ -922,6 +923,40 @@ func TestWorkspaceBrainSkillMatchesTheInjectionContract(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("skill does not teach %q", want)
+		}
+	}
+}
+
+// TestFinishFirstSkillShipsWorkspineConvention pins the soft Mythos +
+// Workspine-lite pack: every agent gets finish-first, and the repo file
+// convention lives as a supporting reference (not a separate builtin).
+func TestFinishFirstSkillShipsWorkspineConvention(t *testing.T) {
+	skill, ok := findSkill(t, "multica-finish-first")
+	if !ok {
+		t.Fatal("multica-finish-first missing from universal builtins")
+	}
+	if named(loadBuiltinSkills(""), "multica-finish-first") == false {
+		t.Fatal("ordinary agents must receive multica-finish-first")
+	}
+	var hasWorkspine bool
+	for _, f := range skill.Files {
+		if f.Path == "references/workspine.md" {
+			hasWorkspine = true
+			if !strings.Contains(f.Content, ".multica/plans/") || !strings.Contains(f.Content, "docs/agent-plan/") {
+				t.Errorf("workspine reference missing layout paths:\n%s", f.Content)
+			}
+		}
+	}
+	if !hasWorkspine {
+		t.Fatal("multica-finish-first must ship references/workspine.md")
+	}
+	_, body, ok := splitFrontmatter(skill.Content)
+	if !ok {
+		t.Fatal("missing frontmatter")
+	}
+	for _, want := range []string{"Plan Gate", "ask-agent", "finish"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("finish-first body missing %q", want)
 		}
 	}
 }

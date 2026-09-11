@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 import { formatTokens, formatUsd } from "../../runtimes/utils";
+import { McpCallsFromReplay } from "./mcp-calls-panel";
 import { redactSecrets } from "./redact";
 
 /**
@@ -38,6 +39,7 @@ import { redactSecrets } from "./redact";
 const KIND_TONE: Record<string, string> = {
   tool_use: "bg-primary/10 text-primary",
   tool_result: "bg-muted text-muted-foreground",
+  mcp_call: "bg-primary/10 text-primary",
   effect: "bg-warning/15 text-warning",
   effect_reversed: "bg-destructive/10 text-destructive",
   error: "bg-destructive/10 text-destructive",
@@ -205,8 +207,11 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
               </span>
             </div>
 
+            <McpCallsFromReplay events={events} />
+
             <p data-testid="replay-so-far" className="text-muted-foreground">
               {t(($) => $.replay.so_far, { tools: counts.tool_calls, effects: counts.effects, decisions: counts.decisions, steers: counts.steers, handoffs: counts.handoffs })}
+              {counts.mcp_calls > 0 && <> · {t(($) => $.mcp_calls.so_far, { n: counts.mcp_calls })}</>}
               {data.run.plan && <> · {t(($) => $.replay.drift_total, { n: counts.drift })}</>}
             </p>
 

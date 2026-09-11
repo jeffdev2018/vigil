@@ -532,6 +532,29 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 		}
 		var details any
 		_ = json.Unmarshal(a.Details, &details)
+		// Governed MCP calls (K77) are first-class in the film: tool · class ·
+		// result · gate_id, not a generic audit row titled run.mcp_tool_call.
+		if a.Action == AuditMcpToolCall {
+			data := map[string]any{"action": a.Action, "audit_hash": a.Hash}
+			server, tool := "", ""
+			if m, ok := details.(map[string]any); ok {
+				for k, v := range m {
+					data[k] = v
+				}
+				server, _ = m["server"].(string)
+				tool, _ = m["tool"].(string)
+			}
+			title := "MCP"
+			switch {
+			case server != "" && tool != "":
+				title = fmt.Sprintf("MCP %s/%s", server, tool)
+			case tool != "":
+				title = "MCP " + tool
+			}
+			add(replayCandidate{at: a.OccurredAt.Time, order: 6, kind: "mcp_call", actor: ReplayActor{Type: a.ActorType, ID: uuidToString(a.ActorID)}, title: title,
+				data: data, source: "audit_log_entry", srcID: uuidToString(a.ID)})
+			continue
+		}
 		add(replayCandidate{at: a.OccurredAt.Time, order: 6, kind: "audit", actor: ReplayActor{Type: a.ActorType, ID: uuidToString(a.ActorID)}, title: a.Action,
 			data: map[string]any{"action": a.Action, "details": details, "audit_hash": a.Hash}, source: "audit_log_entry", srcID: uuidToString(a.ID)})
 	}

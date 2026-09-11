@@ -5839,6 +5839,25 @@ export const RunReplaySchema = z.object({
   }).loose().nullable().catch(null).default(null),
 }).loose();
 
+/** Governed MCP calls for a run (GET /api/tasks/:id/mcp-calls). */
+export const TaskMcpCallSchema = z.object({
+  id: z.string().catch("").default(""),
+  at: z.string().catch("").default(""),
+  server: z.string().catch("").default(""),
+  tool: z.string().catch("").default(""),
+  risk: z.string().catch("").default(""),
+  class: z.string().catch("").default(""),
+  result: z.string().catch("").default(""),
+  gate_id: z.string().catch("").default(""),
+  duration_ms: z.number().catch(0).default(0),
+  flags: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const TaskMcpCallsListSchema = z.object({
+  calls: z.array(TaskMcpCallSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+
 export const ReplayResumeResultSchema = z.object({
   task_id: z.string().default(""),
   from_seq: z.number().catch(0).default(0),

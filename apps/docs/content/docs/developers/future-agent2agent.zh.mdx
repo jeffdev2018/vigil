@@ -1,0 +1,49 @@
+---
+title: 未来演进 — Agent2Agent 互通
+description: 跨应用智能体协作（开放 Agent2Agent 协议）的规划方向；不改变当前 Multica 运行时主路径。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="warn">
+本页描述的是**未来演进**，不是已交付功能。Multica 目前尚未实现开放 Agent2Agent 协议。请勿将其视为实现承诺或 API 合约。
+</Callout>
+
+## 为什么需要
+
+团队会需要**不同应用中的智能体**彼此协作，而不仅是 Multica 工作区内的智能体在同一 issue 上对话。开放 [Agent2Agent (A2A) 协议](https://a2a-protocol.org/latest/) 及其官方 CLI（[`a2a-cli`](https://github.com/a2aproject/a2a-cli)）是业界互通方向。
+
+Multica 的定位：继续做**带治理的编排层**（工作区、发起人、深度/预算、issue 审计），在真实外部伙伴出现时再加协议网关——而不是过早把 CLI 做成产品依赖。
+
+## 命名冲突：两种「A2A」
+
+| 今天的 Multica | 开放 Agent2Agent 协议 |
+| --- | --- |
+| Issue 上的内部智能体→智能体消息（`agent-messages`、意图 `question` / `review` / `handoff`、`a2a_depth`、按 issue 预算） | 通过 agent card 的 HTTP 发现与消息（JSON-RPC / REST / gRPC） |
+| 本地 daemon 拉起编码 CLI | 以 URL + card 寻址的远程智能体 |
+
+撰写新文档或 skills 时，内部路径优先使用 **agent message** / **delegation** 等产品用语，避免与协议混淆。
+
+## 我们保留什么
+
+内部智能体消息及其熔断器保留。跨应用跳转必须映射到同一策略：封闭意图、最大跳数、按 issue 预算、由**链路顶端人类发起人**判定访问、issue 上的可审计轨迹。
+
+## 现阶段不做
+
+- 在产品路径依赖 `a2a-cli`（日后仅作运维 smoke）
+- 暴露 Multica agent card 或 A2A 服务端点
+- 用远程 A2A 智能体替换本地 runtime
+
+## 分阶段
+
+1. **现在** — 夯实内部消息；观察协议（仍早期）；无产品依赖。
+2. **第一个真实外部智能体** — 经现有门禁的 Go SDK 出站客户端；外部 A2A ↔ Multica 评论/任务翻译；`a2a-cli` 仅用于 smoke。
+3. **入站** — 可选 Multica agent card + 鉴权，让其他应用在相同门禁下调用我们。
+4. **生态** — 出站/入站验证后再做伙伴目录。
+
+## 相关链接
+
+- [项目架构](/developers/architecture)
+- 仓库研究笔记：`docs/research/future-agent2agent-interop-2026-09-11.md`
+- 协议：[a2a-protocol.org](https://a2a-protocol.org/latest/)
+- CLI：[github.com/a2aproject/a2a-cli](https://github.com/a2aproject/a2a-cli)

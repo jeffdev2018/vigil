@@ -2336,6 +2336,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Governed MCP gateway (K77): the daemon reports catalogues and calls.
 			r.Post("/api/tasks/{taskId}/mcp-catalog", h.ReportMcpCatalog)
 			r.Post("/api/tasks/{taskId}/mcp-calls", h.ReportMcpCall)
+			// Member-readable list of the same audit rows (run UI panel).
+			r.Get("/api/tasks/{taskId}/mcp-calls", h.ListTaskMcpCalls)
 			r.Post("/api/tasks/{taskId}/spend-token", h.IssueSpendToken)
 			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
 			// Postmortems (k68). List/get/stats are member-readable; approve and

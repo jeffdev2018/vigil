@@ -1363,6 +1363,7 @@
       "handoff": "Passage de main",
       "cost": "Coût",
       "audit": "Audit",
+      "mcp_call": "Appel MCP",
       "unknown": "Événement"
     },
     "relations": {
@@ -1386,5 +1387,19 @@
     "safe_hint": "Le mode sûr retient chaque écriture Multica pour ton approbation et demande à l'agent de décrire les actions externes au lieu de les faire ; les payloads retenus sont la preuve.",
     "safe_started": "Rejeu sûr lancé",
     "safe_failed": "Impossible de lancer le rejeu sûr"
+  },
+  "mcp_calls": {
+    "button": "Appels MCP de ce run",
+    "dialog_title": "Appels MCP",
+    "panel_title": "{{n}} appels MCP",
+    "so_far": "{{n}} appels MCP",
+    "loading": "Chargement des appels MCP…",
+    "error": "Impossible de charger les appels MCP.",
+    "empty": "Aucun appel MCP enregistré pour ce run.",
+    "col_tool": "Outil",
+    "col_class": "Classe",
+    "col_result": "Résultat",
+    "col_gate": "Gate",
+    "col_ms": "Durée"
   }
 }

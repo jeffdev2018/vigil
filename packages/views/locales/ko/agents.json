@@ -1341,6 +1341,7 @@
       "handoff": "인계",
       "cost": "비용",
       "audit": "감사",
+      "mcp_call": "MCP 호출",
       "unknown": "이벤트"
     },
     "relations": {
@@ -1364,5 +1365,19 @@
     "safe_hint": "안전 모드는 모든 Multica 쓰기를 승인 대기로 보류하고, 외부 작업은 실행 대신 설명하도록 에이전트에 요청합니다. 보류된 payload가 증거입니다.",
     "safe_started": "안전 재생을 시작했습니다",
     "safe_failed": "안전 재생을 시작할 수 없습니다"
+  },
+  "mcp_calls": {
+    "button": "이 실행의 MCP 호출",
+    "dialog_title": "MCP 호출",
+    "panel_title": "MCP 호출 {{n}}건",
+    "so_far": "MCP 호출 {{n}}건",
+    "loading": "MCP 호출을 불러오는 중…",
+    "error": "MCP 호출을 불러올 수 없습니다.",
+    "empty": "이 실행에 기록된 MCP 호출이 없습니다.",
+    "col_tool": "도구",
+    "col_class": "클래스",
+    "col_result": "결과",
+    "col_gate": "게이트",
+    "col_ms": "소요 시간"
   }
 }

@@ -25,7 +25,7 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
-import { ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../common/task-transcript";
+import { McpCallsButton, ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../common/task-transcript";
 import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
@@ -436,6 +436,7 @@ export function ActiveTaskRow({
             />
           )}
           <ReplayButton task={task} />
+          <McpCallsButton task={task} />
           {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
           <Tooltip>
             <TooltipTrigger
@@ -612,6 +613,7 @@ function PastRow({
           <RunPreviewChip taskId={task.id} />
           <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
           <ReplayButton task={task} />
+          <McpCallsButton task={task} />
           <RunRevertAction task={task} issueId={issueId} laterRunCount={laterRunCount} />
           {canRetry && (
             <Tooltip>

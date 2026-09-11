@@ -1,0 +1,7 @@
+# Default contract suite.
+pytest>=8.0
+pytest-asyncio>=0.24
+
+# Optional live Scenario path (SCENARIO_LIVE=1):
+#   .venv/bin/pip install 'langwatch-scenario'
+# langwatch-scenario>=0.7
