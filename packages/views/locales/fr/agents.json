@@ -282,7 +282,9 @@
     "managed_by_runtime_title": "La sélection du modèle est gérée par ce runtime.",
     "managed_by_runtime_hint": "Configurez le modèle sur l'hôte du runtime (ex. Hermes le lit dans son propre fichier de config).",
     "discovery_failed": "échec de la découverte",
-    "clear_full": "Effacer la sélection (utiliser le défaut du fournisseur)"
+    "clear_full": "Effacer la sélection (utiliser le défaut du fournisseur)",
+    "custom_label": "Personnalisé",
+    "provider_fallback_label": "Modèle"
   },
   "tabs": {
     "overview": "Aperçu",

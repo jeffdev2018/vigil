@@ -46,7 +46,7 @@ vi.mock("@multica/core/runtimes", () => ({
 // Bumped per test so React Query cannot serve a previous case's cached result.
 let discoveryKey = 0;
 
-function renderDropdown() {
+function renderDropdown(value = "") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -57,7 +57,7 @@ function renderDropdown() {
         <ModelDropdown
           runtimeId="rt-codex"
           runtimeOnline
-          value=""
+          value={value}
           onChange={onChange}
         />
       </QueryClientProvider>
@@ -99,6 +99,26 @@ describe("ModelDropdown", () => {
 
     fireEvent.click(screen.getByText("GPT-5.6 Terra"));
     expect(onChange).toHaveBeenCalledWith("gpt-5.6-terra");
+  });
+
+  // Regression: modelLabel() returned the hardcoded English literals
+  // "custom"/"model" directly, never passing through t(). Both branches now
+  // resolve through model_dropdown.custom_label/provider_fallback_label.
+  it("shows the localized custom-model caption for a value not in the discovered catalog", async () => {
+    renderDropdown("some-self-typed-model-id");
+    expect(await screen.findByText(enAgents.model_dropdown.custom_label)).toBeTruthy();
+  });
+
+  it("shows the localized provider-fallback caption for a discovered model with no provider", async () => {
+    discovery = async () => ({
+      models: [{ id: "house-model", label: "House Model" }],
+      supported: true,
+    });
+    renderDropdown("house-model");
+
+    expect(
+      await screen.findByText(enAgents.model_dropdown.provider_fallback_label),
+    ).toBeTruthy();
   });
 
   it("offers an explicit refresh that requests the runtime's live catalog", async () => {

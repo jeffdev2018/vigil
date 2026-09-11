@@ -174,7 +174,7 @@ export function ModelDropdown({
             </div>
             {value && (
               <div className="truncate text-caption text-muted-foreground">
-                {modelLabel(models, value)}
+                {modelLabel(models, value, t)}
               </div>
             )}
           </div>
@@ -318,8 +318,12 @@ function groupByProvider(models: RuntimeModel[]): Record<string, RuntimeModel[]>
   return out;
 }
 
-function modelLabel(models: RuntimeModel[], id: string): string {
+function modelLabel(
+  models: RuntimeModel[],
+  id: string,
+  t: ReturnType<typeof useT<"agents">>["t"],
+): string {
   const found = models.find((m) => m.id === id);
-  if (!found) return "custom";
-  return found.provider ? found.provider : "model";
+  if (!found) return t(($) => $.model_dropdown.custom_label);
+  return found.provider || t(($) => $.model_dropdown.provider_fallback_label);
 }
