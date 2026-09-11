@@ -61,6 +61,10 @@ export function AvatarCropDialog({
     null,
   );
   const [loadError, setLoadError] = useState(false);
+  // Distinct from loadError: the source image decoded fine, only the crop
+  // encode (canvas.toBlob) failed. Reusing load_failed's copy here told the
+  // user their FILE couldn't load when it was the crop step that broke.
+  const [encodeError, setEncodeError] = useState(false);
 
   // One object URL per picked file, alive for the dialog's lifetime; reset the
   // transform so a new pick starts centered and unrotated.
@@ -76,6 +80,7 @@ export function AvatarCropDialog({
     setRotation(0);
     setCroppedAreaPixels(null);
     setLoadError(false);
+    setEncodeError(false);
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
@@ -90,6 +95,7 @@ export function AvatarCropDialog({
 
   const handleConfirm = async () => {
     if (!objectUrl || !croppedAreaPixels || !file) return;
+    setEncodeError(false);
     const { type, quality } = pickOutputType();
     try {
       const blob = await getCroppedAvatarBlob(objectUrl, croppedAreaPixels, rotation, {
@@ -101,8 +107,11 @@ export function AvatarCropDialog({
         background: type === "image/jpeg" ? "#ffffff" : undefined,
       });
       onCropped(blobToAvatarFile(blob, file.name, type));
-    } catch {
-      setLoadError(true);
+    } catch (e) {
+      // Errors are handled explicitly, never swallowed in silence — log the
+      // canvas/encode failure before surfacing a dedicated retry state.
+      console.error("Avatar crop encode failed:", e);
+      setEncodeError(true);
     }
   };
 
@@ -193,6 +202,12 @@ export function AvatarCropDialog({
             <Plus className="h-4 w-4" />
           </button>
         </div>
+
+        {encodeError && (
+          <p role="alert" className="text-caption text-destructive">
+            {t(($) => $.avatar_crop.encode_failed)}
+          </p>
+        )}
 
         <div className="flex items-center justify-between">
           <Button variant="ghost" onClick={resetTransform} disabled={busy}>

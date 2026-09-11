@@ -21,7 +21,8 @@
     "apply": "Save",
     "uploading": "Uploading…",
     "loading": "Loading…",
-    "load_failed": "Couldn't load image"
+    "load_failed": "Couldn't load image",
+    "encode_failed": "Couldn't process the crop. Try again."
   },
   "color_picker": {
     "saturation": "Saturation and brightness",

@@ -21,7 +21,8 @@
     "apply": "저장",
     "uploading": "업로드 중…",
     "loading": "불러오는 중…",
-    "load_failed": "이미지를 불러오지 못했어요"
+    "load_failed": "이미지를 불러오지 못했어요",
+    "encode_failed": "자르기를 처리하지 못했습니다. 다시 시도해 주세요."
   },
   "color_picker": {
     "saturation": "채도와 명도",

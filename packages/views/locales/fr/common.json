@@ -21,7 +21,8 @@
     "apply": "Enregistrer",
     "uploading": "Envoi en cours…",
     "loading": "Chargement…",
-    "load_failed": "Impossible de charger l'image"
+    "load_failed": "Impossible de charger l'image",
+    "encode_failed": "Impossible de traiter le recadrage. Réessayez."
   },
   "color_picker": {
     "saturation": "Saturation et luminosité",
