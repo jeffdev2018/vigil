@@ -136,4 +136,20 @@ describe("MembersTab — load failures", () => {
     expect(screen.getByText("Jeff")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  // Regression: the invite dialog's role picker showed only "Member"/"Admin"
+  // with no explanation of what each role can do, even though that copy
+  // already exists in i18n (settings.members.roles.*.description) and is
+  // shown in the "change role" menu for existing members. Surface it as a
+  // hover title on the invite picker's options too.
+  it("explains each role in the invite picker instead of a bare label", async () => {
+    renderWithI18n(<MembersTab />);
+    const trigger = screen.getAllByRole("combobox").find((el) => el.textContent?.includes("Member"));
+    if (!trigger) throw new Error("invite role trigger not found");
+    fireEvent.click(trigger);
+    const memberOption = screen.getByRole("option", { name: /^Member/ });
+    const adminOption = screen.getByRole("option", { name: /^Admin/ });
+    expect(memberOption.getAttribute("title")).toBe("Create and work on issues");
+    expect(adminOption.getAttribute("title")).toBe("Manage members and settings");
+  });
 });
