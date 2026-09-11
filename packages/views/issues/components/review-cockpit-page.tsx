@@ -11,6 +11,13 @@ import { cockpitChecksPending, reviewCockpitOptions, usdFromTicks } from "@multi
 import { useUpdateIssue } from "@multica/core/issues/mutations";
 import type { ReviewCockpit } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
@@ -90,18 +97,25 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
       <div className="grid gap-4 md:grid-cols-2">
         <Section title={t(($) => $.review_cockpit.run)} testId="cockpit-run">
           {data.runs.length > 1 && (
-            <select
-              aria-label={t(($) => $.review_cockpit.select_run)}
-              className="mb-2 rounded border bg-background px-1 py-0.5 text-caption"
+            <Select
+              items={data.runs.map((r) => ({
+                value: r.id,
+                label: `${r.status} · ${r.created_at.slice(0, 16).replace("T", " ")}`,
+              }))}
               value={runId ?? data.run?.id ?? ""}
-              onChange={(e) => setRunId(e.target.value || undefined)}
+              onValueChange={(value) => value !== null && setRunId(value || undefined)}
             >
-              {data.runs.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.status} · {r.created_at.slice(0, 16).replace("T", " ")}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="mb-2" aria-label={t(($) => $.review_cockpit.select_run)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {data.runs.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.status} · {r.created_at.slice(0, 16).replace("T", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {data.run ? <RunSummary run={data.run} /> : <Muted>{t(($) => $.review_cockpit.runs_none)}</Muted>}
         </Section>
