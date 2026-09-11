@@ -1445,7 +1445,7 @@ func clampString(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return util.TruncateUTF8Bytes(s, n) + "…"
 }
 
 // ---- Calendar tools (native calendar, chantier 19) ---------------------------------

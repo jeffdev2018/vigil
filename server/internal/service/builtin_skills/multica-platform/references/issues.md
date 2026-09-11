@@ -398,17 +398,15 @@ them first, and attach a proof as you satisfy each one:
 ```bash
 multica criteria list <issue-id>
 multica criteria prove <issue-id> <criterion-id> --type test --ref "npm test -- export"
-multica criteria prove <issue-id> <criterion-id> --type url --ref "https://ci.example/run/42"
 multica criteria prove <issue-id> <criterion-id> --type human_validation
 ```
 
 `test`, `file`, `screenshot` and `url` proofs need a `--ref` naming what
 proves it. A `human_validation` from a run only marks the criterion as
 waiting for the human: their own click satisfies it, not your claim. If the
-issue has no criteria yet and the task states some, set them with
-`multica criteria set <issue-id> --text "..." --text "..."` before starting.
-`criteria set` replaces the whole list, so it refuses to run with no `--text`
-at all — pass `--clear` explicitly if you mean to remove every criterion.
+issue has no criteria yet and the task states some, set them with `multica
+criteria set <issue-id> --text "..." --text "..."` before starting (refuses
+with no --text at all; pass --clear to wipe the list).
 
 ## Sub-issues: todo starts work now, backlog parks it
 
