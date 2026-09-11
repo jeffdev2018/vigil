@@ -17,7 +17,8 @@
     "run_time_label": "耗时 · {{days}}天",
     "run_time_hint": "共 {{tasks}} 次运行",
     "tasks_label": "运行数 · {{days}}天",
-    "tasks_hint": "失败 {{failed}} 个"
+    "tasks_hint": "失败 {{failed}} 个",
+    "cost_hint": "根据所有运行的 token 估算（有上报时采用供应商成本），并非计入预算的金额"
   },
   "dim": {
     "label": "维度",

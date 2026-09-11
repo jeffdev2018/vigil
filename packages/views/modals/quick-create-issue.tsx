@@ -58,6 +58,7 @@ import {
   type Squad,
 } from "@multica/core/types";
 import { ActorAvatar } from "../common/actor-avatar";
+import { AgentRunDetails } from "../agents/components/agent-run-details";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
 import { ProjectPicker } from "../projects/components/project-picker";
 import { DueDatePicker, PriorityIcon, PriorityPicker } from "../issues/components";
@@ -219,18 +220,18 @@ export function AgentCreatePanel({
 
   const seedActor = useCallback((): ActorSelection | null => {
     // Caller-provided seed wins (e.g. shell pre-seeds with `agent_id` /
-    // `squad_id`), then the persisted agent draft, the last successful pick,
-    // and finally the first visible agent.
+    // `squad_id`), then the persisted agent draft and the last successful
+    // pick — every seed is a choice the user made. There is deliberately no
+    // "first visible agent" fallback: submitting starts a real, billed run,
+    // so an agent nobody picked must never be one Enter away (audit UX,
+    // sept. 2026).
     const dataAgent = data?.agent_id as string | undefined;
     const dataSquad = data?.squad_id as string | undefined;
     return (
       resolveActor("agent", dataAgent) ||
       resolveActor("squad", dataSquad) ||
       resolveActor(draft.agent.actorType, draft.agent.actorId) ||
-      resolveActor(lastActorType, lastActorId) ||
-      (visibleAgents[0]
-        ? ({ type: "agent", id: visibleAgents[0].id } as const)
-        : null)
+      resolveActor(lastActorType, lastActorId)
     );
   }, [
     resolveActor,
@@ -240,7 +241,6 @@ export function AgentCreatePanel({
     draft.agent.actorId,
     lastActorType,
     lastActorId,
-    visibleAgents,
   ]);
 
   const [actor, setActor] = useState<ActorSelection | null>(() => seedActor());
@@ -666,6 +666,19 @@ export function AgentCreatePanel({
             t={t}
           />
         </div>
+
+        {/* What pressing Create does, before it is pressed: which agent will
+            run, where, and roughly what a run of it costs. */}
+        {selectedAgent && (
+          <div
+            role="note"
+            data-testid="agent-create-run-notice"
+            className="mx-5 mb-2 shrink-0 space-y-0.5 rounded-md bg-muted/50 px-3 py-2 text-caption"
+          >
+            <p>{t(($) => $.create_issue.agent.run_notice, { name: selectedAgent.name })}</p>
+            <AgentRunDetails agentId={selectedAgent.id} className="block text-muted-foreground" />
+          </div>
+        )}
 
         {selectedAgent && versionBlocked && (
           <div className="mx-5 mb-2 shrink-0 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-caption text-amber-700 dark:text-amber-300">

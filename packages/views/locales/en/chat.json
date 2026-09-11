@@ -31,7 +31,8 @@
     "change_project_context": "Change project context",
     "remove_project_context": "Remove project context",
     "no_projects": "No projects yet",
-    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade"
+    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade",
+    "run_notice": "Sending starts a run of {{name}}; it may take a few minutes."
   },
   "queue": {
     "title_one": "{{count}} queued message",

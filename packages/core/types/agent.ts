@@ -1732,6 +1732,13 @@ export interface ScorecardTotals {
   low_sample: boolean;
 }
 
+/** GET /api/agents/{id}/cost-estimate — mean priced cost of recent runs; null = unknown. */
+export interface AgentCostEstimate {
+  agent_id: string;
+  sample_runs: number;
+  avg_cost_usd_ticks: number | null;
+}
+
 export interface AgentScorecard {
   agent_id: string;
   days: number;

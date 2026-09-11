@@ -90,6 +90,7 @@ import {
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
 import { ActorAvatar } from "../common/actor-avatar";
+import { AgentRunDetails } from "../agents/components/agent-run-details";
 import { PropertyIcon } from "../common/property-icon";
 import {
   CustomPropertyValueDisplay,
@@ -145,6 +146,8 @@ function CreateRunHint({
   const willStart = preview.totalCount > 0;
   const isSquad = assigneeType === "squad";
   const triggerAgentId = preview.triggers[0]?.agent_id ?? assigneeId;
+  // The agent whose run starts: the squad's leader comes from the preview.
+  const runAgentId = isSquad ? preview.triggers[0]?.agent_id : triggerAgentId;
 
   // Avatar + copy mirror the flow. A squad doesn't "work" — its leader
   // evaluates and delegates — so the squad path keeps the squad as the subject
@@ -192,7 +195,13 @@ function CreateRunHint({
               profileLink={false}
             />
           )}
-          <span className="truncate">{text}</span>
+          <span className="min-w-0">
+            <span className="block truncate">{text}</span>
+            {/* Where it runs and roughly what a run costs, before Create. */}
+            {willStart && runAgentId && (
+              <AgentRunDetails agentId={runAgentId} className="block truncate" />
+            )}
+          </span>
         </div>
       </div>
     </div>

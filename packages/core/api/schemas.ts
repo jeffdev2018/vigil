@@ -5032,6 +5032,14 @@ const ScorecardTotalsShape = {
 };
 const ScorecardTotalsSchema = z.object(ScorecardTotalsShape).loose();
 
+// Pre-launch cost notice: GET /api/agents/{id}/cost-estimate. A null average
+// means no recent run could be priced — "cost unknown", never zero.
+export const AgentCostEstimateSchema = z.object({
+  agent_id: z.string().catch("").default(""),
+  sample_runs: z.number().int().nonnegative().catch(0).default(0),
+  avg_cost_usd_ticks: z.number().nonnegative().nullable().catch(null).default(null),
+}).loose();
+
 export const AgentScorecardSchema = z.object({
   agent_id: z.string().default(""),
   days: z.number().default(30),
@@ -6254,6 +6262,7 @@ export const WorkflowLegSchema = z.object({
   input_tokens: z.number().catch(0).default(0),
   output_tokens: z.number().catch(0).default(0),
   cost_usd_ticks: z.number().catch(0).default(0),
+  cost_known: z.boolean().optional().catch(undefined),
   duration_seconds: z.number().catch(0).default(0),
   created_at: z.string().nullable().catch(null).default(null),
   completed_at: z.string().nullable().catch(null).default(null),
@@ -6265,6 +6274,8 @@ export const WorkflowLegsSchema = z.object({
   totals: z.object({
     legs: z.number().catch(0).default(0),
     cost_usd_ticks: z.number().catch(0).default(0),
+    // Legs whose usage could not be priced; absent on older backends.
+    unknown_cost_legs: z.number().optional().catch(undefined),
     input_tokens: z.number().catch(0).default(0),
     output_tokens: z.number().catch(0).default(0),
     duration_seconds: z.number().catch(0).default(0),

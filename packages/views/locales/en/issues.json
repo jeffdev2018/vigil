@@ -787,7 +787,10 @@
       "other": "Leg",
       "continuation": "Continuation",
       "subagent": "Sub-agent"
-    }
+    },
+    "total_unknown": "cost unknown",
+    "total_partial_one": "{{cost}} + {{count}} run of unknown cost",
+    "total_partial_other": "{{cost}} + {{count}} runs of unknown cost"
   },
   "usage_detail": {
     "title": "Usage breakdown",
@@ -1354,7 +1357,13 @@
     "failed_sections": "Some sections could not be loaded: {{sections}}.",
     "error": "The review cockpit could not be loaded.",
     "retry": "Retry",
-    "move_failed": "Failed to change the issue status"
+    "move_failed": "Failed to change the issue status",
+    "changes_label": "What needs to change?",
+    "changes_hint": "Your request is posted as a comment on the issue, then the issue goes back to In Progress.",
+    "changes_cancel": "Cancel",
+    "changes_send": "Send the request",
+    "changes_requested": "Changes requested: comment posted, issue back to In Progress.",
+    "request_changes_failed": "The request could not be posted. Your text is kept; try again."
   },
   "ownership": {
     "section": "Suggested owner",
@@ -1909,7 +1918,9 @@
     "human_effort": "Active review time reported by this client: {{seconds}} s (self-timed while the review form was open; not wall-clock delay).",
     "result_counts": "{{accepted}} / {{reviewed}} reviewed results currently accepted",
     "correction_counts": "{{corrections}} correction requests · {{reversals}} corrections following acceptance",
-    "metrics_hint": "A result is a distinct evidence snapshot. Repeated acceptance of the same snapshot counts once; a later correction decision removes its acceptance."
+    "metrics_hint": "A result is a distinct evidence snapshot. Repeated acceptance of the same snapshot counts once; a later correction decision removes its acceptance.",
+    "result_pr": "Pull request",
+    "technical_details": "Technical details"
   },
   "approvals": {
     "kind_gate_git_push": "Git push held",

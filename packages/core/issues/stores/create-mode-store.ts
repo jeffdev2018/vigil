@@ -15,6 +15,9 @@ import { useModalStore } from "../../modals";
  * file an issue" doesn't change per workspace, so this lives in plain
  * localStorage rather than the workspace-aware StateStorage that scopes
  * per-workspace stores like quick-create-store / draft-store.
+ *
+ * Defaults to "manual": submitting the agent form starts a real, billed run,
+ * so nobody lands there without having chosen it once.
  */
 export type CreateMode = "agent" | "manual";
 
@@ -26,7 +29,7 @@ interface CreateModeState {
 export const useCreateModeStore = create<CreateModeState>()(
   persist(
     (set) => ({
-      lastMode: "agent",
+      lastMode: "manual",
       setLastMode: (mode) => set({ lastMode: mode }),
     }),
     {

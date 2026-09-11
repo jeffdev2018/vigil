@@ -17,7 +17,8 @@
     "run_time_label": "Run time · {{days}}D",
     "run_time_hint": "Across {{tasks}} runs",
     "tasks_label": "Runs · {{days}}D",
-    "tasks_hint": "{{failed}} failed"
+    "tasks_hint": "{{failed}} failed",
+    "cost_hint": "Estimated from every run's tokens (provider cost when reported), not the amount charged to budgets"
   },
   "dim": {
     "label": "Dimension",

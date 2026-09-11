@@ -1038,6 +1038,9 @@ export function ChatWindow() {
         agentAccessRevoked={isAgentAccessRevoked}
         agentRuntimeRequired={!activeAgentRuntimeBound}
         agentName={activeAgent?.name}
+        agentId={activeAgent?.id}
+        // A new conversation: its first send is the one that starts a run.
+        showRunNotice={!activeSessionId}
         projects={projects}
         projectId={activeProjectId}
         onProjectChange={handleProjectChange}

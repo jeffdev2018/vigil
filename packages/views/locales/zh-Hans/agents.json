@@ -1370,5 +1370,13 @@
     "safe_hint": "安全模式会保留所有 Multica 写入等待你批准，并要求智能体描述外部操作而不是执行；保留的负载就是证据。",
     "safe_started": "安全回放已启动",
     "safe_failed": "无法启动安全回放"
+  },
+  "run_details": {
+    "details": "在 {{runtime}} 上运行 · {{cost}}",
+    "details_auto": "在 {{runtime}} 或自动选择的运行时上运行 · {{cost}}",
+    "runtime_unknown": "你无权查看的运行时",
+    "cost_average_other": "每次运行约 {{cost}}（最近 {{count}} 次已计价运行的平均值）",
+    "cost_loading": "正在估算成本…",
+    "cost_unknown": "成本未知（尚无已计价的运行）"
   }
 }

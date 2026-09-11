@@ -573,6 +573,10 @@ export function DashboardPage() {
                   <KpiCard
                     label={t(($) => $.kpi.cost_label, { days })}
                     value={<CurrencyNumberFlow value={totals.cost} locales={locales} />}
+                    // Says what this figure measures: Settings > Budgets
+                    // shows the amount charged to a budget, a different
+                    // ledger that can read lower for the same period.
+                    hint={t(($) => $.kpi.cost_hint)}
                   />
                   <KpiCard
                     label={t(($) => $.kpi.tokens_label, { days })}

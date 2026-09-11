@@ -1370,5 +1370,13 @@
     "safe_hint": "안전 모드는 모든 Multica 쓰기를 승인 대기로 보류하고, 외부 작업은 실행 대신 설명하도록 에이전트에 요청합니다. 보류된 payload가 증거입니다.",
     "safe_started": "안전 재생을 시작했습니다",
     "safe_failed": "안전 재생을 시작할 수 없습니다"
+  },
+  "run_details": {
+    "details": "{{runtime}}에서 실행 · {{cost}}",
+    "details_auto": "{{runtime}} 또는 자동 선택된 런타임에서 실행 · {{cost}}",
+    "runtime_unknown": "볼 수 없는 런타임",
+    "cost_average_other": "실행당 약 {{cost}} (최근 비용 산정된 실행 {{count}}개 평균)",
+    "cost_loading": "비용 추정 중…",
+    "cost_unknown": "비용 알 수 없음 (비용이 산정된 실행 없음)"
   }
 }

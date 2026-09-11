@@ -765,7 +765,10 @@
       "other": "Étape",
       "continuation": "Continuation",
       "subagent": "Sous-agent"
-    }
+    },
+    "total_unknown": "coût inconnu",
+    "total_partial_one": "{{cost}} + {{count}} exécution au coût inconnu",
+    "total_partial_other": "{{cost}} + {{count}} exécutions au coût inconnu"
   },
   "usage_detail": {
     "title": "Détail de l'utilisation",
@@ -1332,7 +1335,13 @@
     "failed_sections": "Certaines sections n'ont pas pu être chargées : {{sections}}.",
     "error": "Le cockpit de revue n'a pas pu être chargé.",
     "retry": "Réessayer",
-    "move_failed": "Échec du changement de statut de l'issue"
+    "move_failed": "Échec du changement de statut de l'issue",
+    "changes_label": "Qu'est-ce qui doit changer ?",
+    "changes_hint": "Votre demande est publiée en commentaire sur l'issue, puis l'issue repasse En cours.",
+    "changes_cancel": "Annuler",
+    "changes_send": "Envoyer la demande",
+    "changes_requested": "Modifications demandées : commentaire publié, issue repassée En cours.",
+    "request_changes_failed": "La demande n'a pas pu être publiée. Votre texte est conservé ; réessayez."
   },
   "ownership": {
     "section": "Propriétaire suggéré",
@@ -1887,7 +1896,9 @@
     "human_effort": "Temps de revue actif rapporté par ce client : {{seconds}} s (chronométré automatiquement pendant que le formulaire de revue était ouvert ; pas un délai en temps réel).",
     "result_counts": "{{accepted}} / {{reviewed}} résultats examinés actuellement acceptés",
     "correction_counts": "{{corrections}} demandes de correction · {{reversals}} corrections après acceptation",
-    "metrics_hint": "Un résultat est un instantané de preuve distinct. L'acceptation répétée du même instantané ne compte qu'une fois ; une décision de correction ultérieure retire son acceptation."
+    "metrics_hint": "Un résultat est un instantané de preuve distinct. L'acceptation répétée du même instantané ne compte qu'une fois ; une décision de correction ultérieure retire son acceptation.",
+    "result_pr": "Pull request",
+    "technical_details": "Détails techniques"
   },
   "approvals": {
     "kind_gate_git_push": "Git push retenu",

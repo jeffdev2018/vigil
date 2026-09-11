@@ -1370,5 +1370,13 @@
     "safe_hint": "セーフモードでは Multica への書き込みをすべて承認待ちにし、外部アクションは実行せず説明するようエージェントに求めます。保留された payload が証拠になります。",
     "safe_started": "セーフ再生を開始しました",
     "safe_failed": "セーフ再生を開始できませんでした"
+  },
+  "run_details": {
+    "details": "{{runtime}} で実行 · {{cost}}",
+    "details_auto": "{{runtime}} または自動選択されたランタイムで実行 · {{cost}}",
+    "runtime_unknown": "表示権限のないランタイム",
+    "cost_average_other": "実行 1 回あたり約 {{cost}}（直近 {{count}} 回の料金算出済み実行の平均）",
+    "cost_loading": "コストを見積もり中…",
+    "cost_unknown": "コスト不明（料金算出済みの実行がまだありません）"
   }
 }

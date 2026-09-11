@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
-import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
+import { legRoleLabelKey, taskLegsOptions, unknownCostLegs, workflowRootOf } from "@multica/core/issues/legs";
 import { taskConsultsOptions, type AgentConsult } from "@multica/core/fleet";
 import { goalLoopOfTask, goalOutcomeLabelKey, issueGoalOptions } from "@multica/core/issues/goal-loop";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -869,9 +869,16 @@ export function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
   const { data } = useQuery(taskLegsOptions(wsId, rootTaskId));
   const totals = data?.totals;
   if (!totals || totals.legs < 2) return null;
+  // Legs with no priceable usage are not in the total; saying "$0.00 in
+  // total" for them contradicted the delivery panel's "Cost unavailable".
+  const unknownLegs = unknownCostLegs(totals);
   const parts = [
     t(($) => $.legs.count, { count: totals.legs }),
-    t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
+    unknownLegs >= totals.legs
+      ? t(($) => $.legs.total_unknown)
+      : unknownLegs > 0
+        ? t(($) => $.legs.total_partial, { cost: formatUsd(totals.cost_usd_ticks * 1e-10), count: unknownLegs })
+        : t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
     formatSeconds(totals.duration_seconds),
   ].filter(Boolean);
   return (

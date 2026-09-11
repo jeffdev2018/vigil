@@ -244,7 +244,8 @@
       "error_agent_unavailable_fallback": "L'agent est indisponible. Choisissez un autre agent.",
       "error_daemon_version": "Le daemon CLI de cet agent ({{current}}) est inférieur à la version {{min}} requise. Mettez à jour le daemon pour utiliser la création avec agent.",
       "error_unknown": "Échec de l'envoi. Réessayez.",
-      "sub_issue_of": "Sous-issue de {{identifier}}"
+      "sub_issue_of": "Sous-issue de {{identifier}}",
+      "run_notice": "Créer lance un run de {{name}} : l'agent rédige l'issue à partir de votre description."
     },
     "scoping_toggle": "Brouillon à partir de quelques phrases",
     "scoping_placeholder": "Décrivez l'issue en quelques phrases…",

@@ -121,6 +121,12 @@ export function BudgetsTab() {
             })}
           </div>
         )}
+        {/* Budgets are a ledger, not a usage report: only runs admitted while
+            a budget applied are charged, so the amount can sit below the
+            usage estimate in Analytics for the same period. Say so. */}
+        {(policies.data?.length ?? 0) > 0 ? (
+          <p data-testid="budgets-ledger-scope" className="text-caption text-muted-foreground">{t(($) => $.budgets.ledger_scope)}</p>
+        ) : null}
       </div>
       <RunLimitsSection canManage={canManage} />
       <BudgetEditor key={editor === "new" ? "new" : editor?.id ?? "closed"} open={editor !== null} policy={editor === "new" ? null : editor} onClose={() => setEditor(null)} projects={projects.data ?? []} agents={agents.data ?? []} />

@@ -48,6 +48,9 @@ export const RunSchema = AgentTaskSchema.extend({
   agent_name: z.string().catch(""),
   issue: RunIssueRefSchema.nullable().catch(null),
   cost_usd_ticks: z.number().catch(0),
+  // False when the run left no priceable usage: the zero is "unknown", not
+  // "free". Older backends omit it (see runCostKnown).
+  cost_known: z.boolean().optional().catch(undefined),
   duration_ms: z.number().catch(0),
   silence_ms: z.number().catch(0),
   blocked_on: RunBlockerSchema.nullable().catch(null),
@@ -64,6 +67,9 @@ export const RunsSummarySchema = z
     failed_since: z.number().catch(0),
     cancelled_since: z.number().catch(0),
     cost_since_usd_ticks: z.number().catch(0),
+    // Runs of the window that started but left no priceable usage; the cost
+    // figure leaves them out.
+    cost_unknown_since: z.number().catch(0).default(0),
     since: z.string().catch(""),
     run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
   })
@@ -79,6 +85,7 @@ export const EMPTY_RUNS_SUMMARY: RunsSummary = {
   failed_since: 0,
   cancelled_since: 0,
   cost_since_usd_ticks: 0,
+  cost_unknown_since: 0,
   since: "",
   run_halt: EMPTY_RUN_HALT,
 };
@@ -143,6 +150,15 @@ const RUN_COST_USD_TICKS_PER_USD = 10_000_000_000;
 /** Raw ticks (as the API sends `cost_usd_ticks`) to a plain USD number. */
 export function runCostUsd(costUsdTicks: number): number {
   return costUsdTicks / RUN_COST_USD_TICKS_PER_USD;
+}
+
+/**
+ * Whether a run's `cost_usd_ticks` is a figure. An older backend sends no
+ * `cost_known` and sums only provider-reported ticks, so its zero cannot be
+ * told apart from "no usage": only a positive amount is trusted there.
+ */
+export function runCostKnown(run: Pick<Run, "cost_known" | "cost_usd_ticks">): boolean {
+  return run.cost_known === true || (run.cost_known === undefined && run.cost_usd_ticks > 0);
 }
 
 /** A running run with no reported activity for this long reads as "silent". */

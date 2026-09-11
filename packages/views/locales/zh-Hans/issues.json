@@ -759,7 +759,9 @@
       "other": "环节",
       "continuation": "延续",
       "subagent": "子智能体"
-    }
+    },
+    "total_unknown": "成本未知",
+    "total_partial_other": "{{cost}} + {{count}} 次成本未知的运行"
   },
   "usage_detail": {
     "title": "用量明细",
@@ -1317,7 +1319,13 @@
     "failed_sections": "部分区块无法加载：{{sections}}。",
     "error": "无法加载审阅驾驶舱。",
     "retry": "重试",
-    "move_failed": "无法更改议题状态"
+    "move_failed": "无法更改议题状态",
+    "changes_label": "需要修改什么？",
+    "changes_hint": "你的要求会作为评论发布到任务上，随后任务回到进行中。",
+    "changes_cancel": "取消",
+    "changes_send": "发送要求",
+    "changes_requested": "已要求修改：评论已发布，任务已回到进行中。",
+    "request_changes_failed": "要求未能发布。你的文字已保留，请重试。"
   },
   "ownership": {
     "section": "建议的负责人",
@@ -1866,7 +1874,9 @@
     "human_effort": "本客户端报告的审核工时：{{seconds}} 秒（打开审核表单期间自计时；不是完成到提交的墙钟延迟）。",
     "result_counts": "{{reviewed}} 个已审核结果中，{{accepted}} 个当前获批",
     "correction_counts": "{{corrections}} 次纠正请求 · {{reversals}} 次在批准后要求纠正",
-    "metrics_hint": "每份不同的证据快照算一个结果。同一快照的重复批准只计一次；后续纠正决定会撤销其批准状态。"
+    "metrics_hint": "每份不同的证据快照算一个结果。同一快照的重复批准只计一次；后续纠正决定会撤销其批准状态。",
+    "result_pr": "Pull request",
+    "technical_details": "技术详情"
   },
   "approvals": {
     "kind_gate_git_push": "被阻止的 Git push",

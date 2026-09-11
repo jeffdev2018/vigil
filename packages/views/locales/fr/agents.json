@@ -1393,5 +1393,14 @@
     "safe_hint": "Le mode sûr retient chaque écriture Multica pour ton approbation et demande à l'agent de décrire les actions externes au lieu de les faire ; les payloads retenus sont la preuve.",
     "safe_started": "Rejeu sûr lancé",
     "safe_failed": "Impossible de lancer le rejeu sûr"
+  },
+  "run_details": {
+    "details": "S'exécute sur {{runtime}} · {{cost}}",
+    "details_auto": "S'exécute sur {{runtime}} ou un autre runtime choisi automatiquement · {{cost}}",
+    "runtime_unknown": "un runtime que vous ne voyez pas",
+    "cost_average_one": "≈ {{cost}} par run (son dernier run tarifé)",
+    "cost_average_other": "≈ {{cost}} par run (moyenne de ses {{count}} derniers runs tarifés)",
+    "cost_loading": "estimation du coût…",
+    "cost_unknown": "coût inconnu (aucun run tarifé pour l'instant)"
   }
 }

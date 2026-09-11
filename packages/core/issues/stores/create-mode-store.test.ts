@@ -17,6 +17,12 @@ describe("openCreateIssueWithPreference", () => {
     useModalStore.getState().close();
   });
 
+  // Audit UX (sept. 2026): agent mode starts a real, billed run on submit, so a
+  // user who never picked it must land on the manual form.
+  it("defaults to manual so a generic entry point never starts an agent run", () => {
+    expect(useCreateModeStore.getInitialState().lastMode).toBe("manual");
+  });
+
   it("opens quick-create-issue when last mode is agent", () => {
     useCreateModeStore.getState().setLastMode("agent");
     openCreateIssueWithPreference();

@@ -1393,5 +1393,14 @@
     "safe_hint": "Safe mode holds every Multica write for your approval and asks the agent to describe external actions instead of doing them; the held payloads are the proof.",
     "safe_started": "Safe replay started",
     "safe_failed": "Could not start the safe replay"
+  },
+  "run_details": {
+    "details": "Runs on {{runtime}} · {{cost}}",
+    "details_auto": "Runs on {{runtime}} or another runtime picked automatically · {{cost}}",
+    "runtime_unknown": "a runtime you cannot see",
+    "cost_average_one": "≈ {{cost}} per run (its last priced run)",
+    "cost_average_other": "≈ {{cost}} per run (average of its last {{count}} priced runs)",
+    "cost_loading": "estimating cost…",
+    "cost_unknown": "cost unknown (no priced run yet)"
   }
 }

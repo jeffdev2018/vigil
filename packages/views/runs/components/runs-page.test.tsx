@@ -94,6 +94,7 @@ const runningRun = run({
   agent_name: "Walt",
   issue: { id: "issue-1", identifier: "ACM-1", title: "Payment gateway timeout", status: "in_progress" },
   cost_usd_ticks: 25_000_000_000,
+  cost_known: true,
   duration_ms: 65_000,
 });
 const blockedRun = run({
@@ -113,6 +114,7 @@ const summary: RunsSummary = {
   failed_since: 0,
   cancelled_since: 0,
   cost_since_usd_ticks: 25_000_000_000,
+  cost_unknown_since: 1,
   since: "2026-09-09T00:00:00Z",
   run_halt: { halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 0 },
 };
@@ -168,6 +170,17 @@ beforeEach(() => {
 });
 
 describe("RunsPage", () => {
+  // Audit UX (sept. 2026): a run with no priceable usage read "$0.00" here
+  // while its issue said "Cost unavailable". Rule: core runs/fleet.test.ts.
+  it("shows an unknown cost as unknown, per row and in the day's total", async () => {
+    renderPage();
+    await screen.findByText("ACM-1 · Payment gateway timeout");
+    expect(screen.getByText("$2.50")).toBeInTheDocument();
+    expect(screen.getByTitle("Cost unknown: this run recorded no usage that could be priced")).toHaveTextContent("—");
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(screen.getByText("$2.50 + 1 run of unknown cost")).toBeInTheDocument();
+  });
+
   it("renders the fleet rows from the runs list", async () => {
     renderPage();
     const title = await screen.findByText("ACM-1 · Payment gateway timeout");

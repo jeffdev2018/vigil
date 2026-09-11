@@ -8,7 +8,8 @@
     "completed_since": "本日完了",
     "failed_since": "本日失敗",
     "cancelled_since": "本日キャンセル",
-    "cost_since": "本日の費用"
+    "cost_since": "本日の費用",
+    "cost_since_partial_other": "{{cost}} ＋ コスト不明の実行 {{count}} 件"
   },
   "halt": {
     "kill_switch": "キルスイッチ",
@@ -43,7 +44,9 @@
     "blocked_on": "ブロック要因",
     "cancel_aria": "この実行をキャンセル",
     "cancel_tooltip": "キャンセル",
-    "transcript_tooltip": "トランスクリプトを表示"
+    "transcript_tooltip": "トランスクリプトを表示",
+    "cost_unknown": "—",
+    "cost_unknown_tooltip": "コスト不明：この実行には料金を算出できる使用量が記録されていません"
   },
   "cancel_dialog": {
     "title_other": "{{count}} 件の実行をキャンセルしますか?",

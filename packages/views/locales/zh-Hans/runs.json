@@ -8,7 +8,8 @@
     "completed_since": "今日完成",
     "failed_since": "今日失败",
     "cancelled_since": "今日取消",
-    "cost_since": "今日花费"
+    "cost_since": "今日花费",
+    "cost_since_partial_other": "{{cost}} + {{count}} 次成本未知的运行"
   },
   "halt": {
     "kill_switch": "紧急停止开关",
@@ -43,7 +44,9 @@
     "blocked_on": "卡在",
     "cancel_aria": "取消此运行",
     "cancel_tooltip": "取消",
-    "transcript_tooltip": "查看记录"
+    "transcript_tooltip": "查看记录",
+    "cost_unknown": "—",
+    "cost_unknown_tooltip": "成本未知：此运行没有记录可计价的用量"
   },
   "cancel_dialog": {
     "title_other": "取消这 {{count}} 个运行？",

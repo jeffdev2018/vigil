@@ -759,7 +759,9 @@
       "other": "工程",
       "continuation": "継続",
       "subagent": "サブエージェント"
-    }
+    },
+    "total_unknown": "コスト不明",
+    "total_partial_other": "{{cost}} ＋ コスト不明の実行 {{count}} 件"
   },
   "usage_detail": {
     "title": "使用量の内訳",
@@ -1317,7 +1319,13 @@
     "failed_sections": "一部のセクションを読み込めませんでした：{{sections}}。",
     "error": "レビューコックピットを読み込めませんでした。",
     "retry": "再試行",
-    "move_failed": "イシューのステータスを変更できませんでした"
+    "move_failed": "イシューのステータスを変更できませんでした",
+    "changes_label": "何を変更する必要がありますか？",
+    "changes_hint": "依頼は課題へのコメントとして投稿され、その後課題は「進行中」に戻ります。",
+    "changes_cancel": "キャンセル",
+    "changes_send": "依頼を送信",
+    "changes_requested": "変更を依頼しました：コメントを投稿し、課題を「進行中」に戻しました。",
+    "request_changes_failed": "依頼を投稿できませんでした。入力内容は保持されています。もう一度お試しください。"
   },
   "ownership": {
     "section": "提案された担当者",
@@ -1866,7 +1874,9 @@
     "human_effort": "このクライアントが報告したレビュー作業時間：{{seconds}} 秒（フォーム表示中の自己計測。完了から送信までの経過時間ではありません）。",
     "result_counts": "レビュー済み {{reviewed}} 件中、現在 {{accepted}} 件を承認",
     "correction_counts": "修正依頼 {{corrections}} 件 · 承認後の修正依頼 {{reversals}} 件",
-    "metrics_hint": "異なる証拠スナップショットを一つの結果と数えます。同じ結果の再承認は重複計上せず、後の修正依頼で承認を取り消します。"
+    "metrics_hint": "異なる証拠スナップショットを一つの結果と数えます。同じ結果の再承認は重複計上せず、後の修正依頼で承認を取り消します。",
+    "result_pr": "プルリクエスト",
+    "technical_details": "技術的な詳細"
   },
   "approvals": {
     "kind_gate_git_push": "ブロックされた Git push",
