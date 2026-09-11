@@ -1,5 +1,5 @@
 /**
- * Réveil programmé (JEF-373) — pure helpers for the issue's Follow-ups
+ * Scheduled wake-ups (JEF-373) — pure helpers for the issue's Follow-ups
  * section, its scheduling sheet and the agenda's wake-up rows.
  *
  * No web/desktop equivalent existed when this landed (the web side is being

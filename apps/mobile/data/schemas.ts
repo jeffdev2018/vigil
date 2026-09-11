@@ -217,6 +217,25 @@ const GoalStatusSchema = z
   .enum(["draft", "active", "done", "dropped"])
   .catch("draft");
 
+/**
+ * A list that drops the rows it cannot read instead of failing whole. A
+ * `.catch([])` on `z.array(Row)` guards the ARRAY: one malformed row (an id
+ * missing, an enum the build has never heard of) used to empty the entire
+ * list on screen — the inbox went blank that way once.
+ */
+function tolerantList<T extends z.ZodTypeAny>(row: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .default([])
+    .transform((rows) =>
+      rows.flatMap((item) => {
+        const parsed = row.safeParse(item);
+        return parsed.success ? [parsed.data as z.infer<T>] : [];
+      }),
+    );
+}
+
 export const GoalSchema = z.object({
   id: z.string(),
   workspace_id: z.string().catch(""),
@@ -236,7 +255,7 @@ export const GoalSchema = z.object({
 }).loose();
 
 export const ListGoalsResponseSchema = z.object({
-  goals: z.array(GoalSchema).catch([]).default([]),
+  goals: tolerantList(GoalSchema),
   total: z.number().catch(0).default(0),
 }).loose();
 
@@ -261,10 +280,9 @@ export const OrgUnitSchema = z.object({
   name: z.string().catch(""),
   kind: z.string().optional(),
   owner_id: z.string().optional(),
-  excludes: z
-    .array(z.enum(["untrusted_input", "sensitive_data", "external_effects"]))
-    .catch([])
-    .default([]),
+  excludes: tolerantList(
+    z.enum(["untrusted_input", "sensitive_data", "external_effects"]),
+  ),
   autonomy: z
     .enum(["read_only", "draft", "approve_payload", "auto"])
     .catch("draft"),
@@ -340,7 +358,7 @@ export const OrgStructureSchema = z.object({
 }).loose();
 
 export const OrgStructureListSchema = z.object({
-  structures: z.array(OrgStructureSchema).catch([]).default([]),
+  structures: tolerantList(OrgStructureSchema),
 }).loose();
 
 export interface OrgStructureList {
@@ -467,12 +485,7 @@ const ChatQueuedTaskSchema = z.object({
   content: z.string().optional(),
 }).loose();
 
-const ChatQueuedTasksSchema = z.array(z.unknown()).transform((tasks) =>
-  tasks.flatMap((task) => {
-    const parsed = ChatQueuedTaskSchema.safeParse(task);
-    return parsed.success ? [parsed.data] : [];
-  }),
-);
+const ChatQueuedTasksSchema = tolerantList(ChatQueuedTaskSchema);
 
 // All root fields are optional — server returns an empty object when no
 // task is in flight. Ignore malformed queue rows without discarding a valid

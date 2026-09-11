@@ -123,6 +123,7 @@ export function GoalSection({ issue }: { issue: Issue }) {
             onPress={() =>
               setFormMax((m) => Math.max(ISSUE_GOAL_MAX_CONTINUATIONS_MIN, m - 1))
             }
+            hitSlop={8}
             className="h-8 w-8 items-center justify-center rounded-md border border-border"
           >
             <Ionicons name="remove" size={16} color={mutedFg} />
@@ -139,6 +140,7 @@ export function GoalSection({ issue }: { issue: Issue }) {
             onPress={() =>
               setFormMax((m) => Math.min(ISSUE_GOAL_MAX_CONTINUATIONS_MAX, m + 1))
             }
+            hitSlop={8}
             className="h-8 w-8 items-center justify-center rounded-md border border-border"
           >
             <Ionicons name="add" size={16} color={mutedFg} />
