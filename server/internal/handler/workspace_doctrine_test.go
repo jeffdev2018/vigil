@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -285,5 +286,44 @@ func TestDiffDoctrineLines(t *testing.T) {
 	}
 	if lines, added, removed := diffDoctrineLines("", ""); len(lines) != 0 || added != 0 || removed != 0 {
 		t.Fatalf("empty diff = %+v", lines)
+	}
+}
+
+// The doctrine cap is on bytes, not lines: 32 000 bytes of one-character lines
+// is ~16 000 lines a side, and a full LCS table for that is gigabytes. Any
+// workspace member can ask for the diff, so its cost must stay bounded: past
+// the budget the diff degrades (still a correct diff, just not minimal).
+func TestDiffDoctrineLinesBoundsItsTable(t *testing.T) {
+	var from, to strings.Builder
+	for i := 0; i < 12000; i++ {
+		from.WriteString("a\n")
+		to.WriteString("b\n")
+	}
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	lines, added, removed := diffDoctrineLines("head\n"+from.String()+"tail", "head\n"+to.String()+"tail")
+	runtime.ReadMemStats(&after)
+	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 128<<20 {
+		t.Fatalf("diff allocated %d MiB, want a bounded table", alloc>>20)
+	}
+	if added != 12000 || removed != 12000 {
+		t.Fatalf("added/removed = %d/%d, want 12000/12000", added, removed)
+	}
+	// The diff still rebuilds both sides, and the shared ends stay "same".
+	var gotFrom, gotTo []string
+	for _, l := range lines {
+		if l.Kind != "add" {
+			gotFrom = append(gotFrom, l.Text)
+		}
+		if l.Kind != "del" {
+			gotTo = append(gotTo, l.Text)
+		}
+	}
+	if strings.Join(gotFrom, "\n") != "head\n"+strings.TrimSuffix(from.String(), "\n")+"\ntail" || strings.Join(gotTo, "\n") != "head\n"+strings.TrimSuffix(to.String(), "\n")+"\ntail" {
+		t.Fatalf("degraded diff does not rebuild both sides")
+	}
+	if lines[0].Kind != "same" || lines[len(lines)-1].Kind != "same" {
+		t.Fatalf("shared head/tail = %+v … %+v, want same", lines[0], lines[len(lines)-1])
 	}
 }

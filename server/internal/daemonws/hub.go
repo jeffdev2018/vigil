@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -1071,6 +1072,15 @@ func (c *client) handleRPCFrame(raw json.RawMessage) {
 	}
 	go func() {
 		defer func() { <-c.rpcSem }()
+		// The handler runs outside any HTTP middleware, so a panic here would
+		// take the whole server down. Recover it and answer 500 so the daemon
+		// falls back to HTTP.
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("daemon websocket rpc handler panicked", "method", req.Method, "daemon_id", c.identity.DaemonID, "panic", r, "stack", string(debug.Stack()))
+				c.sendRPCResponse(req.RequestID, http.StatusInternalServerError, nil, "internal error")
+			}
+		}()
 		// Bound server-side execution by the caller's requested budget (in
 		// addition to the connection ctx), so a slow RPC is cancelled — and its
 		// work rolled back — rather than committing after the daemon has already

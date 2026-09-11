@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -67,7 +68,9 @@ func (w *WebhookDeliveryWorker) Run(ctx context.Context) {
 	for range webhookWorkerConcurrency {
 		go func() {
 			defer workers.Done()
-			w.runLoop(ctx)
+			// A panic while processing one delivery restarts this worker
+			// instead of crashing the process or shrinking the pool.
+			util.Supervise(ctx, "webhook delivery worker", w.runLoop)
 		}()
 	}
 	workers.Wait()

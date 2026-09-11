@@ -28,6 +28,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/scheduler"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -388,7 +389,9 @@ func main() {
 
 	bus := events.New()
 	hub := realtime.NewHub()
-	go hub.Run()
+	// Every long-lived loop below runs under util.Supervise: a panic logs and
+	// restarts that loop instead of taking the whole server down.
+	go util.Supervise(context.Background(), "realtime hub", func(context.Context) { hub.Run() })
 	daemonHub := daemonws.NewHub()
 	var daemonWakeup interface {
 		service.TaskWakeupNotifier
@@ -699,32 +702,43 @@ func main() {
 	// Queued work now expires on the same runtime-liveness signal as in-flight
 	// work, so there is no separate queue TTL to tune: a busy runtime keeps its
 	// backlog, and a departed one retires everything it owned at once.
-	go runRuntimeSweeper(sweepCtx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
-	go runDelegatedFailureRecoverySweeper(sweepCtx, taskSvc)
+	go util.Supervise(sweepCtx, "runtime sweeper", func(ctx context.Context) {
+		runRuntimeSweeper(ctx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
+	})
+	go util.Supervise(sweepCtx, "delegated failure recovery sweeper", func(ctx context.Context) {
+		runDelegatedFailureRecoverySweeper(ctx, taskSvc)
+	})
 	// Seven-day runtime retention does not share the 30-second liveness tick:
 	// its bounded transactions run independently once per hour, so a slow GC
 	// round cannot delay offline detection or task recovery.
-	go runRuntimeGCSweeper(sweepCtx, pool, queries, taskSvc.Metrics, h)
+	go util.Supervise(sweepCtx, "runtime gc sweeper", func(ctx context.Context) {
+		runRuntimeGCSweeper(ctx, pool, queries, taskSvc.Metrics, h)
+	})
 	// Approval gates past their deadline are settled once a minute so an
 	// inbox row or a timeline card never shows an ask nobody can answer.
-	go runApprovalGateSweeper(sweepCtx, h)
+	go util.Supervise(sweepCtx, "approval gate sweeper", func(ctx context.Context) { runApprovalGateSweeper(ctx, h) })
 	// Source-context cleanup is object-store work, so it gets its own goroutine
 	// instead of a slot in the runtime sweep tick.
-	go runSourceContextSweeper(sweepCtx, taskSvc)
-	go heartbeatScheduler.Run(sweepCtx)
-	go runAutopilotFailureMonitor(autopilotCtx, queries, bus, envFailureMonitorConfig())
+	go util.Supervise(sweepCtx, "source context sweeper", func(ctx context.Context) { runSourceContextSweeper(ctx, taskSvc) })
+	go heartbeatScheduler.Run(sweepCtx) // supervises its own loop
+	failureMonitorCfg := envFailureMonitorConfig()
+	go util.Supervise(autopilotCtx, "autopilot failure monitor", func(ctx context.Context) {
+		runAutopilotFailureMonitor(ctx, queries, bus, failureMonitorCfg)
+	})
 	if autopilotSvc.QuotaEnabled() {
-		go runAutopilotQuotaReconciler(autopilotCtx, autopilotSvc)
+		go util.Supervise(autopilotCtx, "autopilot quota reconciler", func(ctx context.Context) {
+			runAutopilotQuotaReconciler(ctx, autopilotSvc)
+		})
 	}
-	go runDBStatsLogger(sweepCtx, "primary", pool)
+	go util.Supervise(sweepCtx, "primary db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "primary", pool) })
 	if replicaPool != nil {
-		go runDBStatsLogger(sweepCtx, "replica", replicaPool)
+		go util.Supervise(sweepCtx, "replica db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "replica", replicaPool) })
 	}
 	if h.WebhookDeliveryWorker != nil {
-		go h.WebhookDeliveryWorker.Run(sweepCtx)
+		go h.WebhookDeliveryWorker.Run(sweepCtx) // supervises each pool worker
 	}
 	if h.SeatCapacityWorker != nil {
-		go h.SeatCapacityWorker.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "seat capacity worker", h.SeatCapacityWorker.Run)
 	}
 	if h.TelegramOutbound != nil {
 		h.TelegramOutbound.Start(sweepCtx)
@@ -741,7 +755,7 @@ func main() {
 	// alongside the other long-running workers, AFTER the HTTP server has
 	// drained.
 	if h.ChannelSupervisor != nil {
-		go h.ChannelSupervisor.Run(sweepCtx)
+		go h.ChannelSupervisor.Run(sweepCtx) // supervises its own loop
 	}
 
 	// Media intent-ledger reconciler (PR #5580): settles uploaded-but-unbound
@@ -749,7 +763,7 @@ func main() {
 	// spikes cannot starve any other sweeper's cadence.
 	if h.ChannelMediaReconciler != nil {
 		h.ChannelMediaReconciler.Metrics = channelMediaMetrics
-		go h.ChannelMediaReconciler.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "channel media reconciler", h.ChannelMediaReconciler.Run)
 	}
 
 	// MUL-2957: DB-backed execution scheduler. The scheduler turns the

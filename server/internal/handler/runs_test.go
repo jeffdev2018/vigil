@@ -6,12 +6,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
@@ -165,4 +167,27 @@ func TestKillSwitchHaltsTheFleetAndCancelsEverything(t *testing.T) {
 		t.Fatalf("halt not lifted")
 	}
 	_ = context.Background()
+}
+
+// The kill switch must never answer "cancelled: 0" when it could not cancel:
+// the agent list read that scopes the cancel failing is a 500 the operator can
+// retry, not a 200 that looks like an idle fleet.
+func TestKillSwitchAgentListFailureIsAnError(t *testing.T) {
+	rememberSettings(t)
+	_, running, _ := runningAgentRun(t, "kill switch agent list failure")
+	t.Cleanup(func() {
+		testutil.Call(t, testHandler.PutRunHalt, newRequest(http.MethodPut, "/api/run-halt", map[string]any{"halted": false})).Want(http.StatusOK)
+	})
+	h := *testHandler
+	h.Queries = db.New(failQueryDBTX{
+		DBTX:   testPool,
+		failOn: "-- name: ListAllAgentsAnyKind ",
+		err:    errors.New("connection reset"),
+	})
+	testutil.Call(t, h.KillSwitch, newRequest(http.MethodPost, "/api/runs/kill-switch", map[string]any{"reason": "incident"})).Want(http.StatusInternalServerError)
+	var status string
+	dbfx.QueryRow(t, `SELECT status FROM agent_task_queue WHERE id = $1`, running).Scan(&status)
+	if status == "cancelled" {
+		t.Fatalf("task was cancelled although the kill switch reported failure")
+	}
 }

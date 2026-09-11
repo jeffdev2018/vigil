@@ -100,3 +100,48 @@ func TestAllowsCommandNamesTheRefusedSegment(t *testing.T) {
 		t.Fatalf("refused = %q, want the offending segment", refused)
 	}
 }
+
+// A shell's script is the first operand after its options, and only a real
+// short-option cluster carrying c makes it one. A decoy flag that merely
+// contains the letter c, or an option that consumes the next word, must not
+// let an allowed-looking word stand in for the script the shell actually runs.
+func TestAllowsCommandShellOptionParsing(t *testing.T) {
+	p := Profile{Name: "narrow", AllowedCommands: []string{"git status", "ls"}}
+
+	allowed := []string{
+		"bash -c 'git status'",
+		"bash -ec 'git status'",
+		"bash -e -c 'git status'",
+		"bash -c -e 'git status'", // options may follow -c; the script is the first operand
+		"bash -c -- 'git status'",
+		"bash --norc -c 'git status'",
+		"bash --rcfile /etc/rc -c 'git status'",
+		"bash --init-file /etc/rc -c 'git status'",
+		"bash -o pipefail -c 'git status'",
+		"zsh -o errexit -c ls",
+		"busybox sh -c ls",
+		"sh -c 'git status' argv0 extra", // words after the script are its arguments
+	}
+	for _, command := range allowed {
+		if ok, why := p.AllowsCommand(command); !ok {
+			t.Errorf("AllowsCommand(%q) refused %q, want allowed", command, why)
+		}
+	}
+
+	refused := map[string]string{
+		`bash --rcfile "git status" -c "rm -rf /workspace"`:    "--rcfile contains c and consumes the next word; the real -c runs rm",
+		`bash --init-file "git status" -c "rm -rf /workspace"`: "--init-file consumes the next word too",
+		`bash --rcfile=x -c "rm -rf /workspace"`:               "an inline long-option value is not the script",
+		`bash -o "git status" -c "rm -rf /workspace"`:          "-o consumes the next word",
+		`bash --norc "git status" -c "rm -rf /workspace"`:      "without -c before the first operand the shell runs a script file",
+		`bash -x -c -e "rm -rf /workspace"`:                    "the script after trailing options is still judged",
+		`bash -c -o "git status" "rm -rf /workspace"`:          "-o after -c still consumes a word, so the script is rm",
+		`bash ./script.sh -c "git status"`:                     "a script file is not a readable script",
+		`busybox rm -c "git status"`:                           "a busybox applet that is not a shell is refused",
+	}
+	for command, why := range refused {
+		if ok, _ := p.AllowsCommand(command); ok {
+			t.Errorf("AllowsCommand(%q) allowed it: %s", command, why)
+		}
+	}
+}

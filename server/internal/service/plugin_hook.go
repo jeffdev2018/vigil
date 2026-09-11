@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -516,7 +517,9 @@ func (s *PluginService) checkHookRate(ctx context.Context, installationID pgtype
 		CreatedAt:      since,
 	})
 	if err != nil {
-		// A telemetry read that fails must not take the feature down with it.
+		// A telemetry read that fails must not take the feature down with it,
+		// but the unguarded call must be visible.
+		slog.Warn("plugins: hook rate check unavailable, allowing the call", "hook", hookKey, "error", err)
 		return nil
 	}
 	if count >= hookRateLimit {
@@ -535,6 +538,9 @@ func (s *PluginService) HookBreakerOpen(ctx context.Context, installationID pgty
 		CreatedAt:      since,
 	})
 	if err != nil {
+		// Fails open like checkHookRate: a closed breaker on a read error would
+		// silently drop event deliveries. Log it so the gap is visible.
+		slog.Warn("plugins: hook breaker check unavailable, treating the circuit as closed", "hook", hookKey, "error", err)
 		return false
 	}
 	return failures >= hookBreakerThreshold

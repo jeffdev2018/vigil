@@ -880,3 +880,59 @@ func TestSkippedAgentsFingerprint(t *testing.T) {
 		t.Fatal("a non-empty set fingerprinted to the empty-set sentinel")
 	}
 }
+
+// TestAgentDiscoveryLoop_RestartsAfterPanic pins that a panic inside one
+// discovery tick neither crashes the daemon (the test binary here) nor stops
+// discovery for good: the loop restarts and still registers a later install.
+func TestAgentDiscoveryLoop_RestartsAfterPanic(t *testing.T) {
+	fx := newBatchFixture(t)
+	d := fx.daemon
+	d.cfg.Agents = map[string]AgentEntry{"codex": {Path: "/fake/codex"}}
+	fx.setWorkspaces(WorkspaceInfo{ID: "ws-1", Name: "one"})
+	setProbe := stubAgentProbe(t, map[string]AgentEntry{"codex": {Path: "/fake/codex"}})
+	if err := d.syncWorkspacesFromAPI(context.Background(), false); err != nil {
+		t.Fatalf("syncWorkspacesFromAPI: %v", err)
+	}
+	stubbed := probeAgentCLIs
+	var panicOnce sync.Once
+	probeAgentCLIs = func() map[string]AgentEntry {
+		panicked := false
+		panicOnce.Do(func() { panicked = true })
+		if panicked {
+			panic("probe exploded")
+		}
+		return stubbed()
+	}
+
+	origInterval := agentDiscoveryInterval
+	agentDiscoveryInterval = 5 * time.Millisecond
+	t.Cleanup(func() { agentDiscoveryInterval = origInterval })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	defer func() {
+		cancel()
+		<-done
+	}()
+	go func() {
+		defer close(done)
+		d.agentDiscoveryLoop(ctx)
+	}()
+
+	setProbe(map[string]AgentEntry{
+		"codex":       {Path: "/fake/codex"},
+		"antigravity": {Path: "/fake/agy"},
+	})
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got := registeredProviders(t, d, "ws-1")
+		if len(got) == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("discovery loop did not survive the panic; providers = %v", got)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}

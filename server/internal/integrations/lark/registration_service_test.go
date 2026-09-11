@@ -395,3 +395,23 @@ func TestFinishSuccess_DropsCachedTokenBeforeMintingWithRotatedCreds(t *testing.
 		t.Errorf("bot info credentials carried app_secret %q, want the rotated one", api.creds.AppSecret)
 	}
 }
+
+// TestRunPollingRecoversPanicAndFailsSession pins that the detached polling
+// goroutine cannot take the server down: a panic mid-poll (here a nil client
+// dereference) is recovered and the session ends as an internal error instead
+// of staying pending until its QR code expires.
+func TestRunPollingRecoversPanicAndFailsSession(t *testing.T) {
+	s := newRegistrationServiceForTest(t) // s.client is nil, so Poll panics
+	sess := &registrationSession{
+		id:         "panic-1",
+		deviceCode: "device",
+		interval:   time.Millisecond,
+		expiresAt:  time.Now().Add(time.Minute),
+		status:     RegistrationStatusPending,
+	}
+	s.runPolling(sess)
+	state := sess.snapshot()
+	if state.Status != RegistrationStatusError || state.ErrorReason != RegistrationReasonInternalError {
+		t.Fatalf("state = %+v, want error/%s", state, RegistrationReasonInternalError)
+	}
+}

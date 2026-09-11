@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -435,6 +436,16 @@ func (s *RegistrationService) GetSession(workspaceID pgtype.UUID, sessionID stri
 // either record the installation+binding (success) or mark the session
 // errored.
 func (s *RegistrationService) runPolling(sess *registrationSession) {
+	// This runs on a detached goroutine, outside any HTTP middleware: an
+	// unrecovered panic would take the whole server down. Fail the session
+	// instead so the user sees an error rather than a QR code that never lands.
+	defer func() {
+		if r := recover(); r != nil {
+			s.cfg.Logger.Error("lark registration: polling panicked",
+				"session_id", sess.id, "panic", r, "stack", string(debug.Stack()))
+			sess.markError(RegistrationReasonInternalError, "internal error while polling Lark", s.gcDeadline())
+		}
+	}()
 	// Bound the entire polling life by Lark's expiry — once that
 	// window closes, no further poll can succeed.
 	ctx, cancel := context.WithDeadline(context.Background(), sess.expiresAt)

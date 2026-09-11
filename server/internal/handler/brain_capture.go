@@ -352,7 +352,7 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 // transcribeBrainCaptureAsync turns a voice memo into text, then asks for
 // the suggestion the text now allows.
 func (h *Handler) transcribeBrainCaptureAsync(c db.BrainCapture, filename, contentType string, audio []byte, actorType, actorID string) {
-	goBackground("brain capture transcription", func() {
+	util.GoBackground("brain capture transcription", func() {
 		ctx := context.Background()
 		res, err := h.STT.TranscribePlain(ctx, filename, contentType, strings.NewReader(string(audio)))
 		status, text := "done", strings.TrimSpace(res.Text)
@@ -581,7 +581,7 @@ func (h *Handler) suggestBrainCaptureAsync(c db.BrainCapture) {
 	if h.LLM == nil || !h.LLM.Enabled() {
 		return
 	}
-	goBackground("brain capture suggestion", func() {
+	util.GoBackground("brain capture suggestion", func() {
 		ctx := context.Background()
 		s, ok, err := h.suggestBrainCapture(ctx, c)
 		if !ok || err != nil {
