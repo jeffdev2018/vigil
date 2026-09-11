@@ -4,6 +4,10 @@
 newest first: agent, issue, status, **what each is blocked on** (an approval
 gate, a Decision Card, a goal question, a held status change, a local
 directory another run holds, a pause), when it started, what it cost.
+The cost is the provider's reported cost, else a catalog estimate from the
+run's tokens — the same pricing budgets settle on. In `--output json`,
+`cost_known: false` means no usage could be priced: the cost is unknown, not
+zero, and the summary's `cost_unknown_since` counts such runs.
 
 - `multica runs list` — runs in flight. `--terminal` for finished ones,
   `--all` for both, `--agent <id>` / `--issue <id>` to narrow, `--cursor`

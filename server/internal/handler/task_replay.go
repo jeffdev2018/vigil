@@ -124,20 +124,23 @@ type ReplayRun struct {
 	// Snapshot is nil for runs that started before snapshots existed.
 	Snapshot *ReplaySnapshot `json:"snapshot"`
 	// Plan is the plan the tool calls are compared against; nil = no plan, no drift flags.
-	Plan        *ReplayPlan  `json:"plan"`
-	Drift       int          `json:"drift"`
-	IssueID     string       `json:"issue_id"`
-	AgentID     string       `json:"agent_id"`
-	AgentName   string       `json:"agent_name"`
-	Status      string       `json:"status"`
-	TrustMode   string       `json:"trust_mode"`
-	EffectMode  string       `json:"effect_mode"`
-	Model       string       `json:"model,omitempty"`
-	RuntimeID   string       `json:"runtime_id,omitempty"`
-	CreatedAt   *time.Time   `json:"created_at"`
-	StartedAt   *time.Time   `json:"started_at"`
-	CompletedAt *time.Time   `json:"completed_at"`
-	Links       []ReplayLink `json:"links"`
+	Plan      *ReplayPlan `json:"plan"`
+	Drift     int         `json:"drift"`
+	IssueID   string      `json:"issue_id"`
+	AgentID   string      `json:"agent_id"`
+	AgentName string      `json:"agent_name"`
+	Status    string      `json:"status"`
+	// FailureReason is the classifier code of a failed or system-cancelled
+	// run, so a client can say why in plain words before any event payload.
+	FailureReason string       `json:"failure_reason,omitempty"`
+	TrustMode     string       `json:"trust_mode"`
+	EffectMode    string       `json:"effect_mode"`
+	Model         string       `json:"model,omitempty"`
+	RuntimeID     string       `json:"runtime_id,omitempty"`
+	CreatedAt     *time.Time   `json:"created_at"`
+	StartedAt     *time.Time   `json:"started_at"`
+	CompletedAt   *time.Time   `json:"completed_at"`
+	Links         []ReplayLink `json:"links"`
 }
 
 type ReplayCost struct {
@@ -336,7 +339,7 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 	agentActor := ReplayActor{Type: "agent", ID: uuidToString(task.AgentID)}
 	run := ReplayRun{
 		ID: uuidToString(task.ID), IssueID: uuidToString(task.IssueID), AgentID: uuidToString(task.AgentID), Status: task.Status,
-		RuntimeID: uuidToString(task.RuntimeID), Links: []ReplayLink{},
+		RuntimeID: uuidToString(task.RuntimeID), FailureReason: task.FailureReason.String, Links: []ReplayLink{},
 	}
 	if agent, err := h.Queries.GetAgent(ctx, task.AgentID); err == nil {
 		agentActor.Name = agent.Name

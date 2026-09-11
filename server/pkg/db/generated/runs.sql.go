@@ -316,6 +316,71 @@ func (q *Queries) ListWaitingIssueGoalsForIssues(ctx context.Context, arg ListWa
 	return items, nil
 }
 
+const listWorkspaceRunUsageSince = `-- name: ListWorkspaceRunUsageSince :many
+SELECT atq.id AS task_id, atq.status, atq.started_at,
+       tu.provider, tu.model, tu.input_tokens, tu.output_tokens, tu.cache_read_tokens, tu.cache_write_tokens, tu.cost_usd_ticks
+FROM agent_task_queue atq
+JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN task_usage tu ON tu.task_id = atq.id
+WHERE a.workspace_id = $1
+  AND atq.agent_id = ANY($2::uuid[])
+  AND atq.created_at >= $3::timestamptz
+ORDER BY atq.id
+`
+
+type ListWorkspaceRunUsageSinceParams struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	AgentIds    []pgtype.UUID      `json:"agent_ids"`
+	Since       pgtype.Timestamptz `json:"since"`
+}
+
+type ListWorkspaceRunUsageSinceRow struct {
+	TaskID           pgtype.UUID        `json:"task_id"`
+	Status           string             `json:"status"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	Provider         pgtype.Text        `json:"provider"`
+	Model            pgtype.Text        `json:"model"`
+	InputTokens      pgtype.Int8        `json:"input_tokens"`
+	OutputTokens     pgtype.Int8        `json:"output_tokens"`
+	CacheReadTokens  pgtype.Int8        `json:"cache_read_tokens"`
+	CacheWriteTokens pgtype.Int8        `json:"cache_write_tokens"`
+	CostUsdTicks     pgtype.Int8        `json:"cost_usd_ticks"`
+}
+
+// Every run created in the window with each of its usage rows (NULL usage
+// columns when the run reported none), so the caller prices the window the
+// way budget settlement does and counts the runs whose cost is unknown.
+func (q *Queries) ListWorkspaceRunUsageSince(ctx context.Context, arg ListWorkspaceRunUsageSinceParams) ([]ListWorkspaceRunUsageSinceRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceRunUsageSince, arg.WorkspaceID, arg.AgentIds, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceRunUsageSinceRow{}
+	for rows.Next() {
+		var i ListWorkspaceRunUsageSinceRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.Status,
+			&i.StartedAt,
+			&i.Provider,
+			&i.Model,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostUsdTicks,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceRuns = `-- name: ListWorkspaceRuns :many
 
 SELECT atq.id, atq.agent_id, atq.issue_id, atq.status, atq.priority, atq.dispatched_at, atq.started_at, atq.completed_at, atq.result, atq.error, atq.created_at, atq.context, atq.runtime_id, atq.session_id, atq.work_dir, atq.trigger_comment_id, atq.chat_session_id, atq.autopilot_run_id, atq.attempt, atq.max_attempts, atq.parent_task_id, atq.failure_reason, atq.trigger_summary, atq.force_fresh_session, atq.is_leader_task, atq.wait_reason, atq.initiator_user_id, atq.handoff_note, atq.prepare_lease_expires_at, atq.squad_id, atq.runtime_mcp_overlay, atq.escalation_for_task_id, atq.fire_at, atq.originator_user_id, atq.runtime_connected_apps, atq.coalesced_comment_ids, atq.delivered_comment_ids, atq.chat_input_task_id, atq.chat_finalize_deferred_at, atq.originator_source, atq.delegated_from_task_id, atq.retry_of_task_id, atq.rerun_of_task_id, atq.rule_version_id, atq.trigger_evidence_kind, atq.trigger_evidence_ref_id, atq.accountable_user_id, atq.session_rollout_missing, atq.retired_session_id, atq.quick_actions_disabled, atq.regenerate_quick_actions_for, atq.branch_name, atq.durable_work_dir, atq.channel_context_revision, atq.last_activity_at, atq.permission_profile_id, atq.failover_history, atq.routing_decision, atq.pause_requested_at, atq.resumed_by_task_id, atq.last_checkpoint_seq, atq.checkpoint_attempts, atq.checkpointed_at, atq.touched_paths, atq.drift_reason, atq.preempted_at, atq.preempted_by_task_id, atq.review_of_task_id, atq.task_class, atq.routing, atq.safe_mode, atq.model_key_id, atq.confidence, atq.leg_role, atq.workflow_root_task_id, atq.dispatch_lane, atq.checkpoint_sha, atq.turn_seq, atq.a2a_depth, atq.run_group_id, atq.model_override, atq.diff_stat, atq.diff_unified, atq.memory_context, atq.comment_thread_id, atq.runtime_pinned, atq.promoted_at, atq.promote_pr_url, atq.discarded_at, atq.halt_frozen_at FROM agent_task_queue atq
@@ -468,26 +533,4 @@ func (q *Queries) ListWorkspaceRuns(ctx context.Context, arg ListWorkspaceRunsPa
 		return nil, err
 	}
 	return items, nil
-}
-
-const sumWorkspaceRunCostSince = `-- name: SumWorkspaceRunCostSince :one
-SELECT COALESCE(SUM(tu.cost_usd_ticks), 0)::bigint AS cost_usd_ticks FROM task_usage tu
-JOIN agent_task_queue atq ON atq.id = tu.task_id
-JOIN agent a ON a.id = atq.agent_id
-WHERE a.workspace_id = $1
-  AND atq.agent_id = ANY($2::uuid[])
-  AND atq.created_at >= $3::timestamptz
-`
-
-type SumWorkspaceRunCostSinceParams struct {
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	AgentIds    []pgtype.UUID      `json:"agent_ids"`
-	Since       pgtype.Timestamptz `json:"since"`
-}
-
-func (q *Queries) SumWorkspaceRunCostSince(ctx context.Context, arg SumWorkspaceRunCostSinceParams) (int64, error) {
-	row := q.db.QueryRow(ctx, sumWorkspaceRunCostSince, arg.WorkspaceID, arg.AgentIds, arg.Since)
-	var cost_usd_ticks int64
-	err := row.Scan(&cost_usd_ticks)
-	return cost_usd_ticks, err
 }

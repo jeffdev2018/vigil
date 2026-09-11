@@ -75,26 +75,33 @@ type RunIssueRef struct {
 // the names, the cost and the blocker the list needs.
 type RunResponse struct {
 	AgentTaskResponse
-	AgentName    string       `json:"agent_name"`
-	Issue        *RunIssueRef `json:"issue"`
-	CostUsdTicks int64        `json:"cost_usd_ticks"`
-	DurationMs   int64        `json:"duration_ms"`
-	SilenceMs    int64        `json:"silence_ms"`
-	BlockedOn    *RunBlocker  `json:"blocked_on"`
+	AgentName string       `json:"agent_name"`
+	Issue     *RunIssueRef `json:"issue"`
+	// CostUsdTicks is the run's usage priced like budget settlement (see
+	// runCostOf); CostKnown is false when nothing could be priced, and the
+	// zero then means "unknown", not "free".
+	CostUsdTicks int64       `json:"cost_usd_ticks"`
+	CostKnown    bool        `json:"cost_known"`
+	DurationMs   int64       `json:"duration_ms"`
+	SilenceMs    int64       `json:"silence_ms"`
+	BlockedOn    *RunBlocker `json:"blocked_on"`
 }
 
 // RunsSummary heads the page: the fleet at a glance.
 type RunsSummary struct {
-	Active            int64           `json:"active"`
-	Queued            int64           `json:"queued"`
-	Running           int64           `json:"running"`
-	Blocked           int64           `json:"blocked"`
-	CompletedSince    int64           `json:"completed_since"`
-	FailedSince       int64           `json:"failed_since"`
-	CancelledSince    int64           `json:"cancelled_since"`
-	CostSinceUsdTicks int64           `json:"cost_since_usd_ticks"`
-	Since             string          `json:"since"`
-	RunHalt           service.RunHalt `json:"run_halt"`
+	Active            int64 `json:"active"`
+	Queued            int64 `json:"queued"`
+	Running           int64 `json:"running"`
+	Blocked           int64 `json:"blocked"`
+	CompletedSince    int64 `json:"completed_since"`
+	FailedSince       int64 `json:"failed_since"`
+	CancelledSince    int64 `json:"cancelled_since"`
+	CostSinceUsdTicks int64 `json:"cost_since_usd_ticks"`
+	// CostUnknownSince counts the runs of the window that started but left no
+	// priceable usage: the cost figure leaves them out and must say so.
+	CostUnknownSince int64           `json:"cost_unknown_since"`
+	Since            string          `json:"since"`
+	RunHalt          service.RunHalt `json:"run_halt"`
 }
 
 // RunsResponse is the list envelope.
@@ -350,11 +357,7 @@ func (h *Handler) buildRunRows(ctx context.Context, wsUUID pgtype.UUID, rows []d
 		}
 		if u, ok := usage[resp.ID]; ok {
 			row.Usage = u
-			for _, part := range u {
-				if part.CostUsdTicks != nil {
-					row.CostUsdTicks += *part.CostUsdTicks
-				}
-			}
+			row.CostUsdTicks, row.CostKnown = runCostOf(u)
 		}
 		if t.StartedAt.Valid {
 			end := now
@@ -493,8 +496,10 @@ func (h *Handler) runsSummary(ctx context.Context, wsUUID pgtype.UUID, agentIDs 
 			}
 		}
 	}
-	if cost, err := h.Queries.SumWorkspaceRunCostSince(ctx, db.SumWorkspaceRunCostSinceParams{WorkspaceID: wsUUID, AgentIds: agentIDs, Since: pgtype.Timestamptz{Time: since, Valid: true}}); err == nil {
-		s.CostSinceUsdTicks = cost
+	if usageRows, err := h.Queries.ListWorkspaceRunUsageSince(ctx, db.ListWorkspaceRunUsageSinceParams{WorkspaceID: wsUUID, AgentIds: agentIDs, Since: pgtype.Timestamptz{Time: since, Valid: true}}); err == nil {
+		s.CostSinceUsdTicks, s.CostUnknownSince = priceRunWindow(usageRows)
+	} else {
+		slog.Warn("runs: cost since failed", "workspace_id", uuidToString(wsUUID), "error", err)
 	}
 	if activeRows, err := h.Queries.ListWorkspaceRuns(ctx, db.ListWorkspaceRunsParams{WorkspaceID: wsUUID, AgentIds: agentIDs, Statuses: runActiveStatuses, Lim: runsMaxLimit}); err == nil {
 		issueIDs := make([]pgtype.UUID, 0, len(activeRows))
@@ -511,6 +516,36 @@ func (h *Handler) runsSummary(ctx context.Context, wsUUID pgtype.UUID, agentIDs 
 		s.RunHalt = service.RunHaltFromSettings(ws.Settings)
 	}
 	return s
+}
+
+// priceRunWindow totals a window's runs and counts the started ones whose cost
+// is unknown. A run still queued, or cancelled before it started, spent
+// nothing and is not unknown.
+func priceRunWindow(rows []db.ListWorkspaceRunUsageSinceRow) (ticks, unknown int64) {
+	usage := map[pgtype.UUID][]TaskUsageData{}
+	started := map[pgtype.UUID]bool{}
+	for _, row := range rows {
+		if _, seen := usage[row.TaskID]; !seen {
+			usage[row.TaskID] = nil
+		}
+		started[row.TaskID] = row.StartedAt.Valid
+		if row.Model.Valid {
+			usage[row.TaskID] = append(usage[row.TaskID], TaskUsageData{
+				Provider: row.Provider.String, Model: row.Model.String,
+				InputTokens: row.InputTokens.Int64, OutputTokens: row.OutputTokens.Int64,
+				CacheReadTokens: row.CacheReadTokens.Int64, CacheWriteTokens: row.CacheWriteTokens.Int64,
+				CostUsdTicks: int8Ptr(row.CostUsdTicks),
+			})
+		}
+	}
+	for id, slices := range usage {
+		cost, known := runCostOf(slices)
+		ticks += cost
+		if !known && started[id] {
+			unknown++
+		}
+	}
+	return ticks, unknown
 }
 
 // RunCancelOutcome is one row of a bulk cancel.

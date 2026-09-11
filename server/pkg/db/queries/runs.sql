@@ -28,13 +28,19 @@ WHERE a.workspace_id = sqlc.arg('workspace_id')
        OR atq.completed_at >= sqlc.arg('since')::timestamptz)
 GROUP BY atq.status;
 
--- name: SumWorkspaceRunCostSince :one
-SELECT COALESCE(SUM(tu.cost_usd_ticks), 0)::bigint AS cost_usd_ticks FROM task_usage tu
-JOIN agent_task_queue atq ON atq.id = tu.task_id
+-- name: ListWorkspaceRunUsageSince :many
+-- Every run created in the window with each of its usage rows (NULL usage
+-- columns when the run reported none), so the caller prices the window the
+-- way budget settlement does and counts the runs whose cost is unknown.
+SELECT atq.id AS task_id, atq.status, atq.started_at,
+       tu.provider, tu.model, tu.input_tokens, tu.output_tokens, tu.cache_read_tokens, tu.cache_write_tokens, tu.cost_usd_ticks
+FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN task_usage tu ON tu.task_id = atq.id
 WHERE a.workspace_id = sqlc.arg('workspace_id')
   AND atq.agent_id = ANY(sqlc.arg('agent_ids')::uuid[])
-  AND atq.created_at >= sqlc.arg('since')::timestamptz;
+  AND atq.created_at >= sqlc.arg('since')::timestamptz
+ORDER BY atq.id;
 
 -- name: ListTaskUsageForTasks :many
 SELECT tu.task_id, tu.provider, tu.model, tu.input_tokens, tu.output_tokens, tu.cache_read_tokens, tu.cache_write_tokens, tu.cost_usd_ticks
