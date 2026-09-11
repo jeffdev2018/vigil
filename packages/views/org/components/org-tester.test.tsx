@@ -66,7 +66,7 @@ const simulation = (over: Partial<OrgSimulation> = {}): OrgSimulation => ({
   decides: { kind: "member", id: "u-1", name: "Ada" },
   escalation_path: [{ unit_id: "lead", unit_name: "Lead" }],
   blocking_denies: [],
-  cost_estimate_usd_ticks: 1_500_000,
+  cost_estimate_usd_ticks: 15_000_000_000,
   notes: [],
   ...over,
 });
