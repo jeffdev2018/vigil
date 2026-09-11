@@ -272,17 +272,19 @@ describe("ProjectsPage compact row navigation", () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("does not navigate when inline controls are clicked", async () => {
-    const user = userEvent.setup();
+  it("does not navigate when inline controls are clicked", () => {
     const push = vi.fn();
     renderProjects(makeAdapter({ push }));
     const row = projectRow();
 
-    await user.click(within(row).getByRole("button", { pressed: false }));
-    await user.click(within(row).getByRole("button", { name: "Project actions" }));
-    await user.click(within(row).getAllByRole("button", { name: "In Progress" })[0]!);
-    await user.click(within(row).getAllByRole("button", { name: "High" })[0]!);
-    await user.click(within(row).getByRole("button", { name: "—" }));
+    // rowLink listens to `click`/`auxclick` only, so a bare click bubbling
+    // from each control is the whole contract; a full pointer sequence would
+    // also open every popover (menu, status, priority, date) for nothing.
+    fireEvent.click(within(row).getByRole("button", { pressed: false }));
+    fireEvent.click(within(row).getByRole("button", { name: "Project actions" }));
+    fireEvent.click(within(row).getAllByRole("button", { name: "In Progress" })[0]!);
+    fireEvent.click(within(row).getAllByRole("button", { name: "High" })[0]!);
+    fireEvent.click(within(row).getByRole("button", { name: "—" }));
 
     expect(push).not.toHaveBeenCalled();
   });
