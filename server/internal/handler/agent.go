@@ -46,6 +46,14 @@ const (
 	maxAgentConversationStarterLength = 4000
 )
 
+// maxCreateAgentSkillIDs bounds CreateAgent's skill_ids: the request does one
+// GetSkillInWorkspace per id to validate, then one AddAgentSkill per id
+// inside the create transaction — 2N sequential round trips, part of them
+// holding a transaction open. parseUUIDSliceOrBadRequest itself has no upper
+// bound (it's shared by ~19 unrelated call sites with their own size
+// expectations), so the cap lives here instead.
+const maxCreateAgentSkillIDs = 100
+
 // validAgentStatuses mirrors the agent.status CHECK constraint
 // (migrations/001_init.up.sql). UpdateAgent must reject anything outside it
 // before writing, or an invalid value reaches Postgres as a 500 with a raw
@@ -1722,6 +1730,10 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		allowlist = nil
 	}
 
+	if len(req.SkillIDs) > maxCreateAgentSkillIDs {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d skill_ids per request", maxCreateAgentSkillIDs))
+		return
+	}
 	skillUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SkillIDs, "skill_ids")
 	if !ok {
 		return
