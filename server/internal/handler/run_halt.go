@@ -80,8 +80,7 @@ func (h *Handler) PutRunHalt(w http.ResponseWriter, r *http.Request) {
 // "halt on but runs live" window stays minimal; a freeze failure is logged
 // and audited but never blocks the halt itself.
 func (h *Handler) writeRunHalt(ctx context.Context, wsUUID pgtype.UUID, halted bool, reason, userID string) (service.RunHalt, error) {
-	ws, err := h.Queries.GetWorkspace(ctx, wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(ctx, wsUUID); err != nil {
 		return service.RunHalt{}, err
 	}
 	frozen, resumed := 0, 0
@@ -89,10 +88,6 @@ func (h *Handler) writeRunHalt(ctx context.Context, wsUUID pgtype.UUID, halted b
 		frozen = h.freezeWorkspaceRuns(ctx, wsUUID, userID)
 	} else {
 		resumed = h.liftWorkspaceHaltFreeze(ctx, wsUUID)
-	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
 	}
 	next := service.RunHalt{Halted: halted, Reason: reason}
 	if next.Halted {
@@ -105,9 +100,11 @@ func (h *Handler) writeRunHalt(ctx context.Context, wsUUID pgtype.UUID, halted b
 	}
 	// The counts are response data, not halt state: the persisted record keeps
 	// them zero so a stored blob never reports a stale frozen number.
-	settings["run_halt"] = next
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(ctx, db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, _ := json.Marshal(map[string]any{"run_halt": next})
+	if _, err := h.Queries.MergeWorkspaceSettings(ctx, db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		return service.RunHalt{}, err
 	}
 	next.FrozenCount = frozen
