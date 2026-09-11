@@ -916,7 +916,7 @@ func main() {
 		os.Exit(1)
 	}
 	// Refactoring campaigns (K42): merge queues move without a board read.
-	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
+	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(h.AdvanceCampaignMergeQueues)); err != nil {
 		slog.Error("scheduler: failed to register campaign_merge_queue job", "error", err)
 		os.Exit(1)
 	}

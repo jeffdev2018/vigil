@@ -1532,7 +1532,7 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent, residency)
 	// Issue router (K27): risk and past failures may pick another pool first.
 	var routingDecision *RoutingDecision
-	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent, residency); ok {
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, residency); ok {
 		routingDecision = decision
 		if routed.Valid {
 			enqueueRuntimeID, failoverHistory = routed, nil

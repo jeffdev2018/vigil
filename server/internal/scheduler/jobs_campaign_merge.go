@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const JobNameCampaignMergeQueue = "campaign_merge_queue"
@@ -13,7 +11,7 @@ const JobNameCampaignMergeQueue = "campaign_merge_queue"
 // CampaignMergeQueueJob (K42) re-evaluates every active refactoring
 // campaign's merge queue: a shard whose checks went green since the last
 // run event enters the queue without anyone reading the board.
-func CampaignMergeQueueJob(pool *pgxpool.Pool, advance func(ctx context.Context) (int, error)) JobSpec {
+func CampaignMergeQueueJob(advance func(ctx context.Context) (int, error)) JobSpec {
 	return JobSpec{
 		Name:              JobNameCampaignMergeQueue,
 		Cadence:           2 * time.Minute,
