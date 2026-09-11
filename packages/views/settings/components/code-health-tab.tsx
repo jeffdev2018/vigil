@@ -75,6 +75,15 @@ export function CodeHealthTab() {
   const scans = scansQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
   const projects = projectsQuery.data ?? [];
+  // scans/agents/projects all feed the history table and the agent/project
+  // pickers below; a fetch failure on any of them must not read as "nothing
+  // here yet" (an admin cannot tell a genuinely empty history from a 500).
+  const hasLoadError = scansQuery.isError || agentsQuery.isError || projectsQuery.isError;
+  const retryLoad = () => {
+    void scansQuery.refetch();
+    void agentsQuery.refetch();
+    void projectsQuery.refetch();
+  };
 
   const [form, setForm] = useState<CodeHealthSettingsInput | null>(null);
   // The form mirrors the server until the admin edits it; a refetch that lands
@@ -301,7 +310,16 @@ export function CodeHealthTab() {
         description={t(($) => $.code_health.history_description)}
       >
         <SettingsCard>
-          {scans.length === 0 ? (
+          {hasLoadError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.code_health.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={retryLoad}>
+                {t(($) => $.code_health.retry)}
+              </Button>
+            </div>
+          ) : scans.length === 0 ? (
             <p
               className="px-4 py-8 text-center text-caption text-muted-foreground"
               data-testid="code-health-scans-empty"

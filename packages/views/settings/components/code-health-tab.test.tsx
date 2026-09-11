@@ -10,6 +10,12 @@ import { renderWithI18n } from "../../test/i18n";
 const state = vi.hoisted(() => ({
   settings: null as unknown,
   scans: [] as unknown[],
+  scansError: false,
+  agentsError: false,
+  projectsError: false,
+  refetchScans: vi.fn(),
+  refetchAgents: vi.fn(),
+  refetchProjects: vi.fn(),
   save: vi.fn(),
   trigger: vi.fn(),
 }));
@@ -19,9 +25,21 @@ vi.mock("@tanstack/react-query", () => ({
     const key = options.queryKey[0];
     if (key === "code-health-settings")
       return { data: state.settings, isPending: state.settings === null };
-    if (key === "code-health-scans") return { data: state.scans, isPending: false };
-    if (key === "projects") return { data: [{ id: "p1", title: "Core" }], isPending: false };
-    return { data: [{ id: "agent-1", name: "Alpha" }], isPending: false };
+    if (key === "code-health-scans")
+      return { data: state.scans, isPending: false, isError: state.scansError, refetch: state.refetchScans };
+    if (key === "projects")
+      return {
+        data: [{ id: "p1", title: "Core" }],
+        isPending: false,
+        isError: state.projectsError,
+        refetch: state.refetchProjects,
+      };
+    return {
+      data: [{ id: "agent-1", name: "Alpha" }],
+      isPending: false,
+      isError: state.agentsError,
+      refetch: state.refetchAgents,
+    };
   },
 }));
 
@@ -85,6 +103,12 @@ const scan = (over: Partial<CodeHealthScan> = {}): CodeHealthScan => ({
 beforeEach(() => {
   state.settings = settings();
   state.scans = [];
+  state.scansError = false;
+  state.agentsError = false;
+  state.projectsError = false;
+  state.refetchScans.mockReset();
+  state.refetchAgents.mockReset();
+  state.refetchProjects.mockReset();
   state.save.mockReset();
   state.trigger.mockReset();
   toast.success.mockReset();
@@ -139,5 +163,28 @@ describe("CodeHealthTab", () => {
     renderWithI18n(<CodeHealthTab />);
     fireEvent.click(screen.getByTestId("code-health-scan-now"));
     expect(state.trigger).toHaveBeenCalled();
+  });
+
+  // Regression: scans/agents/projects ignored isError entirely — a failed
+  // fetch fell through to the exact same "No scan yet" empty state as a
+  // workspace that genuinely never scanned, with no way to tell them apart.
+  it("shows an error state with retry instead of a false empty state when scans fail to load", () => {
+    state.settings = settings({ enabled: true, agent_id: "agent-1" });
+    state.scansError = true;
+    renderWithI18n(<CodeHealthTab />);
+
+    expect(screen.queryByTestId("code-health-scans-empty")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load code health.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchScans).toHaveBeenCalled();
+  });
+
+  it("shows the same error state when the agent picker's query fails", () => {
+    state.settings = settings({ enabled: true, agent_id: "agent-1" });
+    state.agentsError = true;
+    renderWithI18n(<CodeHealthTab />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load code health.");
   });
 });

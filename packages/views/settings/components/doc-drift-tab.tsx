@@ -71,6 +71,13 @@ export function DocDriftTab() {
   const proposals = proposalsQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
   const repos = settings?.repos ?? [];
+  // A fetch failure on either query must not read as "nothing here yet" — an
+  // admin cannot tell a genuinely empty proposal list from a 500.
+  const hasLoadError = proposalsQuery.isError || agentsQuery.isError;
+  const retryLoad = () => {
+    void proposalsQuery.refetch();
+    void agentsQuery.refetch();
+  };
 
   const [form, setForm] = useState<DocDriftSettingsInput | null>(null);
   // The form mirrors the server until the admin edits it; a refetch that lands
@@ -259,7 +266,16 @@ export function DocDriftTab() {
         description={t(($) => $.doc_drift.proposals_description)}
       >
         <SettingsCard>
-          {proposals.length === 0 ? (
+          {hasLoadError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.doc_drift.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={retryLoad}>
+                {t(($) => $.doc_drift.retry)}
+              </Button>
+            </div>
+          ) : proposals.length === 0 ? (
             <p
               className="px-4 py-8 text-center text-caption text-muted-foreground"
               data-testid="doc-drift-proposals-empty"
