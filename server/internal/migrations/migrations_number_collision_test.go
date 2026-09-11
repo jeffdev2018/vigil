@@ -39,6 +39,10 @@ var grandfatheredDuplicateNumbers = map[string]bool{
 	// runtime (PR #319) crossed on the integration branch the same day; both
 	// sets are applied under their full stems.
 	"901": true, "902": true,
+	// 910: the recurring issues (PR #333, 910_issue_recurrence) and the task
+	// halt freeze (910_task_halt_frozen) crossed on the integration branch;
+	// both are applied under their full stems.
+	"910": true,
 }
 
 // TestNoNewMigrationNumberCollisions fails when a migration number gains a

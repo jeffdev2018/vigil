@@ -8203,6 +8203,9 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),
 		"project_id":      util.UUIDToPtr(issue.ProjectID),
 		"goal_id":         util.UUIDToPtr(issue.GoalID),
+		// Mirrors handler.IssueResponse.RecurrenceID (JEF-375): the series an
+		// issue belongs to, so list rows keep their Recurring badge on WS patches.
+		"recurrence_id": util.UUIDToPtr(issue.RecurrenceID),
 		// F29: the dated cycle the issue is planned into. Emitted here too, so
 		// this rendering cannot lose a key the HTTP one carries.
 		"cycle_id": util.UUIDToPtr(issue.CycleID),
