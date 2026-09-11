@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RunLimitPolicy } from "@multica/core/budgets/run-limits";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Parsing and formatting: packages/core/budgets/run-limits.test.ts.
 
@@ -64,8 +76,8 @@ describe("RunLimitsSection", () => {
     expect(screen.getByText("Duration ≤ 30m00s")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "New run limit" }));
     fireEvent.change(screen.getByLabelText("Turns"), { target: { value: "25" } });
-    const selects = screen.getByTestId("run-limit-editor").querySelectorAll("select");
-    fireEvent.change(selects[selects.length - 1] as HTMLSelectElement, { target: { value: "observe" } });
+    const user = userEvent.setup();
+    await pickOption(user, "At the limit", "Observe only");
     fireEvent.click(screen.getByRole("button", { name: "Save run limit" }));
     expect(state.save).toHaveBeenCalledWith({ input: { scope_type: "workspace", scope_id: null, max_cost_usd_ticks: null, max_duration_seconds: null, max_turns: 25, max_tool_calls: null, warn_bps: 8000, action: "observe" } }, expect.anything());
   });
