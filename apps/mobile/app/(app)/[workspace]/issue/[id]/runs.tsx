@@ -12,11 +12,12 @@
  * Past-row tap is a no-op in v1 — transcript drilldown is deferred.
  */
 import { useMemo } from "react";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import type { AgentTask } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
 import { RunRow } from "@/components/issue/run-row";
 import {
   issueActiveTasksOptions,
@@ -39,10 +40,12 @@ const PAST_STATUS_ORDER: Record<AgentTask["status"], number> = {
 export default function IssueRunsRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  const { data: activeTasks = [] } = useQuery(
-    issueActiveTasksOptions(wsId, id),
-  );
-  const { data: allTasks = [] } = useQuery(issueTasksOptions(wsId, id));
+  const activeQuery = useQuery(issueActiveTasksOptions(wsId, id));
+  const allQuery = useQuery(issueTasksOptions(wsId, id));
+  const activeTasks = activeQuery.data ?? [];
+  const allTasks = allQuery.data ?? [];
+  const isLoading = activeQuery.isLoading || allQuery.isLoading;
+  const error = activeQuery.error ?? allQuery.error;
 
   const active = useMemo(
     () =>
@@ -80,22 +83,43 @@ export default function IssueRunsRoute() {
         </Text>
       </View>
       <View>
-        <View className="px-4 gap-3 pb-4">
-          {active.length > 0 ? (
-            <Section title="Active">
-              {active.map((task) => (
-                <RunRow key={task.id} task={task} issueId={id} />
-              ))}
-            </Section>
-          ) : null}
-          {past.length > 0 ? (
-            <Section title="Past">
-              {past.map((task) => (
-                <RunRow key={task.id} task={task} issueId={id} />
-              ))}
-            </Section>
-          ) : null}
-        </View>
+        {isLoading ? (
+          <View className="items-center justify-center py-8">
+            <ActivityIndicator />
+          </View>
+        ) : error ? (
+          <View className="items-center justify-center gap-3 px-4 py-8">
+            <Text className="text-sm text-destructive text-center">
+              Failed to load runs.
+            </Text>
+            <Button
+              variant="outline"
+              onPress={() => {
+                activeQuery.refetch();
+                allQuery.refetch();
+              }}
+            >
+              <Text>Retry</Text>
+            </Button>
+          </View>
+        ) : (
+          <View className="px-4 gap-3 pb-4">
+            {active.length > 0 ? (
+              <Section title="Active">
+                {active.map((task) => (
+                  <RunRow key={task.id} task={task} issueId={id} />
+                ))}
+              </Section>
+            ) : null}
+            {past.length > 0 ? (
+              <Section title="Past">
+                {past.map((task) => (
+                  <RunRow key={task.id} task={task} issueId={id} />
+                ))}
+              </Section>
+            ) : null}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
