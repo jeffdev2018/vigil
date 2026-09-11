@@ -3034,3 +3034,47 @@ describe("organization simulation boundary", () => {
     await expect(client.simulateOrg({ request: { title: "Review this request" } })).rejects.toThrow("malformed simulation");
   });
 });
+
+// The compliance endpoints echo the whole runtime. Before this test the body
+// was cast to AgentRuntime and only `compliance` went through zod, so a
+// drifted runtime shape reached the cache unparsed.
+describe("ApiClient runtime compliance responses", () => {
+  const respond = (body: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  it("parses the echoed runtime through the runtime schema", async () => {
+    respond({ id: "rt-1", status: "bogus", compliance: { region: "eu-west", on_prem: true } });
+    const runtime = await new ApiClient("https://api.example.test").putRuntimeCompliance("rt-1", {
+      region: "eu-west",
+      on_prem: true,
+    });
+    expect(runtime.id).toBe("rt-1");
+    // A drifted enum falls to the schema default rather than reaching the cache raw.
+    expect(runtime.status).toBe("offline");
+    expect(runtime.compliance).toEqual({ region: "eu-west", on_prem: true });
+  });
+
+  it("reads a drifted compliance declaration as not declared", async () => {
+    respond({ id: "rt-1", compliance: { region: "eu-west", on_prem: "no" } });
+    const runtime = await new ApiClient("https://api.example.test").putRuntimeCompliance("rt-1", {
+      region: "eu-west",
+      on_prem: false,
+    });
+    expect(runtime.compliance).toBeNull();
+  });
+
+  it("rejects a malformed runtime instead of handing it to the cache", async () => {
+    respond({ compliance: null });
+    await expect(
+      new ApiClient("https://api.example.test").deleteRuntimeCompliance("rt-1"),
+    ).rejects.toThrow(/malformed runtime/);
+  });
+});
