@@ -2633,7 +2633,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Put("/", h.SetIssueWatchdog)
 				r.With(handler.RequireHumanActor).Delete("/", h.DeleteIssueWatchdog)
 				r.Get("/verdicts", h.ListIssueWatchdogVerdicts)
-				r.Post("/scan", h.ScanIssueWatchdogNow)
+				// Same invariant as PUT/DELETE above: the agent under watch must
+				// not be able to control the timing/cadence of its own scans.
+				r.With(handler.RequireHumanActor).Post("/scan", h.ScanIssueWatchdogNow)
 			})
 			r.With(handler.RequireHumanActor).Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
 			// Goals with ancestry (K74).
