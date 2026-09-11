@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "@multica/core/i18n/react";
 import { ApiError } from "@multica/core/api";
@@ -59,6 +59,18 @@ async function open(canEdit = true, over: Partial<WorkspaceMcpServer> = {}) {
   return user;
 }
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  comboboxName: string,
+  optionName: string,
+) {
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("effectiveToolClass", () => {
   const read = { name: "a", risk: "read", risk_source: "auto" } as const;
   const external = { name: "b", risk: "external_effect", risk_source: "auto" } as const;
@@ -83,21 +95,21 @@ describe("McpToolPolicy", () => {
   it("shows the catalogue with risk, class in force and last use", async () => {
     await open();
 
-    expect(screen.getByLabelText("Default")).toHaveValue("by_risk");
+    expect(screen.getByRole("combobox", { name: "Default" }).textContent).toContain("By risk");
     expect(screen.getByText("search")).toBeInTheDocument();
     expect(screen.getByText("Read")).toBeInTheDocument();
     expect(screen.getByText("External effect")).toBeInTheDocument();
-    expect(screen.getByLabelText("Class of search")).toHaveValue("");
-    expect(screen.getByLabelText("Class of send_email")).toHaveValue("ask");
+    expect(screen.getByRole("combobox", { name: "Class of search" }).textContent).toContain("Inherit");
+    expect(screen.getByRole("combobox", { name: "Class of send_email" }).textContent).toContain("Ask");
     expect(screen.getByText("3h ago")).toBeInTheDocument();
   });
 
   it("saves the default and per-tool classes, dropping inherited entries", async () => {
     const user = await open();
 
-    await user.selectOptions(screen.getByLabelText("Default"), "never");
-    await user.selectOptions(screen.getByLabelText("Class of search"), "act_alone");
-    await user.selectOptions(screen.getByLabelText("Class of send_email"), "");
+    await pickOption(user, "Default", "Never (allowlist)");
+    await pickOption(user, "Class of search", "Act alone");
+    await pickOption(user, "Class of send_email", "Inherit");
     await user.click(screen.getByRole("button", { name: /Save policy/ }));
 
     await waitFor(() =>
@@ -117,7 +129,7 @@ describe("McpToolPolicy", () => {
     mockSetPolicy.mockRejectedValue(new ApiError(message, 400, "Bad Request", { error: message }));
     const user = await open();
 
-    await user.selectOptions(screen.getByLabelText("Class of send_email"), "act_alone");
+    await pickOption(user, "Class of send_email", "Act alone");
     await user.click(screen.getByRole("button", { name: /Save policy/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
@@ -126,8 +138,8 @@ describe("McpToolPolicy", () => {
   it("is read-only without edit rights", async () => {
     await open(false);
 
-    expect(screen.getByLabelText("Default")).toBeDisabled();
-    expect(screen.getByLabelText("Class of search")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Default" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Class of search" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Save policy/ })).toBeNull();
   });
 
