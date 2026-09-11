@@ -90,7 +90,7 @@ func nativeAppendNoteTargetBrief(ctx context.Context, q *db.Queries, workspaceID
 	}
 	b.WriteString("\nLiving document (your deliverable for this run):\n")
 	fmt.Fprintf(b, "- note_id: %s\n", util.UUIDToString(note.ID))
-	fmt.Fprintf(b, "- title: %s\n", note.Title)
+	fmt.Fprintf(b, "- title: %s\n", nativeDataFence("note title", note.Title))
 	fmt.Fprintf(b, "- revision: %d (pass this back via update_note after you read it — optimistic concurrency)\n", note.Revision)
 	if nt.Instruction != "" {
 		b.WriteString("- instruction: " + nativeDataFence("note instruction", clampString(nt.Instruction, 2000)) + "\n")
