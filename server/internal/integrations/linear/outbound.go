@@ -54,8 +54,11 @@ func (o *Outbound) Register(bus *events.Bus) {
 	bus.Subscribe(protocol.EventTaskFailed, o.onTaskDone)
 }
 
-// callCtx bounds one push. Bus delivery is synchronous, so a stalled Linear
-// request must never wedge the write that published the event.
+// callCtx bounds one push, detached from the publishing request: Bus.Publish
+// calls listeners inline on the publisher's goroutine, and the push itself
+// runs on a background goroutine handed off via util.GoBackground below, so it
+// must outlive the request that triggered it rather than being cancelled the
+// moment that request finishes.
 func callCtx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 10*time.Second)
 }
@@ -91,11 +94,17 @@ func (o *Outbound) onComment(e events.Event) {
 	if c.AuthorType == "agent" {
 		body = "**Agent** (Multica):\n\n" + body
 	}
-	ctx, cancel := callCtx()
-	defer cancel()
-	if err := o.bridge.PushComment(ctx, issueID, commentID, body); err != nil {
-		o.logger.WarnContext(ctx, "linear outbound: push comment failed", "error", err, "issue_id", c.IssueID)
-	}
+	// Publish is synchronous and runs on the publishing request's goroutine
+	// (events.Bus doc), so the Linear API call goes on its own goroutine: a
+	// stalled Linear request must never wedge the write that published this
+	// comment.
+	util.GoBackground("linear outbound: push comment", func() {
+		ctx, cancel := callCtx()
+		defer cancel()
+		if err := o.bridge.PushComment(ctx, issueID, commentID, body); err != nil {
+			o.logger.WarnContext(ctx, "linear outbound: push comment failed", "error", err, "issue_id", c.IssueID)
+		}
+	})
 }
 
 type issueEventPayload struct {
@@ -118,11 +127,13 @@ func (o *Outbound) onIssueUpdated(e events.Event) {
 	if !ok {
 		return
 	}
-	ctx, cancel := callCtx()
-	defer cancel()
-	if err := o.bridge.PushStatus(ctx, issueID, payload.Issue.Status); err != nil {
-		o.logger.WarnContext(ctx, "linear outbound: push status failed", "error", err, "issue_id", payload.Issue.ID)
-	}
+	util.GoBackground("linear outbound: push status", func() {
+		ctx, cancel := callCtx()
+		defer cancel()
+		if err := o.bridge.PushStatus(ctx, issueID, payload.Issue.Status); err != nil {
+			o.logger.WarnContext(ctx, "linear outbound: push status failed", "error", err, "issue_id", payload.Issue.ID)
+		}
+	})
 }
 
 type taskEventPayload struct {
@@ -145,15 +156,18 @@ func (o *Outbound) onTaskDone(e events.Event) {
 	if !ok {
 		return
 	}
-	ctx, cancel := callCtx()
-	defer cancel()
-	cost := ""
-	if taskID, ok := parseUUID(payload.TaskID); ok {
-		cost = o.costFor(ctx, taskID)
-	}
-	if err := o.bridge.PushRunOutcome(ctx, issueID, e.Type == protocol.EventTaskCompleted, cost); err != nil {
-		o.logger.WarnContext(ctx, "linear outbound: push run outcome failed", "error", err, "issue_id", payload.IssueID)
-	}
+	completed := e.Type == protocol.EventTaskCompleted
+	util.GoBackground("linear outbound: push run outcome", func() {
+		ctx, cancel := callCtx()
+		defer cancel()
+		cost := ""
+		if taskID, ok := parseUUID(payload.TaskID); ok {
+			cost = o.costFor(ctx, taskID)
+		}
+		if err := o.bridge.PushRunOutcome(ctx, issueID, completed, cost); err != nil {
+			o.logger.WarnContext(ctx, "linear outbound: push run outcome failed", "error", err, "issue_id", payload.IssueID)
+		}
+	})
 }
 
 // costFor sums a task's priced usage rows. An unpriced run reports nothing
