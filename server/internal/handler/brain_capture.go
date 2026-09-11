@@ -91,6 +91,54 @@ type BrainCaptureResponse struct {
 }
 
 func (h *Handler) brainCaptureToResponse(ctx context.Context, c db.BrainCapture, mode attachmentURLMode) BrainCaptureResponse {
+	out := brainCaptureResponseBase(c)
+	if c.AttachmentID.Valid {
+		if att, err := h.Queries.GetAttachment(ctx, db.GetAttachmentParams{ID: c.AttachmentID, WorkspaceID: c.WorkspaceID}); err == nil {
+			resp := h.attachmentToResponse(att, mode)
+			out.Attachment = &resp
+		}
+	}
+	return out
+}
+
+// brainCapturesToResponses is the list variant of brainCaptureToResponse: it
+// batches the attachment lookup into one ListAttachmentsByIDs call instead of
+// one GetAttachment per capture with an attachment.
+func (h *Handler) brainCapturesToResponses(ctx context.Context, rows []db.BrainCapture, wsUUID pgtype.UUID, mode attachmentURLMode) ([]BrainCaptureResponse, error) {
+	attachmentIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, c := range rows {
+		if c.AttachmentID.Valid {
+			attachmentIDs = append(attachmentIDs, c.AttachmentID)
+		}
+	}
+	attachmentsByID := map[string]db.Attachment{}
+	if len(attachmentIDs) > 0 {
+		attRows, err := h.Queries.ListAttachmentsByIDs(ctx, db.ListAttachmentsByIDsParams{AttachmentIds: attachmentIDs, WorkspaceID: wsUUID})
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range attRows {
+			attachmentsByID[uuidToString(a.ID)] = a
+		}
+	}
+	out := make([]BrainCaptureResponse, 0, len(rows))
+	for _, c := range rows {
+		resp := brainCaptureResponseBase(c)
+		if c.AttachmentID.Valid {
+			if att, ok := attachmentsByID[uuidToString(c.AttachmentID)]; ok {
+				attResp := h.attachmentToResponse(att, mode)
+				resp.Attachment = &attResp
+			}
+		}
+		out = append(out, resp)
+	}
+	return out, nil
+}
+
+// brainCaptureResponseBase builds the response fields that do not need a
+// database round trip; brainCaptureToResponse and brainCapturesToResponses
+// each add the attachment on top, one at a time or batched.
+func brainCaptureResponseBase(c db.BrainCapture) BrainCaptureResponse {
 	out := BrainCaptureResponse{
 		ID: uuidToString(c.ID), WorkspaceID: uuidToString(c.WorkspaceID), Kind: c.Kind, Content: c.Content, URL: c.Url, TitleHint: c.TitleHint,
 		Origin: c.Origin, Status: c.Status, TranscriptionStatus: c.TranscriptionStatus, NoteID: uuidToPtr(c.NoteID),
@@ -107,12 +155,6 @@ func (h *Handler) brainCaptureToResponse(ctx context.Context, c db.BrainCapture,
 				s.Candidates = []BrainCaptureMergeTarget{}
 			}
 			out.Suggestion = &s
-		}
-	}
-	if c.AttachmentID.Valid {
-		if att, err := h.Queries.GetAttachment(ctx, db.GetAttachmentParams{ID: c.AttachmentID, WorkspaceID: c.WorkspaceID}); err == nil {
-			resp := h.attachmentToResponse(att, mode)
-			out.Attachment = &resp
 		}
 	}
 	return out
@@ -407,9 +449,10 @@ func (h *Handler) ListBrainCaptures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mode := attachmentURLModeFromRequest(r)
-	out := make([]BrainCaptureResponse, 0, len(rows))
-	for _, c := range rows {
-		out = append(out, h.brainCaptureToResponse(r.Context(), c, mode))
+	out, err := h.brainCapturesToResponses(r.Context(), rows, wsUUID, mode)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list captures")
+		return
 	}
 	rawCount, _ := h.Queries.CountRawBrainCaptures(r.Context(), wsUUID)
 	writeJSON(w, http.StatusOK, struct {

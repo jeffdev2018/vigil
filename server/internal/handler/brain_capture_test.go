@@ -268,6 +268,73 @@ func TestBrainCaptureUploadBecomesAttachmentAndNote(t *testing.T) {
 		Want(http.StatusServiceUnavailable)
 }
 
+// ListBrainCaptures batches its attachment lookup into one call instead of
+// one GetAttachment per capture with an attachment; this pins several
+// captures, each with its own distinct uploaded file, through one list call
+// so a batching bug that hands one capture another's attachment fails this
+// test instead of shipping silently.
+func TestListBrainCapturesBatchesAttachmentsWithoutMixingThem(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	store := &mockStorage{}
+	origStorage := testHandler.Storage
+	testHandler.Storage = store
+	t.Cleanup(func() { testHandler.Storage = origStorage })
+
+	upload := func(filename string, data []byte, caption string) BrainCaptureResponse {
+		t.Helper()
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		part, err := writer.CreateFormFile("file", filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = part.Write(data)
+		_ = writer.WriteField("content", caption)
+		_ = writer.Close()
+		req := httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", &body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("X-User-ID", testUserID)
+		req.Header.Set("X-Workspace-ID", workspaceID)
+		var out captureEnvelope
+		testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture), req).Want(http.StatusCreated).JSON(&out)
+		dbfx.Cleanup(t, `DELETE FROM brain_capture WHERE id = $1`, out.Capture.ID)
+		dbfx.Cleanup(t, `DELETE FROM attachment WHERE id = $1`, out.Capture.Attachment.ID)
+		return out.Capture
+	}
+
+	one := upload("alpha.png", []byte("\x89PNG alpha bytes"), "alpha capture")
+	two := upload("bravo.png", []byte("\x89PNG bravo bytes"), "bravo capture")
+	three := upload("charlie.png", []byte("\x89PNG charlie bytes"), "charlie capture")
+	// A capture with no attachment sits alongside the three that have one.
+	textOnly := capture(t, workspaceID, map[string]any{"content": "no attachment here"})
+
+	listed, rawCount := listCaptures(t, workspaceID, "")
+	if len(listed) != 4 || rawCount != 4 {
+		t.Fatalf("inbox holds %d (raw_count %d), want 4", len(listed), rawCount)
+	}
+	byID := map[string]BrainCaptureResponse{}
+	for _, c := range listed {
+		byID[c.ID] = c
+	}
+	for _, want := range []struct {
+		capture  BrainCaptureResponse
+		filename string
+	}{
+		{one, "alpha.png"}, {two, "bravo.png"}, {three, "charlie.png"},
+	} {
+		got, ok := byID[want.capture.ID]
+		if !ok || got.Attachment == nil {
+			t.Fatalf("capture %s missing from the list or its attachment: %+v", want.capture.ID, got)
+		}
+		if got.Attachment.ID != want.capture.Attachment.ID || got.Attachment.Filename != want.filename {
+			t.Fatalf("capture %s got attachment %+v, want its own %s (%s)", want.capture.ID, got.Attachment, want.capture.Attachment.ID, want.filename)
+		}
+	}
+	if got := byID[textOnly.ID]; got.Attachment != nil {
+		t.Fatalf("text-only capture must have no attachment, got %+v", got.Attachment)
+	}
+}
+
 func searchNotes(t *testing.T, workspaceID, query string) []WorkspaceNoteSearchHit {
 	t.Helper()
 	var out struct {
