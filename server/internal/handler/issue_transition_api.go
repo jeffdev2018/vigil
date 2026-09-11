@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -531,7 +532,15 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 	var body transitionDecisionRequest
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	// The body is optional (an approve/reject needs no note), so an empty
+	// request (io.EOF) is fine; anything else malformed must not silently
+	// drop the note the caller sent, matching every other Decode in this
+	// package (CreateIssueStatus, UpdateIssueStatus, ReorderIssueStatuses,
+	// CreateIssueTransitionRule, UpdateIssueTransitionRule).
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
 	rule := h.ruleForRequest(r, req)
 	actor := h.transitionActor(r, issue.WorkspaceID)
