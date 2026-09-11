@@ -2195,6 +2195,8 @@
     "suites_load_error": "Impossible de charger les suites.",
     "cases_empty_title": "Aucun cas d'évaluation",
     "cases_empty_hint": "Promouvez un ticket résolu dont tous les critères d'acceptation sont prouvés pour créer le premier cas.",
+    "new_suite_waiting_title": "Le formulaire s'ouvrira dès qu'un cas existera",
+    "new_suite_waiting_hint": "Nommez la suite et choisissez ses cas ici dès que le premier cas d'évaluation est promu ; d'ici là, il n'y a rien à regrouper.",
     "cases_load_error": "Impossible de charger les cas d'évaluation.",
     "case_count": "{{n}} cas",
     "case_meta": "Ticket #{{number}} · {{criteria}} critères",

@@ -131,7 +131,10 @@ describe("EvalLabTab", () => {
     expect(screen.getByTestId("eval-suites-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-cases-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-runs-empty").textContent).toBe("No run yet");
-    expect(screen.getAllByText(/Promote a resolved issue/).length).toBeGreaterThan(0);
+    // The promote instruction lives in the Suites card only; the New suite
+    // card explains what will show up there instead of repeating it.
+    expect(screen.getAllByText(/Promote a resolved issue/)).toHaveLength(1);
+    expect(screen.getByTestId("eval-cases-empty").textContent).toContain("The form opens once a case exists");
     // Without a case there is nothing to name a suite after.
     expect(screen.queryByLabelText("Name")).toBeNull();
   });

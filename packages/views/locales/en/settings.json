@@ -2212,6 +2212,8 @@
     "suites_load_error": "Could not load the suites.",
     "cases_empty_title": "No eval case yet",
     "cases_empty_hint": "Promote a resolved issue whose acceptance criteria are all proved to create the first case.",
+    "new_suite_waiting_title": "The form opens once a case exists",
+    "new_suite_waiting_hint": "Name the suite and pick its cases here as soon as the first eval case is promoted; until then there is nothing to group.",
     "cases_load_error": "Could not load the eval cases.",
     "case_count": "{{n}} cases",
     "case_meta": "Issue #{{number}} · {{criteria}} criteria",
