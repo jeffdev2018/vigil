@@ -26,6 +26,8 @@ export function FAQSection() {
               <button
                 type="button"
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                aria-expanded={openIndex === i}
+                aria-controls={`faq-panel-${i}`}
                 className="flex w-full items-start justify-between gap-4 py-6 text-left"
               >
                 <span className="text-title-sm font-semibold leading-snug text-[#0a0d12] sm:text-title">
@@ -51,6 +53,7 @@ export function FAQSection() {
                 </span>
               </button>
               <div
+                id={`faq-panel-${i}`}
                 className={cn(
                   "grid transition-[grid-template-rows] duration-200 ease-out",
                   openIndex === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
