@@ -3034,8 +3034,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/epic", h.GetProjectEpic)
 					r.Post("/epic/steps/{kind}/generate", h.GenerateProjectEpicStep)
 					r.Put("/epic/steps/{kind}", h.PutProjectEpicStep)
-					r.Post("/epic/steps/{kind}/approve", h.ApproveProjectEpicStep)
-					r.Post("/epic/steps/{kind}/apply", h.ApplyProjectEpicTickets)
+					// Approve and apply are the human gates between steps: an
+					// agent must not approve its own draft or create the
+					// child issues it wrote.
+					r.With(handler.RequireHumanActor).Post("/epic/steps/{kind}/approve", h.ApproveProjectEpicStep)
+					r.With(handler.RequireHumanActor).Post("/epic/steps/{kind}/apply", h.ApplyProjectEpicTickets)
 				})
 			})
 
