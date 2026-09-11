@@ -3,6 +3,7 @@ import {
   createRequestId,
   createSafeId,
   generateUUID,
+  humanizeIdentifier,
   isImeComposing,
   truncateWithEllipsis,
 } from "./utils";
@@ -104,5 +105,23 @@ describe("truncateWithEllipsis", () => {
     expect(truncateWithEllipsis("hello", 0)).toBe("");
     expect(truncateWithEllipsis("hello", -5)).toBe("");
     expect(truncateWithEllipsis("hello", Number.NaN)).toBe("…");
+  });
+});
+
+describe("humanizeIdentifier", () => {
+  it("turns kebab and snake identifiers into a sentence", () => {
+    expect(humanizeIdentifier("handle-out-of-scope-tasks")).toBe("Handle out of scope tasks");
+    expect(humanizeIdentifier("context_overflow")).toBe("Context overflow");
+    expect(humanizeIdentifier("mixed-case_id")).toBe("Mixed case id");
+  });
+
+  it("leaves human-authored names untouched", () => {
+    expect(humanizeIdentifier("Repo triage")).toBe("Repo triage");
+    expect(humanizeIdentifier("PR Review")).toBe("PR Review");
+  });
+
+  it("returns the input when nothing readable remains", () => {
+    expect(humanizeIdentifier("")).toBe("");
+    expect(humanizeIdentifier("---")).toBe("---");
   });
 });

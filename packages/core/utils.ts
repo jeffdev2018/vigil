@@ -92,3 +92,16 @@ export function truncateWithEllipsis(text: string, maxLength: number): string {
   }
   return `${chars.slice(0, maxLength - 1).join("").trimEnd()}…`;
 }
+
+/**
+ * Turn a machine identifier ("handle-out-of-scope-tasks", "context_overflow")
+ * into a readable label ("Handle out of scope tasks"). Strings that already
+ * carry casing or spaces ("Repo triage") are returned untouched so a
+ * human-authored name is never re-cased.
+ */
+export function humanizeIdentifier(id: string): string {
+  const spaced = id.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!spaced) return id;
+  if (spaced !== spaced.toLowerCase()) return spaced;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}

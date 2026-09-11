@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { humanizeIdentifier } from "@multica/core/utils";
 import { draftOrigin, skillDraftListOptions, useReviewSkillDraft, type SkillDraft } from "@multica/core/skills/drafts";
 import { Button } from "@multica/ui/components/ui/button";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -48,7 +49,7 @@ function DraftCard({ draft: d, canManage, onPublish, onDismiss, pending }: { dra
   return (
     <li data-testid="skill-draft" data-origin={origin.type} className="flex flex-col gap-1 rounded-md border p-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{d.name}</span>
+        <span className="font-medium" title={d.name}>{humanizeIdentifier(d.name)}</span>
         <span className="rounded bg-muted px-1 text-muted-foreground">
           {origin.type === "distilled" ? t(($) => $.miner.origin_distilled) : t(($) => $.miner.origin_mined, { agent: origin.agent_name || "?", n: origin.signals, regressed: origin.regressed })}
         </span>
