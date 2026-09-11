@@ -44,6 +44,7 @@ const (
 
 	AuditBrainCaptured  = "brain.captured"
 	AuditBrainOrganized = "brain.organized"
+	AuditBrainDeleted   = "brain.deleted"
 )
 
 var (
@@ -998,7 +999,7 @@ func (h *Handler) DeleteBrainCapture(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	actorType, actorID, _ := h.noteActor(r, uuidToString(userUUID), uuidToString(wsUUID))
-	h.audit(r.Context(), wsUUID, actorType, uuidToString(actorID), AuditBrainOrganized, "brain_capture", c.ID, map[string]any{"action": "delete"}, nil)
+	h.audit(r.Context(), wsUUID, actorType, uuidToString(actorID), AuditBrainDeleted, "brain_capture", c.ID, map[string]any{"action": "delete"}, nil)
 	h.publish(protocol.EventBrainCaptureChanged, uuidToString(wsUUID), actorType, uuidToString(actorID), map[string]any{"capture_id": uuidToString(c.ID), "status": "deleted", "change": "deleted"})
 	w.WriteHeader(http.StatusNoContent)
 }
