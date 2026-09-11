@@ -64,14 +64,19 @@ import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Age
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 
-export function SquadDetailPage() {
+/**
+ * The squad id comes from the platform route (Next params on web, useParams on
+ * desktop), like SkillDetailPage. Reading it off the shared pathname fetched
+ * whatever the last path segment was while another route was active
+ * (`/api/squads/triage`).
+ */
+export function SquadDetailPage({ squadId }: { squadId: string }) {
   const { t } = useT("squads");
   const workspace = useCurrentWorkspace();
   const wsId = useWorkspaceId();
   const p = useWorkspacePaths();
-  const { pathname, push } = useNavigation();
+  const { push } = useNavigation();
   const queryClient = useQueryClient();
-  const squadId = pathname.split("/").pop() ?? "";
 
   const { data: squad, refetch: refetchSquad } = useQuery<Squad>({
     queryKey: [...workspaceKeys.squads(wsId), squadId],
@@ -223,7 +228,9 @@ export function SquadDetailPage() {
       {/* Two-column grid mirrors agent-detail-page: left inspector (identity +
           properties + leader), right pane with tabs (Members | Instructions).
           Mobile collapses to stacked single column. */}
-      <div className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto p-3 md:grid md:grid-cols-[280px_minmax(0,1fr)] md:gap-4 md:overflow-hidden md:p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      {/* Keyed by squad: the inspector and the instructions editor buffer
+          fields, and desktop keeps this page mounted across squads. */}
+      <div key={squad.id} className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto p-3 md:grid md:grid-cols-[280px_minmax(0,1fr)] md:gap-4 md:overflow-hidden md:p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <SquadDetailInspector
           squad={squad}
           memberCount={members.length}
