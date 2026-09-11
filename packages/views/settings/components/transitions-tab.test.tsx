@@ -81,7 +81,7 @@ describe("TransitionsTab", () => {
     state.rulesError = null;
     state.rules = [rule()];
     (await screen.findByRole("button", { name: /retry/i })).click();
-    expect(await screen.findByText("in_progress → done")).toBeTruthy();
+    expect(await screen.findByText("In Progress → Done")).toBeTruthy();
   });
 
   it("says out loud that no rules means free transitions", async () => {
