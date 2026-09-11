@@ -29,8 +29,8 @@ import type {
 } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { partitionAggregatedSearchResults } from "@multica/core/search/cancelled-rank";
+import { useOpenContextualCreateIssue } from "../issues/hooks/use-open-contextual-create-issue";
 import {
-  openCreateIssueWithPreference,
   selectRecentIssues,
   useCommentCollapseStore,
   useRecentIssuesStore,
@@ -402,6 +402,7 @@ export function SearchCommand() {
     enabled: !!currentIssueId,
   });
   const queryClient = useQueryClient();
+  const openCreateIssue = useOpenContextualCreateIssue();
 
   const commands = useMemo<CommandItem[]>(() => {
     const activeThemeCheck = (value: ThemeValue) =>
@@ -419,7 +420,7 @@ export function SearchCommand() {
         icon: Plus,
         keywords: ["new", "issue", "create", "add"],
         onSelect: () => {
-          openCreateIssueWithPreference();
+          openCreateIssue();
           setOpen(false);
         },
       },
@@ -542,7 +543,7 @@ export function SearchCommand() {
     );
 
     return items;
-  }, [currentIssue, currentIssueId, getShareableUrl, pathname, queryClient, setOpen, setTheme, theme, t]);
+  }, [currentIssue, currentIssueId, getShareableUrl, openCreateIssue, pathname, queryClient, setOpen, setTheme, theme, t]);
 
   const filteredCommands = useMemo(() => {
     const q = query.trim().toLowerCase();

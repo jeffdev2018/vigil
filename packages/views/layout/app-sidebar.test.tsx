@@ -634,3 +634,18 @@ describe("AppSidebar — pending invitations", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("already accepted"));
   });
 });
+
+describe("New issue from a project page", () => {
+  // Regression (audit): the sidebar's "New issue" on a project page opened the
+  // dialog with "No project", so the issue landed outside the project. Route
+  // parsing is covered in issues/hooks/use-open-contextual-create-issue.test.ts.
+  it("seeds the dialog with the project the user is looking at", async () => {
+    const { openCreateIssueWithPreference } = await import("@multica/core/issues/stores/create-mode-store");
+    navigation.current = { pathname: "/acme/projects/project-1" };
+    renderWithI18n(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: /New Issue/ }));
+
+    expect(openCreateIssueWithPreference).toHaveBeenLastCalledWith({ project_id: "project-1" });
+  });
+});

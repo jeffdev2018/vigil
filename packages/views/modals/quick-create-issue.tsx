@@ -595,6 +595,11 @@ export function AgentCreatePanel({
     const carry: Record<string, unknown> = {};
     if (parentIssueId) carry.parent_issue_id = parentIssueId;
     if (parentIssueIdentifier) carry.parent_issue_identifier = parentIssueIdentifier;
+    // Agent mode cannot plan into a cycle; the seed rides back to manual mode
+    // while the project it belongs to is still picked.
+    if (typeof data?.cycle_id === "string" && data.project_id === projectId) {
+      Object.assign(carry, { project_id: projectId, cycle_id: data.cycle_id });
+    }
     onSwitchMode?.(Object.keys(carry).length > 0 ? carry : null);
   };
 
