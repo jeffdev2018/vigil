@@ -15,6 +15,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -1967,8 +1968,8 @@ func TestNativeAgentRefusesClosedIssueAtEntry(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if status != "failed" || reason != ReasonIssueTerminal {
-		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	if status != "failed" || reason != taskfailure.ReasonIssueTerminal.String() {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, taskfailure.ReasonIssueTerminal)
 	}
 }
 
@@ -2012,8 +2013,8 @@ func TestNativeAgentStopsWhenIssueClosed(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if status != "failed" || reason != ReasonIssueTerminal {
-		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	if status != "failed" || reason != taskfailure.ReasonIssueTerminal.String() {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, taskfailure.ReasonIssueTerminal)
 	}
 	if llm.inner.calls != 1 {
 		t.Fatalf("model calls = %d, want 1 (left at turn boundary)", llm.inner.calls)

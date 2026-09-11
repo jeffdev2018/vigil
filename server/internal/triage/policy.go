@@ -71,11 +71,10 @@ const (
 // the audit state for inbound material that produced no issue and no queue
 // entry (issue limit reached, recent duplicate, source blocked).
 const (
-	StatePending    = "pending"
-	StateAccepted   = "accepted"
-	StateDismissed  = "dismissed"
-	StateMerged     = "merged"
-	StateSuperseded = "superseded"
-	StateExpired    = "expired"
-	StateDropped    = "dropped"
+	StatePending   = "pending"
+	StateAccepted  = "accepted"
+	StateDismissed = "dismissed"
+	StateMerged    = "merged"
+	StateExpired   = "expired"
+	StateDropped   = "dropped"
 )

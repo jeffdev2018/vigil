@@ -20,6 +20,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/llm"
 	"github.com/multica-ai/multica/server/pkg/protocol"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -455,7 +456,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	if task.IssueID.Valid {
 		if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil && nativeIssueIsTerminal(ctx, s.Queries, agent.WorkspaceID, issue.Status) {
 			msg := "The issue was closed while this run was still going, so there is nothing left for it to deliver."
-			if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+			if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", taskfailure.ReasonIssueTerminal.String(), false, "", ""); err != nil {
 				slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
 			}
 			return
@@ -504,7 +505,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		if msg == "" {
 			msg = "The issue was closed while this run was still going, so there is nothing left for it to deliver."
 		}
-		if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+		if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", taskfailure.ReasonIssueTerminal.String(), false, "", ""); err != nil {
 			slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
 		}
 		recordUsage()
