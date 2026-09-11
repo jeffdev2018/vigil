@@ -38,7 +38,7 @@ func TestOIDCCallbackEmailVerifiedClaimShapes(t *testing.T) {
 		want   int
 	}{
 		{name: "claim absent signs in", claims: nil, want: http.StatusOK},
-		{name: "string false is not read as a refusal", claims: jwt.MapClaims{"email_verified": "false"}, want: http.StatusOK},
+		{name: "string false is refused like the boolean (#355)", claims: jwt.MapClaims{"email_verified": "false"}, want: http.StatusUnauthorized},
 		{name: "boolean false is refused", claims: jwt.MapClaims{"email_verified": false}, want: http.StatusUnauthorized},
 	}
 	for _, tc := range cases {
