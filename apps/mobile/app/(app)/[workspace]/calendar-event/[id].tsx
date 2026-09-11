@@ -62,9 +62,16 @@ export default function CalendarEventDetailSheet() {
     );
   };
 
+  // One ScrollView with the header pinned as its first child: as a sibling
+  // above a ScrollView the formSheet drew the body over the title (JEF-398).
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center border-b border-border px-4 py-3">
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
         <Text className="flex-1 text-lg font-semibold text-foreground" numberOfLines={1}>
           {event?.title ?? "Event"}
         </Text>
@@ -78,7 +85,7 @@ export default function CalendarEventDetailSheet() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
+        <View className="items-center justify-center py-16">
           <ActivityIndicator />
         </View>
       ) : !event ? (
@@ -88,11 +95,7 @@ export default function CalendarEventDetailSheet() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-5 px-4 py-5"
-          showsVerticalScrollIndicator={false}
-        >
+        <View className="gap-5 px-4 py-5">
           <View className="gap-1">
             <Text
               className={cn(
@@ -194,8 +197,8 @@ export default function CalendarEventDetailSheet() {
               <Text>Cancel event</Text>
             </Button>
           ) : null}
-        </ScrollView>
+        </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
