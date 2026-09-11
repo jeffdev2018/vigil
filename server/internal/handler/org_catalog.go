@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -37,10 +38,17 @@ func orgTeamBundle(team orgTeamTemplate) *transferBundle {
 	b.Projects = []transferProject{{Title: team.Name, Description: team.Description, Status: "planned", Priority: "medium"}}
 	def := OrgDefinition{Units: []OrgUnit{}, Edges: []OrgEdge{}, Rules: []OrgRule{}, Committees: []OrgCommittee{}}
 	unit := OrgUnit{ID: "team", Name: team.Name, Kind: "unit", Mission: team.Description, Autonomy: "draft", Excludes: []string{"external_effects"}, Allow: []string{"read", "comment", "propose_plan"}, Deny: []string{}, EscalationQuotaPerDay: 5, Members: []OrgMember{}, Roles: []OrgRole{}}
+	roleIDs := []string{"lead", "delivery", "review"}
 	for i, role := range team.Roles {
 		name := team.Name + " · " + role
 		b.Agents = append(b.Agents, transferAgent{Name: name, Description: role, Instructions: "Your role: " + role + ". " + team.Procedure, TrustMode: "propose", EffectMode: "preview", RuntimeMode: "local", Visibility: "workspace", MaxConcurrentTasks: 1, ConversationStarters: json.RawMessage(`[]`), CustomArgs: json.RawMessage(`[]`), Skills: []string{skillName}})
-		id := []string{"lead", "delivery", "review"}[i]
+		// Bounds-checked: a catalog edit that adds a 4th role must not panic
+		// here. A role beyond the named lead/delivery/review slots falls
+		// back to a generic id derived from its position.
+		id := fmt.Sprintf("role-%d", i)
+		if i < len(roleIDs) {
+			id = roleIDs[i]
+		}
 		member := OrgMember{Type: "agent", ID: "agent:" + name, RoleID: id}
 		if i == 0 {
 			member.Role = "lead"
