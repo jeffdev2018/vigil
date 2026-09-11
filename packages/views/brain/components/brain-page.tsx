@@ -524,6 +524,11 @@ function NoteDetailBody({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [editing, setEditing] = useState(false);
+  // The revision the draft was opened on. `note.revision` keeps moving while
+  // the editor is open (a realtime update refetches the note), and sending
+  // the moved value made the server accept a save built on stale fields — a
+  // concurrent edit was silently overwritten instead of answering 409.
+  const [editRevision, setEditRevision] = useState(note.revision);
   const [title, setTitle] = useState(note.title);
   const [tagsRaw, setTagsRaw] = useState((note.tags ?? []).join(", "));
   const [content, setContent] = useState(note.content);
@@ -546,7 +551,7 @@ function NoteDetailBody({
           title,
           content,
           tags: parseTags(tagsRaw),
-          revision: note.revision,
+          revision: editRevision,
         },
       });
       toast.success(t(($) => $.detail.saved_toast));
@@ -554,7 +559,7 @@ function NoteDetailBody({
     } catch (err) {
       handleWriteError(err, t);
     }
-  }, [content, note.id, note.revision, t, tagsRaw, title, update]);
+  }, [content, editRevision, note.id, t, tagsRaw, title, update]);
 
   const handleTogglePin = useCallback(async () => {
     try {
@@ -659,7 +664,10 @@ function NoteDetailBody({
                   <Archive aria-hidden="true" className="size-3.5" />
                 )}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="sm" onClick={() => {
+                  setEditRevision(note.revision);
+                  setEditing(true);
+                }}>
                 {t(($) => $.detail.edit)}
               </Button>
               <Button
