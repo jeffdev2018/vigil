@@ -116,8 +116,16 @@ func Capture(ctx context.Context, q *db.Queries, p CaptureParams) (db.TriageItem
 		SourceID:        source.ID,
 		OriginType:      p.OriginType,
 		OriginID:        p.OriginID,
-		DedupeKey:       pgtype.Text{String: p.DedupeKey, Valid: true},
-		ContentDigest:   pgtype.Text{String: ContentDigest(p.Title, p.TriggerPayload), Valid: true},
+		DedupeKey: pgtype.Text{String: p.DedupeKey, Valid: true},
+		// content_digest is intentionally left empty: as defined, it hashes
+		// normalized_title + payload, so a matching digest always implies a
+		// matching normalized_title — which the uq_triage_item_pending_title
+		// arbiter above already folds. It adds no dedup signal beyond that,
+		// so nothing computes or reads it. (The column stays NOT NULL for
+		// schema stability; an explicit NULL here would violate that, so
+		// this passes the empty string the column would otherwise default
+		// to on its own.)
+		ContentDigest:   pgtype.Text{String: "", Valid: true},
 		Title:           pgtype.Text{String: p.Title, Valid: true},
 		NormalizedTitle: pgtype.Text{String: NormalizeTitle(p.Title), Valid: true},
 		BodyMarkdown:    pgtype.Text{String: p.BodyMarkdown, Valid: true},
