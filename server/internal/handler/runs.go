@@ -644,7 +644,12 @@ func (h *Handler) KillSwitch(w http.ResponseWriter, r *http.Request) {
 			all = append(all, id)
 		}
 	}
-	results := h.cancelRunsUnscoped(r.Context(), wsUUID, all)
+	results, err := h.cancelRunsUnscoped(r.Context(), wsUUID, all)
+	if err != nil {
+		slog.Error("kill switch: list agents failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "the fleet is halted but its active runs could not be cancelled; retry to cancel them")
+		return
+	}
 	cancelled := 0
 	for _, res := range results {
 		if res.Outcome == "cancelled" {
@@ -657,14 +662,14 @@ func (h *Handler) KillSwitch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"run_halt": halt, "cancelled": cancelled, "results": results})
 }
 
-func (h *Handler) cancelRunsUnscoped(ctx context.Context, wsUUID pgtype.UUID, ids []pgtype.UUID) []RunCancelOutcome {
+func (h *Handler) cancelRunsUnscoped(ctx context.Context, wsUUID pgtype.UUID, ids []pgtype.UUID) ([]RunCancelOutcome, error) {
 	agents, err := h.Queries.ListAllAgentsAnyKind(ctx, wsUUID)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	all := make([]pgtype.UUID, 0, len(agents))
 	for _, a := range agents {
 		all = append(all, a.ID)
 	}
-	return h.cancelRuns(ctx, wsUUID, all, ids)
+	return h.cancelRuns(ctx, wsUUID, all, ids), nil
 }
