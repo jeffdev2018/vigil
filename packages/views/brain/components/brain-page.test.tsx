@@ -109,13 +109,14 @@ function renderPage() {
     hash: "",
     getShareableUrl: (p) => p,
   };
-  return renderWithI18n(
+  const rendered = renderWithI18n(
     <NavigationProvider value={adapter}>
       <QueryClientProvider client={client}>
         <BrainPage />
       </QueryClientProvider>
     </NavigationProvider>,
   );
+  return { ...rendered, client };
 }
 
 /**
@@ -193,6 +194,31 @@ describe("BrainPage", () => {
           tags: ["deploy"],
           revision: 3,
         },
+      }),
+    );
+  });
+
+  it("keeps the revision the draft was opened on when the note refreshes while editing", async () => {
+    // Regression (JEF-348 recette): a realtime update refetched the note under
+    // the open editor and the save carried the NEW revision, so the server
+    // accepted a draft built on stale fields and the concurrent edit was lost.
+    const { client } = await renderNotes();
+    fireEvent.click(await screen.findByText("Deploys go through the release tag"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Content"), { target: { value: "my draft" } });
+
+    data.response = { items: [note({ revision: 4, content: "someone else's body" })], tags: ["deploy"] };
+    await client.invalidateQueries();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    // The draft is untouched by the refresh…
+    expect((screen.getByLabelText("Content") as HTMLTextAreaElement).value).toBe("my draft");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    // …and the save still names revision 3, so the server answers 409.
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.objectContaining({ content: "my draft", revision: 3 }),
       }),
     );
   });

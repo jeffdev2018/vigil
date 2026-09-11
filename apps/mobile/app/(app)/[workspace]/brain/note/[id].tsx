@@ -67,6 +67,11 @@ export default function NoteDetailScreen() {
   const remove = useDeleteWorkspaceNote();
 
   const [editing, setEditing] = useState(false);
+  // The revision the draft was opened on. `data.revision` keeps moving
+  // while the form is open (realtime updates refetch the note), and sending
+  // the moved value made the server accept a save built on stale fields —
+  // a concurrent edit was silently overwritten instead of answering 409.
+  const [editRevision, setEditRevision] = useState(0);
   const [title, setTitle] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
   const [content, setContent] = useState("");
@@ -108,9 +113,9 @@ export default function NoteDetailScreen() {
           title: title.trim(),
           content,
           tags: parseTagInput(tagsRaw),
-          // The revision the client READ. The server refuses a 0 and
+          // The revision the draft was READ on. The server refuses a 0 and
           // answers 409 when the note moved since — never guessed locally.
-          revision: data.revision,
+          revision: editRevision,
         },
       },
       {
@@ -124,7 +129,7 @@ export default function NoteDetailScreen() {
         },
       },
     );
-  }, [busy, content, data, note, tagsRaw, title, update]);
+  }, [busy, content, data, editRevision, note, tagsRaw, title, update]);
 
   const onTogglePin = useCallback(() => {
     if (!data || busy) return;
@@ -225,7 +230,10 @@ export default function NoteDetailScreen() {
                 />
                 <IconButton
                   name="create-outline"
-                  onPress={() => setEditing(true)}
+                  onPress={() => {
+                    setEditRevision(data.revision);
+                    setEditing(true);
+                  }}
                   disabled={busy}
                   accessibilityLabel="Edit this note"
                 />
