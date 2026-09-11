@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
@@ -289,9 +290,17 @@ func TestGoogleLoginSuccessfulExistingUser(t *testing.T) {
 			return nil, nil
 		}
 	})}
+	h.CFSigner = testCloudFrontSigner(t)
 	req := googleLoginRequest(`{"code":"test-code","redirect_uri":"http://localhost/auth/callback"}`)
 	var got LoginResponse
 	resp := testutil.Call(t, h.GoogleLogin, req).Want(http.StatusOK).JSON(&got)
+	// CDN cookies live as long as the session, as on every other login path;
+	// a shorter fixed lifetime left a valid session without its assets.
+	for _, cookie := range resp.Result().Cookies() {
+		if cookie.Name == "CloudFront-Policy" && cookie.Expires.Before(time.Now().Add(auth.AuthTokenTTL()-time.Hour)) {
+			t.Fatalf("CloudFront cookie expires %s, want about now + AuthTokenTTL (%s)", cookie.Expires, auth.AuthTokenTTL())
+		}
+	}
 	if requests != 2 || got.Token == "" || got.User.ID != userID || got.User.Email != email {
 		t.Fatalf("unexpected successful login: requests=%d, token present=%t, user=%+v", requests, got.Token != "", got.User)
 	}
