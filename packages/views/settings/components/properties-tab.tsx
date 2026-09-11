@@ -808,6 +808,7 @@ function TypeScopeSelector({
       <button
         type="button"
         onClick={() => onChange([])}
+        aria-pressed={isGlobal}
         className="flex w-full items-center gap-2 border-b border-surface-border px-2 py-1.5 text-caption transition-colors hover:bg-accent/50"
       >
         <Checkbox checked={isGlobal} aria-hidden tabIndex={-1} />
@@ -821,6 +822,7 @@ function TypeScopeSelector({
             key={entry.key}
             type="button"
             onClick={() => toggle(entry.key)}
+            aria-pressed={value.includes(entry.key)}
             className="flex w-full items-center gap-2 rounded px-1 py-1 text-caption transition-colors hover:bg-accent/50"
           >
             <Checkbox checked={value.includes(entry.key)} aria-hidden tabIndex={-1} />

@@ -532,17 +532,17 @@ function ImageAttachmentView({
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <button type="button" onClick={onView} title={t(($) => $.image.view)}>
+            <button type="button" onClick={onView} title={t(($) => $.image.view)} aria-label={t(($) => $.image.view)}>
               <Maximize2 className="size-3.5" />
             </button>
-            <button type="button" onClick={onDownload} title={t(($) => $.image.download)}>
+            <button type="button" onClick={onDownload} title={t(($) => $.image.download)} aria-label={t(($) => $.image.download)}>
               <Download className="size-3.5" />
             </button>
-            <button type="button" onClick={handleCopyLink} title={t(($) => $.image.copy_link)}>
+            <button type="button" onClick={handleCopyLink} title={t(($) => $.image.copy_link)} aria-label={t(($) => $.image.copy_link)}>
               <LinkIcon className="size-3.5" />
             </button>
             {editable && onDelete && (
-              <button type="button" onClick={onDelete} title={t(($) => $.image.delete)}>
+              <button type="button" onClick={onDelete} title={t(($) => $.image.delete)} aria-label={t(($) => $.image.delete)}>
                 <Trash2 className="size-3.5" />
               </button>
             )}

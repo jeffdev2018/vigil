@@ -321,7 +321,7 @@ function SortablePinItem({
               onUnpin();
             }}
           >
-            <X className="size-1" />
+            <X className="size-2.5" />
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>{t(($) => $.sidebar.unpin_tooltip)}</TooltipContent>
         </Tooltip>

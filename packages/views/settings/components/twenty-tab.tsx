@@ -350,7 +350,7 @@ function CopyField({ label, value, onCopy, copyLabel }: { label: string; value: 
       <Label className="text-caption">{label}</Label>
       <div className="flex items-center gap-2">
         <Input readOnly value={value} className="min-w-0 font-mono text-caption" />
-        <Button variant="outline" size="sm" className="shrink-0" onClick={() => onCopy(value)} title={copyLabel}>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={() => onCopy(value)} title={copyLabel} aria-label={copyLabel}>
           <Copy className="h-3 w-3" />
         </Button>
       </div>
