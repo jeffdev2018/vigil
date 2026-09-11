@@ -85,7 +85,7 @@ describe("GoalsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add sub-goal" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Ship v2" } });
-    expect((within(dialog).getByLabelText("Parent goal") as HTMLSelectElement).value).toBe("root");
+    expect(within(dialog).getByRole("combobox", { name: "Parent goal" }).textContent).toContain("Grow revenue");
     fireEvent.click(within(dialog).getByRole("button", { name: "Create goal" }));
     expect(state.created[0]).toMatchObject({ title: "Ship v2", parent_goal_id: "root", status: "draft", owner_id: null });
   });
