@@ -16,12 +16,14 @@ import { issueKeys } from "@multica/core/issues/queries";
 import type { TransferImportResult, TransferPreview, TransferSecretValues, TransferStrategy } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT, useTimeAgo } from "../../i18n";
-
-const selectClass = "h-8 rounded-md border bg-background px-2 text-caption";
 
 /** Workspace export / import (K76): bundle download, guided import, and the run history. */
 export function ExportImportSetting({ canEdit }: { canEdit: boolean }) {
@@ -122,11 +124,11 @@ export function ExportImportSetting({ canEdit }: { canEdit: boolean }) {
         <SettingsRow label={t(($) => $.transfer.export_title)} description={t(($) => $.transfer.export_description)} align="start">
           <div data-testid="transfer-export" className="flex flex-col gap-2 text-caption">
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={includeIssues} disabled={disabled} onChange={(e) => setIncludeIssues(e.target.checked)} />
+              <Checkbox checked={includeIssues} disabled={disabled} onCheckedChange={(v) => setIncludeIssues(v === true)} />
               {t(($) => $.transfer.include_issues)}
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={includeNotes} disabled={disabled} onChange={(e) => setIncludeNotes(e.target.checked)} />
+              <Checkbox checked={includeNotes} disabled={disabled} onCheckedChange={(v) => setIncludeNotes(v === true)} />
               {t(($) => $.transfer.include_notes)}
             </label>
             <label className="flex items-center gap-2">
@@ -177,13 +179,25 @@ export function ExportImportSetting({ canEdit }: { canEdit: boolean }) {
                 )}
                 <label className="flex items-center gap-2">
                   {t(($) => $.transfer.strategy)}
-                  <select aria-label={t(($) => $.transfer.strategy)} className={selectClass} value={strategy} disabled={disabled} onChange={(e) => setStrategy(e.target.value as TransferStrategy)}>
-                    {(preview.strategies ?? ["rename", "merge", "skip"]).map((s) => (
-                      <option key={s} value={s}>
-                        {t(($) => $.transfer[`strategy_${s}`])}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    items={(preview.strategies ?? ["rename", "merge", "skip"]).map((s) => ({
+                      value: s,
+                      label: t(($) => $.transfer[`strategy_${s}`]),
+                    }))}
+                    value={strategy}
+                    onValueChange={(value) => value && setStrategy(value as TransferStrategy)}
+                  >
+                    <SelectTrigger aria-label={t(($) => $.transfer.strategy)} size="sm" disabled={disabled}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(preview.strategies ?? ["rename", "merge", "skip"]).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {t(($) => $.transfer[`strategy_${s}`])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
                 {agentSecrets.map((s) => {
                   const id = `${s.name}.${s.key}`;
