@@ -47,7 +47,10 @@
     "close_confirm": "Clore le cycle",
     "cancel": "Annuler",
     "close_error": "Impossible de clore le cycle",
-    "closed_on": "Clos le {{date}}"
+    "closed_on": "Clos le {{date}}",
+    "empty_issues_title": "Aucune issue dans ce cycle",
+    "empty_issues_hint": "Créez une nouvelle issue ou assignez-en des existantes à ce cycle.",
+    "empty_issues_new_button": "Nouvelle issue"
   },
   "form": {
     "create_title": "Nouveau cycle",

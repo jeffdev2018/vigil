@@ -102,15 +102,24 @@ export function MemberProfileCard({ userId }: MemberProfileCardProps) {
   );
 }
 
-function RoleBadge({ role }: { role: MemberRole }) {
+// Workspace role (owner/admin/member) → localized label. Exported for reuse
+// anywhere else a workspace role needs the same three-way i18n glossary
+// mapping (e.g. squad-profile-card.tsx) instead of a parallel ternary.
+export function useWorkspaceRoleLabel() {
   const { t } = useT("members");
+  return (role: string): string =>
+    role === "owner"
+      ? t(($) => $.role.owner)
+      : role === "admin"
+        ? t(($) => $.role.admin)
+        : t(($) => $.role.member);
+}
+
+function RoleBadge({ role }: { role: MemberRole }) {
+  const roleLabel = useWorkspaceRoleLabel();
   return (
     <span className="rounded-md bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
-      {role === "owner"
-        ? t(($) => $.role.owner)
-        : role === "admin"
-          ? t(($) => $.role.admin)
-          : t(($) => $.role.member)}
+      {roleLabel(role)}
     </span>
   );
 }

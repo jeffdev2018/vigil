@@ -76,7 +76,8 @@
       "workload_hint": "{{running}} 个运行中 · {{queued}} 个排队中",
       "cli": "CLI",
       "cloud_worker": "云端 worker",
-      "local_daemon": "本地守护进程"
+      "local_daemon": "本地守护进程",
+      "cloud_worker_named": "{{provider}} 云端"
     },
     "rename": "重命名机器",
     "rename_dialog": {
@@ -90,7 +91,8 @@
       "toast_saved": "已重命名机器",
       "toast_cleared": "已清除机器名称",
       "toast_failed": "重命名机器失败"
-    }
+    },
+    "unassigned": "未分配"
   },
   "health": {
     "online": {
@@ -347,7 +349,8 @@
       "completed": "更新完成。守护进程正在重启...",
       "failed": "更新失败",
       "timeout": "超时"
-    }
+    },
+    "updated_to": "已更新到 {{version}}"
   },
   "cli_auth": {
     "authenticated": "已认证",
@@ -379,7 +382,11 @@
     "heatmap_quietest_weekday": "最不活跃星期",
     "heatmap_average": "平均 {{value}}",
     "heatmap_window_total_other": "{{count}} 天总计",
-    "tooltip_total": "总计"
+    "tooltip_total": "总计",
+    "tasks_completed": "已完成",
+    "tasks_cancelled": "已取消",
+    "tasks_failed": "失败",
+    "time_run_time": "运行时间"
   },
   "list": {
     "col_runtime": "运行时",

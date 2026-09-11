@@ -828,7 +828,13 @@ function Sep() {
 type AgentsT = ReturnType<typeof useT<"agents">>["t"];
 type TimeAgoFn = (dateStr: string) => string;
 
-function taskStatusLabel(status: AgentTask["status"], t: AgentsT): string {
+// Exported for reuse anywhere a run/task carries this same status wire
+// vocabulary (e.g. run-replay-dialog.tsx) — one status→label mapping
+// instead of a parallel one per surface. Loosened to `string` at the
+// boundary since not every caller has AgentTask's narrowed type (run
+// replay's RunReplay["run"]["status"] is a plain string); the switch stays
+// exhaustive over the known statuses either way.
+export function taskStatusLabel(status: AgentTask["status"] | string, t: AgentsT): string {
   switch (status) {
     case "queued":
       return t(($) => $.tab_body.activity.status.queued);

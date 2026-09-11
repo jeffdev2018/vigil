@@ -80,7 +80,8 @@
       "workload_hint": "{{running}} running · {{queued}} queued",
       "cli": "CLI",
       "cloud_worker": "Cloud worker",
-      "local_daemon": "Local daemon"
+      "local_daemon": "Local daemon",
+      "cloud_worker_named": "{{provider}} cloud"
     },
     "rename": "Rename machine",
     "rename_dialog": {
@@ -94,7 +95,8 @@
       "toast_saved": "Machine renamed",
       "toast_cleared": "Machine name cleared",
       "toast_failed": "Failed to rename machine"
-    }
+    },
+    "unassigned": "Unassigned"
   },
   "health": {
     "online": {
@@ -359,7 +361,8 @@
       "completed": "Update complete. Daemon is restarting...",
       "failed": "Update failed",
       "timeout": "Timeout"
-    }
+    },
+    "updated_to": "Updated to {{version}}"
   },
   "cli_auth": {
     "authenticated": "Authenticated",
@@ -392,7 +395,11 @@
     "heatmap_average": "avg {{value}}",
     "heatmap_window_total_one": "{{count}}-day total",
     "heatmap_window_total_other": "{{count}}-day total",
-    "tooltip_total": "Total"
+    "tooltip_total": "Total",
+    "tasks_completed": "Completed",
+    "tasks_cancelled": "Cancelled",
+    "tasks_failed": "Failed",
+    "time_run_time": "Run time"
   },
   "list": {
     "col_runtime": "Runtime",

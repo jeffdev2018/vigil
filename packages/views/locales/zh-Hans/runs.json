@@ -42,7 +42,8 @@
     "silent_tooltip": "已有 {{duration}} 没有上报活动",
     "blocked_on": "卡在",
     "cancel_aria": "取消此运行",
-    "cancel_tooltip": "取消"
+    "cancel_tooltip": "取消",
+    "transcript_tooltip": "查看记录"
   },
   "cancel_dialog": {
     "title_other": "取消这 {{count}} 个运行？",

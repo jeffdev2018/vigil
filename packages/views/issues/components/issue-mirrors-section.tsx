@@ -10,6 +10,7 @@ import { Badge } from "@multica/ui/components/ui/badge";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
+import { useStatusLabel } from "../utils/status-label";
 
 /**
  * Cross-repo mirrors (K54).
@@ -24,6 +25,7 @@ export function IssueMirrorsSection({ issueId }: { issueId: string }) {
   const workspace = useCurrentWorkspace();
   const { data } = useQuery(issueMirrorsOptions(wsId, issueId));
   const setSynced = useSetMirrorTypeSynced(wsId, issueId);
+  const statusLabel = useStatusLabel(wsId);
 
   const mirrors = data?.mirrors ?? [];
   const source = data?.mirror_of ?? null;
@@ -69,7 +71,7 @@ export function IssueMirrorsSection({ issueId }: { issueId: string }) {
                 </span>
               )}
               <span className="font-mono text-muted-foreground">{m.identifier}</span>
-              <Badge variant={isMirrorOpen(m) ? "outline" : "secondary"}>{m.status}</Badge>
+              <Badge variant={isMirrorOpen(m) ? "outline" : "secondary"}>{statusLabel(m.status)}</Badge>
               <label className="flex items-center gap-1 text-muted-foreground">
                 <Checkbox
                   checked={m.type_synced}

@@ -134,6 +134,24 @@ describe("AgentBatchToolbar — action order", () => {
   });
 });
 
+describe("AgentBatchToolbar — archive dialog title", () => {
+  it("uses the single-agent name title for one selected row", () => {
+    renderToolbar([makeRow("a", "user-1")]);
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    expect(screen.getByText('Archive "Agent a"?')).toBeInTheDocument();
+  });
+
+  // Regression: the title used to interpolate `String(rows.length)` into the
+  // single-agent `archive_dialog_title` ("Archive \"{{name}}\"?"), rendering
+  // "Archive \"2\"?" for a multi-row selection instead of a real plural.
+  it("uses a pluralized count title for a multi-row selection, not the name template", () => {
+    renderToolbar([makeRow("a", "user-1"), makeRow("b", "user-1")]);
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    expect(screen.getByText("Archive 2 agents?")).toBeInTheDocument();
+    expect(screen.queryByText('Archive "2"?')).not.toBeInTheDocument();
+  });
+});
+
 describe("AgentBatchToolbar — presence", () => {
   it("closes dialogs and removes the toolbar when selection becomes empty", async () => {
     const view = renderToolbar([makeRow("a", "user-1")]);

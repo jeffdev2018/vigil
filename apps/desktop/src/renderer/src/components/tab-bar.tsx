@@ -38,6 +38,7 @@ import { SIDEBAR_WRAPPER_FILL_CLASS } from "@multica/ui/components/ui/sidebar";
 import { cn } from "@multica/ui/lib/utils";
 import { useTabStore, useActiveGroup, type Tab } from "@/stores/tab-store";
 import { paths } from "@multica/core/paths";
+import { useT } from "@multica/views/i18n";
 import {
   useTabPresentation,
   ResourceLeadingVisual,
@@ -203,6 +204,7 @@ function SortableTabItem({
    */
   showSeparator: boolean;
 }) {
+  const { t } = useT("layout");
   const setActiveTab = useTabStore((s) => s.setActiveTab);
   const closeTab = useTabStore((s) => s.closeTab);
   const closeOtherTabs = useTabStore((s) => s.closeOtherTabs);
@@ -329,8 +331,8 @@ function SortableTabItem({
         onClick={handleTogglePin}
         onPointerDown={stopDragOnAction}
         role="button"
-        aria-label={tab.pinned ? "Unpin tab" : "Pin tab"}
-        title={tab.pinned ? "Unpin tab" : "Pin tab"}
+        aria-label={tab.pinned ? t(($) => $.tab_bar.unpin_tab) : t(($) => $.tab_bar.pin_tab)}
+        title={tab.pinned ? t(($) => $.tab_bar.unpin_tab) : t(($) => $.tab_bar.pin_tab)}
         className="hidden size-3.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors group-hover:flex hover:bg-muted-foreground/20 hover:text-foreground"
       >
         {tab.pinned ? <PinOff className="size-2.5" /> : <Pin className="size-2.5" />}
@@ -340,7 +342,7 @@ function SortableTabItem({
           onClick={handleClose}
           onPointerDown={stopDragOnAction}
           role="button"
-          aria-label="Close tab"
+          aria-label={t(($) => $.tab_bar.close_tab)}
           className="hidden size-3.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors group-hover:flex hover:bg-muted-foreground/20 hover:text-foreground"
         >
           <X className="size-2.5" />
@@ -411,7 +413,7 @@ function SortableTabItem({
               <>
                 <ContextMenuItem onClick={handleOpenAsWindow}>
                   <AppWindow />
-                  Open as new window
+                  {t(($) => $.tab_bar.open_as_new_window)}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
@@ -420,12 +422,12 @@ function SortableTabItem({
               {tab.pinned ? (
                 <>
                   <PinOff />
-                  Unpin tab
+                  {t(($) => $.tab_bar.unpin_tab)}
                 </>
               ) : (
                 <>
                   <Pin />
-                  Pin tab
+                  {t(($) => $.tab_bar.pin_tab)}
                 </>
               )}
             </ContextMenuItem>
@@ -436,7 +438,7 @@ function SortableTabItem({
               onClick={() => closeTab(tab.id)}
             >
               <X />
-              Close tab
+              {t(($) => $.tab_bar.close_tab)}
             </ContextMenuItem>
             <ContextMenuItem
               variant="destructive"
@@ -444,7 +446,7 @@ function SortableTabItem({
               onClick={() => closeOtherTabs(tab.id)}
             >
               <ListX />
-              Close other tabs
+              {t(($) => $.tab_bar.close_other_tabs)}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -527,6 +529,7 @@ function NewTabEdgeFeedback({
 }
 
 function NewTabButton() {
+  const { t } = useT("layout");
   const addTab = useTabStore((s) => s.addTab);
   const setActiveTab = useTabStore((s) => s.setActiveTab);
 
@@ -544,8 +547,8 @@ function NewTabButton() {
     <button
       type="button"
       onClick={handleClick}
-      aria-label="New tab"
-      title="New tab"
+      aria-label={t(($) => $.tab_bar.new_tab)}
+      title={t(($) => $.tab_bar.new_tab)}
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       className="mb-1 flex size-7 shrink-0 items-center justify-center self-end rounded-md text-faint-foreground transition-colors hover:bg-muted/50 hover:text-muted-foreground"
     >

@@ -623,7 +623,12 @@ function RunRow({
 
         <div className="flex shrink-0 items-center gap-0.5">
           {showTranscript ? (
-            <TranscriptButton task={task} agentName={run.agent_name} isLive={run.status === "running"} />
+            <TranscriptButton
+              task={task}
+              agentName={run.agent_name}
+              isLive={run.status === "running"}
+              title={t(($) => $.row.transcript_tooltip)}
+            />
           ) : null}
           <ReplayButton task={task} />
           {isSettledRunStatus(run.status) ? null : (

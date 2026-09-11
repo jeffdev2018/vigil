@@ -105,7 +105,11 @@ export function DecisionCard({ decision, issueId, wsId }: { decision: IssueDecis
       <div className="flex items-start gap-2">
         <span className="min-w-0 flex-1 whitespace-pre-wrap font-medium">{decision.question}</span>
         <span className={cn("shrink-0 uppercase", URGENCY_TONE[decision.urgency] ?? "text-muted-foreground")}>
-          {decision.urgency}
+          {decision.urgency === "high"
+            ? t(($) => $.decisions.urgency_high)
+            : decision.urgency === "low"
+              ? t(($) => $.decisions.urgency_low)
+              : t(($) => $.decisions.urgency_normal)}
         </span>
       </div>
       {sla.kind !== "none" && (

@@ -176,6 +176,17 @@ describe("RecurrenceSection", () => {
     expect(rows[1]?.textContent).toContain(en.recurrence.source);
   });
 
+  // Regression: due_date ("2026-09-11", a date-only server string) was
+  // interpolated verbatim into t() — "due 2026-09-11" in every locale —
+  // instead of formatted like occurrence_created a few lines above.
+  it("formats the due date instead of interpolating the raw ISO string", async () => {
+    state.data = payload();
+    render();
+    const rows = await screen.findAllByTestId("recurrence-occurrence");
+    expect(rows[0]?.textContent).not.toContain("2026-09-11");
+    expect(rows[0]?.textContent).toContain("Sep 11");
+  });
+
   it("keeps the rule and flips only `enabled` when the switch is turned off", async () => {
     state.data = payload();
     render();

@@ -22,6 +22,7 @@ import { AppLink } from "../../navigation";
 import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import {
   buildRuntimeMachines,
+  capitalize,
   sharedCustomName,
 } from "./runtime-machines";
 import { RenameMachineDialog } from "./rename-machine-dialog";
@@ -112,6 +113,8 @@ export function RuntimeDetailPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        cloudMachineTitle: (provider) =>
+          t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
       }),
     [
       runtimes,
@@ -121,6 +124,7 @@ export function RuntimeDetailPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      t,
     ],
   );
   const baseMachine = findMachine(baseMachines, machineLocator);

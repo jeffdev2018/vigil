@@ -20,14 +20,24 @@ import { useT } from "../../i18n";
  * there rather than a point at zero, which is the honest rendering: a zero
  * would read as "everything was done".
  */
-const chartConfig = {
-  remaining: { label: "Remaining", color: "var(--chart-1)" },
-  ideal: { label: "Ideal", color: "var(--chart-3)" },
-} satisfies ChartConfig;
-
 export function BurndownChart({ burndown }: { burndown: CycleBurndown }) {
   const { t } = useT("cycles");
   const usesLoad = burndown.load_unit === "property";
+
+  // Built inside the component (needs `t`) rather than module-scope: the
+  // tooltip's getPayloadConfigFromPayload (packages/ui/components/ui/chart.tsx)
+  // resolves a series' label from THIS config via its dataKey, never from a
+  // <Line name=...> prop — a module-scope English chartConfig meant the
+  // tooltip showed "Remaining"/"Ideal" in every locale regardless of the
+  // translated `name` passed to <Line>. See daily-cost-chart.tsx and
+  // siblings for the same labelOf(config, name) pattern on Bar tooltips.
+  const chartConfig = useMemo(
+    (): ChartConfig => ({
+      remaining: { label: t(($) => $.detail.remaining), color: "var(--chart-1)" },
+      ideal: { label: t(($) => $.detail.ideal), color: "var(--chart-3)" },
+    }),
+    [t],
+  );
 
   const data = useMemo(
     () =>
@@ -69,7 +79,6 @@ export function BurndownChart({ burndown }: { burndown: CycleBurndown }) {
             strokeDasharray="4 4"
             strokeWidth={1.5}
             dot={false}
-            name={t(($) => $.detail.ideal)}
           />
           <Line
             dataKey="remaining"
@@ -79,7 +88,6 @@ export function BurndownChart({ burndown }: { burndown: CycleBurndown }) {
             dot={false}
             // A null day is a real gap in the series, not a value to bridge.
             connectNulls={false}
-            name={t(($) => $.detail.remaining)}
           />
         </LineChart>
       </ChartContainer>

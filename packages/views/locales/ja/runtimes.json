@@ -76,7 +76,8 @@
       "workload_hint": "実行中 {{running}} 件 · キュー待ち {{queued}} 件",
       "cli": "CLI",
       "cloud_worker": "クラウドワーカー",
-      "local_daemon": "ローカルデーモン"
+      "local_daemon": "ローカルデーモン",
+      "cloud_worker_named": "{{provider}} クラウド"
     },
     "rename": "マシンの名前を変更",
     "rename_dialog": {
@@ -90,7 +91,8 @@
       "toast_saved": "マシンの名前を変更しました",
       "toast_cleared": "マシン名をクリアしました",
       "toast_failed": "マシンの名前変更に失敗しました"
-    }
+    },
+    "unassigned": "未割り当て"
   },
   "health": {
     "online": {
@@ -347,7 +349,8 @@
       "completed": "更新が完了しました。デーモンを再起動しています...",
       "failed": "更新に失敗しました",
       "timeout": "タイムアウト"
-    }
+    },
+    "updated_to": "{{version}} に更新しました"
   },
   "cli_auth": {
     "authenticated": "認証済み",
@@ -379,7 +382,11 @@
     "heatmap_quietest_weekday": "最も静かな曜日",
     "heatmap_average": "平均 {{value}}",
     "heatmap_window_total_other": "{{count}}日間の合計",
-    "tooltip_total": "合計"
+    "tooltip_total": "合計",
+    "tasks_completed": "完了",
+    "tasks_cancelled": "キャンセル済み",
+    "tasks_failed": "失敗",
+    "time_run_time": "実行時間"
   },
   "list": {
     "col_runtime": "ランタイム",

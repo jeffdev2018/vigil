@@ -42,7 +42,8 @@
     "silent_tooltip": "{{duration}} の間、活動が報告されていません",
     "blocked_on": "ブロック要因",
     "cancel_aria": "この実行をキャンセル",
-    "cancel_tooltip": "キャンセル"
+    "cancel_tooltip": "キャンセル",
+    "transcript_tooltip": "トランスクリプトを表示"
   },
   "cancel_dialog": {
     "title_other": "{{count}} 件の実行をキャンセルしますか?",

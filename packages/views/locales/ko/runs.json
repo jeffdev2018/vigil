@@ -42,7 +42,8 @@
     "silent_tooltip": "{{duration}} 동안 활동이 보고되지 않았습니다",
     "blocked_on": "막힌 원인",
     "cancel_aria": "이 실행 취소",
-    "cancel_tooltip": "취소"
+    "cancel_tooltip": "취소",
+    "transcript_tooltip": "트랜스크립트 보기"
   },
   "cancel_dialog": {
     "title_other": "실행 {{count}}건을 취소할까요?",

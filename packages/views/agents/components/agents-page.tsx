@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
-  Lock,
   Plus,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,7 +20,6 @@ import {
   isAgentRuntimeBound,
   useWorkspaceActivityMap,
   useWorkspacePresenceMap,
-  VISIBILITY_TOOLTIP,
   type AgentPresenceDetail,
 } from "@multica/core/agents";
 import {
@@ -54,14 +52,10 @@ import {
   type ListGridSortDirection,
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
 import { AppLink, useNavigation, useRowLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
+import { VisibilityBadge } from "./visibility-badge";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
@@ -414,14 +408,7 @@ function NameCell({ row }: { row: AgentListRow }) {
             {agent.name}
           </span>
           {isPrivate && !isArchived && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Lock className="h-3 w-3 shrink-0 text-faint-foreground" />
-                }
-              />
-              <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
-            </Tooltip>
+            <VisibilityBadge value="private" compact className="text-faint-foreground" />
           )}
           {isOwnedByMe && (
             <span className="shrink-0 rounded bg-muted px-1 text-micro font-medium text-muted-foreground">

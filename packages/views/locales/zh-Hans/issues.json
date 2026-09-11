@@ -1255,7 +1255,10 @@
     "sla_overdue": "已逾期，等待升级",
     "sla_substitute": "已逾期 · 已升级给替补",
     "sla_leads": "已逾期 · 已升级给工作区负责人",
-    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。"
+    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。",
+    "urgency_high": "高",
+    "urgency_normal": "普通",
+    "urgency_low": "低"
   },
   "acceptance": {
     "section": "验收标准",

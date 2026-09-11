@@ -54,6 +54,18 @@ interface RuntimeMachineOptions {
    * Desktop sets this; web omits it.
    */
   ensureLocalMachine?: boolean;
+  /**
+   * Translates the cloud-provider fallback title used when a cloud machine
+   * has reported no device info and carries no shared custom name — the one
+   * case machineTitle() cannot itself render in the viewer's language (this
+   * file has no `t()`). Optional so callers that never show `machine.title`
+   * as prose (drop-downs keying off `id`, pickers, etc.) aren't forced
+   * through i18n; those fall back to the untranslated `"${provider} cloud"`
+   * this always returned. Real display surfaces (runtimes-page.tsx,
+   * runtime-detail-page.tsx) pass `(provider) => t($ => $.machine.metrics
+   * .cloud_worker_named, { provider: capitalize(provider) })`.
+   */
+  cloudMachineTitle?: (provider: string) => string;
 }
 
 interface RuntimeMachineDraft {
@@ -217,6 +229,7 @@ function finalizeRuntimeMachine(
   const title = machineTitle(runtimes, {
     isCurrent,
     localMachineName: options.localMachineName,
+    cloudMachineTitle: options.cloudMachineTitle,
   });
   const deviceInfo = first ? formatDeviceInfo(first.device_info ?? null) : null;
   const subtitle = machineSubtitle({ title, deviceInfo });
@@ -297,7 +310,11 @@ export function sharedCustomName(runtimes: AgentRuntime[]): string | null {
 
 function machineTitle(
   runtimes: AgentRuntime[],
-  options: { isCurrent: boolean; localMachineName?: string | null },
+  options: {
+    isCurrent: boolean;
+    localMachineName?: string | null;
+    cloudMachineTitle?: (provider: string) => string;
+  },
 ): string {
   // An explicit user-set machine name wins over everything, including the
   // OS-reported local machine name.
@@ -315,7 +332,9 @@ function machineTitle(
   if (deviceName) return deviceName;
 
   if (first.runtime_mode === "cloud") {
-    return `${capitalize(first.provider)} cloud`;
+    return options.cloudMachineTitle
+      ? options.cloudMachineTitle(first.provider)
+      : `${capitalize(first.provider)} cloud`;
   }
   return first.daemon_id ? shortDaemonId(first.daemon_id) : "Unknown machine";
 }
@@ -406,7 +425,7 @@ function shortDaemonId(daemonId: string): string {
   return daemonId.length > 12 ? `${daemonId.slice(0, 8)}...` : daemonId;
 }
 
-function capitalize(value: string): string {
+export function capitalize(value: string): string {
   if (!value) return "Runtime";
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }

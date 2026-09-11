@@ -47,7 +47,10 @@
     "close_confirm": "사이클 종료",
     "cancel": "취소",
     "close_error": "사이클을 종료하지 못했습니다",
-    "closed_on": "{{date}} 종료"
+    "closed_on": "{{date}} 종료",
+    "empty_issues_title": "이 사이클에 이슈가 없습니다",
+    "empty_issues_hint": "새 이슈를 만들거나 기존 이슈를 이 사이클에 할당하세요.",
+    "empty_issues_new_button": "새 이슈"
   },
   "form": {
     "create_title": "새 사이클",

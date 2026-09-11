@@ -76,7 +76,8 @@
       "workload_hint": "실행 중 {{running}}개 · 대기 중 {{queued}}개",
       "cli": "CLI",
       "cloud_worker": "클라우드 워커",
-      "local_daemon": "로컬 데몬"
+      "local_daemon": "로컬 데몬",
+      "cloud_worker_named": "{{provider}} 클라우드"
     },
     "rename": "기기 이름 변경",
     "rename_dialog": {
@@ -90,7 +91,8 @@
       "toast_saved": "기기 이름을 변경했습니다",
       "toast_cleared": "기기 이름을 지웠습니다",
       "toast_failed": "기기 이름 변경에 실패했습니다"
-    }
+    },
+    "unassigned": "미할당"
   },
   "health": {
     "online": {
@@ -347,7 +349,8 @@
       "completed": "업데이트 완료. 데몬을 다시 시작하는 중...",
       "failed": "업데이트 실패",
       "timeout": "시간 초과"
-    }
+    },
+    "updated_to": "{{version}}(으)로 업데이트됨"
   },
   "cli_auth": {
     "authenticated": "인증됨",
@@ -379,7 +382,11 @@
     "heatmap_quietest_weekday": "가장 한산한 요일",
     "heatmap_average": "평균 {{value}}",
     "heatmap_window_total_other": "{{count}}일 합계",
-    "tooltip_total": "합계"
+    "tooltip_total": "합계",
+    "tasks_completed": "완료",
+    "tasks_cancelled": "취소됨",
+    "tasks_failed": "실패",
+    "time_run_time": "실행 시간"
   },
   "list": {
     "col_runtime": "런타임",

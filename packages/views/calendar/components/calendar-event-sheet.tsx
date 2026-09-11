@@ -29,7 +29,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@multica/ui/compon
 import { ActorAvatar } from "../../common/actor-avatar";
 import { AppLink } from "../../navigation";
 import { cn } from "@multica/ui/lib/utils";
-import { useT } from "../../i18n";
+import { tKnown, useT } from "../../i18n";
 
 const STATUS_TONE: Record<string, string> = {
   proposed: "bg-warning/10 text-warning",
@@ -108,7 +108,7 @@ export function CalendarEventSheet({
                     {event.title}
                   </SheetTitle>
                   <Badge className={STATUS_TONE[event.status] ?? STATUS_TONE.scheduled}>
-                    {t(($) => $.status[event.status as "proposed" | "scheduled" | "cancelled"] ?? event.status)}
+                    {tKnown(t, "status", event.status, event.status)}
                   </Badge>
                 </div>
               </SheetHeader>

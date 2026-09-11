@@ -118,7 +118,11 @@
     "calendar_invitation": "イベントに招待されました",
     "calendar_reminder": "まもなく開始",
     "doctrine_review": "行動指針のレビュー",
-    "doctrine_report": "行動指針の報告"
+    "doctrine_report": "行動指針の報告",
+    "confidence_review": "レビューが必要な成果物",
+    "run_limit_warn": "実行が上限に近づいています",
+    "run_limit_exceeded": "実行が上限を超えました",
+    "run_limit_stopped": "実行停止:上限に到達"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

@@ -34,12 +34,13 @@ const verdict = (over: Partial<CriticVerdict> = {}): CriticVerdict => ({
   ...over,
 });
 
-function render() {
+function render(locale: "en" | "fr" = "en") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderWithI18n(
     <QueryClientProvider client={qc}>
       <CriticVerdictCard issueId="i1" />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -128,5 +129,29 @@ describe("CriticVerdictCard", () => {
 
     expect(screen.getByTestId("critic-verdict").textContent).toContain("$1.50");
     expect(screen.getByTestId("critic-verdict-run").getAttribute("href")).toContain("task-9");
+  });
+
+  // Regression: {f.severity} rendered the raw enum value (bug/warning/info)
+  // directly, with no t() lookup — the exact same defect verdict.verdict
+  // (just above) already avoids via card.verdict_pass/block/concerns.
+  it("translates each finding's severity instead of rendering the raw enum", async () => {
+    state.list = {
+      verdicts: [
+        verdict({
+          findings: [
+            { severity: "bug", file: "", line: 0, title: "a", note: "" },
+            { severity: "warning", file: "", line: 0, title: "b", note: "" },
+            { severity: "info", file: "", line: 0, title: "c", note: "" },
+          ],
+        }),
+      ],
+    };
+    render("fr");
+    fireEvent.click(await screen.findByTestId("critic-verdict-toggle"));
+    const findings = screen.getByTestId("critic-verdict-findings");
+    expect(findings.textContent).toContain("Bug");
+    expect(findings.textContent).toContain("Avertissement");
+    expect(findings.textContent).toContain("Info");
+    expect(findings.textContent).not.toContain("warning");
   });
 });

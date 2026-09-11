@@ -22,18 +22,14 @@ export const VISIBILITY_DESCRIPTION: Record<AgentVisibility, string> = {
   private: "Only you can assign",
 };
 
-/**
- * Tooltip suitable for read-only badges on hover / list rows. Worded for an
- * EXISTING agent, where `visibility` is the lossy two-state projection of the
- * permission model: `private` covers both a truly owner-only agent and one
- * shared with specific people, so the copy names the owner's grants rather
- * than promising either extreme. It must not claim workspace admins can
- * assign — admins keep management + view access, not invocation.
- */
-export const VISIBILITY_TOOLTIP: Record<AgentVisibility, string> = {
-  workspace: "Workspace — all members can assign",
-  private: "Personal — only the owner and people they allow can assign",
-};
+// A hardcoded-English VISIBILITY_TOOLTIP Record used to live here and was
+// rendered as-is (no t()) by agents-page.tsx's read-only lock-icon tooltip.
+// Removed: that call site now uses the canonical VisibilityBadge component
+// (packages/views/agents/components/visibility-badge.tsx), whose
+// useT("agents") visibility.<value>.tooltip keys already cover this text in
+// all 5 locales. VISIBILITY_LABEL/VISIBILITY_DESCRIPTION above have no
+// runtime consumer left (grep confirms), so they're untouched here rather
+// than fixed speculatively.
 
 export function visibilityLabel(v: AgentVisibility): string {
   return VISIBILITY_LABEL[v];

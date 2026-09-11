@@ -35,6 +35,9 @@
     "hide_findings": "Hide findings",
     "cost": "Cost {{cost}}",
     "open_run": "Open the critic run",
-    "empty": "No adversarial review on this issue yet."
+    "empty": "No adversarial review on this issue yet.",
+    "severity_bug": "Bug",
+    "severity_warning": "Warning",
+    "severity_info": "Info"
   }
 }

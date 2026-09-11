@@ -520,6 +520,7 @@ function OpenRunButton({
         task={task}
         agentName={agentName}
         renderButton={false}
+        title={t(($) => $.detail.open_run)}
         open={open}
         onOpenChange={setOpen}
       />

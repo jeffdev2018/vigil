@@ -31,12 +31,13 @@ const card = (over: Partial<IssueDecision> = {}): IssueDecision => ({
   created_at: "2026-09-03T00:00:00Z", ...over,
 });
 
-function renderSection() {
+function renderSection(locale: "en" | "fr" = "en") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderWithI18n(
     <QueryClientProvider client={qc}>
       <DecisionCardsSection issueId="a" />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -106,5 +107,15 @@ describe("DecisionCardsSection", () => {
     const sla = await screen.findByTestId("decision-sla");
     expect(sla.dataset.sla).toBe("escalated_leads");
     expect(sla.textContent).toContain("escalated to the workspace leads");
+  });
+
+  // Regression: {decision.urgency} rendered the raw enum (high/normal/low)
+  // directly, no t() lookup.
+  it("translates the urgency badge instead of rendering the raw enum", async () => {
+    state.decisions = [card({ urgency: "high" })];
+    renderSection("fr");
+    const cardEl = await screen.findByTestId("decision-card");
+    expect(cardEl.textContent).toContain("Élevée");
+    expect(cardEl.textContent).not.toContain("high");
   });
 });
