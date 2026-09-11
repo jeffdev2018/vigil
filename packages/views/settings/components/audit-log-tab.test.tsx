@@ -94,7 +94,8 @@ describe("AuditLogTab", () => {
     const rows = await screen.findAllByTestId("audit-row");
     expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toContain("issue.status_changed");
-    expect(rows[0]?.textContent).toContain('{"from":"todo","to":"done"}');
+    // Details render as readable key/value pairs, not raw JSON (JEF-401).
+    expect(rows[0]?.textContent).toContain("from: todo · to: done");
     expect(rows[1]?.textContent).toContain("agent");
   });
 });

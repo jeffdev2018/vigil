@@ -219,12 +219,7 @@ function finalizeRuntimeMachine(
     localMachineName: options.localMachineName,
   });
   const deviceInfo = first ? formatDeviceInfo(first.device_info ?? null) : null;
-  const subtitle = machineSubtitle({
-    title,
-    deviceInfo,
-    daemonId: draft.daemonId,
-    mode: draft.mode,
-  });
+  const subtitle = machineSubtitle({ title, deviceInfo });
   const healthByRuntime = runtimes.map((runtime) =>
     deriveRuntimeHealth(runtime, options.now),
   );
@@ -325,21 +320,17 @@ function machineTitle(
   return first.daemon_id ? shortDaemonId(first.daemon_id) : "Unknown machine";
 }
 
+// Null when the device reported nothing readable: the row then shows a
+// translated "Local daemon" / "Cloud worker" and keeps the daemon id for
+// hover only, instead of a truncated identifier as the subtitle.
 function machineSubtitle({
   title,
   deviceInfo,
-  daemonId,
-  mode,
 }: {
   title: string;
   deviceInfo: string | null;
-  daemonId: string | null;
-  mode: AgentRuntime["runtime_mode"];
 }): string | null {
-  const compact = compactDeviceInfo(deviceInfo, title);
-  if (compact) return compact;
-  if (daemonId) return `daemon ${shortDaemonId(daemonId)}`;
-  return mode === "cloud" ? "Cloud worker" : null;
+  return compactDeviceInfo(deviceInfo, title);
 }
 
 function compactDeviceInfo(
