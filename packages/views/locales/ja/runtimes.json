@@ -76,7 +76,8 @@
       "workload_hint": "実行中 {{running}} 件 · キュー待ち {{queued}} 件",
       "cli": "CLI",
       "cloud_worker": "クラウドワーカー",
-      "local_daemon": "ローカルデーモン"
+      "local_daemon": "ローカルデーモン",
+      "cloud_worker_named": "{{provider}} クラウド"
     },
     "rename": "マシンの名前を変更",
     "rename_dialog": {
@@ -90,7 +91,8 @@
       "toast_saved": "マシンの名前を変更しました",
       "toast_cleared": "マシン名をクリアしました",
       "toast_failed": "マシンの名前変更に失敗しました"
-    }
+    },
+    "unassigned": "未割り当て"
   },
   "health": {
     "online": {

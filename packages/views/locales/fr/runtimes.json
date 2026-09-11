@@ -80,7 +80,8 @@
       "workload_hint": "{{running}} en cours · {{queued}} en file d'attente",
       "cli": "CLI",
       "cloud_worker": "Worker cloud",
-      "local_daemon": "Daemon local"
+      "local_daemon": "Daemon local",
+      "cloud_worker_named": "Cloud {{provider}}"
     },
     "rename": "Renommer la machine",
     "rename_dialog": {
@@ -94,7 +95,8 @@
       "toast_saved": "Machine renommée",
       "toast_cleared": "Nom de la machine effacé",
       "toast_failed": "Échec du renommage de la machine"
-    }
+    },
+    "unassigned": "Non assigné"
   },
   "health": {
     "online": {

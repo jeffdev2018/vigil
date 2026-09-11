@@ -56,6 +56,7 @@ import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
 import {
   buildRuntimeMachines,
+  capitalize,
   machineCliSignInNeeded,
   type RuntimeMachine,
 } from "./runtime-machines";
@@ -85,6 +86,7 @@ export function RuntimesPage({
   bootstrapping,
   cloudRuntimeEnabled = false,
 }: RuntimesPageProps = {}) {
+  const { t } = useT("runtimes");
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const wsId = useWorkspaceId();
@@ -128,6 +130,8 @@ export function RuntimesPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        cloudMachineTitle: (provider) =>
+          t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
       }),
     [
       runtimes,
@@ -137,6 +141,7 @@ export function RuntimesPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      t,
     ],
   );
   const orphanProfileRuntimes = useMemo(() => {
@@ -146,10 +151,10 @@ export function RuntimesPage({
       return pendingRuntimeFromProfile({
         profile,
         createdAt: Number.isFinite(createdAt) ? createdAt : 0,
-        fallbackMachineName: "Unassigned",
+        fallbackMachineName: t(($) => $.machine.unassigned),
       });
     });
-  }, [machines, runtimeProfiles]);
+  }, [machines, runtimeProfiles, t]);
 
   if (isAuthLoading || runtimesLoading || profilesLoading) {
     return <RuntimesPageSkeleton />;

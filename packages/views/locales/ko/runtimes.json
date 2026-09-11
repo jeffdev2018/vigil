@@ -76,7 +76,8 @@
       "workload_hint": "실행 중 {{running}}개 · 대기 중 {{queued}}개",
       "cli": "CLI",
       "cloud_worker": "클라우드 워커",
-      "local_daemon": "로컬 데몬"
+      "local_daemon": "로컬 데몬",
+      "cloud_worker_named": "{{provider}} 클라우드"
     },
     "rename": "기기 이름 변경",
     "rename_dialog": {
@@ -90,7 +91,8 @@
       "toast_saved": "기기 이름을 변경했습니다",
       "toast_cleared": "기기 이름을 지웠습니다",
       "toast_failed": "기기 이름 변경에 실패했습니다"
-    }
+    },
+    "unassigned": "미할당"
   },
   "health": {
     "online": {

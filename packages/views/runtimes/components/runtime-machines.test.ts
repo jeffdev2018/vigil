@@ -385,6 +385,33 @@ describe("runtime machine grouping", () => {
       section: "cloud",
     });
   });
+
+  // Regression: the cloud-fallback title was composed here as a hardcoded
+  // English template literal ("${provider} cloud"), rendered as-is by
+  // runtimes-page.tsx/runtime-detail-page.tsx with no t() — the ONE case
+  // among this file's title fallbacks the sibling subtitle (machine.metrics
+  // .cloud_worker) already translated. cloudMachineTitle lets the caller
+  // supply a translated title instead.
+  it("routes the cloud fallback title through cloudMachineTitle when the caller supplies one", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "cloud-1",
+          daemon_id: null,
+          runtime_mode: "cloud",
+          provider: "anthropic",
+          name: "Anthropic cloud",
+          device_info: "",
+        }),
+      ],
+      {
+        now: NOW,
+        cloudMachineTitle: (provider) => `${provider} · cloud (translated)`,
+      },
+    );
+
+    expect(machines[0]?.title).toBe("anthropic · cloud (translated)");
+  });
 });
 
 describe("splitRuntimeName", () => {

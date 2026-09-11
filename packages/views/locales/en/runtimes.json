@@ -80,7 +80,8 @@
       "workload_hint": "{{running}} running · {{queued}} queued",
       "cli": "CLI",
       "cloud_worker": "Cloud worker",
-      "local_daemon": "Local daemon"
+      "local_daemon": "Local daemon",
+      "cloud_worker_named": "{{provider}} cloud"
     },
     "rename": "Rename machine",
     "rename_dialog": {
@@ -94,7 +95,8 @@
       "toast_saved": "Machine renamed",
       "toast_cleared": "Machine name cleared",
       "toast_failed": "Failed to rename machine"
-    }
+    },
+    "unassigned": "Unassigned"
   },
   "health": {
     "online": {
