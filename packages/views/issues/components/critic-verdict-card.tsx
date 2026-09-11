@@ -128,7 +128,11 @@ function CriticVerdictRow({ verdict, showRound }: { verdict: CriticVerdict; show
                       f.severity === "bug" ? "bg-destructive/15 text-destructive" : f.severity === "warning" ? "bg-warning/20 text-warning" : "bg-muted text-muted-foreground",
                     )}
                   >
-                    {f.severity}
+                    {f.severity === "bug"
+                      ? t(($) => $.card.severity_bug)
+                      : f.severity === "warning"
+                        ? t(($) => $.card.severity_warning)
+                        : t(($) => $.card.severity_info)}
                   </span>
                   {f.file !== "" && (
                     <span className="font-mono text-muted-foreground">

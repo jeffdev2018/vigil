@@ -44,6 +44,7 @@ import type {
 } from "../surface/use-issue-group-branches";
 import { useDragSettle } from "./use-drag-settle";
 import { useBoardDragPan } from "./use-board-drag-pan";
+import { sortFieldI18nKey } from "../utils/sort";
 import { useT } from "../../i18n";
 import {
   type DragMoveUpdates,
@@ -319,7 +320,7 @@ function BoardViewImpl({
     },
     [setIssuePropertyMutation, t, unsetIssuePropertyMutation],
   );
-  const sortFieldKey = sortBy === "created_at" ? "created" : sortBy;
+  const sortFieldKey = sortFieldI18nKey(sortBy);
   const sortPropertyId = propertyIdFromViewKey(sortBy);
   const sortLabel = sortBy !== "position"
     ? t(($) => $.board.ordered_by, {

@@ -1270,7 +1270,10 @@
     "sla_overdue": "En retard, escalade en cours",
     "sla_substitute": "En retard · escaladé vers le remplaçant",
     "sla_leads": "En retard · escaladé vers les leads du workspace",
-    "learned": "Tu as choisi « {{label}} » {{count}} fois sur {{total}} pour ce type de demande."
+    "learned": "Tu as choisi « {{label}} » {{count}} fois sur {{total}} pour ce type de demande.",
+    "urgency_high": "Élevée",
+    "urgency_normal": "Normale",
+    "urgency_low": "Faible"
   },
   "acceptance": {
     "section": "Critères d'acceptation",

@@ -1255,7 +1255,10 @@
     "sla_overdue": "期限超過、エスカレーション待ち",
     "sla_substitute": "期限超過 · 代理担当者にエスカレーション済み",
     "sla_leads": "期限超過 · ワークスペースのリードにエスカレーション済み",
-    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。"
+    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。",
+    "urgency_high": "高",
+    "urgency_normal": "通常",
+    "urgency_low": "低"
   },
   "acceptance": {
     "section": "受け入れ基準",
