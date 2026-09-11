@@ -81,6 +81,16 @@ export function useChatResize(
     dir: DragDir;
   } | null>(null);
 
+  // Tears down the document-level pointermove/pointerup listeners a drag in
+  // progress installed. Normally called from onPointerUp; also wired into
+  // the unmount effect below so a drag that outlives the component (window
+  // closed mid-resize) does not leak listeners bound to stale closures.
+  const endDragRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => endDragRef.current?.();
+  }, []);
+
   const startDrag = useCallback(
     (e: React.PointerEvent, dir: DragDir) => {
       e.preventDefault();
@@ -120,10 +130,20 @@ export function useChatResize(
         document.removeEventListener("pointerup", onPointerUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        endDragRef.current = null;
       };
 
       document.addEventListener("pointermove", onPointerMove);
       document.addEventListener("pointerup", onPointerUp);
+      // Unmount-safe teardown: same cleanup as onPointerUp, minus the state
+      // updates (the component is gone) — just release the document-level
+      // listeners and the cursor/selection override they left behind.
+      endDragRef.current = () => {
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
 
       const cursorMap: Record<DragDir, string> = {
         left: "col-resize",

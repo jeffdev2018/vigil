@@ -65,8 +65,8 @@ export function AutopilotAccessManager({
     try {
       await grant.mutateAsync({ autopilotId, userId });
       toast.success(t(($) => $.access.toast_granted));
-    } catch (e: any) {
-      toast.error(e?.message || t(($) => $.access.toast_failed));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error && e.message ? e.message : t(($) => $.access.toast_failed));
     }
   };
 
@@ -74,8 +74,8 @@ export function AutopilotAccessManager({
     try {
       await revoke.mutateAsync({ autopilotId, userId });
       toast.success(t(($) => $.access.toast_revoked));
-    } catch (e: any) {
-      toast.error(e?.message || t(($) => $.access.toast_failed));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error && e.message ? e.message : t(($) => $.access.toast_failed));
     }
   };
 
