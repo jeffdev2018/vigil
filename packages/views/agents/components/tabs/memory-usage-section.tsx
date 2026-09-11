@@ -30,11 +30,11 @@ export function MemoryUsageSection({ wsId, agentId, memories, onHistory }: {
         <p className="text-body">{t(($) => $.tab_body.memory.usage_coverage, { total: usage.started_runs, recorded: usage.recorded_runs })}</p>
         <dl className="grid grid-cols-2 gap-3 rounded-lg border p-3 lg:grid-cols-4">
           {[
-            [t(($) => $.tab_body.memory.usage_included), usage.runs_with_agent_memory],
-            [t(($) => $.tab_body.memory.usage_empty), usage.recorded_runs - usage.load_failed_runs - usage.runs_with_agent_memory],
-            [t(($) => $.tab_body.memory.usage_load_failed), usage.load_failed_runs],
-            [t(($) => $.tab_body.memory.usage_unknown), usage.unrecorded_runs],
-          ].map(([label, count]) => <div key={label} className="min-w-0"><dt className="text-caption text-muted-foreground">{label}</dt><dd className="text-title tabular-nums">{count}</dd></div>)}
+            { field: "included", label: t(($) => $.tab_body.memory.usage_included), count: usage.runs_with_agent_memory },
+            { field: "empty", label: t(($) => $.tab_body.memory.usage_empty), count: usage.recorded_runs - usage.load_failed_runs - usage.runs_with_agent_memory },
+            { field: "load_failed", label: t(($) => $.tab_body.memory.usage_load_failed), count: usage.load_failed_runs },
+            { field: "unknown", label: t(($) => $.tab_body.memory.usage_unknown), count: usage.unrecorded_runs },
+          ].map(({ field, label, count }) => <div key={field} className="min-w-0"><dt className="text-caption text-muted-foreground">{label}</dt><dd className="text-title tabular-nums">{count}</dd></div>)}
         </dl>
         {usage.versions.length > 0 && <details>
           <summary className="cursor-pointer text-body">{t(($) => $.tab_body.memory.usage_versions, { count: usage.versions.length })}</summary>

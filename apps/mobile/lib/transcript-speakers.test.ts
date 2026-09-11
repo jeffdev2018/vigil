@@ -2,7 +2,7 @@
 // implementations must stay identical (see the file header for why mobile
 // copies rather than imports). Mobile vitest is node-only by config.
 import { describe, expect, it } from "vitest";
-import { hasSpeakers, parseTranscriptBlocks } from "./transcript-speakers";
+import { parseTranscriptBlocks } from "./transcript-speakers";
 
 describe("parseTranscriptBlocks", () => {
   it("splits diarized lines into speaker blocks", () => {
@@ -60,10 +60,3 @@ describe("parseTranscriptBlocks", () => {
   });
 });
 
-describe("hasSpeakers", () => {
-  it("is true only when something is attributed", () => {
-    expect(hasSpeakers(parseTranscriptBlocks("Speaker 1: a"))).toBe(true);
-    expect(hasSpeakers(parseTranscriptBlocks("a\nb"))).toBe(false);
-    expect(hasSpeakers([])).toBe(false);
-  });
-});
