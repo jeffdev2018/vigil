@@ -37,6 +37,8 @@ const state = vi.hoisted(() => ({
   installsError: false,
   refetchInstalls: vi.fn(),
   installDetail: null as unknown,
+  installDetailError: false,
+  refetchInstallDetail: vi.fn(),
   previewData: null as unknown,
   uploadPreviewData: null as unknown,
   uploadPreviewError: null as Error | null,
@@ -70,7 +72,12 @@ vi.mock("@tanstack/react-query", () => ({
         refetch: state.refetchInstalls,
       };
     if (kind === "install")
-      return { data: state.installDetail, isPending: false, isError: false, refetch: vi.fn() };
+      return {
+        data: state.installDetail,
+        isPending: false,
+        isError: state.installDetailError,
+        refetch: state.refetchInstallDetail,
+      };
     return { data: undefined, isPending: false, isError: false, refetch: vi.fn() };
   },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -227,6 +234,7 @@ beforeEach(() => {
   state.installs = [];
   state.installsError = false;
   state.installDetail = null;
+  state.installDetailError = false;
   state.previewData = null;
   state.uploadPreviewData = null;
   state.uploadPreviewError = null;
@@ -373,6 +381,25 @@ describe("PacksTab installed", () => {
     const items = screen.getByTestId("pack-install-items");
     expect(items.textContent).toContain("Bug, Question");
     expect(items.textContent).toContain("Open tickets");
+  });
+
+  // P3 audit finding: InstallItems read only isPending on packInstallOptions,
+  // so a failed fetch fell through to the "no items" empty copy — an
+  // installed pack that actually has contents read as if it had recorded
+  // nothing, instead of reporting the fetch failure.
+  it("shows a retry-able error instead of a false empty list when the detail fetch fails", () => {
+    state.installs = [install()];
+    state.installDetailError = true;
+    renderWithI18n(<PacksTab />);
+    fireEvent.click(screen.getByRole("button", { name: "IT helpdesk", expanded: false }));
+
+    expect(
+      screen.getByText("Could not load this install's contents."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("This install recorded no rows.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(state.refetchInstallDetail).toHaveBeenCalled();
   });
 
   it("confirms before uninstalling, saying what goes and what stays", () => {

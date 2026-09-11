@@ -76,12 +76,22 @@ function initialForm(target: CycleFormTarget): FormState {
 }
 
 // An empty capacity field means "not declared", which is a real value distinct
-// from zero — so it maps to null, never to 0.
+// from zero — so it maps to null, never to 0. A negative number is neither:
+// it is invalid input, so it is rejected explicitly (capacityInvalid below)
+// rather than silently mapped to null, which used to save the field as
+// "not declared" instead of surfacing the typo.
 function capacityValue(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const n = Number(trimmed);
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
+function capacityInvalid(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const n = Number(trimmed);
+  return !Number.isFinite(n) || n < 0;
 }
 
 function toRequest(f: FormState, mode: CycleFormTarget["mode"]): CycleWriteRequest {
@@ -124,9 +134,12 @@ export function CycleFormDialog({
 
   const datesOutOfOrder =
     !!form.start_date && !!form.end_date && form.end_date < form.start_date;
+  const humanCapacityInvalid = capacityInvalid(form.human_capacity);
+  const agentCapacityInvalid = capacityInvalid(form.agent_capacity);
   const complete =
     !!form.name.trim() && !!form.start_date && !!form.end_date &&
-    (target.mode === "edit" || !!form.project_id) && !datesOutOfOrder;
+    (target.mode === "edit" || !!form.project_id) && !datesOutOfOrder &&
+    !humanCapacityInvalid && !agentCapacityInvalid;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -225,8 +238,12 @@ export function CycleFormDialog({
                 type="number"
                 min={0}
                 value={form.human_capacity}
+                aria-invalid={humanCapacityInvalid}
                 onChange={(e) => set("human_capacity", e.target.value)}
               />
+              {humanCapacityInvalid && (
+                <p role="alert" className="text-destructive">{t(($) => $.form.capacity_negative)}</p>
+              )}
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.agent_capacity)}
@@ -234,8 +251,12 @@ export function CycleFormDialog({
                 type="number"
                 min={0}
                 value={form.agent_capacity}
+                aria-invalid={agentCapacityInvalid}
                 onChange={(e) => set("agent_capacity", e.target.value)}
               />
+              {agentCapacityInvalid && (
+                <p role="alert" className="text-destructive">{t(($) => $.form.capacity_negative)}</p>
+              )}
             </label>
           </div>
           <p className="text-caption text-muted-foreground">{t(($) => $.form.capacity_hint)}</p>

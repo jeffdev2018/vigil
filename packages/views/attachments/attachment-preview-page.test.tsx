@@ -17,8 +17,16 @@ vi.mock("../editor/hooks/use-attachment-html-text", () => ({
 }));
 
 vi.mock("../i18n", () => ({
-  useT: () => (fn: (d: Record<string, unknown>) => string) =>
-    fn({ attachment: { preview_loading: "l", preview_failed: "f" } }),
+  useT: () => ({
+    t: (fn: (d: Record<string, unknown>) => string) =>
+      fn({
+        attachment: {
+          preview_loading: "l",
+          preview_failed: "f",
+          preview_fallback_title: "HTML attachment",
+        },
+      }),
+  }),
 }));
 
 describe("AttachmentPreviewPage", () => {

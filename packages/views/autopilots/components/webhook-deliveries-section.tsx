@@ -36,9 +36,11 @@ import { useLocale, useT } from "../../i18n";
 import { reasonExplanation, useDeliveryReasonLabel } from "./delivery-reason";
 import { WebhookDryRunDialog } from "./webhook-dry-run-dialog";
 
-// Re-exported: the reason helpers moved into their own module (the dry-run
+// Re-exported: reasonExplanation moved into its own module (the dry-run
 // speaks the same enum) but this is where callers and tests already look.
-export { reasonExplanation, useDeliveryReasonLabel };
+// useDeliveryReasonLabel is NOT re-exported — every real consumer already
+// imports it straight from ./delivery-reason.
+export { reasonExplanation };
 import type {
   WebhookDelivery,
   WebhookDeliveryStatus,

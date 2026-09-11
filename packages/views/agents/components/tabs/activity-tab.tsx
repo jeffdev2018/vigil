@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CircleHelp,
@@ -531,6 +531,12 @@ function TaskRow({
   const timeAgo = useTimeAgo();
   const paths = useWorkspacePaths();
   const [cancelling, setCancelling] = useState(false);
+  const cancelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+    };
+  }, []);
   const cfg = taskStatusConfig[task.status] ?? taskStatusConfig.queued!;
   const Icon = cfg.icon;
   const hasIssue = task.issue_id !== "";
@@ -554,7 +560,18 @@ function TaskRow({
       await api.cancelTaskById(task.id);
       // No manual invalidate needed — the task:cancelled WS event flows
       // through useRealtimeSync's `task:` prefix path which already
-      // invalidates snapshot + per-agent + per-issue task lists.
+      // invalidates snapshot + per-agent + per-issue task lists, at which
+      // point this row's status flips out of the active set and the button
+      // disappears on its own. If that event never arrives (a dropped WS
+      // message, a disconnect right after the request), nothing else was
+      // resetting `cancelling` — the button stayed disabled forever with
+      // no way to tell whether the cancel actually went through. A local
+      // deadline resets it so the row is interactive again and the user
+      // can check status or retry, instead of depending solely on a
+      // message that already got lost once.
+      cancelTimeoutRef.current = setTimeout(() => {
+        setCancelling(false);
+      }, 15_000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t(($) => $.tab_body.activity.cancel_failed_toast));
       setCancelling(false);

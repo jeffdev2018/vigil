@@ -440,6 +440,7 @@
     "create_failed_toast": "创建智能体失败",
     "skill_attach_failed_toast": "智能体已创建，但 skill 关联失败：{{error}}",
     "squad_join_failed_toast": "智能体\"{{name}}\"已创建，但加入小队失败：{{error}}。你可以在 Members 标签里手动添加。",
+    "squad_join_unknown_error": "未知错误",
     "instructions": {
       "label": "指令",
       "placeholder_blank": "点击撰写指令…",
@@ -725,6 +726,7 @@
       "assigned_hint": "工作区 skill 会跟随智能体。你可以临时关闭，而不必将其移除。",
       "runtime_title": "从运行时继承",
       "runtime_hint": "自动从 {{runtime}} 发现；只要该智能体在这个运行时执行，就可以直接使用。",
+      "runtime_hint_unset": "自动从已分配的运行时发现；只要该智能体在这个运行时执行，就可以直接使用。",
       "workspace_badge": "工作区",
       "inherited_badge": "继承",
       "refresh_action": "刷新",
@@ -1037,6 +1039,7 @@
   "live_peek": {
     "current_issue_label": "正在处理",
     "no_current_issue": "暂无任务",
+    "issue_load_error": "无法加载该任务",
     "last_activity_label": "最近活动",
     "no_recent_activity": "暂无活动",
     "failed_indicator": "失败"

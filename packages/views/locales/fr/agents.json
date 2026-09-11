@@ -454,6 +454,7 @@
     "create_failed_toast": "Échec de la création de l'agent",
     "skill_attach_failed_toast": "Agent créé, mais l'ajout des skills a échoué : {{error}}",
     "squad_join_failed_toast": "L'agent « {{name}} » a été créé mais n'a pas pu rejoindre l'escouade : {{error}}. Vous pouvez l'ajouter manuellement depuis Membres.",
+    "squad_join_unknown_error": "Erreur inconnue",
     "instructions": {
       "label": "Instructions",
       "placeholder_blank": "Cliquez pour rédiger des instructions…",
@@ -738,6 +739,7 @@
       "assigned_hint": "Les compétences du workspace suivent l'agent. Désactivez-en une temporairement sans la supprimer.",
       "runtime_title": "Héritées du runtime",
       "runtime_hint": "Détectées automatiquement depuis {{runtime}} et disponibles dès que cet agent s'y exécute.",
+      "runtime_hint_unset": "Détectées automatiquement depuis le runtime assigné et disponibles dès que cet agent s'y exécute.",
       "workspace_badge": "Workspace",
       "inherited_badge": "Héritée",
       "refresh_action": "Actualiser",
@@ -1053,6 +1055,7 @@
   "live_peek": {
     "current_issue_label": "Actuellement sur",
     "no_current_issue": "Aucune issue",
+    "issue_load_error": "Impossible de charger cette issue",
     "last_activity_label": "Dernière activité",
     "no_recent_activity": "Aucune activité récente",
     "failed_indicator": "Échec"

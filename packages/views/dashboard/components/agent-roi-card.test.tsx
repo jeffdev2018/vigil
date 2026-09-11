@@ -7,12 +7,15 @@ import { renderWithI18n } from "../../test/i18n";
 
 // Schema fallbacks and the trend maths: packages/core/dashboard/agent-roi.test.ts.
 
-const state = vi.hoisted(() => ({ data: null as DashboardAgentRoi | null }));
+const state = vi.hoisted(() => ({ data: null as DashboardAgentRoi | null, fail: false }));
 
 vi.mock("@multica/core/dashboard/queries", () => ({
   dashboardAgentRoiOptions: (wsId: string, days: number, projectId: string | null, tz: string) => ({
     queryKey: ["dashboard", wsId, "roi-by-agent", days, projectId, tz],
-    queryFn: async () => state.data,
+    queryFn: async () => {
+      if (state.fail) throw new Error("network down");
+      return state.data;
+    },
   }),
   roiTrendPct: (cur: number | null, prev: number | null) =>
     cur === null || prev === null || prev === 0 ? null : ((cur - prev) / prev) * 100,
@@ -48,6 +51,7 @@ function renderCard() {
 
 beforeEach(() => {
   state.data = null;
+  state.fail = false;
 });
 
 describe("AgentRoiCard", () => {
@@ -133,5 +137,14 @@ describe("AgentRoiCard", () => {
     const { container } = renderCard();
     expect(screen.queryByTestId("agent-roi")).toBeNull();
     expect(container.textContent).toBe("");
+  });
+
+  // A failed fetch must not be indistinguishable from "no agent activity" —
+  // that used to render nothing at all (return null on isError).
+  it("shows a retry-able error instead of nothing when the fetch fails", async () => {
+    state.fail = true;
+    renderCard();
+    expect(await screen.findByTestId("agent-roi-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-roi")).toBeNull();
   });
 });

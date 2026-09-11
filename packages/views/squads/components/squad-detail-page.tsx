@@ -1200,7 +1200,7 @@ function SquadMembersTab({
                     {t(($) => $.member_type[m.member_type])}
                   </span>
                   {isLeader(m) && (
-                    <span className="inline-flex items-center gap-0.5 text-caption bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-0.5 text-caption bg-warning/15 text-warning px-1.5 py-0.5 rounded">
                       <Crown className="size-3" />
                       {t(($) => $.members_tab.leader_chip)}
                     </span>
@@ -1275,7 +1275,7 @@ function SquadMembersTab({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-muted-foreground hover:text-amber-600 h-8 w-8 p-0"
+                        className="text-muted-foreground hover:text-warning h-8 w-8 p-0"
                         onClick={() => onSetLeader(m.member_id)}
                         disabled={setLeaderPending}
                         aria-label={t(($) => $.members_tab.make_leader_tooltip)}

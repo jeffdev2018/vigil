@@ -535,6 +535,7 @@
     "selected_one": "{{count}} sélectionné",
     "selected_other": "{{count}} sélectionnés",
     "clear_selection": "Effacer la sélection",
+    "status_partial": "{{succeeded}} mis à jour, {{failed}} échoué(s).",
     "delete_dialog": {
       "title": "Supprimer l'automatisation ?",
       "description_one": "Ceci supprimera définitivement \"{{name}}\" et son historique d'exécution.",

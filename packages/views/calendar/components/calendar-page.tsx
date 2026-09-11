@@ -279,10 +279,6 @@ export function CalendarPage() {
           agenda.meetings.length === 0 &&
           (agenda.followups?.length ?? 0) === 0);
 
-  const editingEvent = openEventId
-    ? agenda?.events.find((e) => e.id === openEventId)
-    : undefined;
-
   return (
     <div className="relative flex flex-1 min-h-0 flex-col">
       <CollectionPageHeader
@@ -425,11 +421,9 @@ export function CalendarPage() {
         <CalendarEventSheet
           eventId={openEventId}
           onClose={() => setOpenEventId(null)}
-          onEdit={() => {
-            if (editingEvent) {
-              setDialogTarget({ mode: "edit", event: editingEvent });
-              setOpenEventId(null);
-            }
+          onEdit={(event) => {
+            setDialogTarget({ mode: "edit", event });
+            setOpenEventId(null);
           }}
         />
       )}

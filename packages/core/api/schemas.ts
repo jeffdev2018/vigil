@@ -590,7 +590,12 @@ export const LabelSchema = z.object({
   resource_type: z.string().optional().default("issue"),
   name: z.string(),
   description: z.string().optional().default(""),
-  color: z.string(),
+  // LabelChip trusts this straight into `style={{ backgroundColor: color }}`.
+  // The backend's normalizeColor already pins writes to this same pattern;
+  // this regex is the defense-in-depth read-side layer — an unrecognized
+  // value falls back to the same neutral gray EMPTY_LABEL uses rather than
+  // reaching the DOM unchecked.
+  color: z.string().regex(/^#?[0-9a-fA-F]{6}$/).catch("#6b7280"),
   usage_count: z.number().optional().default(0),
   created_at: z.string(),
   updated_at: z.string(),

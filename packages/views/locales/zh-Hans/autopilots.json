@@ -533,6 +533,7 @@
     "delete": "删除",
     "selected_other": "已选 {{count}} 项",
     "clear_selection": "清除选择",
+    "status_partial": "已更新 {{succeeded}} 个,失败 {{failed}} 个。",
     "delete_dialog": {
       "title": "删除自动化？",
       "description_other": "将永久删除 {{count}} 个自动化及其运行历史。",

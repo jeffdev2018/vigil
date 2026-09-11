@@ -50,6 +50,8 @@ vi.mock("../../navigation", () => ({
 const mockAgents = vi.hoisted(() => ({ current: [] as unknown[] }));
 const mockSnapshot = vi.hoisted(() => ({ current: [] as unknown[] }));
 const mockIssue = vi.hoisted(() => ({ current: null as unknown }));
+const mockIssueError = vi.hoisted(() => ({ current: false }));
+const mockIssueRefetch = vi.hoisted(() => vi.fn());
 const mockPresence = vi.hoisted(
   () => ({ current: "loading" as unknown }),
 );
@@ -82,6 +84,8 @@ vi.mock("@tanstack/react-query", async () => {
         return {
           data: opts.enabled ? mockIssue.current : undefined,
           isLoading: false,
+          isError: opts.enabled ? mockIssueError.current : false,
+          refetch: mockIssueRefetch,
         };
       }
       return { data: undefined, isLoading: false };
@@ -160,6 +164,7 @@ beforeEach(() => {
   mockAgents.current = [makeAgent()];
   mockSnapshot.current = [];
   mockIssue.current = null;
+  mockIssueError.current = false;
   mockPresence.current = {
     availability: "online",
     workload: "idle",
@@ -281,5 +286,29 @@ describe("AgentLivePeekCard", () => {
 
     expect(screen.getByText(/10m ago/)).toBeInTheDocument();
     expect(screen.getByText(enAgents.live_peek.failed_indicator)).toBeInTheDocument();
+  });
+
+  // P2 audit finding: a failed issue-detail fetch (deleted issue, transient
+  // 5xx) rendered a Skeleton forever with no indication it had failed, since
+  // the row only branched on issue ? link : Skeleton and never read isError.
+  it("shows a retryable error instead of an endless skeleton when the current issue fails to load", () => {
+    mockSnapshot.current = [
+      makeTask({
+        id: "task-running",
+        status: "running",
+        issue_id: "issue-42",
+        started_at: "2026-05-14T08:00:00Z",
+      }),
+    ];
+    mockIssue.current = null;
+    mockIssueError.current = true;
+
+    renderCard();
+
+    const errorButton = screen.getByText(enAgents.live_peek.issue_load_error);
+    expect(errorButton).toBeInTheDocument();
+
+    errorButton.closest("button")?.click();
+    expect(mockIssueRefetch).toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { notificationPreferenceOptions } from "@multica/core/notification-preferences/queries";
 import { useUpdateNotificationPreferences } from "@multica/core/notification-preferences/mutations";
 import type { NotificationGroupKey, NotificationPreferences } from "@multica/core/types";
+import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { toast } from "sonner";
 import { useT } from "../../i18n";
@@ -31,7 +32,7 @@ type InboxGroupKey = (typeof INBOX_GROUP_KEYS)[number];
 export function NotificationsTab() {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data } = useQuery(notificationPreferenceOptions(wsId));
+  const { data, isError, refetch } = useQuery(notificationPreferenceOptions(wsId));
   const mutation = useUpdateNotificationPreferences();
 
   const preferences = data?.preferences ?? {};
@@ -68,7 +69,17 @@ export function NotificationsTab() {
         description={t(($) => $.notifications.description)}
       >
         <SettingsCard>
-            {INBOX_GROUP_KEYS.map((key: InboxGroupKey) => {
+          {isError ? (
+            <div className="flex flex-col items-start gap-2 px-4 py-3.5">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.notifications.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.notifications.retry)}
+              </Button>
+            </div>
+          ) : (
+            INBOX_GROUP_KEYS.map((key: InboxGroupKey) => {
               const enabled = preferences[key] !== "muted";
               return (
                 <SettingsRow
@@ -83,7 +94,8 @@ export function NotificationsTab() {
                   />
                 </SettingsRow>
               );
-            })}
+            })
+          )}
         </SettingsCard>
       </SettingsSection>
 
@@ -92,16 +104,27 @@ export function NotificationsTab() {
         description={t(($) => $.notifications.system.description)}
       >
         <SettingsCard>
-          <SettingsRow
-            label={t(($) => $.notifications.system.label)}
-            description={t(($) => $.notifications.system.hint)}
-          >
+          {isError ? (
+            <div className="flex flex-col items-start gap-2 px-4 py-3.5">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.notifications.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.notifications.retry)}
+              </Button>
+            </div>
+          ) : (
+            <SettingsRow
+              label={t(($) => $.notifications.system.label)}
+              description={t(($) => $.notifications.system.hint)}
+            >
               <Switch
                 checked={systemEnabled}
                 aria-label={t(($) => $.notifications.system.label)}
                 onCheckedChange={(checked) => handleToggle("system_notifications", checked)}
               />
-          </SettingsRow>
+            </SettingsRow>
+          )}
         </SettingsCard>
 
         {/* Web-only: the browser permission banners require. Renders nothing on

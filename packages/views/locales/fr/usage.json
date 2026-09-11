@@ -135,13 +135,17 @@
     "hint": "{{count}} fermées · moyenne ${{mean}}",
     "floor": "certaines utilisations non tarifées",
     "none": "Aucune sur cette période",
-    "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours."
+    "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours.",
+    "load_error": "Impossible de charger le coût par livrable.",
+    "retry": "Réessayer"
   },
   "agent_roi": {
     "title": "ROI par agent · {{days}} j",
     "headline": "{{best}} a fermé {{count}} issues à {{cost}}/issue contre {{cost2}} pour {{second}}",
     "headline_single": "{{best}} a fermé {{count}} issues à {{cost}}/issue",
     "empty": "Aucune activité d'agent sur les {{days}} derniers jours.",
+    "load_error": "Impossible de charger le ROI par agent.",
+    "retry": "Réessayer",
     "agent": "Agent",
     "issues": "Issues fermées",
     "prs": "PR fusionnées",

@@ -274,7 +274,7 @@ function ArchiveSquadDialog({
       toast.success(t(($) => $.archive_dialog.success));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : String(err)),
+      toast.error(err instanceof Error && err.message ? err.message : t(($) => $.toasts.archive_failed)),
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -54,6 +54,7 @@
   },
   "attachment": {
     "download_failed": "Impossible de récupérer le lien de téléchargement. Veuillez réessayer dans un instant.",
+    "preview_fallback_title": "Pièce jointe HTML",
     "preview": "Aperçu",
     "preview_loading": "Chargement de l'aperçu…",
     "preview_failed": "Impossible de charger l'aperçu",
@@ -113,6 +114,7 @@
   "mermaid": {
     "diagram_label": "Diagramme Mermaid",
     "render_error": "Impossible d'afficher le diagramme Mermaid.",
+    "render_error_detail": "Échec de l'affichage du diagramme.",
     "rendering": "Génération du diagramme…",
     "viewer_title": "Diagramme",
     "canvas_label": "Canevas du diagramme. Glissez pour déplacer, défilez pour zoomer.",

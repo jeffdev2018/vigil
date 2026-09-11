@@ -94,8 +94,3 @@ export function parseTranscriptBlocks(transcript: string): TranscriptBlock[] {
   }
   return blocks;
 }
-
-/** True when at least one block is attributed — i.e. worth showing labels. */
-export function hasSpeakers(blocks: TranscriptBlock[]): boolean {
-  return blocks.some((block) => block.speaker !== null);
-}

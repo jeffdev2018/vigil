@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CalendarAgenda, CalendarEventEntry } from "@multica/core/types";
 import en from "../../locales/en/calendar-events.json";
@@ -118,6 +118,11 @@ const mocks = vi.hoisted(() => ({
   respond: vi.fn(async (_v: { id: string; response: string }) => undefined),
 }));
 
+// Overridable per-test: lets one test desync "what the sheet's own detail
+// fetch returns" from "what the month agenda cache has" — the exact
+// scenario CalendarEventSheet's onEdit used to get wrong.
+const detailOverride = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+
 vi.mock("@multica/core/calendar-events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@multica/core/calendar-events")>();
   return {
@@ -125,7 +130,8 @@ vi.mock("@multica/core/calendar-events", async (importOriginal) => {
     calendarAgendaOptions: () => ({ queryKey: ["agenda"], queryFn: async () => AGENDA }),
     calendarEventDetailOptions: (_wsId: string, id: string) => ({
       queryKey: ["event-detail", id],
-      queryFn: async () => (id === EVENT.id ? EVENT : { ...EVENT, id }),
+      queryFn: async () =>
+        detailOverride.current ?? (id === EVENT.id ? EVENT : { ...EVENT, id }),
     }),
     calendarSlotsOptions: (
       _wsId: string,
@@ -185,6 +191,7 @@ afterEach(cleanup);
 describe("CalendarPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    detailOverride.current = null;
   });
 
   it("renders a month with an event, an issue due and a cycle in their cells", async () => {
@@ -228,6 +235,30 @@ describe("CalendarPage", () => {
     await waitFor(() =>
       expect(mocks.respond).toHaveBeenCalledWith({ id: "evt-1", response: "accepted" }),
     );
+  });
+
+  // P3 audit finding: onEdit used to re-derive "the event being edited" by
+  // looking it up in the month agenda cache (agenda?.events.find), instead
+  // of using the sheet's own already-fetched detail. Desyncing the two
+  // (agenda still has the stale title, the detail fetch has the fresh one)
+  // proves the edit dialog now opens with the fresh data the sheet showed,
+  // not a stale or missing lookup.
+  it("opens the edit dialog with the sheet's own fetched event, not a stale agenda-cache lookup", async () => {
+    detailOverride.current = { ...EVENT, title: "Design review (renamed)" };
+    renderPage();
+    await screen.findByText("September 2026");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Design review" }));
+    expect(
+      await screen.findByRole("heading", { name: "Design review (renamed)" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: en.sheet.edit }));
+
+    const dialog = await screen.findByRole("dialog", { name: en.form.edit_title });
+    expect(
+      within(dialog).getByPlaceholderText(en.form.title_placeholder),
+    ).toHaveValue("Design review (renamed)");
   });
 
   it("submits the new-event dialog with the right body", async () => {

@@ -13,7 +13,7 @@ import {
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useAuthStore } from "@multica/core/auth";
-import type { CalendarParticipant } from "@multica/core/types";
+import type { CalendarEventEntry, CalendarParticipant } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Spinner } from "@multica/ui/components/ui/spinner";
@@ -60,7 +60,14 @@ export function CalendarEventSheet({
 }: {
   eventId: string;
   onClose: () => void;
-  onEdit: () => void;
+  /**
+   * Receives the sheet's own already-fetched event, not just a signal to
+   * edit — the caller used to re-derive "the event being edited" from a
+   * month-agenda cache slice that silently omitted it whenever the sheet
+   * was opened for an event outside the currently viewed month (or freshly
+   * created and not yet refetched), making Edit a no-op with no feedback.
+   */
+  onEdit: (event: CalendarEventEntry) => void;
 }) {
   const { t } = useT("calendar-events");
   const wsId = useWorkspaceId();
@@ -218,7 +225,7 @@ export function CalendarEventSheet({
 
               {event.status !== "cancelled" && (
                 <div className="mt-2 flex gap-2 border-t pt-3">
-                  <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => onEdit(event)}>
                     <Pencil className="size-3.5" />
                     {t(($) => $.sheet.edit)}
                   </Button>

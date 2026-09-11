@@ -665,6 +665,7 @@ export function DashboardPage() {
                   agents={agents}
                   deletedAgentCount={deletedAgentCount}
                   lessThanMinuteLabel={lessThanMinuteLabel}
+                  locales={locales}
                 />
               </>
             )}

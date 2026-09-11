@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarRange, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -199,9 +199,14 @@ export function CyclesPage() {
         }
       />
 
-      {isError ? (
+      {isLoading ? (
+        <div role="status" className="flex flex-1 items-center justify-center gap-2 py-16 text-caption text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          {t(($) => $.page.loading)}
+        </div>
+      ) : isError ? (
         <CollectionPageState icon={CalendarRange} tone="destructive" title={t(($) => $.page.load_error)} />
-      ) : !isLoading && cycles.length === 0 ? (
+      ) : cycles.length === 0 ? (
         <CollectionPageState
           icon={CalendarRange}
           title={t(($) => $.page.empty)}

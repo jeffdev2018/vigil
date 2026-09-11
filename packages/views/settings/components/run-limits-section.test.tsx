@@ -82,6 +82,20 @@ describe("RunLimitsSection", () => {
     expect(state.save).toHaveBeenCalledWith({ input: { scope_type: "workspace", scope_id: null, max_cost_usd_ticks: null, max_duration_seconds: null, max_turns: 25, max_tool_calls: null, warn_bps: 8000, action: "observe" } }, expect.anything());
   });
 
+  // P3 audit finding: num()'s `Math.max(0, Number(s) || 0) || null` treated
+  // a typed 0 as falsy at the final `|| null`, silently turning "0 tool
+  // calls allowed" into "no limit" — the opposite of what was typed.
+  it("saves a typed 0 as the limit, not as unset", async () => {
+    render();
+    fireEvent.click(await screen.findByRole("button", { name: "New run limit" }));
+    fireEvent.change(screen.getByLabelText("Tool calls"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save run limit" }));
+    expect(state.save).toHaveBeenCalledWith(
+      { input: expect.objectContaining({ max_tool_calls: 0 }) },
+      expect.anything(),
+    );
+  });
+
   it("deletes a policy", async () => {
     render();
     fireEvent.click(await screen.findByLabelText("Delete run limit for Agent · Builder"));

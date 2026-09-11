@@ -114,7 +114,9 @@ describe("ExportImportSetting", () => {
     expect(history).toHaveTextContent("Template");
     expect(history).toHaveTextContent("Agency HQ");
     expect(history).toHaveTextContent("Failed");
-    expect(history).toHaveTextContent("skip");
+    // Strategy renders through the same strategy_* label the picker above
+    // uses, not the raw "skip" wire value.
+    expect(history).toHaveTextContent("Skip the imported item");
   });
 
   it("shows the empty history state and disables controls without edit rights", async () => {

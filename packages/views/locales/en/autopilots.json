@@ -535,6 +535,7 @@
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
     "clear_selection": "Clear selection",
+    "status_partial": "{{succeeded}} updated, {{failed}} failed.",
     "delete_dialog": {
       "title": "Delete automation?",
       "description_one": "This will permanently delete \"{{name}}\" and its run history.",

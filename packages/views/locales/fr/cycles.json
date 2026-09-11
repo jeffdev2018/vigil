@@ -73,7 +73,8 @@
     "create": "Créer le cycle",
     "save": "Enregistrer",
     "error": "Impossible d'enregistrer le cycle",
-    "date_order": "La date de fin doit être égale ou postérieure à la date de début."
+    "date_order": "La date de fin doit être égale ou postérieure à la date de début.",
+    "capacity_negative": "La capacité doit être supérieure ou égale à zéro."
   },
   "delete_dialog": {
     "title": "Supprimer ce cycle ?",

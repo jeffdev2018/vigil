@@ -135,13 +135,17 @@
     "hint": "{{count}} closed · mean ${{mean}}",
     "floor": "some usage unpriced",
     "none": "None in this period",
-    "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
+    "empty": "No issue closed or pull request merged with a run in the last {{days}} days.",
+    "load_error": "Could not load the cost per deliverable.",
+    "retry": "Retry"
   },
   "agent_roi": {
     "title": "ROI per agent · {{days}}D",
     "headline": "{{best}} closed {{count}} issues at {{cost}}/issue vs {{cost2}} for {{second}}",
     "headline_single": "{{best}} closed {{count}} issues at {{cost}}/issue",
     "empty": "No agent activity in the last {{days}} days.",
+    "load_error": "Could not load agent ROI.",
+    "retry": "Retry",
     "agent": "Agent",
     "issues": "Issues closed",
     "prs": "PRs merged",

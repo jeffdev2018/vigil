@@ -21,7 +21,8 @@
     "apply": "保存",
     "uploading": "上传中…",
     "loading": "加载中…",
-    "load_failed": "图片加载失败"
+    "load_failed": "图片加载失败",
+    "encode_failed": "无法处理裁剪，请重试。"
   },
   "color_picker": {
     "saturation": "饱和度与明度",
@@ -33,6 +34,7 @@
   },
   "save": "保存",
   "cancel": "取消",
+  "unknown": "未知",
   "delete": "删除",
   "confirm": "确认",
   "loading": "加载中...",

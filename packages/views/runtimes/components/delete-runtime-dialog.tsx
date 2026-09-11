@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Globe, Info, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError } from "@multica/core/api";
+import { ApiError, parseWithFallback } from "@multica/core/api";
+import { AgentListSchema } from "@multica/core/api/schemas";
 import type { Agent, AgentRuntime, MemberWithUser } from "@multica/core/types";
 import { runtimeDisplayLabel } from "@multica/core/runtimes";
 import {
@@ -616,19 +617,14 @@ function parseActiveAgentsConflict(err: unknown): ActiveAgentsConflict | null {
     return null;
   }
   const rawAgents = (body as Record<string, unknown>).active_agents;
-  if (!Array.isArray(rawAgents)) {
-    return { code, activeAgents: [] };
-  }
-  // We trust the server contract here — the response is the same
-  // AgentResponse shape that the agent list endpoint returns. Light
-  // runtime checks (id, runtime_id, name) catch genuinely malformed
-  // payloads without re-typing every field.
-  const activeAgents = rawAgents.filter(
-    (a): a is Agent =>
-      typeof a === "object" &&
-      a !== null &&
-      typeof (a as Record<string, unknown>).id === "string" &&
-      typeof (a as Record<string, unknown>).name === "string",
-  );
+  // The response is the same AgentResponse shape the agent list endpoint
+  // returns, so it gets the same schema — AgentPlanTable reads owner_id,
+  // status, visibility and model, none of which the old id/name-only check
+  // validated. AgentSchema is lenient (`.catch()` on nearly every field
+  // except id/workspace_id), so a single odd field degrades that one field
+  // rather than failing the whole array.
+  const activeAgents = parseWithFallback(rawAgents, AgentListSchema, [] as Agent[], {
+    endpoint: "409 runtime delete conflict: active_agents",
+  });
   return { code, activeAgents };
 }

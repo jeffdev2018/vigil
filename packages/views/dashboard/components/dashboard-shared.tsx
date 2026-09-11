@@ -14,6 +14,12 @@ import { formatDuration } from "../utils";
 // 1d semantic: "today" (the natural calendar day from 00:00 in the viewer's
 // timezone), not "the last 24 hours". The `dailyCutoffIso` filter on the page
 // enforces this even at the midnight edge.
+//
+// Labels ("1d"/"7d"/"30d"/...) are deliberately NOT localized: this is the
+// same compact number+unit shorthand used cross-locale for file sizes and
+// durations, understood without translation in every locale this product
+// ships. Mirrored (must stay identical) in
+// packages/views/runtimes/components/usage-section.tsx.
 export const TIME_RANGES = [
   { label: "1d", days: 1, dims: ["daily"] as const },
   { label: "7d", days: 7, dims: ["daily"] as const },

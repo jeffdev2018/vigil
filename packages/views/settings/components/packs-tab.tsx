@@ -919,6 +919,18 @@ function InstallItems({
       </p>
     );
   }
+  if (detail.isError) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p role="alert" className="text-caption text-destructive">
+          {t(($) => $.packs.installed.items_load_error)}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => void detail.refetch()}>
+          {t(($) => $.packs.catalogue.retry)}
+        </Button>
+      </div>
+    );
+  }
   const grouped: PackContents = {};
   for (const item of detail.data?.items ?? []) {
     (grouped[item.kind] ??= []).push(item.name);

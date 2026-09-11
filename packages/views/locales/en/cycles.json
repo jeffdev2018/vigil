@@ -73,7 +73,8 @@
     "create": "Create cycle",
     "save": "Save",
     "error": "Could not save the cycle",
-    "date_order": "The end date must be on or after the start date."
+    "date_order": "The end date must be on or after the start date.",
+    "capacity_negative": "Capacity must be zero or greater."
   },
   "delete_dialog": {
     "title": "Delete this cycle?",

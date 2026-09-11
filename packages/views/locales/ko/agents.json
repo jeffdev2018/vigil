@@ -104,7 +104,7 @@
     "archive": "보관",
     "set_access": "접근 범위 설정",
     "set_access_dialog_title": "접근 범위 설정",
-    "set_access_applies_to": "{{count}}개 agent에 적용됩니다.",
+    "set_access_applies_to": "{{count}}개 에이전트에 적용됩니다.",
     "set_access_skipped": "{{count}}개 건너뜀(본인 소유 아님).",
     "set_access_dialog_confirm": "적용",
     "set_access_bulk_partial": "{{succeeded}}개 적용, {{failed}}개 실패(현재 상태 유지).",
@@ -344,6 +344,7 @@
     "create_failed_toast": "에이전트를 만들지 못했습니다",
     "skill_attach_failed_toast": "에이전트는 만들었지만 스킬을 연결하지 못했습니다: {{error}}",
     "squad_join_failed_toast": "에이전트 \"{{name}}\"은(는) 만들었지만 스쿼드에 참가하지 못했습니다: {{error}}. 멤버에서 직접 추가할 수 있습니다.",
+    "squad_join_unknown_error": "알 수 없는 오류",
     "instructions": {
       "label": "지침",
       "placeholder_blank": "클릭해서 지침 작성...",
@@ -625,6 +626,7 @@
       "assigned_hint": "워크스페이스 스킬은 에이전트와 함께 이동합니다. 제거하지 않고 일시적으로 끌 수 있습니다.",
       "runtime_title": "런타임에서 상속",
       "runtime_hint": "{{runtime}}에서 자동으로 탐색되며 이 에이전트가 해당 런타임에서 실행될 때 사용할 수 있습니다.",
+      "runtime_hint_unset": "할당된 런타임에서 자동으로 탐색되며 이 에이전트가 해당 런타임에서 실행될 때 사용할 수 있습니다.",
       "workspace_badge": "워크스페이스",
       "inherited_badge": "상속됨",
       "refresh_action": "새로고침",
@@ -938,6 +940,7 @@
   "live_peek": {
     "current_issue_label": "현재 작업",
     "no_current_issue": "이슈 없음",
+    "issue_load_error": "이 이슈를 불러올 수 없습니다",
     "last_activity_label": "마지막 접속",
     "no_recent_activity": "최근 활동 없음",
     "failed_indicator": "실패"

@@ -16,6 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
+import { Button } from "@multica/ui/components/ui/button";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
@@ -27,7 +28,7 @@ import { useT } from "../../i18n";
 export function PrWalkthroughSetting({ canEdit }: { canEdit: boolean }) {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data: settings } = useQuery(prWalkthroughSettingsOptions(wsId));
+  const { data: settings, isError, refetch } = useQuery(prWalkthroughSettingsOptions(wsId));
   const { data: agents } = useQuery(agentListOptions(wsId));
   const save = useSavePrWalkthroughSettings(wsId);
   const [draft, setDraft] = useState<PrWalkthroughSettings>(PR_WALKTHROUGH_DEFAULT_SETTINGS);
@@ -47,7 +48,11 @@ export function PrWalkthroughSetting({ canEdit }: { canEdit: boolean }) {
     });
   };
 
-  const disabled = !canEdit || save.isPending;
+  // A failed fetch falls back to the safe "off" default, so it never
+  // silently enables anything — but editing while the real remote state is
+  // unknown risks a save that clobbers whatever it actually was. Block
+  // interaction until a retry succeeds instead.
+  const disabled = !canEdit || save.isPending || isError;
   return (
     <SettingsSection
       title={
@@ -59,6 +64,16 @@ export function PrWalkthroughSetting({ canEdit }: { canEdit: boolean }) {
     >
       <SettingsCard>
         <div data-testid="pr-walkthrough-setting">
+          {isError && (
+            <div className="flex flex-col items-start gap-2 px-4 py-3">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.workspace.pr_walkthrough_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.budgets.retry)}
+              </Button>
+            </div>
+          )}
           <SettingsRow
             label={t(($) => $.workspace.pr_walkthrough_enabled)}
             description={t(($) => $.workspace.pr_walkthrough_intro)}

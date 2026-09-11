@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithI18n } from "../../test/i18n";
 
@@ -69,6 +69,62 @@ describe("CloudRuntimeDialog node power actions", () => {
         "stop",
         "i-0abc",
       ),
+    );
+  });
+
+  // P3 audit finding: reboot and delete used the native window.confirm(),
+  // which cannot be themed and (unlike every other destructive action in
+  // this app) is not driven by the same controlled AlertDialog component.
+  it("confirms through the AlertDialog before rebooting, and does nothing on cancel", async () => {
+    state.listCloudRuntimeNodes.mockResolvedValue([node()]);
+    state.actOnCloudRuntimeNode.mockResolvedValue({
+      instance_id: "i-0abc",
+      status: "rebooting",
+    });
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reboot" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Anything running on it is interrupted");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    // This file's mocks are not reset between tests (pre-existing, out of
+    // scope here) — assert on the reboot-specific call rather than "never
+    // called at all".
+    expect(state.actOnCloudRuntimeNode).not.toHaveBeenCalledWith(
+      "reboot",
+      "i-0abc",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Reboot" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Reboot",
+      }),
+    );
+    await waitFor(() =>
+      expect(state.actOnCloudRuntimeNode).toHaveBeenCalledWith(
+        "reboot",
+        "i-0abc",
+      ),
+    );
+  });
+
+  it("confirms through the AlertDialog before deleting the node", async () => {
+    state.listCloudRuntimeNodes.mockResolvedValue([node()]);
+    state.deleteCloudRuntimeNode.mockResolvedValue(undefined);
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete node" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("cannot be undone");
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete node" }),
+    );
+    await waitFor(() =>
+      expect(state.deleteCloudRuntimeNode).toHaveBeenCalledWith("i-0abc"),
     );
   });
 

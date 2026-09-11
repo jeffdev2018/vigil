@@ -118,6 +118,27 @@ describe("ModelPicker (inspector)", () => {
     ).toBeNull();
   });
 
+  // P2 audit finding: a failed discovery (5xx/timeout) fell through to the
+  // catalog-empty branch, telling the user "no models available" for what
+  // was actually a network failure with no way to recover but reopening the
+  // picker.
+  it("shows a distinct discovery-failed notice instead of the empty-catalog message", async () => {
+    discovery = async () => {
+      throw new Error("runtime offline: connection refused");
+    };
+
+    const { container } = renderPicker();
+    openPicker(container);
+
+    expect(
+      await screen.findByText(enAgents.pickers.model_discovery_failed_title),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("runtime offline: connection refused"),
+    ).toBeTruthy();
+    expect(screen.queryByText(enAgents.pickers.model_empty)).toBeNull();
+  });
+
   it("exposes the live-catalog refresh from the inspector picker", async () => {
     mockRefreshRuntimeModels.mockResolvedValue(CLAUDE_CATALOG);
     const { container, queryClient } = renderPicker();

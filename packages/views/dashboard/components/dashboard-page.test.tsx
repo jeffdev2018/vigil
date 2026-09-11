@@ -377,7 +377,9 @@ describe("DashboardPage — viewing timezone drives the query key", () => {
       container.querySelectorAll("number-flow-react"),
     );
 
-    expect(flows).toHaveLength(5);
+    // One more than before: the leaderboard's cost cell now animates too
+    // (was a plain `${row.cost.toFixed(2)}` string — P3 audit finding).
+    expect(flows).toHaveLength(6);
     expect(flows.map((flow) => flow.getAttribute("aria-label"))).toEqual(
       expect.arrayContaining(["$0.03", "3K", "12"]),
     );

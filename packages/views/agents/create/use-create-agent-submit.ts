@@ -97,7 +97,7 @@ export function useCreateAgentSubmit(options: {
           toast.warning(
             t(($) => $.create_dialog.squad_join_failed_toast, {
               name: agent.name || draft.name.trim(),
-              error: error instanceof Error ? error.message : "unknown error",
+              error: error instanceof Error ? error.message : t(($) => $.create_dialog.squad_join_unknown_error),
             }),
           );
         }

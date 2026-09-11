@@ -34,6 +34,8 @@
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-info: var(--info);
+    --color-find-match: var(--find-match);
+    --color-find-match-foreground: var(--find-match-foreground);
     --color-brand: var(--brand);
     --color-brand-foreground: var(--brand-foreground);
     --color-accent-foreground: var(--accent-foreground);

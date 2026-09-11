@@ -533,6 +533,7 @@
     "delete": "削除",
     "selected_other": "{{count}} 件選択中",
     "clear_selection": "選択を解除",
+    "status_partial": "{{succeeded}} 件更新、{{failed}} 件失敗。",
     "delete_dialog": {
       "title": "自動化を削除しますか？",
       "description_other": "{{count}} 件の自動化とその実行履歴を完全に削除します。",

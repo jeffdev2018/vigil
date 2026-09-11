@@ -27,7 +27,7 @@ const TEMPLATE_STAGES = ["triage", "plan", "implement", "test", "review"];
 export function PipelinesSetting({ canManage }: { canManage: boolean }) {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data: pipelines = [] } = useQuery(pipelinesOptions(wsId));
+  const { data: pipelines = [], isError: pipelinesError, refetch: refetchPipelines } = useQuery(pipelinesOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: squads = [] } = useQuery(pipelineSquadsOptions(wsId));
   const save = useSavePipeline(wsId);
@@ -54,6 +54,18 @@ export function PipelinesSetting({ canManage }: { canManage: boolean }) {
       }
     >
       <p className="mb-3 text-caption text-muted-foreground">{t(($) => $.workspace.pipelines_intro)}</p>
+      {pipelinesError ? (
+        <SettingsCard>
+          <div className="flex flex-col items-start gap-2 px-4 py-3.5">
+            <p role="alert" className="text-caption text-destructive">
+              {t(($) => $.workspace.pipelines_load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetchPipelines()}>
+              {t(($) => $.budgets.retry)}
+            </Button>
+          </div>
+        </SettingsCard>
+      ) : (
       <div className="flex flex-col gap-3">
         {pipelines.map((p) =>
           editing !== null && editing !== "new" && editing !== "template" && editing.id === p.id ? (
@@ -100,6 +112,7 @@ export function PipelinesSetting({ canManage }: { canManage: boolean }) {
           </div>
         )}
       </div>
+      )}
     </SettingsSection>
   );
 }

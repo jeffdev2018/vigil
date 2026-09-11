@@ -351,6 +351,7 @@ function CopyField({
           className="shrink-0"
           onClick={() => onCopy(value)}
           title={copyLabel}
+          aria-label={copyLabel}
         >
           <Copy className="h-3 w-3" />
         </Button>

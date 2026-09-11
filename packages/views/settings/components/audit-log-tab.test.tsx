@@ -99,6 +99,8 @@ describe("AuditLogTab", () => {
     expect(rows[0]?.textContent).toContain("issue.status_changed");
     // Details render as readable key/value pairs, not raw JSON (JEF-401).
     expect(rows[0]?.textContent).toContain("from: todo · to: done");
-    expect(rows[1]?.textContent).toContain("agent");
+    // Actor type renders through the same translated label as the filter
+    // dropdown ("Agent"), not the raw "agent" wire value.
+    expect(rows[1]?.textContent).toContain("Agent");
   });
 });

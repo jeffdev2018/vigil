@@ -54,6 +54,17 @@ export function IssuePickerModal({
     }
   }, [open]);
 
+  // The debounce timer and its in-flight request outlive a single render —
+  // an unmount mid-debounce (modal closed via its own onOpenChange, or the
+  // whole tree torn down) otherwise left the timer armed and the fetch
+  // running against a component no longer there to receive the result.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const search = useCallback(
     (q: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

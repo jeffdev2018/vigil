@@ -175,6 +175,12 @@ function runtimeFrom<T extends { id: string }>(
 // stuck runtime, but the hover card is not the place to relitigate that;
 // the row will read as `26h 12m` and the user can act.
 //
+// The s/m/h suffixes are deliberately NOT localized: this is a dense
+// elapsed-time chip in a hover card, not prose, and every locale this
+// product ships (ja/ko/zh-Hans included) reads a bare digit+letter pair
+// like `2m 14s` without ambiguity. Swapping to Intl.DurationFormat would
+// trade that density for full-width unit words that do not fit here.
+//
 // Exported so the issue-detail header live chip formats its collapsed
 // single-agent elapsed with the same `2m 14s` / `1h 03m` rule used here.
 export function formatDuration(fromIso: string, nowMs: number): string {

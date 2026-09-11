@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from "react";
 import { EyeOff, Trash2 } from "lucide-react";
+import { CurrencyNumberFlow } from "@multica/ui/components/ui/number-flow";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatTokens } from "../../runtimes/utils";
 import { useT } from "../../i18n";
@@ -53,11 +54,13 @@ export function Leaderboard({
   agents,
   deletedAgentCount,
   lessThanMinuteLabel,
+  locales,
 }: {
   rows: AgentDashboardRow[];
   agents: { id: string; name: string }[];
   deletedAgentCount: number;
   lessThanMinuteLabel: string;
+  locales: string;
 }) {
   const { t } = useT("usage");
   const [sortBy, setSortBy] = useState<LeaderboardSort>("tokens");
@@ -250,7 +253,7 @@ export function Leaderboard({
                     <div
                       className={`text-right tabular-nums ${sortBy === "cost" ? "text-body font-medium" : "text-caption text-muted-foreground"}`}
                     >
-                      ${row.cost.toFixed(2)}
+                      <CurrencyNumberFlow value={row.cost} locales={locales} />
                     </div>
                     <div
                       className={`text-right text-caption tabular-nums ${sortBy === "time" ? "font-medium text-foreground" : "text-muted-foreground"}`}

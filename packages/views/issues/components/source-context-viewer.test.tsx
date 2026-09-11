@@ -251,7 +251,7 @@ describe("SourceContextBadge", () => {
     expect(within(details).getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Hide issue attachment details" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Captured comment").closest("[data-source-context-change-kind='changed']")).toHaveClass(
-      "bg-amber-500/5",
+      "bg-warning/5",
     );
     expect(screen.getByRole("button", { name: "Go to source comment" })).toBeTruthy();
   });
@@ -295,7 +295,7 @@ describe("SourceContextBadge", () => {
       "bg-success/5",
     );
     expect(screen.getByText("Changed comment").closest("[data-source-context-change-kind='changed']")).toHaveClass(
-      "bg-amber-500/5",
+      "bg-warning/5",
     );
     expect(screen.getByText("Removed comment").closest("[data-source-context-change-kind='deleted']")).toHaveClass(
       "bg-destructive/5",
@@ -454,7 +454,7 @@ describe("SourceContextBadge", () => {
       "bg-destructive/5",
     );
     expect(screen.getByText("Earlier changed comment").closest("[data-source-context-change-kind='changed']")).toHaveClass(
-      "bg-amber-500/5",
+      "bg-warning/5",
     );
     expect(screen.queryByRole("button", { name: "Go to source comment" })).toBeNull();
   });

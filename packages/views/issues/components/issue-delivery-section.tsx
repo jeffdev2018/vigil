@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { goalBlockerLabelKey, goalOutcomeLabelKey } from "@multica/core/issues/goal-loop";
 import { parseRunResult } from "@multica/core/issues/run-result";
 import { ReadonlyContent } from "../../editor";
-import { useT } from "../../i18n";
+import { useLocale, useT } from "../../i18n";
 import { collectUnmappedModels, formatUsd, summarizeTaskUsageAcross } from "../../runtimes/utils";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TranscriptButton } from "../../common/task-transcript";
@@ -46,6 +46,7 @@ export function IssueDeliverySection({
   projectId?: string | null;
 }) {
   const { t } = useT("issues");
+  const locale = useLocale();
   const { data, isPending, isError, refetch } = useQuery(issueDeliveryOptions(wsId, issueId));
   const { data: tasks = [], isError: costError } = useQuery(deliveryTasksOptions(wsId, issueId));
   const criteriaMutation = useUpdateDeliveryCriteria(wsId, issueId);
@@ -179,7 +180,7 @@ export function IssueDeliverySection({
             title={t(($) => $.delivery.view_transcript)} isLive={!["completed", "failed", "cancelled"].includes(runTask.status)} />}
         </div>
         <p className="text-caption text-muted-foreground">{data.run.completedAt
-          ? t(($) => $.delivery.run_completed, { date: new Date(data.run.completedAt).toLocaleString() })
+          ? t(($) => $.delivery.run_completed, { date: new Date(data.run.completedAt).toLocaleString(locale) })
           : t(($) => $.delivery.run_pending)}</p>
         <DeliveryResult result={data.run.result} />
         {data.run.error && <p className="whitespace-pre-wrap break-words text-caption text-destructive">{data.run.error}</p>}
@@ -193,7 +194,7 @@ export function IssueDeliverySection({
             ? t(($) => $.delivery.checks_unavailable)
             : t(($) => $.delivery.checks, { passed: pr.checks_passed, total: pr.checks_total })}
             {pr.snapshot_stale === true && <> · {t(($) => $.delivery.stale_checks)}</>}</p>
-          {pr.snapshot_fetched_at && <p className="text-muted-foreground">{t(($) => $.delivery.fetched_at, { date: new Date(pr.snapshot_fetched_at).toLocaleString() })}</p>}
+          {pr.snapshot_fetched_at && <p className="text-muted-foreground">{t(($) => $.delivery.fetched_at, { date: new Date(pr.snapshot_fetched_at).toLocaleString(locale) })}</p>}
         </div>)}
       </div>}
       <div className="flex flex-wrap items-center gap-2 text-caption">
@@ -209,7 +210,7 @@ export function IssueDeliverySection({
           : data.latestReview.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
         <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, {
           name: getActorName?.("member", data.latestReview.reviewedBy) || data.latestReview.reviewedBy,
-          date: new Date(data.latestReview.createdAt).toLocaleString(),
+          date: new Date(data.latestReview.createdAt).toLocaleString(locale),
         })}</p>
         <DeliveryUsageAtReview review={data.latestReview} />
         {data.latestReview.feedback && <p className="whitespace-pre-wrap break-words">{data.latestReview.feedback}</p>}
@@ -261,7 +262,7 @@ export function IssueDeliverySection({
             const historicalTask = tasks.find((task) => task.id === review.snapshot.run?.id);
             return <div key={review.id} className="space-y-3 pt-3">
               <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
-              <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString() })}</p>
+              <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString(locale) })}</p>
               {review.feedback && <p className="whitespace-pre-wrap break-words">{review.feedback}</p>}
               {review.decision === "changes_requested" && historicalTask?.agent_id && (
                 <TeachFromReviewButton wsId={wsId} agentId={historicalTask.agent_id} sourceTaskId={historicalTask.id} review={review} />
@@ -370,6 +371,7 @@ function DeliveryResult({ result }: { result: unknown }) {
 
 function DeliveryUsageAtReview({ review }: { review: DeliveryReview }) {
   const { t } = useT("issues");
+  const locale = useLocale();
   const usage = review.usageSnapshot;
   return <div className="space-y-2 text-caption">
     <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted_cost) : t(($) => $.delivery.review_cost)}: {usage?.availableUsd != null ? <span title={usage.availableUsd}>{formatUsd(Number(usage.availableUsd))}</span> : t(($) => $.delivery.cost_unavailable)}</p>
@@ -380,10 +382,10 @@ function DeliveryUsageAtReview({ review }: { review: DeliveryReview }) {
         <summary className="cursor-pointer">{t(($) => $.delivery.cost_breakdown)}</summary>
         <p>{t(($) => $.delivery.cost_split, { reported: formatUsd(Number(usage.reportedUsd)), estimated: formatUsd(Number(usage.estimatedUsd)) })}</p>
         <p>{t(($) => $.delivery.cost_gaps, { missing: usage.runsWithoutUsage, unpriced: usage.unpricedSlices, running: usage.nonterminalRuns })}</p>
-        <p className="text-muted-foreground">{t(($) => $.delivery.cost_snapshot_hint, { date: new Date(usage.capturedAt).toLocaleString() })}</p>
+        <p className="text-muted-foreground">{t(($) => $.delivery.cost_snapshot_hint, { date: new Date(usage.capturedAt).toLocaleString(locale) })}</p>
       </details>
     </>}
-    {review.reviewDelaySeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.review_delay, { minutes: (review.reviewDelaySeconds / 60).toLocaleString(undefined, { maximumFractionDigits: 1 }) })}</p>}
-    {review.humanEffortSeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.human_effort, { seconds: review.humanEffortSeconds.toLocaleString() })}</p>}
+    {review.reviewDelaySeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.review_delay, { minutes: (review.reviewDelaySeconds / 60).toLocaleString(locale, { maximumFractionDigits: 1 }) })}</p>}
+    {review.humanEffortSeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.human_effort, { seconds: review.humanEffortSeconds.toLocaleString(locale) })}</p>}
   </div>;
 }

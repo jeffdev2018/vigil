@@ -117,6 +117,8 @@ export function RuntimeDetailPage({
         ensureLocalMachine: hasLocalMachine,
         cloudMachineTitle: (provider) =>
           t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
+        localMachineTitle: t(($) => $.machine.this_machine),
+        unknownMachineTitle: t(($) => $.machine.unknown_machine),
       }),
     [
       runtimes,

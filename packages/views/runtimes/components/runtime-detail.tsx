@@ -301,7 +301,7 @@ function HeroCard({
                 size="sm"
                 enableHoverCard
               />
-              <span className="cursor-pointer truncate text-body">{ownerMember.name}</span>
+              <span className="truncate text-body">{ownerMember.name}</span>
             </span>
           ) : (
             <span className="text-body text-muted-foreground">—</span>
