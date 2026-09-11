@@ -1457,7 +1457,8 @@
     "add": "Add a shard",
     "launch": "Launch campaign",
     "cancel": "Cancel",
-    "failed": "The campaign request failed"
+    "failed": "The campaign request failed",
+    "unknown_agent": "Unknown agent"
   },
   "competency": {
     "section": "Success history on this kind of task",

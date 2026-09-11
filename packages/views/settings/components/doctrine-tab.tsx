@@ -154,6 +154,10 @@ export function DoctrineTab() {
   // The draft stays null until the manager types, so a refetch (a websocket
   // `doctrine:changed`, a window refocus) never overwrites what they wrote.
   const [draft, setDraft] = useState<string | null>(null);
+  // The revision the draft started on. `doctrine.revision` keeps moving under
+  // an open editor (refetch on `doctrine:changed`), and publishing with the
+  // moved value would silently overwrite what changed meanwhile.
+  const [editRevision, setEditRevision] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [stale, setStale] = useState(false);
   const [policySaving, setPolicySaving] = useState<SettingsSaveStatus>("idle");
@@ -170,16 +174,18 @@ export function DoctrineTab() {
 
   const reload = () => {
     setDraft(null);
+    setEditRevision(null);
     setStale(false);
     void qc.invalidateQueries({ queryKey: doctrineKeys.all(wsId) });
   };
 
   const handlePublish = () => {
     publish.mutate(
-      { content, expected_revision: doctrine.revision, note: note.trim() },
+      { content, expected_revision: editRevision ?? doctrine.revision, note: note.trim() },
       {
         onSuccess: (result) => {
           setDraft(null);
+    setEditRevision(null);
           setNote("");
           toast.success(
             result.doctrine.pending
@@ -313,7 +319,10 @@ export function DoctrineTab() {
                   placeholder={t(($) => $.doctrine.content_placeholder)}
                   value={content}
                   disabled={!!pending || publish.isPending}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    if (draft === null) setEditRevision(doctrine.revision);
+                    setDraft(event.target.value);
+                  }}
                 />
               </>
             ) : (
@@ -543,6 +552,7 @@ export function DoctrineTab() {
                   {
                     onSuccess: () => {
                       setDraft(null);
+    setEditRevision(null);
                       toast.success(t(($) => $.doctrine.restored_toast));
                     },
                     onError: (error) => {

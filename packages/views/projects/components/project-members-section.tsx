@@ -28,6 +28,19 @@ const INHERIT = "__inherit";
  */
 export function ProjectMembersSection({ projectId }: { projectId: string }) {
   const { t } = useT("projects");
+  // Roles are server enums: shown through the locale, never raw.
+  const roleLabel = (role: string) => {
+    switch (role) {
+      case "viewer":
+        return t(($) => $.members.roles.viewer);
+      case "contributor":
+        return t(($) => $.members.roles.contributor);
+      case "admin":
+        return t(($) => $.members.roles.admin);
+      default:
+        return role;
+    }
+  };
   const wsId = useWorkspaceId();
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const currentMember = useCurrentMember(wsId);
@@ -90,7 +103,7 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                         <td className="px-2 py-1 font-mono text-caption text-muted-foreground">{m.workspace_role}</td>
                         <td className="px-2 py-1">
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="font-mono">{m.effective_role}</Badge>
+                            <Badge variant="secondary">{roleLabel(m.effective_role)}</Badge>
                             <Badge variant="outline">
                               {m.source === "override" ? t(($) => $.members.override) : t(($) => $.members.inherited)}
                             </Badge>
@@ -102,9 +115,9 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                                 disabled={setRole.isPending}
                                 onChange={(e) => change(m, e.target.value)}
                               >
-                                <option value={INHERIT}>{t(($) => $.members.inherit_option, { role: m.ceiling })}</option>
+                                <option value={INHERIT}>{t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) })}</option>
                                 {options.map((r) => (
-                                  <option key={r} value={r}>{r}</option>
+                                  <option key={r} value={r}>{roleLabel(r)}</option>
                                 ))}
                               </select>
                             )}

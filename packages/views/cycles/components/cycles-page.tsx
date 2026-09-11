@@ -138,7 +138,7 @@ export function CyclesPage() {
   const wsId = useWorkspaceId();
   const [projectFilter, setProjectFilter] = useState("");
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
-  const { data: cycles = [], isLoading } = useQuery(
+  const { data: cycles = [], isLoading, isError } = useQuery(
     cycleListOptions(wsId, projectFilter || undefined),
   );
   const deleteCycle = useDeleteCycle(wsId);
@@ -187,7 +187,9 @@ export function CyclesPage() {
         }
       />
 
-      {!isLoading && cycles.length === 0 ? (
+      {isError ? (
+        <CollectionPageState icon={CalendarRange} tone="destructive" title={t(($) => $.page.load_error)} />
+      ) : !isLoading && cycles.length === 0 ? (
         <CollectionPageState
           icon={CalendarRange}
           title={t(($) => $.page.empty)}

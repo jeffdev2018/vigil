@@ -239,7 +239,12 @@
     "agent": "agent",
     "updated": "Rôle mis à jour",
     "update_failed": "Échec de la mise à jour du rôle",
-    "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles."
+    "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles.",
+    "roles": {
+      "viewer": "Lecteur",
+      "contributor": "Contributeur",
+      "admin": "Administrateur"
+    }
   },
   "review": {
     "section": "Revue par agent",

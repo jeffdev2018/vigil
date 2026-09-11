@@ -239,7 +239,12 @@
     "agent": "agent",
     "updated": "Role updated",
     "update_failed": "Failed to update the role",
-    "read_only": "Only workspace owners, admins and project admins can change roles."
+    "read_only": "Only workspace owners, admins and project admins can change roles.",
+    "roles": {
+      "viewer": "Viewer",
+      "contributor": "Contributor",
+      "admin": "Admin"
+    }
   },
   "review": {
     "section": "Agent review",

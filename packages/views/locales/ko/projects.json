@@ -237,7 +237,12 @@
     "agent": "에이전트",
     "updated": "역할을 갱신했습니다",
     "update_failed": "역할 갱신에 실패했습니다",
-    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다."
+    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다.",
+    "roles": {
+      "viewer": "뷰어",
+      "contributor": "기여자",
+      "admin": "관리자"
+    }
   },
   "review": {
     "section": "에이전트 리뷰",

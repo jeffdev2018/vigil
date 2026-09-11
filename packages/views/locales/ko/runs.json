@@ -34,7 +34,8 @@
     "empty_description": "에이전트가 이슈, 채팅 한 턴, 또는 오토파일럿 트리거 작업을 시작하면 여기에 실행이 표시됩니다.",
     "loading": "실행 불러오는 중",
     "load_error": "실행을 불러오지 못했습니다",
-    "load_more": "더 불러오기"
+    "load_more": "더 불러오기",
+    "cancel_failed": "실행을 취소할 수 없습니다"
   },
   "row": {
     "silent": "무응답",

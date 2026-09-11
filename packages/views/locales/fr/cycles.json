@@ -14,7 +14,8 @@
     "edit": "Modifier le cycle",
     "delete": "Supprimer le cycle",
     "no_project": "Choisissez un projet pour planifier un cycle.",
-    "loading": "Chargement des cycles"
+    "loading": "Chargement des cycles",
+    "load_error": "Impossible de charger les cycles"
   },
   "status": {
     "upcoming": "À venir",
