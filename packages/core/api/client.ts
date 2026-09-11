@@ -421,6 +421,8 @@ import {
   BudgetPolicyListSchema,
   BudgetPolicySchema,
   BudgetStatusListSchema,
+  EMPTY_BUDGET_OVERRIDE,
+  EMPTY_BUDGET_POLICY,
   type BudgetOverride,
   type BudgetPolicy,
   type BudgetStatus,
@@ -9093,12 +9095,12 @@ export class ApiClient {
 
   async createBudgetPolicy(data: CreateBudgetPolicyRequest): Promise<BudgetPolicy> {
     const raw = await this.fetch<unknown>("/api/budgets", { method: "POST", body: JSON.stringify(data) });
-    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "POST /api/budgets" });
+    return parseWithFallback(raw, BudgetPolicySchema, EMPTY_BUDGET_POLICY, { endpoint: "POST /api/budgets" });
   }
 
   async updateBudgetPolicy(id: string, data: UpdateBudgetPolicyRequest): Promise<BudgetPolicy> {
     const raw = await this.fetch<unknown>(`/api/budgets/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "PATCH /api/budgets/:id" });
+    return parseWithFallback(raw, BudgetPolicySchema, EMPTY_BUDGET_POLICY, { endpoint: "PATCH /api/budgets/:id" });
   }
 
   async deleteBudgetPolicy(id: string): Promise<void> {
@@ -9109,7 +9111,7 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/budgets/${id}/override`, {
       method: "POST", body: JSON.stringify({ reason, duration_hours: durationHours }),
     });
-    return parseWithFallback(raw, BudgetOverrideSchema, {} as BudgetOverride, { endpoint: "POST /api/budgets/:id/override" });
+    return parseWithFallback(raw, BudgetOverrideSchema, EMPTY_BUDGET_OVERRIDE, { endpoint: "POST /api/budgets/:id/override" });
   }
 
   // Fleet reads (JEF-12): small stable aggregations for the fleet skill and
