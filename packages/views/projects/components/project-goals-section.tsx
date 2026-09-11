@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { goalListOptions, goalProgress, useSetProjectGoals } from "@multica/core/goals";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
 import { flattenGoalTree } from "../../goals/components/goal-tree";
 import { useT } from "../../i18n";
@@ -68,12 +69,10 @@ export function ProjectGoalsSection({ projectId }: { projectId: string }) {
               <div className="max-h-64 overflow-y-auto">
                 {rows.map(({ goal, depth }) => (
                   <label key={goal.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent" style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}>
-                    <input
-                      type="checkbox"
-                      className="size-3.5"
+                    <Checkbox
                       checked={goal.project_ids.includes(projectId)}
                       disabled={setProjectGoals.isPending}
-                      onChange={() => toggle(goal.id)}
+                      onCheckedChange={() => toggle(goal.id)}
                     />
                     <span className="truncate">{goal.title}</span>
                   </label>
