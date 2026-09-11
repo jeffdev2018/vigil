@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 func brainWorkspace(t *testing.T) string {
@@ -391,11 +392,16 @@ func TestWorkspaceNoteRankedSearch(t *testing.T) {
 	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "test-model"}
 	t.Cleanup(func() { testHandler.BrainEmbedder = origEmbedder })
 	hits = searchNotes(t, workspaceID, "q=printer")
-	if len(hits) != 2 || hits[0].ID != vendor.ID {
-		t.Fatalf("fused search = %v, want the vendor note first (lexical + vector) then deploy (vector only)", hits)
+	if len(hits) != 1 || hits[0].ID != vendor.ID {
+		t.Fatalf("fused search = %v, want the vendor note alone: a search needs a lexical match", hits)
 	}
-	if hits[0].LexRank == nil || hits[0].VecRank == nil || hits[1].LexRank != nil || hits[1].VecRank == nil {
-		t.Errorf("ranks = %v/%v and %v/%v, want vendor on both legs and deploy on the vector leg only", hits[0].LexRank, hits[0].VecRank, hits[1].LexRank, hits[1].VecRank)
+	if hits[0].LexRank == nil || hits[0].VecRank == nil {
+		t.Errorf("ranks = %v/%v, want vendor on both legs", hits[0].LexRank, hits[0].VecRank)
+	}
+	// Merge candidates still take the vector neighbours: a model judges them.
+	candidates := testHandler.brainCaptureCandidates(context.Background(), db.BrainCapture{WorkspaceID: parseUUID(workspaceID), Content: "printer"})
+	if len(candidates) != 2 || candidates[0].ID != parseUUID(vendor.ID) || candidates[1].LexRank.Valid || !candidates[1].VecRank.Valid {
+		t.Errorf("candidates = %v, want vendor then deploy on the vector leg only", candidates)
 	}
 	// A vector from another model never fuses.
 	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "other-model"}
@@ -404,6 +410,48 @@ func TestWorkspaceNoteRankedSearch(t *testing.T) {
 	}
 	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
 		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=", workspaceID, nil)).Want(http.StatusBadRequest)
+}
+
+// TestWorkspaceNoteSearchFiltersByQuery is the regression for the audit
+// finding "the palette and the Brain page return every note whatever the
+// query": with an embeddings provider, the vector leg is a nearest-neighbour
+// list that always has neighbours, so every embedded note surfaced as a hit.
+// A query that matches nothing returns nothing; two different queries return
+// different notes.
+func TestWorkspaceNoteSearchFiltersByQuery(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	deploy := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Deploy procedure", Content: "Push the release tag on main."})
+	vendor := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Vendor contacts", Content: "The printer vendor answers on Mondays."})
+	image := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "IMG_0111", Content: "image"})
+	axis := func(i int) string {
+		parts := make([]string, 1536)
+		for j := range parts {
+			parts[j] = "0"
+		}
+		parts[i] = "1"
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	for i, id := range []string{deploy.ID, vendor.ID, image.ID} {
+		dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, id, workspaceID, axis(i))
+	}
+	dbfx.Cleanup(t, `DELETE FROM workspace_note_embedding WHERE workspace_id = $1`, workspaceID)
+	origEmbedder := testHandler.BrainEmbedder
+	// The query vector sits right next to the image note: a real provider
+	// always has a nearest note, however unrelated the query is.
+	testHandler.BrainEmbedder = stubEmbedder{literal: axis(2), model: "test-model"}
+	t.Cleanup(func() { testHandler.BrainEmbedder = origEmbedder })
+
+	if hits := searchNotes(t, workspaceID, "q=zzzxxqqnonsense123"); len(hits) != 0 {
+		t.Fatalf("a query matching no note returned %d hits (%v), want none", len(hits), hits)
+	}
+	printer := searchNotes(t, workspaceID, "q=printer")
+	release := searchNotes(t, workspaceID, "q=release")
+	if len(printer) != 1 || printer[0].ID != vendor.ID {
+		t.Errorf("q=printer = %v, want the vendor note only", printer)
+	}
+	if len(release) != 1 || release[0].ID != deploy.ID {
+		t.Errorf("q=release = %v, want the deploy note only", release)
+	}
 }
 
 // stubEmbedder answers a fixed query vector so the fusion is testable

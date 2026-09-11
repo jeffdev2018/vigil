@@ -51,8 +51,12 @@ SELECT * FROM attachment WHERE workspace_id = $1 AND note_id = $2 ORDER BY creat
 -- builds (websearch syntax, 'simple' config for the polyglot corpus), fused
 -- by reciprocal rank with the vector rank when a query embedding is given
 -- and the stored vector came from the same model. A note without an
--- embedding still ranks lexically; a note only the vector finds still
--- surfaces. Snippets come from ts_headline over the content.
+-- embedding still ranks lexically. The vector leg is a nearest-neighbour
+-- list: it always has neighbours, however unrelated the query, and RRF keeps
+-- only their rank. So a note only the vector finds surfaces solely when the
+-- caller asks for neighbours (vector_only_hits: capture merge candidates,
+-- which a model then judges); a user-facing search needs a lexical match.
+-- Snippets come from ts_headline over the content.
 WITH q AS (
     SELECT websearch_to_tsquery('simple', sqlc.arg('query')::text) AS tsq
 ), lexical AS (
@@ -81,6 +85,9 @@ WITH q AS (
            (COALESCE(1.0 / (60 + l.lex_rank), 0) + COALESCE(1.0 / (60 + v.vec_rank), 0))::float8 AS score,
            l.lex_rank, v.vec_rank
     FROM lexical l FULL OUTER JOIN vec v ON v.id = l.id
+    -- ponytail: no similarity floor, a fixed one cannot be calibrated across
+    -- embedding models; semantic-only recall for search returns with JEF-412.
+    WHERE l.id IS NOT NULL OR sqlc.arg('vector_only_hits')::bool
 )
 SELECT n.*, f.score, f.lex_rank, f.vec_rank,
        ts_headline('simple', n.content, (SELECT tsq FROM q), 'MaxWords=40, MinWords=15, MaxFragments=2, FragmentDelimiter=" … ", StartSel=<mark>, StopSel=</mark>') AS snippet
