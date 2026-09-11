@@ -2478,9 +2478,25 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Invocation targets (MUL-3963): replace wholesale when the owner touched
 	// permission. Done after the row update so a permission_mode flip and its
-	// targets land together.
+	// targets land together. The delete-then-insert-loop runs inside its own
+	// transaction so a DB error mid-loop can't leave the agent's invocation
+	// targets partially cleared with no rollback.
 	if replacePermissionTargets {
-		if err := h.replaceInvocationTargets(r.Context(), updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+		tx, err := h.TxStarter.Begin(r.Context())
+		if err != nil {
+			slog.Warn("update agent: begin invocation targets transaction failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update invocation targets")
+			return
+		}
+		func() {
+			defer tx.Rollback(r.Context())
+			qtx := h.Queries.WithTx(tx)
+			if err = replaceInvocationTargetsWithQueries(r.Context(), qtx, updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+				return
+			}
+			err = tx.Commit(r.Context())
+		}()
+		if err != nil {
 			slog.Warn("update agent: persist invocation targets failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 			writeError(w, http.StatusInternalServerError, "failed to update invocation targets: "+err.Error())
 			return
