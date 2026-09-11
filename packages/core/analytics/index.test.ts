@@ -65,8 +65,8 @@ describe("initAnalytics super-properties", () => {
     });
   });
 
-  it("detects desktop when window.electron is present", async () => {
-    vi.stubGlobal("window", { electron: {} });
+  it("detects desktop when window.desktopAPI is present", async () => {
+    vi.stubGlobal("window", { desktopAPI: {} });
     const { analytics, posthog } = await loadModule();
     analytics.initAnalytics({ key: "k", host: "" });
     expect(posthog.register).toHaveBeenCalledWith({

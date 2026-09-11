@@ -1,4 +1,3 @@
-import { ElectronAPI } from "@electron-toolkit/preload";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
 import type { NavigationGesture } from "../shared/navigation-gestures";
 import type { RendererRouteContextInput } from "../shared/renderer-route-context";
@@ -182,7 +181,6 @@ interface UpdaterAPI {
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
     desktopAPI: DesktopAPI;
     daemonAPI: DaemonAPI;
     updater: UpdaterAPI;

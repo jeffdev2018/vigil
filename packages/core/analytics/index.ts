@@ -84,13 +84,13 @@ export type ClientType = "desktop" | "web";
  * Electron renderer (both Chromium).
  *
  * Signals we trust:
- *   - `window.electron` is exposed by the preload script in every renderer.
+ *   - `window.desktopAPI` is exposed by the preload script in every renderer.
  *   - `navigator.userAgent` contains "Electron" as a fallback.
  */
 export function detectClientType(): ClientType {
   if (typeof window === "undefined") return "web";
-  const w = window as unknown as { electron?: unknown; desktopAPI?: unknown };
-  if (w.electron || w.desktopAPI) return "desktop";
+  const w = window as unknown as { desktopAPI?: unknown };
+  if (w.desktopAPI) return "desktop";
   if (typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent)) {
     return "desktop";
   }
