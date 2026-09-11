@@ -3509,11 +3509,9 @@ export function createZhDict(allowSignup: boolean): LandingDict {
       updates:
         "我希望接收 Multica 的产品更新、洞察以及活动邀请。",
       unsubscribe:
-        "你可以随时取消订阅我们的邮件。关于我们如何处理你的数据以及隐私权利，请参阅",
+        "你可以随时取消订阅我们的邮件。",
       submitConsent:
         "点击「提交」即表示你同意 Multica, Inc. 存储并处理你提交的信息，以便交付你请求的内容。",
-      privacyLinkLabel: "隐私政策。",
-      privacyLinkHref: "/about",
     },
     success: {
       title: "已收到，谢谢！",
