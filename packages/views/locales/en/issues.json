@@ -779,7 +779,10 @@
       "fanout": "Fan-out",
       "shard": "Shard",
       "eval": "Eval",
+      "benchmark": "Benchmark",
       "escalation": "Escalation",
+      "pr_walkthrough": "Walkthrough",
+      "epic_step": "Epic step",
       "other": "Leg",
       "continuation": "Continuation",
       "subagent": "Sub-agent"

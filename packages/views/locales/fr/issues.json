@@ -757,7 +757,10 @@
       "fanout": "Répartition",
       "shard": "Fragment",
       "eval": "Évaluation",
+      "benchmark": "Benchmark",
       "escalation": "Escalade",
+      "pr_walkthrough": "Parcours",
+      "epic_step": "Étape d'épopée",
       "other": "Étape",
       "continuation": "Continuation",
       "subagent": "Sous-agent"
