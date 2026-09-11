@@ -441,6 +441,47 @@ func (q *Queries) GetEvalRunCaseByTask(ctx context.Context, arg GetEvalRunCaseBy
 	return i, err
 }
 
+const getEvalRunsByIDs = `-- name: GetEvalRunsByIDs :many
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE id = ANY($1::uuid[])
+`
+
+// Batch variant of GetEvalRun for ListBenchmarks' baseline-delta lookup,
+// which otherwise resolves one baseline run per benchmark run on the page.
+func (q *Queries) GetEvalRunsByIDs(ctx context.Context, ids []pgtype.UUID) ([]EvalRun, error) {
+	rows, err := q.db.Query(ctx, getEvalRunsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalRun{}
+	for rows.Next() {
+		var i EvalRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SuiteID,
+			&i.AgentID,
+			&i.AgentVersionID,
+			&i.Status,
+			&i.Score,
+			&i.StartedBy,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Benchmark,
+			&i.RuntimeID,
+			&i.Model,
+			&i.BaselineRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEvalSuite = `-- name: GetEvalSuite :one
 SELECT id, workspace_id, name, case_ids, created_by, created_at, updated_at FROM eval_suite WHERE id = $1
 `
@@ -458,6 +499,40 @@ func (q *Queries) GetEvalSuite(ctx context.Context, id pgtype.UUID) (EvalSuite, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getEvalSuitesByIDs = `-- name: GetEvalSuitesByIDs :many
+SELECT id, workspace_id, name, case_ids, created_by, created_at, updated_at FROM eval_suite WHERE id = ANY($1::uuid[])
+`
+
+// Batch variant of GetEvalSuite for ListEvalRuns/ListBenchmarks, which
+// otherwise resolve the suite name once per run on the page.
+func (q *Queries) GetEvalSuitesByIDs(ctx context.Context, ids []pgtype.UUID) ([]EvalSuite, error) {
+	rows, err := q.db.Query(ctx, getEvalSuitesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalSuite{}
+	for rows.Next() {
+		var i EvalSuite
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.CaseIds,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasRunningEvalRunForSuite = `-- name: HasRunningEvalRunForSuite :one
@@ -576,6 +651,68 @@ func (q *Queries) ListEvalRunCases(ctx context.Context, runID pgtype.UUID) ([]Li
 	items := []ListEvalRunCasesRow{}
 	for rows.Next() {
 		var i ListEvalRunCasesRow
+		if err := rows.Scan(
+			&i.RunID,
+			&i.CaseID,
+			&i.IssueID,
+			&i.TaskID,
+			&i.Status,
+			&i.Score,
+			&i.Detail,
+			&i.SettledAt,
+			&i.TaskClass,
+			&i.CostUsdTicks,
+			&i.DurationSeconds,
+			&i.CaseTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEvalRunCasesByRunIDs = `-- name: ListEvalRunCasesByRunIDs :many
+SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, rc.task_class, rc.cost_usd_ticks, rc.duration_seconds, c.title AS case_title
+FROM eval_run_case rc
+LEFT JOIN eval_case c ON c.id = rc.case_id
+WHERE rc.run_id = ANY($1::uuid[])
+ORDER BY rc.run_id, c.created_at ASC
+`
+
+type ListEvalRunCasesByRunIDsRow struct {
+	RunID           pgtype.UUID        `json:"run_id"`
+	CaseID          pgtype.UUID        `json:"case_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Status          string             `json:"status"`
+	Score           pgtype.Int4        `json:"score"`
+	Detail          string             `json:"detail"`
+	SettledAt       pgtype.Timestamptz `json:"settled_at"`
+	TaskClass       string             `json:"task_class"`
+	CostUsdTicks    pgtype.Int8        `json:"cost_usd_ticks"`
+	DurationSeconds pgtype.Int4        `json:"duration_seconds"`
+	CaseTitle       pgtype.Text        `json:"case_title"`
+}
+
+// Batch variant of ListEvalRunCases for ListEvalRuns/ListBenchmarks/
+// BenchmarkPolicySearch, which otherwise list one run's cases at a time for
+// every run on the page (up to 200 runs, or up to evalMaxSuiteCases for a
+// policy search). Same columns as ListEvalRunCases (rc.* includes run_id),
+// so its row type converts directly to db.ListEvalRunCasesRow; group by
+// run_id in Go after fetching.
+func (q *Queries) ListEvalRunCasesByRunIDs(ctx context.Context, runIds []pgtype.UUID) ([]ListEvalRunCasesByRunIDsRow, error) {
+	rows, err := q.db.Query(ctx, listEvalRunCasesByRunIDs, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEvalRunCasesByRunIDsRow{}
+	for rows.Next() {
+		var i ListEvalRunCasesByRunIDsRow
 		if err := rows.Scan(
 			&i.RunID,
 			&i.CaseID,

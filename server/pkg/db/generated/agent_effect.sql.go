@@ -186,6 +186,54 @@ func (q *Queries) ListAgentEffectsForDecision(ctx context.Context, decisionID pg
 	return items, nil
 }
 
+const listAgentEffectsForDecisions = `-- name: ListAgentEffectsForDecisions :many
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
+WHERE decision_id = ANY($1::uuid[])
+ORDER BY created_at ASC, id ASC
+`
+
+// Batch variant of ListAgentEffectsForDecision for ListApprovals'
+// decisionKind, which only needs to know whether any row exists per decision.
+func (q *Queries) ListAgentEffectsForDecisions(ctx context.Context, decisionIds []pgtype.UUID) ([]AgentEffect, error) {
+	rows, err := q.db.Query(ctx, listAgentEffectsForDecisions, decisionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentEffect{}
+	for rows.Next() {
+		var i AgentEffect
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TaskID,
+			&i.AgentID,
+			&i.IssueID,
+			&i.Kind,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Before,
+			&i.After,
+			&i.Reversible,
+			&i.ReversedAt,
+			&i.ReversedByType,
+			&i.ReversedByID,
+			&i.ReverseError,
+			&i.CreatedAt,
+			&i.Status,
+			&i.Payload,
+			&i.DecisionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAgentEffectsForIssue = `-- name: ListAgentEffectsForIssue :many
 SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
 WHERE workspace_id = $1 AND issue_id = $2

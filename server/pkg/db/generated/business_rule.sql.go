@@ -48,6 +48,40 @@ func (q *Queries) CountIssueLabels(ctx context.Context, issueID pgtype.UUID) (in
 	return count, err
 }
 
+const countIssueLabelsByIssueIDs = `-- name: CountIssueLabelsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM issue_to_label
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssueLabelsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssueLabels for DryRunBusinessRule, which otherwise
+// calls the single-issue count once per issue in the review page (up to 100).
+// An issue with zero labels has no row here; the caller defaults to 0.
+func (q *Queries) CountIssueLabelsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssueLabelsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssueLabelsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssueLabelsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssueLabelsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countIssuePullRequests = `-- name: CountIssuePullRequests :one
 SELECT COUNT(*) FROM issue_vcs_pull_request WHERE issue_id = $1
 `
@@ -57,6 +91,38 @@ func (q *Queries) CountIssuePullRequests(ctx context.Context, issueID pgtype.UUI
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countIssuePullRequestsByIssueIDs = `-- name: CountIssuePullRequestsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM issue_vcs_pull_request
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssuePullRequestsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssuePullRequests; see CountIssueLabelsByIssueIDs.
+func (q *Queries) CountIssuePullRequestsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssuePullRequestsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssuePullRequestsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssuePullRequestsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssuePullRequestsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countWorkspaceAgents = `-- name: CountWorkspaceAgents :one

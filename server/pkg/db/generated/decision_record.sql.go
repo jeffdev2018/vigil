@@ -22,6 +22,39 @@ func (q *Queries) CountIssueDecisionRecords(ctx context.Context, issueID pgtype.
 	return count, err
 }
 
+const countIssueDecisionRecordsByIssueIDs = `-- name: CountIssueDecisionRecordsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM decision_record
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssueDecisionRecordsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssueDecisionRecords for DryRunBusinessRule; see
+// CountIssueLabelsByIssueIDs in business_rule.sql for why this exists.
+func (q *Queries) CountIssueDecisionRecordsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssueDecisionRecordsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssueDecisionRecordsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssueDecisionRecordsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssueDecisionRecordsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countRunDecisionRecords = `-- name: CountRunDecisionRecords :one
 SELECT COUNT(*) FROM decision_record WHERE run_id = $1
 `

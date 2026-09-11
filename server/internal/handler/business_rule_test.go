@@ -152,3 +152,44 @@ func TestBusinessRulesCompileWithLLMAndGateReview(t *testing.T) {
 	moveIssue(t, already, "done").Want(http.StatusOK)
 	moveIssue(t, bare, "done").Want(http.StatusOK)
 }
+
+// DryRunBusinessRule batches workspaceFacts and the per-issue label/PR/
+// decision counts across the whole review page instead of resolving them one
+// issue at a time; this pins two issues in review with DIFFERENT label
+// counts through one dry-run call so a batching bug that swaps one issue's
+// count onto another fails this test instead of shipping silently.
+func TestDryRunBusinessRuleBatchesIssueFactsWithoutMixingCounts(t *testing.T) {
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM business_rule_violation WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM business_rule WHERE workspace_id = $1`, testWorkspaceID)
+	})
+	label := dbfx.Insert(t, "issue_label", testutil.Cols{"workspace_id": testWorkspaceID, "name": "dry-run-batch-label", "color": "#123456"})
+
+	unlabeled := dbfx.Issue(t, "dry run batch unlabeled", testutil.Cols{"status": "in_review"})
+	labeled := dbfx.Issue(t, "dry run batch labeled", testutil.Cols{"status": "in_review"})
+	dbfx.InsertNoID(t, "issue_to_label", testutil.Cols{"issue_id": labeled, "label_id": label}, "issue_id = $1 AND label_id = $2", labeled, label)
+
+	predicate := map[string]any{"all": []map[string]any{{"field": "issue.label_count", "op": "gte", "value": 1}}}
+	var created struct{ Rule BusinessRuleResponse }
+	ruleCall(t, testHandler.CreateBusinessRule, http.MethodPost, "/api/business-rules",
+		map[string]any{"natural_language": "issues need a label before review", "attach_point": "issue_submit_review", "predicate": predicate}).
+		Want(http.StatusCreated).JSON(&created)
+	rule := created.Rule
+
+	var dry struct {
+		Checked    int             `json:"checked"`
+		Violations []DryRunSubject `json:"violations"`
+	}
+	ruleCall(t, testHandler.DryRunBusinessRule, http.MethodPost, "/api/business-rules/"+rule.ID+"/dry-run", nil, "id", rule.ID).Want(http.StatusOK).JSON(&dry)
+
+	violated := map[string]bool{}
+	for _, v := range dry.Violations {
+		violated[v.SubjectID] = true
+	}
+	if !violated[unlabeled] {
+		t.Fatalf("the unlabeled issue must violate the rule: %+v", dry.Violations)
+	}
+	if violated[labeled] {
+		t.Fatalf("the labeled issue must not violate the rule -- batching must not swap its label count with another issue's: %+v", dry.Violations)
+	}
+}

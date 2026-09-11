@@ -7,6 +7,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -136,6 +137,53 @@ func TestCalendarSchedulesInvitesListsAndAnswers(t *testing.T) {
 	testutil.Call(t, testHandler.ListCalendarEvents, newRequest(http.MethodGet, "/api/calendar/events?from=2026-10-01T00:00:00Z&to=2026-10-03T00:00:00Z", nil)).Want(http.StatusOK).JSON(&list)
 	if len(list.Events) != 0 {
 		t.Fatalf("cancelled event still listed by default")
+	}
+}
+
+// calendarEventsToResponses batches the linked-issue lookup into one call
+// instead of one GetIssue per event; this lists several events, each on its
+// OWN issue, in one window read so a batching bug that hands one event
+// another's issue identifier fails this test instead of shipping silently.
+func TestListCalendarEventsBatchesLinkedIssuesWithoutMixingThem(t *testing.T) {
+	calendarCleanup(t)
+	start := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	var prefix string
+	dbfx.QueryRow(t, `SELECT issue_prefix FROM workspace WHERE id = $1`, testWorkspaceID).Scan(&prefix)
+
+	type fixture struct {
+		event, issue string
+		number       int32
+	}
+	fixtures := make([]fixture, 0, 3)
+	for i, title := range []string{"Alpha sync", "Bravo sync", "Charlie sync"} {
+		issue := dbfx.Issue(t, "batch cal issue "+title)
+		var number int32
+		dbfx.QueryRow(t, `SELECT number FROM issue WHERE id = $1`, issue).Scan(&number)
+		s := start.Add(time.Duration(i) * 2 * time.Hour)
+		e, resp := createCalendarEvent(t, map[string]any{
+			"title": title, "starts_at": s.Format(time.RFC3339), "ends_at": s.Add(time.Hour).Format(time.RFC3339), "issue_id": issue,
+		})
+		resp.Want(http.StatusCreated)
+		fixtures = append(fixtures, fixture{event: e.ID, issue: issue, number: number})
+	}
+
+	var list struct {
+		Events []CalendarEntry `json:"events"`
+	}
+	testutil.Call(t, testHandler.ListCalendarEvents, newRequest(http.MethodGet, "/api/calendar/events?from=2026-11-01T00:00:00Z&to=2026-11-02T00:00:00Z", nil)).Want(http.StatusOK).JSON(&list)
+	if len(list.Events) != 3 {
+		t.Fatalf("events = %+v, want 3", list.Events)
+	}
+	byID := map[string]CalendarEntry{}
+	for _, e := range list.Events {
+		byID[e.ID] = e
+	}
+	for _, f := range fixtures {
+		got, ok := byID[f.event]
+		want := fmt.Sprintf("%s-%d", prefix, f.number)
+		if !ok || got.IssueID == nil || *got.IssueID != f.issue || got.IssueIdentifier != want {
+			t.Fatalf("event %s must carry its own issue %s (%s), got %+v", f.event, f.issue, want, got)
+		}
 	}
 }
 
@@ -360,6 +408,77 @@ func TestGoogleImportAndExportThroughTheProvider(t *testing.T) {
 	}
 	fake.connected = false
 	testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import", map[string]any{})).Want(http.StatusConflict)
+}
+
+// ImportGoogleCalendar batches its creates and updates into one statement
+// each instead of one INSERT/UPDATE per Google event; this imports several
+// events with distinct titles/locations in one call and re-imports them with
+// distinct changes, so a batching bug that zips one event's fields onto
+// another (an unnest array misalignment) fails this test instead of shipping
+// silently. It also checks that one malformed event (ends before it starts,
+// the same case a single-row INSERT/UPDATE would reject on the ends_at >
+// starts_at check) is skipped without failing the rest of the batch.
+func TestGoogleImportBatchesMultipleEventsWithoutMixingFieldsAndSkipsMalformedOnes(t *testing.T) {
+	calendarCleanup(t)
+	prev := testHandler.CalendarSync
+	fake := &fakeCalendarSync{connected: true}
+	testHandler.CalendarSync = fake
+	t.Cleanup(func() { testHandler.CalendarSync = prev })
+	start := time.Now().UTC().Add(5 * 24 * time.Hour).Truncate(time.Hour)
+	fake.events = []ExternalCalendarEvent{
+		{ID: "batch-1", Title: "Alpha review", Location: "Room A", Start: start, End: start.Add(time.Hour)},
+		{ID: "batch-2", Title: "Bravo standup", Location: "Room B", Start: start.Add(2 * time.Hour), End: start.Add(3 * time.Hour)},
+		{ID: "batch-3", Title: "Charlie retro", Location: "Room C", Start: start.Add(4 * time.Hour), End: start.Add(5 * time.Hour)},
+		// Malformed: ends before it starts. A single-row insert would fail
+		// the ends_at > starts_at check and be skipped; the batch must skip
+		// it too, without losing the three well-formed events above.
+		{ID: "batch-bad", Title: "Broken", Start: start.Add(6 * time.Hour), End: start.Add(6 * time.Hour).Add(-time.Minute)},
+	}
+
+	var out struct{ Created, Updated, Seen int }
+	testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import",
+		map[string]any{"from": start.Add(-time.Hour).Format(time.RFC3339), "to": start.Add(72 * time.Hour).Format(time.RFC3339)})).
+		Want(http.StatusOK).JSON(&out)
+	if out.Created != 3 || out.Seen != 4 {
+		t.Fatalf("import = %+v, want 3 created out of 4 seen (the malformed one skipped)", out)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM calendar_event WHERE workspace_id = $1 AND external_id = 'batch-bad'`, testWorkspaceID); n != 0 {
+		t.Fatal("the malformed event must not be imported")
+	}
+	for _, want := range []struct{ externalID, title, location string }{
+		{"batch-1", "Alpha review", "Room A"},
+		{"batch-2", "Bravo standup", "Room B"},
+		{"batch-3", "Charlie retro", "Room C"},
+	} {
+		var title, location string
+		dbfx.QueryRow(t, `SELECT title, location FROM calendar_event WHERE workspace_id = $1 AND external_id = $2`, testWorkspaceID, want.externalID).Scan(&title, &location)
+		if title != want.title || location != want.location {
+			t.Fatalf("event %s = title %q location %q, want %q / %q (batch insert must not swap rows)", want.externalID, title, location, want.title, want.location)
+		}
+	}
+
+	// Re-import with each event's title and location changed to a DIFFERENT
+	// new value, so a swap in the update batch is just as detectable.
+	fake.events[0].Title, fake.events[0].Location = "Alpha review v2", "Room A2"
+	fake.events[1].Title, fake.events[1].Location = "Bravo standup v2", "Room B2"
+	fake.events[2].Title, fake.events[2].Location = "Charlie retro v2", "Room C2"
+	testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import",
+		map[string]any{"from": start.Add(-time.Hour).Format(time.RFC3339), "to": start.Add(72 * time.Hour).Format(time.RFC3339)})).
+		Want(http.StatusOK).JSON(&out)
+	if out.Updated != 3 || out.Created != 0 {
+		t.Fatalf("second import = %+v, want 3 updated and 0 created", out)
+	}
+	for _, want := range []struct{ externalID, title, location string }{
+		{"batch-1", "Alpha review v2", "Room A2"},
+		{"batch-2", "Bravo standup v2", "Room B2"},
+		{"batch-3", "Charlie retro v2", "Room C2"},
+	} {
+		var title, location string
+		dbfx.QueryRow(t, `SELECT title, location FROM calendar_event WHERE workspace_id = $1 AND external_id = $2`, testWorkspaceID, want.externalID).Scan(&title, &location)
+		if title != want.title || location != want.location {
+			t.Fatalf("event %s after update = title %q location %q, want %q / %q (batch update must not swap rows)", want.externalID, title, location, want.title, want.location)
+		}
+	}
 }
 
 // The native runtime's propose_event tool replays CreateCalendarEvent as the

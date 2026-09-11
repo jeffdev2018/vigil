@@ -98,7 +98,7 @@ func (h *Handler) workspaceFacts(ctx context.Context, wsID pgtype.UUID) (map[str
 // issueFacts describes one issue on top of its workspace. status overrides
 // the stored one when the check runs before the write lands.
 func (h *Handler) issueFacts(ctx context.Context, issue db.Issue) (map[string]any, error) {
-	facts, err := h.workspaceFacts(ctx, issue.WorkspaceID)
+	wsFacts, err := h.workspaceFacts(ctx, issue.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +114,20 @@ func (h *Handler) issueFacts(ctx context.Context, issue db.Issue) (map[string]an
 	if err != nil {
 		return nil, err
 	}
+	return issueFactsFromCounts(wsFacts, issue, labels, prs, decisions), nil
+}
+
+// issueFactsFromCounts builds an issue's facts on top of an already-computed
+// workspace facts map and already-counted labels/PRs/decisions, so a caller
+// checking many issues in the same workspace (DryRunBusinessRule) can compute
+// workspaceFacts once and batch the three counts instead of recomputing all
+// four per issue. wsFacts is copied, not mutated, so the same map can be
+// reused across issues.
+func issueFactsFromCounts(wsFacts map[string]any, issue db.Issue, labels, prs, decisions int64) map[string]any {
+	facts := make(map[string]any, len(wsFacts)+8)
+	for k, v := range wsFacts {
+		facts[k] = v
+	}
 	assignee := "none"
 	if issue.AssigneeType.Valid && issue.AssigneeType.String != "" && issue.AssigneeID.Valid {
 		assignee = issue.AssigneeType.String
@@ -126,7 +140,7 @@ func (h *Handler) issueFacts(ctx context.Context, issue db.Issue) (map[string]an
 	facts["issue.decision_count"] = decisions
 	facts["issue.priority"] = issue.Priority
 	facts["issue.assignee_type"] = assignee
-	return facts, nil
+	return facts
 }
 
 // ---- enforcement ----
@@ -426,13 +440,36 @@ func (h *Handler) DryRunBusinessRule(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to list triage items")
 			return
 		}
+		// workspaceFacts, the workspace row and the triage sources are the
+		// same for every item in this workspace: computed once here instead
+		// of once per item inside triageItemFacts (was up to 5 queries/item).
+		wsFacts, err := h.workspaceFacts(ctx, wsUUID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read workspace facts")
+			return
+		}
+		ws, err := h.Queries.GetWorkspace(ctx, wsUUID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read workspace")
+			return
+		}
+		tz := briefingLocation(service.WorkspaceTimezone(ws.Settings))
+		sources, err := h.Queries.ListTriageSources(ctx, wsUUID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list triage sources")
+			return
+		}
+		sourcesByID := make(map[string]db.TriageSource, len(sources))
+		for _, s := range sources {
+			sourcesByID[uuidToString(s.ID)] = s
+		}
 		action, _ := service.ParseActionSpec(rule.ActionSpec, rule.AttachPoint)
 		for _, item := range items {
-			facts, err := h.triageItemFacts(ctx, item, item.FirstSeenAt.Time)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to read triage facts")
-				return
+			kind, name := "", ""
+			if source, ok := sourcesByID[uuidToString(item.SourceID)]; ok {
+				kind, name = source.Kind, source.Name
 			}
+			facts := triageItemFactsFromLookup(wsFacts, item, kind, name, item.FirstSeenAt.Time.In(tz))
 			checked++
 			if ok, _ := p.Evaluate(facts); ok {
 				detail := "would match"
@@ -449,12 +486,51 @@ func (h *Handler) DryRunBusinessRule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		prefix := h.getIssuePrefix(ctx, wsUUID)
-		for _, issue := range issues {
-			facts, err := h.issueFacts(ctx, issue)
+		// workspaceFacts is the same for every issue in this workspace:
+		// computed once here, and the three per-issue counts are batched by
+		// ANY(issue_ids), instead of workspaceFacts + 3 counts per issue
+		// (was up to 6 queries/issue).
+		wsFacts, err := h.workspaceFacts(ctx, wsUUID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to read workspace facts")
+			return
+		}
+		issueIDs := make([]pgtype.UUID, len(issues))
+		for i, issue := range issues {
+			issueIDs[i] = issue.ID
+		}
+		labelsByID := map[string]int64{}
+		prsByID := map[string]int64{}
+		decisionsByID := map[string]int64{}
+		if len(issueIDs) > 0 {
+			labelRows, err := h.Queries.CountIssueLabelsByIssueIDs(ctx, issueIDs)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "failed to read issue facts")
 				return
 			}
+			for _, row := range labelRows {
+				labelsByID[uuidToString(row.IssueID)] = row.Count
+			}
+			prRows, err := h.Queries.CountIssuePullRequestsByIssueIDs(ctx, issueIDs)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to read issue facts")
+				return
+			}
+			for _, row := range prRows {
+				prsByID[uuidToString(row.IssueID)] = row.Count
+			}
+			decisionRows, err := h.Queries.CountIssueDecisionRecordsByIssueIDs(ctx, issueIDs)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to read issue facts")
+				return
+			}
+			for _, row := range decisionRows {
+				decisionsByID[uuidToString(row.IssueID)] = row.Count
+			}
+		}
+		for _, issue := range issues {
+			id := uuidToString(issue.ID)
+			facts := issueFactsFromCounts(wsFacts, issue, labelsByID[id], prsByID[id], decisionsByID[id])
 			checked++
 			if ok, detail := p.Evaluate(facts); !ok {
 				violations = append(violations, DryRunSubject{SubjectType: "issue", SubjectID: uuidToString(issue.ID), Label: fmt.Sprintf("%s-%d %s", prefix, issue.Number, issue.Title), Detail: detail})
@@ -548,7 +624,7 @@ var weekdayNames = []string{"sunday", "monday", "tuesday", "wednesday", "thursda
 // triageItemFacts describes a parked delivery: its source, its text, and
 // the workspace-local time it arrived.
 func (h *Handler) triageItemFacts(ctx context.Context, item db.TriageItem, at time.Time) (map[string]any, error) {
-	facts, err := h.workspaceFacts(ctx, item.WorkspaceID)
+	wsFacts, err := h.workspaceFacts(ctx, item.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -561,15 +637,29 @@ func (h *Handler) triageItemFacts(ctx context.Context, item db.TriageItem, at ti
 		return nil, err
 	}
 	local := at.In(briefingLocation(service.WorkspaceTimezone(ws.Settings)))
-	facts["webhook.source_kind"] = kind
-	facts["webhook.source_name"] = name
+	return triageItemFactsFromLookup(wsFacts, item, kind, name, local), nil
+}
+
+// triageItemFactsFromLookup builds a triage item's facts on top of an
+// already-computed workspace facts map and an already-resolved source
+// kind/name, so a caller checking many items in the same workspace
+// (DryRunBusinessRule) can compute workspaceFacts and list the workspace's
+// triage sources once instead of once per item. wsFacts is copied, not
+// mutated, so the same map can be reused across items.
+func triageItemFactsFromLookup(wsFacts map[string]any, item db.TriageItem, sourceKind, sourceName string, local time.Time) map[string]any {
+	facts := make(map[string]any, len(wsFacts)+7)
+	for k, v := range wsFacts {
+		facts[k] = v
+	}
+	facts["webhook.source_kind"] = sourceKind
+	facts["webhook.source_name"] = sourceName
 	facts["webhook.title"] = item.Title
 	facts["webhook.body"] = item.BodyMarkdown
 	facts["webhook.payload"] = string(item.Payload)
 	facts["webhook.collapse_count"] = int(item.CollapseCount)
 	facts["time.weekday"] = weekdayNames[local.Weekday()]
 	facts["time.hour"] = local.Hour()
-	return facts, nil
+	return facts
 }
 
 // ApplyTriageRules runs the active webhook rules on a freshly parked item:

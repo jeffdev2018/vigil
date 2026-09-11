@@ -20,6 +20,13 @@ SELECT * FROM agent_effect
 WHERE decision_id = $1
 ORDER BY created_at ASC, id ASC;
 
+-- name: ListAgentEffectsForDecisions :many
+-- Batch variant of ListAgentEffectsForDecision for ListApprovals'
+-- decisionKind, which only needs to know whether any row exists per decision.
+SELECT * FROM agent_effect
+WHERE decision_id = ANY(sqlc.arg('decision_ids')::uuid[])
+ORDER BY created_at ASC, id ASC;
+
 -- name: SetAgentEffectsDecision :execrows
 UPDATE agent_effect SET decision_id = $2
 WHERE task_id = $1 AND status = 'pending' AND decision_id IS NULL;

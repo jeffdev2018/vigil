@@ -358,3 +358,75 @@ func TestEvalRunScoresTheCriteriaTheAgentProved(t *testing.T) {
 		t.Fatalf("replay issue status = %q, want cancelled", status)
 	}
 }
+
+// ListEvalRuns batches its per-run lookups (cases, suite name, pinned
+// version) across the whole page instead of resolving them one run at a
+// time; this pins two runs on DIFFERENT suites and agent versions with
+// DIFFERENT case counts side by side in the same list call, so a batching
+// bug that zips run A's cases/suite/version onto run B (or vice versa) fails
+// this test instead of shipping silently.
+func TestListEvalRunsKeepsEachRunsCasesSuiteAndVersionSeparate(t *testing.T) {
+	evalCleanup(t)
+
+	caseA1 := evalProvedCase(t, "run A case one", "Tests pass")
+	caseA2 := evalProvedCase(t, "run A case two", "Docs updated")
+	caseB1 := evalProvedCase(t, "run B case one", "Endpoint answers 200")
+
+	var suiteA, suiteB evalSuiteEnvelope
+	evalWorkspaceCall(t, testHandler.CreateEvalSuite, http.MethodPost, "/api/workspaces/"+testWorkspaceID+"/eval-suites",
+		map[string]any{"name": "suite A", "case_ids": []string{caseA1, caseA2}}).Want(http.StatusCreated).JSON(&suiteA)
+	evalWorkspaceCall(t, testHandler.CreateEvalSuite, http.MethodPost, "/api/workspaces/"+testWorkspaceID+"/eval-suites",
+		map[string]any{"name": "suite B", "case_ids": []string{caseB1}}).Want(http.StatusCreated).JSON(&suiteB)
+
+	_, agentA, versionA := evalAgentWithVersion(t, "run A agent", "instructions A", "model-a")
+	_, agentB, versionB := evalAgentWithVersion(t, "run B agent", "instructions B", "model-b")
+	// A second version of agent B, so the batched version lookup (keyed by
+	// version id, then re-checked against the owning run's agent id) must
+	// pick versionB and not an unrelated version with the same version_number.
+	dbfx.Insert(t, "agent_version", testutil.Cols{
+		"workspace_id": testWorkspaceID, "agent_id": agentB, "version_number": 2,
+		"instructions": "instructions B v2", "model": "model-b-2",
+		"skill_ids": testutil.Raw("'[]'::jsonb"), "tool_config": testutil.Raw("'{}'::jsonb"),
+		"note": "", "created_by_type": "member", "created_by_id": testUserID,
+	})
+
+	var runA, runB evalRunEnvelope
+	evalRunSuite(t, suiteA.Suite.ID, agentA, versionA).Want(http.StatusAccepted).JSON(&runA)
+	evalRunSuite(t, suiteB.Suite.ID, agentB, versionB).Want(http.StatusAccepted).JSON(&runB)
+
+	var listed struct {
+		Runs []EvalRunResponse `json:"runs"`
+	}
+	evalWorkspaceCall(t, testHandler.ListEvalRuns, http.MethodGet, "/api/workspaces/"+testWorkspaceID+"/eval-runs", nil).Want(http.StatusOK).JSON(&listed)
+
+	var gotA, gotB *EvalRunResponse
+	for i := range listed.Runs {
+		switch listed.Runs[i].ID {
+		case runA.Run.ID:
+			gotA = &listed.Runs[i]
+		case runB.Run.ID:
+			gotB = &listed.Runs[i]
+		}
+	}
+	if gotA == nil || gotB == nil {
+		t.Fatalf("both runs must be listed: %+v", listed.Runs)
+	}
+	if gotA.SuiteName != "suite A" || len(gotA.Cases) != 2 || gotA.AgentID != agentA || gotA.AgentVersionNumber != 1 {
+		t.Fatalf("run A must keep its own suite/cases/version, got %+v", gotA)
+	}
+	if gotB.SuiteName != "suite B" || len(gotB.Cases) != 1 || gotB.AgentID != agentB || gotB.AgentVersionNumber != 1 {
+		t.Fatalf("run B must keep its own suite/cases/version, got %+v", gotB)
+	}
+	caseIDsA := map[string]bool{}
+	for _, c := range gotA.Cases {
+		caseIDsA[c.CaseID] = true
+	}
+	if caseIDsA[caseB1] {
+		t.Fatalf("run A must not carry run B's case: %+v", gotA.Cases)
+	}
+	for _, c := range gotB.Cases {
+		if c.CaseID == caseA1 || c.CaseID == caseA2 {
+			t.Fatalf("run B must not carry run A's cases: %+v", gotB.Cases)
+		}
+	}
+}

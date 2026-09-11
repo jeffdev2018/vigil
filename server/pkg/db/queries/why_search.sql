@@ -5,6 +5,22 @@ INSERT INTO decision_search_chunk (id, workspace_id, source_type, source_id, iss
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (source_type, source_id) DO UPDATE SET content = EXCLUDED.content, issue_id = EXCLUDED.issue_id, updated_at = now();
 
+-- name: UpsertWhyChunksBatch :exec
+-- Batch variant of UpsertWhyChunk for ReindexWhy: one source type's whole
+-- page (up to 5000 rows) in a single round trip instead of one call per row.
+-- workspace_id and source_type are constant across a call; the row-varying
+-- columns are zipped by several single-argument unnest calls the same way
+-- CreateTaskMessages does (sqlc only understands that signature).
+INSERT INTO decision_search_chunk (id, workspace_id, source_type, source_id, issue_id, content)
+SELECT
+    unnest(sqlc.arg('ids')::uuid[]),
+    sqlc.arg('workspace_id')::uuid,
+    sqlc.arg('source_type')::text,
+    unnest(sqlc.arg('source_ids')::uuid[]),
+    unnest(sqlc.arg('issue_ids')::uuid[]),
+    unnest(sqlc.arg('contents')::text[])
+ON CONFLICT (source_type, source_id) DO UPDATE SET content = EXCLUDED.content, issue_id = EXCLUDED.issue_id, updated_at = now();
+
 -- name: DeleteWhyChunk :exec
 DELETE FROM decision_search_chunk WHERE source_type = $1 AND source_id = $2;
 
@@ -41,3 +57,9 @@ JOIN agent_task_queue t ON t.id = m.task_id
 JOIN agent a ON a.id = t.agent_id
 WHERE a.workspace_id = $1 AND m.type = 'text' AND t.issue_id IS NOT NULL AND length(m.content) >= 40
 ORDER BY m.created_at DESC LIMIT 5000;
+
+-- name: ListGoalsForWhy :many
+-- Reindex-only variant of ListGoals, capped like the other three reindex
+-- sources above. ListGoals itself stays uncapped: goal.go's listing and
+-- workspace_transfer's copy both need every goal, not a 5000-row page.
+SELECT * FROM goal WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 5000;

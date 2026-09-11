@@ -285,26 +285,85 @@ func (h *Handler) ImportGoogleCalendar(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	created, updated := 0, 0
+	// Batched instead of one UPDATE/INSERT per Google event (up to
+	// googleImportMaxEvents per import): events failing the same check the
+	// single-row path would hit (ends_at > starts_at) are filtered up front
+	// so a malformed Google event still just gets skipped, not the whole
+	// page. ponytail: batching assumes every other per-row constraint always
+	// holds (it does today — the rest are workspace-scoped constants); add a
+	// pre-filter here too if a future column can fail per row.
+	var updIDs []pgtype.UUID
+	var updTitles, updDescriptions, updLocations []string
+	var updStarts, updEnds []pgtype.Timestamptz
+	var updAllDay []bool
+
+	var newIDs []pgtype.UUID
+	var newTitles, newDescriptions, newLocations, newExternalIDs []string
+	var newStarts, newEnds []pgtype.Timestamptz
+	var newAllDay []bool
+
 	for _, x := range external {
-		if prev, ok := existing[x.ID]; ok {
-			if _, err := h.Queries.UpdateCalendarEvent(r.Context(), db.UpdateCalendarEventParams{ID: prev.ID, WorkspaceID: wsUUID, Title: x.Title, Description: x.Description, StartsAt: tsz(x.Start), EndsAt: tsz(x.End), AllDay: x.AllDay, Timezone: prev.Timezone, Location: x.Location, IssueID: prev.IssueID, ProjectID: prev.ProjectID}); err == nil {
-				updated++
-			}
+		if !x.End.After(x.Start) {
 			continue
 		}
-		e, err := h.Queries.CreateCalendarEvent(r.Context(), db.CreateCalendarEventParams{
-			ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: x.Title, Description: x.Description, StartsAt: tsz(x.Start), EndsAt: tsz(x.End), AllDay: x.AllDay, Timezone: "UTC", Location: x.Location,
-			Status: CalendarStatusScheduled, CreatedByType: "member", CreatedByID: uid, Source: "google", ExternalID: x.ID,
+		if prev, ok := existing[x.ID]; ok {
+			updIDs = append(updIDs, prev.ID)
+			updTitles = append(updTitles, x.Title)
+			updDescriptions = append(updDescriptions, x.Description)
+			updStarts = append(updStarts, tsz(x.Start))
+			updEnds = append(updEnds, tsz(x.End))
+			updAllDay = append(updAllDay, x.AllDay)
+			updLocations = append(updLocations, x.Location)
+			continue
+		}
+		newIDs = append(newIDs, dbid.NewV7())
+		newTitles = append(newTitles, x.Title)
+		newDescriptions = append(newDescriptions, x.Description)
+		newStarts = append(newStarts, tsz(x.Start))
+		newEnds = append(newEnds, tsz(x.End))
+		newAllDay = append(newAllDay, x.AllDay)
+		newLocations = append(newLocations, x.Location)
+		newExternalIDs = append(newExternalIDs, x.ID)
+	}
+
+	created, updated := 0, 0
+	if len(updIDs) > 0 {
+		updatedRows, err := h.Queries.UpdateCalendarEventsBatch(r.Context(), db.UpdateCalendarEventsBatchParams{
+			Ids: updIDs, Titles: updTitles, Descriptions: updDescriptions, StartsAts: updStarts, EndsAts: updEnds, AllDays: updAllDay, Locations: updLocations, WorkspaceID: wsUUID,
 		})
 		if err != nil {
-			continue
+			slog.Warn("calendar import: batch update failed", "error", err, "count", len(updIDs))
+		} else {
+			updated = len(updatedRows)
 		}
-		_, _ = h.Queries.AddCalendarEventParticipant(r.Context(), db.AddCalendarEventParticipantParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, EventID: e.ID, ParticipantType: "member", ParticipantID: uid, Response: "accepted", Required: true})
-		created++
+	}
+	if len(newIDs) > 0 {
+		if err := h.Queries.CreateCalendarEventsBatch(r.Context(), db.CreateCalendarEventsBatchParams{
+			Ids: newIDs, WorkspaceID: wsUUID, Titles: newTitles, Descriptions: newDescriptions, StartsAts: newStarts, EndsAts: newEnds, AllDays: newAllDay, Locations: newLocations,
+			Status: CalendarStatusScheduled, CreatedByType: "member", CreatedByID: uid, ExternalIds: newExternalIDs,
+		}); err != nil {
+			slog.Warn("calendar import: batch create failed", "error", err, "count", len(newIDs))
+		} else {
+			created = len(newIDs)
+			if err := h.Queries.AddCalendarEventParticipantsBatch(r.Context(), db.AddCalendarEventParticipantsBatchParams{
+				Ids: newParticipantIDs(len(newIDs)), WorkspaceID: wsUUID, EventIds: newIDs, ParticipantType: "member", ParticipantID: uid, Response: "accepted", Required: true,
+			}); err != nil {
+				slog.Warn("calendar import: batch participant insert failed", "error", err, "count", len(newIDs))
+			}
+		}
 	}
 	if created+updated > 0 {
 		h.publish("calendar:changed", workspaceID, "member", userID, map[string]any{"imported": created + updated})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"created": created, "updated": updated, "seen": len(external)})
+}
+
+// newParticipantIDs generates n fresh row ids, one per newly created
+// calendar event, for AddCalendarEventParticipantsBatch.
+func newParticipantIDs(n int) []pgtype.UUID {
+	ids := make([]pgtype.UUID, n)
+	for i := range ids {
+		ids[i] = dbid.NewV7()
+	}
+	return ids
 }
