@@ -150,6 +150,9 @@ type RunReplayResponse struct {
 	HeadHash   string        `json:"head_hash"`
 	Cost       ReplayCost    `json:"cost"`
 	Sealed     *ReplaySeal   `json:"sealed"`
+	// AuditTruncated is true when the run had more audit entries than the
+	// page the replay reads (200); the chain shown is then incomplete.
+	AuditTruncated bool `json:"audit_truncated"`
 }
 
 // ReplaySeal is what the audit log recorded when the run ended, and whether
@@ -514,10 +517,12 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 	}
 	// 6. The run's own audit entries (gates, seals, resumes), minus the seal
 	// itself, which is the chain's witness and cannot be in the chain.
-	entries, err := h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{WorkspaceID: wsID, EntityID: task.ID, PageSize: 200})
+	const replayAuditPage = 200
+	entries, err := h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{WorkspaceID: wsID, EntityID: task.ID, PageSize: replayAuditPage})
 	if err != nil {
 		return RunReplayResponse{}, err
 	}
+	auditTruncated := len(entries) >= replayAuditPage
 	var seal *ReplaySeal
 	for _, a := range entries {
 		if a.Action == AuditRunSealed {
@@ -566,7 +571,7 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 			seal.Verified = seal.HeadHash == ""
 		}
 	}
-	return RunReplayResponse{Run: run, Events: events, Total: len(events), HeadHash: prev, Cost: cost, Sealed: seal}, nil
+	return RunReplayResponse{Run: run, Events: events, Total: len(events), HeadHash: prev, Cost: cost, Sealed: seal, AuditTruncated: auditTruncated}, nil
 }
 
 // replayEventHash chains one event onto the previous hash. Only the fields

@@ -652,8 +652,23 @@ func mcpToolResult(leaf mcpLeaf, payload json.RawMessage) map[string]any {
 var mcpLimiter = &mcpRateLimiter{}
 
 type mcpRateLimiter struct {
-	mu    sync.Mutex
-	calls map[string][]time.Time
+	mu        sync.Mutex
+	calls     map[string][]time.Time
+	lastSweep time.Time
+}
+
+// sweep drops the callers whose whole window has expired; without it the
+// map only ever grew (one entry per distinct caller, forever).
+func (l *mcpRateLimiter) sweep(now, cutoff time.Time) {
+	if now.Sub(l.lastSweep) < time.Minute {
+		return
+	}
+	l.lastSweep = now
+	for key, times := range l.calls {
+		if len(times) == 0 || !times[len(times)-1].After(cutoff) {
+			delete(l.calls, key)
+		}
+	}
 }
 
 func (l *mcpRateLimiter) allow(key string) bool {
@@ -664,6 +679,7 @@ func (l *mcpRateLimiter) allow(key string) bool {
 	}
 	now := time.Now()
 	cutoff := now.Add(-time.Minute)
+	l.sweep(now, cutoff)
 	kept := l.calls[key][:0]
 	for _, t := range l.calls[key] {
 		if t.After(cutoff) {
