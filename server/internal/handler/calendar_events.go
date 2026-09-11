@@ -151,7 +151,11 @@ func (n *calendarNames) of(kind string, id pgtype.UUID) string {
 	return n.users[key]
 }
 
-func (h *Handler) calendarEventToResponse(n *calendarNames, e db.CalendarEvent, parts []db.CalendarEventParticipant) CalendarEntry {
+// calendarEventToResponse builds one event's response. issuesByID is the
+// batch-fetched lookup calendarEventsToResponses builds once for the whole
+// page (every caller goes through it, single events included as a one-row
+// slice), replacing what used to be one GetIssue call per linked event.
+func (h *Handler) calendarEventToResponse(n *calendarNames, e db.CalendarEvent, parts []db.CalendarEventParticipant, issuesByID map[string]db.Issue) CalendarEntry {
 	out := CalendarEntry{
 		ID: uuidToString(e.ID), Title: e.Title, Description: e.Description, StartsAt: timestampToString(e.StartsAt), EndsAt: timestampToString(e.EndsAt),
 		AllDay: e.AllDay, Timezone: e.Timezone, Location: e.Location, IssueID: uuidToPtr(e.IssueID), ProjectID: uuidToPtr(e.ProjectID), Status: e.Status,
@@ -160,7 +164,7 @@ func (h *Handler) calendarEventToResponse(n *calendarNames, e db.CalendarEvent, 
 		CreatedAt: timestampToString(e.CreatedAt), UpdatedAt: timestampToString(e.UpdatedAt),
 	}
 	if e.IssueID.Valid {
-		if issue, err := h.Queries.GetIssue(n.ctx, e.IssueID); err == nil && issue.WorkspaceID == n.wsID {
+		if issue, ok := issuesByID[uuidToString(e.IssueID)]; ok {
 			out.IssueIdentifier = n.prefix + "-" + strconv.Itoa(int(issue.Number))
 		}
 	}
@@ -176,16 +180,28 @@ func (h *Handler) calendarEventToResponse(n *calendarNames, e db.CalendarEvent, 
 func (h *Handler) calendarEventsToResponses(ctx context.Context, wsID pgtype.UUID, rows []db.CalendarEvent) []CalendarEntry {
 	n := h.newCalendarNames(ctx, wsID)
 	ids := make([]pgtype.UUID, 0, len(rows))
+	issueIDs := make([]pgtype.UUID, 0, len(rows))
 	for _, e := range rows {
 		ids = append(ids, e.ID)
+		if e.IssueID.Valid {
+			issueIDs = append(issueIDs, e.IssueID)
+		}
 	}
 	var parts []db.CalendarEventParticipant
 	if len(ids) > 0 {
 		parts, _ = h.Queries.ListCalendarEventParticipants(ctx, ids)
 	}
+	issuesByID := map[string]db.Issue{}
+	if len(issueIDs) > 0 {
+		if issues, err := h.Queries.ListIssuesByIDsInWorkspace(ctx, db.ListIssuesByIDsInWorkspaceParams{WorkspaceID: wsID, IssueIds: issueIDs}); err == nil {
+			for _, issue := range issues {
+				issuesByID[uuidToString(issue.ID)] = issue
+			}
+		}
+	}
 	out := make([]CalendarEntry, 0, len(rows))
 	for _, e := range rows {
-		out = append(out, h.calendarEventToResponse(n, e, parts))
+		out = append(out, h.calendarEventToResponse(n, e, parts, issuesByID))
 	}
 	return out
 }
