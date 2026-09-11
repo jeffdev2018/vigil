@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -244,29 +243,19 @@ func DaemonAuth(queries *db.Queries, patCache *auth.PATCache, daemonCache *auth.
 			}
 
 			// Fallback: JWT tokens.
-			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, jwt.ErrSignatureInvalid
-				}
-				return auth.JWTSecret(), nil
-			})
-			if err != nil || !token.Valid {
+			sub, email, err := auth.ParseSessionJWT(r.Context(), tokenString, Revocations)
+			switch {
+			case errors.Is(err, auth.ErrSessionRevoked):
+				writeError(w, http.StatusUnauthorized, "session revoked")
+				return
+			case errors.Is(err, auth.ErrInvalidClaims):
+				writeError(w, http.StatusUnauthorized, "invalid claims")
+				return
+			case err != nil:
 				slog.Warn("daemon_auth: invalid token", "path", r.URL.Path, "error", err)
 				writeError(w, http.StatusUnauthorized, "invalid token")
 				return
 			}
-
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				writeError(w, http.StatusUnauthorized, "invalid claims")
-				return
-			}
-			sub, ok := claims["sub"].(string)
-			if !ok || strings.TrimSpace(sub) == "" {
-				writeError(w, http.StatusUnauthorized, "invalid claims")
-				return
-			}
-			email, _ := claims["email"].(string)
 			if rejectTemporarilyDisabledUser(w, r, sub, email, DaemonAuthPathJWT) {
 				return
 			}
