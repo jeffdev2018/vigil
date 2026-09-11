@@ -1932,7 +1932,7 @@ func (d *Daemon) untrackedRuntimeIDs(ids []string) []string {
 }
 
 func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, workspaceID string) error {
-	var newIDs []string
+	var newIDs, recoverIDs []string
 	// Send, apply and clean up as one ordered step — see workspaceRegisterLock.
 	err := d.withWorkspaceRegisterLock(workspaceID, func() error {
 		resp, profileSig, preserve, err := d.registerRuntimesForWorkspaceLocked(ctx, workspaceID)
@@ -1940,11 +1940,29 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 			return fmt.Errorf("register runtimes: %w", err)
 		}
 
+		// Snapshot which returned IDs this daemon was NOT tracking before the
+		// apply: only those rows were deleted (or never known) here. A sibling
+		// that survived keeps its ID through the upsert and may be executing a
+		// task right now, so it must not be orphan-recovered below.
+		respIDs := make([]string, 0, len(resp.Runtimes))
+		for _, rt := range resp.Runtimes {
+			respIDs = append(respIDs, rt.ID)
+		}
+		untracked := make(map[string]struct{})
+		for _, id := range d.untrackedRuntimeIDs(respIDs) {
+			untracked[id] = struct{}{}
+		}
+
 		ids, droppedIDs, ok := d.applyRegisterResponseInPlace(workspaceID, resp, profileSig, preserve)
 		if !ok {
 			return fmt.Errorf("workspace %s no longer tracked", workspaceID)
 		}
 		newIDs = ids
+		for _, id := range ids {
+			if _, fresh := untracked[id]; fresh {
+				recoverIDs = append(recoverIDs, id)
+			}
+		}
 
 		for _, rid := range newIDs {
 			d.logger.Info("re-registered runtime after server-side deletion",
@@ -1966,14 +1984,12 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 
 	// Tell the server about any tasks the previous (now-deleted) runtime
 	// was working on, mirroring the registration path's recover-orphans call.
-	// This is intentionally scoped to the runtime_gone recovery: the
-	// runtimes were truly gone server-side, so anything still in
-	// dispatched/running/waiting_local_directory on those rows is an orphan
-	// that needs to be failed-and-retried. The drift-refresh path (which
-	// also feeds applyRegisterResponseInPlace) deliberately skips this step
-	// because its surviving runtime IDs may still be actively executing
-	// tasks for the user (MUL-3332).
-	for _, rid := range newIDs {
+	// This is intentionally scoped to the runtimes that were truly gone: a
+	// row this daemon was not tracking before the register. Surviving
+	// siblings are skipped for the same reason the drift-refresh path skips
+	// the step entirely — they may still be actively executing tasks for the
+	// user (MUL-3332).
+	for _, rid := range recoverIDs {
 		if err := d.client.RecoverOrphans(ctx, rid); err != nil {
 			d.logger.Warn("recover-orphans after re-register failed",
 				"runtime_id", rid, "error", err)

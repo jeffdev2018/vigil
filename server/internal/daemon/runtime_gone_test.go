@@ -379,6 +379,8 @@ type multiProviderRegisterFixture struct {
 	// upsert behavior.
 	providerToID map[string]string
 	idCounter    int
+	// recovered lists the runtime IDs the daemon sent recover-orphans for.
+	recovered []string
 }
 
 func newMultiProviderRegisterFixture(t *testing.T, providers map[string]string) *multiProviderRegisterFixture {
@@ -419,6 +421,10 @@ func newMultiProviderRegisterFixture(t *testing.T, providers map[string]string) 
 				Repos:    []RepoData{},
 			})
 		case strings.HasSuffix(r.URL.Path, "/recover-orphans"):
+			parts := strings.Split(r.URL.Path, "/")
+			fx.mu.Lock()
+			fx.recovered = append(fx.recovered, parts[len(parts)-2])
+			fx.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusOK)
@@ -495,6 +501,38 @@ func TestHandleRuntimeGone_PartialWorkspaceRecoveryKeepsSibling(t *testing.T) {
 	}
 	if _, ok := d.runtimeIndex["rt-codex-1"]; !ok {
 		t.Fatalf("rt-codex-1 dropped from runtimeIndex during partial recovery")
+	}
+}
+
+// A sibling runtime that survived the server-side deletion keeps its row ID
+// through the re-register upsert, and the tasks it is executing right now are
+// not orphans. Recovering orphans for it would fail its in-flight work, so only
+// runtime IDs this daemon was not already tracking may be recovered.
+func TestHandleRuntimeGone_RecoversOrphansOnlyForRecreatedRuntimes(t *testing.T) {
+	fx := newMultiProviderRegisterFixture(t, map[string]string{
+		"claude": "rt-claude-1",
+		"codex":  "rt-codex-1",
+	})
+	d := fx.daemon
+	d.workspaces["ws-1"] = &workspaceState{
+		workspaceID: "ws-1",
+		runtimeIDs:  []string{"rt-claude-1", "rt-codex-1"},
+	}
+	d.runtimeIndex["rt-claude-1"] = Runtime{ID: "rt-claude-1", Provider: "claude"}
+	d.runtimeIndex["rt-codex-1"] = Runtime{ID: "rt-codex-1", Provider: "codex"}
+
+	fx.markDeleted("codex")
+	d.handleRuntimeGone("rt-codex-1")
+
+	fx.mu.Lock()
+	defer fx.mu.Unlock()
+	for _, rid := range fx.recovered {
+		if rid == "rt-claude-1" {
+			t.Fatalf("recover-orphans sent for surviving sibling runtime; recovered=%v", fx.recovered)
+		}
+	}
+	if len(fx.recovered) != 1 || !strings.HasPrefix(fx.recovered[0], "codex-new-") {
+		t.Fatalf("recovered = %v, want exactly the recreated codex runtime", fx.recovered)
 	}
 }
 
