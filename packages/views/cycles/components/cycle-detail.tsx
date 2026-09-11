@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange, Pencil } from "lucide-react";
+import { CalendarRange, ListTodo, Pencil, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -147,6 +147,22 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
           <IssueSurface
             scope={scope}
             modes={["board", "list", "table", "swimlane", "gantt", "calendar"]}
+            renderEmpty={({ controller }) => (
+              <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 text-muted-foreground">
+                <ListTodo className="h-10 w-10 text-faint-foreground" />
+                <p className="text-body">{t(($) => $.detail.empty_issues_title)}</p>
+                <p className="text-caption">{t(($) => $.detail.empty_issues_hint)}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1"
+                  onClick={() => controller.openCreateIssue()}
+                >
+                  <Plus className="size-3.5 mr-1.5" />
+                  {t(($) => $.detail.empty_issues_new_button)}
+                </Button>
+              </div>
+            )}
           />
         )}
       </div>

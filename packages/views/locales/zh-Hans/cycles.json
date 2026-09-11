@@ -47,7 +47,10 @@
     "close_confirm": "结束周期",
     "cancel": "取消",
     "close_error": "无法结束该周期",
-    "closed_on": "{{date}} 结束"
+    "closed_on": "{{date}} 结束",
+    "empty_issues_title": "此周期内还没有任务",
+    "empty_issues_hint": "新建一个任务，或把已有的任务关联到这个周期。",
+    "empty_issues_new_button": "新建任务"
   },
   "form": {
     "create_title": "新建周期",

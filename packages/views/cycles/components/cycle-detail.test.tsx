@@ -19,10 +19,21 @@ vi.mock("@multica/core/projects/queries", () => ({ projectListOptions: () => ({ 
 vi.mock("@multica/core/properties/queries", () => ({ propertyListOptions: () => ({ queryKey: ["properties"] }) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 // The issue surface pulls in the whole query/table stack; the detail's job is
-// to hand it the cycle scope, which is asserted through this stub.
+// to hand it the cycle scope, which is asserted through this stub. It also
+// renders `renderEmpty`'s own output (with a stub controller) so the empty
+// state copy cycle-detail.tsx supplies is directly testable here — see
+// "shows the cycle-specific empty state" below.
 vi.mock("../../issues/surface/issue-surface", () => ({
-  IssueSurface: ({ scope }: { scope: { type: string; cycleId?: string; projectId?: string } }) => (
-    <div data-testid="issue-surface" data-scope={scope.type} data-cycle={scope.cycleId} data-project={scope.projectId} />
+  IssueSurface: ({
+    scope,
+    renderEmpty,
+  }: {
+    scope: { type: string; cycleId?: string; projectId?: string };
+    renderEmpty?: (ctx: { controller: { openCreateIssue: () => void }; issues: never[] }) => React.ReactNode;
+  }) => (
+    <div data-testid="issue-surface" data-scope={scope.type} data-cycle={scope.cycleId} data-project={scope.projectId}>
+      {renderEmpty?.({ controller: { openCreateIssue: () => {} }, issues: [] })}
+    </div>
   ),
 }));
 vi.mock("@tanstack/react-query", () => ({
@@ -170,6 +181,17 @@ describe("CycleDetail", () => {
     expect(surface).toHaveAttribute("data-scope", "cycle");
     expect(surface).toHaveAttribute("data-cycle", "c1");
     expect(surface).toHaveAttribute("data-project", "p1");
+  });
+
+  // Regression: cycle-detail.tsx mounted <IssueSurface> with no renderEmpty,
+  // so a cycle with zero issues fell through to IssueSurface's own default
+  // copy — the "projects" namespace's "No issues linked ... assign existing
+  // ones to this project", which names the wrong container inside a cycle.
+  it("shows the cycle-specific empty state, not the projects-namespace default", () => {
+    renderDetail();
+    expect(screen.getByText("No issues in this cycle")).toBeInTheDocument();
+    expect(screen.getByText("Create a new issue or assign existing ones to this cycle.")).toBeInTheDocument();
+    expect(screen.queryByText("No issues linked")).toBeNull();
   });
 
   it("offers no close action on an already closed cycle", () => {
