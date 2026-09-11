@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -150,40 +149,11 @@ func (h *Handler) SendAgentMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Circuit breakers -------------------------------------------------
-	// Both are answered from facts the caller already holds (its own run, its
-	// own issue), so neither can be used to probe the recipient.
-	depth := callerTask.A2aDepth + 1
-	if maxDepth := service.MaxA2ADepth(); depth > maxDepth {
-		slog.Warn("a2a message refused: depth exceeded", append(logger.RequestAttrs(r),
-			"issue_id", uuidToString(issue.ID),
-			"from_agent_id", uuidToString(callerTask.AgentID),
-			"to_agent_id", uuidToString(toAgentID),
-			"depth", depth, "max_depth", maxDepth,
-		)...)
-		h.writeDispatchBlocked(w, http.StatusTooManyRequests, ReasonA2ADepthExceeded)
-		return
-	}
-	window := service.A2ABudgetWindow()
-	maxRuns := service.MaxA2ARunsPerIssuePerHour()
-	used, err := h.Queries.CountA2ARunsForIssueSince(r.Context(), db.CountA2ARunsForIssueSinceParams{
-		IssueID: issue.ID,
-		Since:   pgtype.Timestamptz{Time: time.Now().Add(-window), Valid: true},
-	})
-	if err != nil {
-		// Fail OPEN on an unreadable counter. The breaker is a safety net over an
-		// already-authorized hop, not an authorization step: refusing every A2A
-		// message in the workspace because one COUNT failed trades a rare runaway
-		// for a certain outage. The failure is logged at Warn so it is visible.
-		slog.Warn("a2a budget count failed; allowing the message", append(logger.RequestAttrs(r),
-			"issue_id", uuidToString(issue.ID), "error", err)...)
-	} else if used >= maxRuns {
-		slog.Warn("a2a message refused: per-issue budget exceeded", append(logger.RequestAttrs(r),
-			"issue_id", uuidToString(issue.ID),
-			"from_agent_id", uuidToString(callerTask.AgentID),
-			"to_agent_id", uuidToString(toAgentID),
-			"used", used, "max_runs", maxRuns, "window", window.String(),
-		)...)
-		h.writeDispatchBlocked(w, http.StatusTooManyRequests, ReasonA2ABudgetExceeded)
+	// Shared with the mention-link hand-off path (a2a_breaker.go) so a future
+	// change to depth/window/threshold logic cannot land in one path and miss
+	// the other, which is exactly how this endpoint went unguarded before.
+	if reason := h.a2aBreakerBlocked(r.Context(), issue.ID, callerTask.A2aDepth+1); reason != "" {
+		h.writeDispatchBlocked(w, http.StatusTooManyRequests, reason)
 		return
 	}
 
@@ -265,7 +235,7 @@ func (h *Handler) SendAgentMessage(w http.ResponseWriter, r *http.Request) {
 		"from_agent_id", uuidToString(callerTask.AgentID),
 		"to_agent_id", uuidToString(recipient.ID),
 		"intent", req.Intent,
-		"depth", depth,
+		"depth", callerTask.A2aDepth+1,
 	)...)
 	writeJSON(w, http.StatusCreated, resp)
 }

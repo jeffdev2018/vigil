@@ -1796,7 +1796,11 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	if runtime.Status == "online" {
 		h.TaskService.ReconcileAgentStatus(r.Context(), created.ID)
-		created, _ = h.Queries.GetAgent(r.Context(), created.ID)
+		if refreshed, err := h.Queries.GetAgent(r.Context(), created.ID); err == nil {
+			created = refreshed
+		} else {
+			slog.Warn("agent: post-reconcile reload failed", "error", err, "agent_id", uuidToString(created.ID))
+		}
 	}
 
 	resp := h.agentToResponse(created)
