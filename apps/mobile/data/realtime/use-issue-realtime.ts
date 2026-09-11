@@ -25,8 +25,7 @@
  *   - reconnect → invalidate detail + timeline (we might've missed events
  *     while disconnected; server has no replay buffer for this client)
  *
- * Mobile pattern (per the realtime plan, see
- * /Users/qingnaiyuan/.claude/plans/plan-api-indexed-waffle.md):
+ * Mobile pattern (see apps/mobile/CLAUDE.md "Realtime / WebSocket strategy"):
  *   - Patch over invalidate where the payload contains the full object
  *   - Versioned events win only when their owner revision is not older than
  *     cached state; an unversioned event over versioned state triggers refetch.
