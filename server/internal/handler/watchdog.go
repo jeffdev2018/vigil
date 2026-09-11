@@ -170,6 +170,9 @@ func (h *Handler) SetIssueWatchdog(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req struct {
 		AgentID      string `json:"agent_id"`
 		OwnerID      string `json:"owner_id"`
@@ -236,6 +239,9 @@ func (h *Handler) DeleteIssueWatchdog(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	n, err := h.Queries.DeleteIssueWatchdog(r.Context(), db.DeleteIssueWatchdogParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID})
@@ -347,6 +353,9 @@ func (h *Handler) SetIssueContractRisk(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	var req struct {

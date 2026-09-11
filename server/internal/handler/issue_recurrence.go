@@ -118,6 +118,11 @@ func (h *Handler) SetIssueRecurrence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: the actorType check below is a workspace-role check, not a
+	// per-project one — a project-role override still applies.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req struct {
 		CronExpression string `json:"cron_expression"`
 		Timezone       string `json:"timezone"`
@@ -179,7 +184,9 @@ func (h *Handler) SetIssueRecurrence(w http.ResponseWriter, r *http.Request) {
 			CreatedByType: "member", CreatedByID: parseUUID(actorID),
 		})
 		if err == nil {
-			_ = h.Queries.SetIssueRecurrenceLink(r.Context(), db.SetIssueRecurrenceLinkParams{ID: issue.ID, RecurrenceID: rec.ID})
+			if linkErr := h.Queries.SetIssueRecurrenceLink(r.Context(), db.SetIssueRecurrenceLinkParams{ID: issue.ID, RecurrenceID: rec.ID}); linkErr != nil {
+				err = linkErr
+			}
 		}
 	}
 	if err != nil {
@@ -202,6 +209,10 @@ func (h *Handler) DeleteIssueRecurrence(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	// K60: same rationale as SetIssueRecurrence above.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	if actorType != "member" {
 		writeError(w, http.StatusForbidden, "only a member clears a recurrence")
@@ -216,7 +227,10 @@ func (h *Handler) DeleteIssueRecurrence(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to clear the recurrence")
 		return
 	}
-	_ = h.Queries.ClearIssueRecurrenceLinks(r.Context(), rec.ID)
+	if err := h.Queries.ClearIssueRecurrenceLinks(r.Context(), rec.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to unlink the recurrence")
+		return
+	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditIssueRecurrenceCleared, "issue_recurrence", rec.ID, map[string]any{"issue_id": uuidToString(issue.ID)}, nil)
 	h.publish(protocol.EventIssueRecurrenceChanged, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue_id": uuidToString(issue.ID), "recurrence_id": uuidToString(rec.ID), "change": "cleared"})
 	w.WriteHeader(http.StatusNoContent)

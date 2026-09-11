@@ -55,6 +55,11 @@ func (h *Handler) controllableRun(w http.ResponseWriter, r *http.Request) (db.Is
 	if !ok {
 		return db.Issue{}, db.AgentTaskQueue{}, false
 	}
+	// K60: gates all three callers (Pause/Steer/Resume) from this one choke
+	// point. GetRunControlState is read-only and does not call this.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return db.Issue{}, db.AgentTaskQueue{}, false
+	}
 	task, err := h.Queries.GetControllableTaskForIssue(r.Context(), issue.ID)
 	if err != nil {
 		writeErrorCode(w, http.StatusConflict, ErrCodeRunNotRunning, "no running or paused run on this issue")

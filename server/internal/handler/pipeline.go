@@ -287,6 +287,9 @@ func (h *Handler) StartPipelineRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req struct {
 		PipelineID string `json:"pipeline_id"`
 	}

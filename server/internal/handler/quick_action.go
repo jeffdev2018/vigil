@@ -851,6 +851,11 @@ func (h *Handler) RunQuickAction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: may-invoke-this-agent (canInvokeAgent below) and may-write-this-
+	// project answer different questions; both gates are needed.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return

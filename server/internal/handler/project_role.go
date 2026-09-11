@@ -23,6 +23,10 @@ const (
 	ProjectRoleContributor = "contributor"
 	ProjectRoleAdmin       = "admin"
 	AuditProjectRoleSet    = "project.role_set"
+
+	// ErrCodeProjectRoleForbidden marks a batch item refused for a
+	// project-role mismatch, as opposed to a transition/gate refusal.
+	ErrCodeProjectRoleForbidden = "project_role_forbidden"
 )
 
 var projectRoleRank = map[string]int{ProjectRoleViewer: 0, ProjectRoleContributor: 1, ProjectRoleAdmin: 2}
@@ -52,26 +56,38 @@ func (h *Handler) effectiveProjectRole(ctx context.Context, projectID pgtype.UUI
 	return ceiling, true
 }
 
-// requireProjectRole refuses the request when the acting subject's role on
-// the project is below `min`. A null project always passes. The subject is
-// the resolved actor: an agent acting through its run token is judged by
-// its own project role, not by its owner's.
-func (h *Handler) requireProjectRole(w http.ResponseWriter, r *http.Request, projectID pgtype.UUID, min string) bool {
-	if !projectID.Valid {
-		return true
-	}
+// resolveProjectRole is the response-free core of requireProjectRole: the
+// acting subject's effective role on the project, or an error when the
+// caller has no membership row at all. The subject is the resolved actor:
+// an agent acting through its run token is judged by its own project role,
+// not by its owner's. Callers must check projectID.Valid themselves — an
+// invalid project has no role to resolve.
+func (h *Handler) resolveProjectRole(r *http.Request, projectID pgtype.UUID) (string, error) {
 	workspaceID := h.resolveWorkspaceID(r)
 	userID := requestUserID(r)
 	member, err := h.Queries.GetMemberByUserAndWorkspace(r.Context(), db.GetMemberByUserAndWorkspaceParams{UserID: parseUUID(userID), WorkspaceID: parseUUID(workspaceID)})
 	if err != nil {
-		writeError(w, http.StatusForbidden, "no access to this project")
-		return false
+		return "", err
 	}
 	subjectType, subjectID := "member", member.ID
 	if actorType, actorID := h.resolveActor(r, userID, workspaceID); actorType == "agent" && actorID != "" {
 		subjectType, subjectID = "agent", parseUUID(actorID)
 	}
 	role, _ := h.effectiveProjectRole(r.Context(), projectID, subjectType, subjectID, member.Role)
+	return role, nil
+}
+
+// requireProjectRole refuses the request when the acting subject's role on
+// the project is below `min`. A null project always passes.
+func (h *Handler) requireProjectRole(w http.ResponseWriter, r *http.Request, projectID pgtype.UUID, min string) bool {
+	if !projectID.Valid {
+		return true
+	}
+	role, err := h.resolveProjectRole(r, projectID)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "no access to this project")
+		return false
+	}
 	if projectRoleRank[role] < projectRoleRank[min] {
 		writeError(w, http.StatusForbidden, "your project role ("+role+") does not allow this")
 		return false
@@ -82,6 +98,35 @@ func (h *Handler) requireProjectRole(w http.ResponseWriter, r *http.Request, pro
 // requireProjectWrite is the gate on issue and resource writes.
 func (h *Handler) requireProjectWrite(w http.ResponseWriter, r *http.Request, projectID pgtype.UUID) bool {
 	return h.requireProjectRole(w, r, projectID, ProjectRoleContributor)
+}
+
+// projectWriteAllowed is requireProjectWrite without writing an HTTP
+// response — for a batch loop that must refuse/skip a single item rather
+// than abort the whole request on one project-role mismatch.
+func (h *Handler) projectWriteAllowed(r *http.Request, projectID pgtype.UUID) bool {
+	if !projectID.Valid {
+		return true
+	}
+	role, err := h.resolveProjectRole(r, projectID)
+	if err != nil {
+		return false
+	}
+	return projectRoleRank[role] >= projectRoleRank[ProjectRoleContributor]
+}
+
+// projectWriteAllowedForActor is projectWriteAllowed for a subject already
+// resolved by the caller instead of the ordinary session/task-token request
+// headers — the plugin-action bridge, where a callback token's actor comes
+// from a signed grant, not from X-User-ID. An empty subjectType (a pure
+// plugin install-token call with no member/agent behind it) has no project
+// role to check and passes: K60 governs members and agents, not a plugin's
+// own identity.
+func (h *Handler) projectWriteAllowedForActor(r *http.Request, projectID pgtype.UUID, subjectType string, subjectID pgtype.UUID, workspaceRole string) bool {
+	if !projectID.Valid || subjectType == "" {
+		return true
+	}
+	role, _ := h.effectiveProjectRole(r.Context(), projectID, subjectType, subjectID, workspaceRole)
+	return projectRoleRank[role] >= projectRoleRank[ProjectRoleContributor]
 }
 
 type ProjectMemberRoleResponse struct {

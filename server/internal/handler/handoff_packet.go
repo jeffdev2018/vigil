@@ -69,6 +69,11 @@ func (h *Handler) CreateHandoffPacket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: the run's own task-token path is separately scoped below; only the
+	// human path needs the project-role gate.
+	if !isMachineCredentialActor(r) && !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req HandoffPacketRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")

@@ -120,6 +120,9 @@ func (h *Handler) CreateRefactorCampaign(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	leaderID, ok := parseUUIDOrBadRequest(w, req.LeaderAgentID, "leader_agent_id")
 	if !ok {
 		return
@@ -227,6 +230,9 @@ func (h *Handler) SkipCampaignShard(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, uuidToString(c.IssueID))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	if shard.MergeStatus == "merged" || shard.MergeStatus == "skipped" || shard.MergeStatus == "rebasing" {

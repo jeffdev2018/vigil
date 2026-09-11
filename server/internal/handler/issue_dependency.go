@@ -88,6 +88,9 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -173,6 +176,9 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) DeleteIssueDependency(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	userID, ok := requireUserID(w, r)

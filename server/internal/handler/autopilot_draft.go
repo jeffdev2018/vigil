@@ -272,6 +272,10 @@ func (h *Handler) ProposeAutopilot(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
+		// K60: a project-scoped autopilot writes on that project.
+		if !h.requireProjectWrite(w, r, id) {
+			return
+		}
 		projectID = id
 	}
 	// The issue the card goes on: explicit, else the run's own issue.

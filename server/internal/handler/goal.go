@@ -551,6 +551,11 @@ func (h *Handler) SetProjectGoals(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}
+	// K60: which goals a project serves is a project-structure change, held to
+	// the same admin bar as SetProjectMemberRole.
+	if !h.requireProjectRole(w, r, project.ID, ProjectRoleAdmin) {
+		return
+	}
 	var req struct {
 		GoalIDs []string `json:"goal_ids"`
 	}
@@ -725,6 +730,10 @@ func (h *Handler) ProposeIssueGoal(w http.ResponseWriter, r *http.Request) {
 	issue, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: issueID, WorkspaceID: wsUUID})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	// K60: same gate as AskIssueDecision — this writes a CreateIssueDecision too.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	var req struct {
