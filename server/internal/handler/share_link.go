@@ -209,11 +209,16 @@ func (h *Handler) RevokeShareLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Queries.RevokeShareLink(r.Context(), db.RevokeShareLinkParams{
+	rows, err := h.Queries.RevokeShareLink(r.Context(), db.RevokeShareLinkParams{
 		ID:          linkUUID,
 		WorkspaceID: workspaceUUID,
-	}); err != nil {
+	})
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to revoke share link")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "share link not found")
 		return
 	}
 
