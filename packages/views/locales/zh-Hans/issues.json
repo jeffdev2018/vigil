@@ -1864,6 +1864,7 @@
     "run_halt_unknown_actor": "某位所有者",
     "run_halt_lift": "解除停止",
     "run_halt_lift_failed": "无法解除停止",
+    "run_halt_frozen_count": "{{count}} 个运行已冻结",
     "kind_calendar_proposal": "会议提议",
     "kind_autopilot_proposal": "自动驾驶提议"
   },

@@ -72,6 +72,33 @@ func (n *RelayNotifier) NotifyRuntimeProfilesChanged(workspaceID, profileID stri
 	M.WakeupPublishedTotal.Add(1)
 }
 
+// NotifyRunHaltChanged fans a workspace-scoped "halt changed" hint out to the
+// local hub and, when Redis is configured, through the relay so every API
+// node can deliver it to the daemons it holds (JEF-257).
+func (n *RelayNotifier) NotifyRunHaltChanged(workspaceID string) {
+	if workspaceID == "" {
+		return
+	}
+	eventID := ulid.Make().String()
+	if n.local != nil {
+		n.local.notifyRunHaltChanged(workspaceID, eventID)
+	}
+	if n.relay == nil {
+		return
+	}
+	frame, err := runHaltChangedFrame(workspaceID)
+	if err != nil {
+		M.WakeupPublishErrors.Add(1)
+		return
+	}
+	if err := n.relay.PublishWithID(realtime.ScopeDaemonRuntime, workspaceID, "", frame, eventID); err != nil {
+		M.WakeupPublishErrors.Add(1)
+		slog.Warn("daemon websocket run halt publish failed", "error", err, "workspace_id", workspaceID)
+		return
+	}
+	M.WakeupPublishedTotal.Add(1)
+}
+
 func (n *RelayNotifier) NotifyWorkspacesChanged(userID string) {
 	if userID == "" {
 		return

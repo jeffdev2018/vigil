@@ -653,3 +653,54 @@ func waitForClientWakeup(t *testing.T, clientReceived <-chan struct{}) {
 		t.Errorf("server timed out waiting for client wakeup")
 	}
 }
+
+// JEF-257: a run_halt:changed frame fires the reconcile broadcaster so every
+// task watcher re-polls its control status immediately instead of on the 5s
+// poll — the freeze lands sub-second.
+func TestReadTaskWakeupMessagesRunHaltChangedTriggersReconcile(t *testing.T) {
+	overrideTaskWakeupTimings(t, 120*time.Millisecond, 50*time.Millisecond, taskWakeupBackoffResetAfter)
+
+	clientReceived := make(chan struct{})
+	haltFrame := mustProtocolFrame(t, protocol.Message{
+		Type:    protocol.EventDaemonRunHaltChanged,
+		Payload: marshalRaw(protocol.RunHaltChangedPayload{WorkspaceID: "ws-1"}),
+	})
+
+	upgrader := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		if !writeWSMessage(t, conn, websocket.TextMessage, haltFrame) {
+			return
+		}
+		waitForClientWakeup(t, clientReceived)
+	}))
+	defer srv.Close()
+
+	conn, _, err := websocket.DefaultDialer.Dial(taskWakeupTestWSURL(srv.URL), nil)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	d := New(Config{}, slog.Default())
+	d.reconcile = newReconcileBroadcaster()
+	reconcileCh := d.reconcile.notify()
+	taskWakeups := make(chan taskWakeup, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.readTaskWakeupMessages(conn, taskWakeups)
+	}()
+
+	select {
+	case <-reconcileCh:
+		close(clientReceived)
+	case err := <-errCh:
+		t.Fatalf("readTaskWakeupMessages returned before the halt frame: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("run_halt_changed frame did not trigger a reconcile broadcast")
+	}
+}

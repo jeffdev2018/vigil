@@ -7,7 +7,9 @@ WHERE issue_id = $1 AND (status = 'running' OR (status = 'paused' AND resumed_by
 ORDER BY created_at DESC LIMIT 1;
 
 -- name: RequestTaskPause :one
-UPDATE agent_task_queue SET pause_requested_at = COALESCE(pause_requested_at, now())
+-- A human pause clears the halt-freeze marker (JEF-257): whoever pauses by
+-- hand takes ownership of that run, so lifting the halt must not resume it.
+UPDATE agent_task_queue SET pause_requested_at = COALESCE(pause_requested_at, now()), halt_frozen_at = NULL
 WHERE id = $1 AND status = 'running' RETURNING *;
 
 -- name: MarkTaskPaused :one

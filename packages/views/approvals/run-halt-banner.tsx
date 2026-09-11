@@ -57,6 +57,7 @@ export function RunHaltBanner({ wsId }: { wsId: string }) {
           when: halt.halted_at ? timeAgo(halt.halted_at) : "",
         })}
         {halt.reason ? ` · ${t(($) => $.approvals.run_halt_reason_prefix, { reason: halt.reason })}` : ""}
+        {halt.frozen_count > 0 ? ` · ${t(($) => $.approvals.run_halt_frozen_count, { count: halt.frozen_count })}` : ""}
       </span>
       {canLift ? (
         <Button

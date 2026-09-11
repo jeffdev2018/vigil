@@ -114,7 +114,7 @@ const summary: RunsSummary = {
   cancelled_since: 0,
   cost_since_usd_ticks: 25_000_000_000,
   since: "2026-09-09T00:00:00Z",
-  run_halt: { halted: false, reason: "", halted_by: "", halted_at: null },
+  run_halt: { halted: false, reason: "", halted_by: "", halted_at: null, frozen_count: 0, resumed_count: 0 },
 };
 
 vi.mock("@multica/core/runs", async (importOriginal) => {

@@ -273,6 +273,12 @@ const (
 	// itself: the daemon still pulls the request through the normal heartbeat
 	// claim, so a lost or duplicated hint is harmless.
 	EventDaemonPendingWork = "daemon:pending_work"
+	// EventDaemonRunHaltChanged is a workspace-scoped hint that the workspace
+	// halt flipped (JEF-257). The daemon reacts by reconciling immediately so
+	// in-flight task watchers re-poll their control status sub-second instead
+	// of on the 5s poll; the poll remains the fallback for daemons that do not
+	// know this frame.
+	EventDaemonRunHaltChanged = "daemon:run_halt_changed"
 	// Generic daemon→server request/response over the WebSocket control
 	// connection (MUL-4257). The daemon sends EventDaemonRPCRequest with a
 	// correlation id + method + body; the server replies EventDaemonRPCResponse

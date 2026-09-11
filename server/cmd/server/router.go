@@ -518,6 +518,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		if notifier, ok := opts.DaemonWakeup.(handler.RuntimeGoneNotifier); ok {
 			h.DaemonRuntimeGone = notifier
 		}
+		if notifier, ok := opts.DaemonWakeup.(handler.DaemonRunHaltNotifier); ok {
+			h.DaemonRunHalt = notifier
+		}
 	}
 	if rdb != nil {
 		h.UpdateStore = handler.NewRedisUpdateStore(rdb)

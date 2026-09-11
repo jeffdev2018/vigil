@@ -967,6 +967,8 @@
     "run_halt_reason_label": "Reason",
     "run_halt_reason_description": "Shown to anyone who meets the halt, including in an agent's own error text.",
     "run_halt_failed": "Failed to update the halt",
+    "run_halt_frozen_toast": "Froze {{count}} in-flight runs",
+    "run_halt_resumed_toast": "Resumed {{count}} frozen runs",
     "profiles_section": "Permission profiles",
     "profiles_intro": "What an agent may touch when it runs. Assign a profile on the agent (or on one run); the rules below are enforced where the runtime allows it (Claude deny rules, Codex read-only sandbox, approval gates) and told to the model otherwise.",
     "profiles_read_only": "Read-only",

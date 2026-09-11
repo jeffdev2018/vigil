@@ -1864,6 +1864,7 @@
     "run_halt_unknown_actor": "소유자",
     "run_halt_lift": "정지 해제",
     "run_halt_lift_failed": "정지를 해제하지 못했습니다",
+    "run_halt_frozen_count": "실행 {{count}}개 동결됨",
     "kind_calendar_proposal": "회의 제안",
     "kind_autopilot_proposal": "오토파일럿 제안"
   },

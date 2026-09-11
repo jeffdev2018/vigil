@@ -30,6 +30,11 @@ export function RunHaltSetting({ wsId, canEdit }: { wsId: string; canEdit: boole
         onSuccess: (data) => {
           setReason(data.reason);
           toast.success(t(($) => $.auto_save.toast_saved), { id: "settings-auto-save" });
+          if (data.halted && data.frozen_count > 0) {
+            toast.success(t(($) => $.workspace.run_halt_frozen_toast, { count: data.frozen_count }));
+          } else if (!data.halted && data.resumed_count > 0) {
+            toast.success(t(($) => $.workspace.run_halt_resumed_toast, { count: data.resumed_count }));
+          }
         },
         onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.workspace.run_halt_failed)),
       },

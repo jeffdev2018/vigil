@@ -154,7 +154,7 @@ func (h *Handler) ResumeRun(w http.ResponseWriter, r *http.Request) {
 	for _, m := range rows {
 		note.WriteString("\n- " + m.Content.String)
 	}
-	child, err := h.TaskService.EnqueueTaskForIssueWithHandoff(r.Context(), issue, note.String(), parseUUID(requestUserID(r)))
+	child, err := h.TaskService.EnqueueResumeChild(r.Context(), issue, task, note.String(), parseUUID(requestUserID(r)))
 	if err != nil {
 		writeError(w, http.StatusConflict, "could not queue the resumed run: "+err.Error())
 		return

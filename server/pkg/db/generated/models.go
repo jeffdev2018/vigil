@@ -436,7 +436,8 @@ type AgentTaskQueue struct {
 	// JEF-255: the pull request opened for the promoted branch. Empty when the workspace has no VCS provider for the remote (the push alone satisfies promote).
 	PromotePrUrl string `json:"promote_pr_url"`
 	// JEF-255: when the run's branch and worktree were deleted at the user's request. NULL until a discard completes.
-	DiscardedAt pgtype.Timestamptz `json:"discarded_at"`
+	DiscardedAt  pgtype.Timestamptz `json:"discarded_at"`
+	HaltFrozenAt pgtype.Timestamptz `json:"halt_frozen_at"`
 }
 
 type AgentToLabel struct {

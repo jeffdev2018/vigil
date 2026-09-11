@@ -964,6 +964,8 @@
     "run_halt_reason_label": "原因",
     "run_halt_reason_description": "会显示给遇到该停止的所有人，包括智能体自身的错误文本中。",
     "run_halt_failed": "更新停止设置失败",
+    "run_halt_frozen_toast": "已冻结 {{count}} 个进行中的运行",
+    "run_halt_resumed_toast": "已恢复 {{count}} 个被冻结的运行",
     "profiles_section": "权限配置",
     "profiles_intro": "智能体运行时可触及的范围。在智能体（或单次运行）上指定配置；以下规则在运行时允许的范围内强制执行（Claude 拒绝规则、Codex 只读沙箱、审批关卡），其余则告知模型。",
     "profiles_read_only": "只读",
