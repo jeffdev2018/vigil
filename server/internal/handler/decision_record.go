@@ -305,13 +305,13 @@ func (h *Handler) issueAccepted(ctx context.Context, issue db.Issue) bool {
 // change must not wait for a model call.
 func (h *Handler) extractDecisionsAsync(issue db.Issue) {
 	model := h.LLM
-	go func() {
+	goBackground("decision extraction", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		if _, err := h.extractDecisionsWith(ctx, model, issue); err != nil {
 			slog.Warn("decision extraction failed", "error", err, "issue_id", uuidToString(issue.ID))
 		}
-	}()
+	})
 }
 
 // GET /api/projects/{id}/decisions?author_type=agent|member

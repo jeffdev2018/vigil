@@ -371,7 +371,12 @@ func (h *Handler) ScimCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	h.MembershipCache.Invalidate(r.Context(), uuidToString(user.ID), uuidToString(wsUUID))
 	h.audit(r.Context(), wsUUID, "system", "", AuditScimProvision, "member", member.ID, map[string]any{"email": email, "external_id": req.ExternalID}, nil)
-	h.publish(protocol.EventMemberAdded, uuidToString(wsUUID), "system", "", map[string]any{"member_id": uuidToString(member.ID), "workspace_id": uuidToString(wsUUID), "user_id": uuidToString(user.ID)})
+	// Same shape as the invitation path: clients read `member.user_id`.
+	memberPayload := map[string]any{"member": h.memberWithUserResponse(member, user)}
+	if ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err == nil {
+		memberPayload["workspace_name"] = ws.Name
+	}
+	h.publish(protocol.EventMemberAdded, uuidToString(wsUUID), "system", "", memberPayload)
 	row := db.ListMembersWithUserRow{ID: member.ID, WorkspaceID: wsUUID, UserID: user.ID, Role: member.Role, CreatedAt: member.CreatedAt, UserName: user.Name, UserEmail: user.Email, UserAvatarUrl: user.AvatarUrl}
 	writeSCIM(w, http.StatusCreated, scimUserOf(r, row, req.ExternalID))
 }

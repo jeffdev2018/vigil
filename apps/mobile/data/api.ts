@@ -374,6 +374,10 @@ export interface ApiClientOptions {
   onUnauthorized?: () => void;
 }
 
+// Request tracing is a development aid: a release build must not print
+// every call (with its path and payload sizes) to the device log.
+const apiLog: (...args: unknown[]) => void = __DEV__ ? console.log : () => {};
+
 class ApiClient {
   private token: string | null = null;
   private options: ApiClientOptions = {};
@@ -434,7 +438,7 @@ class ApiClient {
       else callerSignal.addEventListener("abort", onCallerAbort);
     }
 
-    console.log(`[api] → ${method} ${path}`, { rid });
+    apiLog(`[api] → ${method} ${path}`, { rid });
 
     let res: Response;
     try {
@@ -498,7 +502,7 @@ class ApiClient {
       throw new ApiError(message, res.status, body);
     }
 
-    console.log(`[api] ← ${res.status} ${path}`, {
+    apiLog(`[api] ← ${res.status} ${path}`, {
       rid,
       duration: `${duration}ms`,
     });
@@ -2680,7 +2684,7 @@ class ApiClient {
     );
     if (language) formData.append("language", language);
 
-    console.log(`[api] → POST ${path}`, { rid, filename: asset.name });
+    apiLog(`[api] → POST ${path}`, { rid, filename: asset.name });
 
     const res = await fetch(`${API_URL}${path}`, {
       method: "POST",
@@ -2710,7 +2714,7 @@ class ApiClient {
     }
 
     const raw = (await res.json()) as unknown;
-    console.log(`[api] ← ${res.status} ${path}`, {
+    apiLog(`[api] ← ${res.status} ${path}`, {
       rid,
       duration: `${duration}ms`,
     });
@@ -2769,7 +2773,7 @@ class ApiClient {
       if (value !== "") formData.append(key, value);
     }
 
-    console.log(`[api] → POST ${path}`, { rid, filename: asset.name });
+    apiLog(`[api] → POST ${path}`, { rid, filename: asset.name });
 
     const res = await fetch(`${API_URL}${path}`, {
       method: "POST",
@@ -2802,7 +2806,7 @@ class ApiClient {
       throw new ApiError(message, res.status, body);
     }
 
-    console.log(`[api] ← ${res.status} ${path}`, {
+    apiLog(`[api] ← ${res.status} ${path}`, {
       rid,
       duration: `${duration}ms`,
     });

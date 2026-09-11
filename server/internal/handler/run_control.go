@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -185,7 +187,10 @@ func (h *Handler) AckTaskPaused(w http.ResponseWriter, r *http.Request) {
 		WorkDir    string `json:"work_dir"`
 		BranchName string `json:"branch_name"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	paused, err := h.Queries.MarkTaskPaused(r.Context(), db.MarkTaskPausedParams{
 		ID: task.ID, SessionID: pgtype.Text{String: req.SessionID, Valid: req.SessionID != ""}, WorkDir: pgtype.Text{String: req.WorkDir, Valid: req.WorkDir != ""}, BranchName: pgtype.Text{String: req.BranchName, Valid: req.BranchName != ""},
 	})

@@ -562,7 +562,8 @@ func (h *Handler) AcceptTriageItem(w http.ResponseWriter, r *http.Request) {
 	switch res.outcome {
 	case "accepted":
 		// Twenty backlink (OS plan, chantier 2): best effort, off the request.
-		go h.twentyBacklink(context.WithoutCancel(r.Context()), workspaceID, itemID, res, userID)
+		backlinkCtx := context.WithoutCancel(r.Context())
+		goBackground("twenty backlink", func() { h.twentyBacklink(backlinkCtx, workspaceID, itemID, res, userID) })
 		filler := h.newStatusCategoryFiller(r.Context(), workspaceID)
 		resp := issueToResponse(res.issue, res.prefix)
 		filler(&resp)

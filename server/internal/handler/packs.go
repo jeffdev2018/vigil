@@ -28,6 +28,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/dbid"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"gopkg.in/yaml.v3"
+	"log/slog"
 )
 
 const (
@@ -468,7 +469,11 @@ func (h *Handler) installPack(ctx context.Context, wsUUID pgtype.UUID, p *packs.
 	seen := map[string]bool{}
 	for _, it := range report.Items {
 		seen[it.Kind+":"+it.ID] = true
-		_ = h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: parseUUID(it.ID), Name: it.Name, Action: it.Action})
+		// The ledger is what uninstall walks: an item that is not recorded
+		// can never be removed again.
+		if err := h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: parseUUID(it.ID), Name: it.Name, Action: it.Action}); err != nil {
+			slog.Error("pack install: ledger write failed", "install_id", uuidToString(install.ID), "kind", it.Kind, "row_id", it.ID, "error", err)
+		}
 	}
 	if preview.Installed != nil {
 		if prev, err := h.Queries.ListPackItems(ctx, db.ListPackItemsParams{InstallID: parseUUID(preview.Installed.ID), WorkspaceID: wsUUID}); err == nil {
@@ -477,7 +482,9 @@ func (h *Handler) installPack(ctx context.Context, wsUUID pgtype.UUID, p *packs.
 				if seen[key] || it.Action == "skipped" {
 					continue
 				}
-				_ = h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: it.RowID, Name: it.Name, Action: it.Action})
+				if err := h.Queries.CreatePackItem(ctx, db.CreatePackItemParams{ID: dbid.NewV7(), InstallID: install.ID, WorkspaceID: wsUUID, Kind: it.Kind, RowID: it.RowID, Name: it.Name, Action: it.Action}); err != nil {
+					slog.Error("pack install: ledger carry-over failed", "install_id", uuidToString(install.ID), "kind", it.Kind, "error", err)
+				}
 			}
 		}
 	}
@@ -767,8 +774,9 @@ func (h *Handler) uninstallPackItems(ctx context.Context, wsUUID, actor pgtype.U
 			case "views":
 				_, err = h.Queries.DeleteIssueView(ctx, db.DeleteIssueViewParams{ID: it.RowID, WorkspaceID: wsUUID})
 			case "transition_rules":
-				_ = h.Queries.DeleteIssueTransitionRuleActors(ctx, it.RowID)
-				_, err = h.Queries.DeleteIssueTransitionRule(ctx, db.DeleteIssueTransitionRuleParams{ID: it.RowID, WorkspaceID: wsUUID})
+				if err = h.Queries.DeleteIssueTransitionRuleActors(ctx, it.RowID); err == nil {
+					_, err = h.Queries.DeleteIssueTransitionRule(ctx, db.DeleteIssueTransitionRuleParams{ID: it.RowID, WorkspaceID: wsUUID})
+				}
 			case "business_rules":
 				err = h.Queries.DeleteBusinessRule(ctx, db.DeleteBusinessRuleParams{ID: it.RowID, WorkspaceID: wsUUID})
 			case "autopilots":
@@ -776,15 +784,17 @@ func (h *Handler) uninstallPackItems(ctx context.Context, wsUUID, actor pgtype.U
 			case "agents":
 				_, err = h.Queries.ArchiveAgent(ctx, db.ArchiveAgentParams{ID: it.RowID, ArchivedBy: actor})
 			case "skills":
-				_ = h.Queries.DeleteSkillFilesBySkill(ctx, it.RowID)
-				err = h.Queries.DeleteSkill(ctx, db.DeleteSkillParams{ID: it.RowID, WorkspaceID: wsUUID})
+				if err = h.Queries.DeleteSkillFilesBySkill(ctx, it.RowID); err == nil {
+					err = h.Queries.DeleteSkill(ctx, db.DeleteSkillParams{ID: it.RowID, WorkspaceID: wsUUID})
+				}
 			case "permission_profiles":
 				_, err = h.Queries.DeletePermissionProfile(ctx, it.RowID)
 			case "properties":
 				_, err = h.Queries.UpdateIssueProperty(ctx, db.UpdateIssuePropertyParams{ID: it.RowID, WorkspaceID: wsUUID, ArchivedSet: true, ArchivedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}})
 			case "labels":
-				_ = h.Queries.DeleteIssueLabelAssignmentsByLabel(ctx, it.RowID)
-				_, err = h.Queries.DeleteLabel(ctx, db.DeleteLabelParams{ID: it.RowID, WorkspaceID: wsUUID})
+				if err = h.Queries.DeleteIssueLabelAssignmentsByLabel(ctx, it.RowID); err == nil {
+					_, err = h.Queries.DeleteLabel(ctx, db.DeleteLabelParams{ID: it.RowID, WorkspaceID: wsUUID})
+				}
 			case "issue_types":
 				row, lookupErr := h.Queries.GetIssueTypeEntryByID(ctx, db.GetIssueTypeEntryByIDParams{ID: it.RowID, WorkspaceID: wsUUID})
 				if lookupErr != nil {

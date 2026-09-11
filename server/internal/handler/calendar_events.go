@@ -1018,7 +1018,14 @@ func (h *Handler) RevokeCalendarFeedToken(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	_ = h.Queries.DeleteCalendarFeedToken(r.Context(), db.DeleteCalendarFeedTokenParams{WorkspaceID: wsUUID, UserID: parseUUID(userID)})
+	// The token is the only credential of the public ICS feed: a revoke that
+	// silently failed would leave the feed readable while the user believes
+	// it is closed.
+	if err := h.Queries.DeleteCalendarFeedToken(r.Context(), db.DeleteCalendarFeedTokenParams{WorkspaceID: wsUUID, UserID: parseUUID(userID)}); err != nil {
+		slog.Error("calendar feed token revoke failed", "workspace_id", workspaceID, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to revoke the feed link")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

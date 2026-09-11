@@ -623,8 +623,11 @@ func (h *Handler) KillSwitch(w http.ResponseWriter, r *http.Request) {
 	}
 	ids, err := h.Queries.ListActiveWorkspaceTaskIDs(r.Context(), wsUUID)
 	if err != nil {
-		slog.Warn("kill switch: list active runs failed", append(logger.RequestAttrs(r), "error", err)...)
-		ids = nil
+		// The halt is in place, but nothing was cancelled: say so rather than
+		// answering "cancelled: 0" as if the fleet had been idle.
+		slog.Error("kill switch: list active runs failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "the fleet is halted but its active runs could not be listed; retry to cancel them")
+		return
 	}
 	// An owner's kill switch stops every run, private agents included: the
 	// scope check keeps the list honest for members, an owner sees it all.
