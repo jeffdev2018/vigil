@@ -120,7 +120,11 @@
     "calendar_invitation": "Invited to an event",
     "calendar_reminder": "Starting soon",
     "doctrine_review": "Doctrine review",
-    "doctrine_report": "Doctrine report"
+    "doctrine_report": "Doctrine report",
+    "confidence_review": "Delivery flagged for review",
+    "run_limit_warn": "Run nearing its limit",
+    "run_limit_exceeded": "Run over its limit",
+    "run_limit_stopped": "Run stopped: limit reached"
   },
   "labels": {
     "set_status_to": "Set status to",

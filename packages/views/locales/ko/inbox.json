@@ -118,7 +118,11 @@
     "calendar_invitation": "이벤트에 초대됨",
     "calendar_reminder": "곧 시작",
     "doctrine_review": "행동 지침 검토",
-    "doctrine_report": "행동 지침 신고"
+    "doctrine_report": "행동 지침 신고",
+    "confidence_review": "검토가 필요한 결과물",
+    "run_limit_warn": "실행이 한도에 근접",
+    "run_limit_exceeded": "실행이 한도 초과",
+    "run_limit_stopped": "실행 중단: 한도 도달"
   },
   "labels": {
     "set_status_to": "상태 변경:",

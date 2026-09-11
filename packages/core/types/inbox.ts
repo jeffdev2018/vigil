@@ -96,7 +96,15 @@ export type InboxItemType =
   // An agent (or a member) hit a doctrine rule it could not follow, found two
   // rules in conflict, or found one too vague to act on. Filed for the
   // workspace's owners/admins.
-  | "doctrine_report";
+  | "doctrine_report"
+  // Run confidence scoring (JEF-240): a below-threshold delivery is sent to
+  // the workspace's managers for human review.
+  | "confidence_review"
+  // Run limits (server/internal/service/run_limit.go notifyRunLimit): one of
+  // these three per gate/level combination the sweeper can file.
+  | "run_limit_warn"
+  | "run_limit_exceeded"
+  | "run_limit_stopped";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

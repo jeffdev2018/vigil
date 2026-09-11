@@ -118,7 +118,11 @@
     "calendar_invitation": "受邀参加事件",
     "calendar_reminder": "即将开始",
     "doctrine_review": "行动准则评审",
-    "doctrine_report": "行动准则反馈"
+    "doctrine_report": "行动准则反馈",
+    "confidence_review": "已标记待审核的交付物",
+    "run_limit_warn": "运行接近限额",
+    "run_limit_exceeded": "运行超出限额",
+    "run_limit_stopped": "运行已停止:已达限额"
   },
   "labels": {
     "set_status_to": "状态设为",

@@ -120,7 +120,11 @@
     "calendar_invitation": "Invitation à un événement",
     "calendar_reminder": "Commence bientôt",
     "doctrine_review": "Relecture de la doctrine",
-    "doctrine_report": "Signalement de doctrine"
+    "doctrine_report": "Signalement de doctrine",
+    "confidence_review": "Livraison signalée pour révision",
+    "run_limit_warn": "Run proche de sa limite",
+    "run_limit_exceeded": "Run au-delà de sa limite",
+    "run_limit_stopped": "Run arrêté : limite atteinte"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

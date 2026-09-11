@@ -69,6 +69,10 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     calendar_reminder: t(($) => $.types.calendar_reminder),
     doctrine_review: t(($) => $.types.doctrine_review),
     doctrine_report: t(($) => $.types.doctrine_report),
+    confidence_review: t(($) => $.types.confidence_review),
+    run_limit_warn: t(($) => $.types.run_limit_warn),
+    run_limit_exceeded: t(($) => $.types.run_limit_exceeded),
+    run_limit_stopped: t(($) => $.types.run_limit_stopped),
   };
 }
 
