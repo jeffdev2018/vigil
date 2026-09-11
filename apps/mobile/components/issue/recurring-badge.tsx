@@ -9,6 +9,7 @@ import { Text } from "@/components/ui/text";
 export function RecurringBadge() {
   return (
     <View
+      accessible
       accessibilityLabel="Recurring"
       className="flex-row items-center gap-1 shrink-0 rounded-full bg-secondary/60 px-1.5 py-0.5"
     >
