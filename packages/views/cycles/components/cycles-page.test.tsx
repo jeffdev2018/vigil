@@ -199,6 +199,26 @@ describe("CyclesPage", () => {
     expect(state.created).toHaveLength(0);
   });
 
+  // P3 audit finding: capacityValue mapped ANY invalid input (including a
+  // typed negative number) to null — "not declared" — instead of rejecting
+  // it. A typo like "-5" silently saved as an undeclared cap rather than
+  // being caught.
+  it("refuses to submit a negative capacity", async () => {
+    state.cycles = [cycle({ id: "c1" })];
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
+    const dialog = await screen.findByRole("dialog");
+    await pickOption(within(dialog), "Project", "Billing");
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Sprint 14" } });
+    fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-01" } });
+    fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-14" } });
+    fireEvent.change(within(dialog).getByLabelText("People capacity"), { target: { value: "-5" } });
+
+    expect(within(dialog).getByRole("button", { name: "Create cycle" })).toBeDisabled();
+    expect(within(dialog).getByText("Capacity must be zero or greater.")).toBeInTheDocument();
+    expect(state.created).toHaveLength(0);
+  });
+
   it("surfaces the server's refusal when a delete fails", async () => {
     state.cycles = [cycle({ id: "c1", name: "Sprint 13" })];
     state.deleteError = new Error("cycle is referenced");

@@ -73,7 +73,8 @@
     "create": "创建周期",
     "save": "保存",
     "error": "无法保存该周期",
-    "date_order": "结束日期必须不早于开始日期。"
+    "date_order": "结束日期必须不早于开始日期。",
+    "capacity_negative": "容量必须大于或等于 0。"
   },
   "delete_dialog": {
     "title": "删除该周期？",

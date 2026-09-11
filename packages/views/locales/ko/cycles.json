@@ -73,7 +73,8 @@
     "create": "사이클 만들기",
     "save": "저장",
     "error": "사이클을 저장하지 못했습니다",
-    "date_order": "종료일은 시작일과 같거나 그 이후여야 합니다."
+    "date_order": "종료일은 시작일과 같거나 그 이후여야 합니다.",
+    "capacity_negative": "용량은 0 이상이어야 합니다."
   },
   "delete_dialog": {
     "title": "이 사이클을 삭제할까요?",
