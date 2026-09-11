@@ -2713,6 +2713,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)
 			r.Post("/api/decision-examples/{id}/overturn", h.OverturnDecisionExample)
 			r.Put("/api/issues/{id}/contract-risk", h.SetIssueContractRisk)
+			// Sandbox policies (JEF-256): the per-issue override layer.
+			r.Get("/api/issues/{id}/sandbox-override", h.GetIssueSandboxOverride)
+			r.Put("/api/issues/{id}/sandbox-override", h.PutIssueSandboxOverride)
+			r.Delete("/api/issues/{id}/sandbox-override", h.DeleteIssueSandboxOverride)
 			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
 			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
 			// Validated routing (JEF-275).
@@ -3006,6 +3010,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)
 					r.Delete("/blast-radius-rules/{ruleId}", h.DeleteBlastRadiusRule)
 					r.Get("/blast-radius-preview", h.PreviewBlastRadius)
+					// Sandbox policy (JEF-256): the per-project layer of the
+					// workspace < project < issue confinement chain.
+					r.Get("/sandbox-policy", h.GetProjectSandboxPolicy)
+					r.Put("/sandbox-policy", h.PutProjectSandboxPolicy)
+					r.Delete("/sandbox-policy", h.DeleteProjectSandboxPolicy)
 					// Agent review by agent (JEF-238): per-project checklist, pinned reviewer, done gate.
 					r.Get("/review-config", h.GetProjectReviewConfig)
 					r.Put("/review-config", h.PutProjectReviewConfig)

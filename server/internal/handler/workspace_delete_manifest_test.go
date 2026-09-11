@@ -151,6 +151,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"run_preview":                        workspaceDelete,
 	"task_share_link":                    workspaceDelete,
 	"project_blast_radius_rule":          workspaceDelete,
+	"project_sandbox_policy":             workspaceDelete,
 	"agent_permission_profile":           workspaceDelete,
 	"run_scoped_secret":                  workspaceDelete,
 	"runtime_pool":                       workspaceDelete,

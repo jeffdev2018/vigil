@@ -35,6 +35,7 @@ import { EpicPanel } from "./epic-panel";
 import { ProjectMirrorsSection } from "./project-mirrors-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
+import { ProjectSandboxSection } from "./project-sandbox-section";
 import { ProjectReviewSection } from "./project-review-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
@@ -510,6 +511,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Blast radius (K07) */}
       <ProjectBlastRadiusSection projectId={projectId} />
+
+      {/* Sandbox policy (JEF-256) */}
+      <ProjectSandboxSection projectId={projectId} />
 
       {/* Agent review checklist + gate (JEF-238) */}
       <ProjectReviewSection projectId={projectId} />

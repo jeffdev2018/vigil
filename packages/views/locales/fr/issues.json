@@ -1218,6 +1218,39 @@
       "expired": "expiré"
     }
   },
+  "sandbox_override": {
+    "section": "Dérogation de sandbox",
+    "description": "Restreint les exécutions d'agents pour ce ticket au-delà des politiques de l'espace de travail et du projet. La plus restrictive des trois l'emporte, appliquée en fail-closed.",
+    "capability_hint": "Les modes liste d'autorisation et sans réseau exigent un runtime compatible conteneur : les exécutions sur un runtime sans cette capacité sont refusées et basculent (fail-closed).",
+    "none": "Aucune dérogation — hérite de la politique du projet",
+    "edit": "Modifier la dérogation",
+    "dialog_title": "Dérogation de sandbox",
+    "network": "Accès réseau",
+    "mode": {
+      "unrestricted": "Non restreint",
+      "allowlist": "Liste d'autorisation",
+      "none": "Aucun réseau"
+    },
+    "hint": {
+      "unrestricted": "Les exécutions peuvent atteindre n'importe quel hôte.",
+      "allowlist": "Seuls les hôtes listés et ceux par défaut de la plateforme sont accessibles.",
+      "none": "Aucune sortie réseau au-delà de ce dont la plateforme a besoin."
+    },
+    "hosts_label": "Hôtes autorisés",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "Un hôte par ligne. Les hôtes par défaut de la plateforme restent accessibles.",
+    "block_sensitive": "Bloquer les fichiers sensibles",
+    "block_sensitive_help": "Les agents ne doivent pas lire les fichiers .env (au mieux).",
+    "effective": "Effectif pour ce ticket : {{mode}}",
+    "effective_blocked": "fichiers sensibles bloqués",
+    "save": "Enregistrer la dérogation",
+    "saving": "Enregistrement...",
+    "remove": "Supprimer la dérogation",
+    "toast_saved": "Dérogation de sandbox enregistrée",
+    "toast_removed": "Dérogation de sandbox supprimée — la politique du projet s'applique",
+    "failed": "La dérogation de sandbox n'a pas pu être enregistrée",
+    "load_failed": "La dérogation de sandbox n'a pas pu être chargée"
+  },
   "decisions": {
     "section": "Décisions",
     "recommended": "recommandé",

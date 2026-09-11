@@ -2578,6 +2578,17 @@ type ProjectReviewConfig struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+// JEF-256: per-project sandbox policy (network mode, host allowlist, sensitive-file block), merged most-restrictive-first into the claim's SandboxSpec.
+type ProjectSandboxPolicy struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	// unrestricted | allowlist | none. allowlist is the only mode whose allowed_hosts carry meaning; the handler rejects hosts under any other mode.
+	NetworkMode         string             `json:"network_mode"`
+	AllowedHosts        []byte             `json:"allowed_hosts"`
+	BlockSensitiveFiles bool               `json:"block_sensitive_files"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
 type QuickAction struct {
 	ID            pgtype.UUID        `json:"id"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`

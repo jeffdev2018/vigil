@@ -785,10 +785,16 @@ deleted_cycle_snapshots AS (
 ),
 deleted_cycles AS (
     DELETE FROM cycle WHERE cycle.workspace_id = $1
+),
+deleted_project_sandbox_policies AS (
+    DELETE FROM project_sandbox_policy
+    WHERE project_id IN (SELECT id FROM project WHERE project.workspace_id = $1)
 )
 DELETE FROM project WHERE project.workspace_id = $1
 `
 
+// JEF-256: keyed by project, not workspace, so the sweep goes through the
+// project set this same statement is about to remove.
 func (q *Queries) DeleteWorkspaceRuntimesAndProjects(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceRuntimesAndProjects, workspaceID)
 	return err

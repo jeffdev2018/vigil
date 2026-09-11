@@ -310,3 +310,26 @@ export interface BlastRadiusPreview {
   rule_id?: string;
   path_pattern?: string;
 }
+
+// Sandbox policies (JEF-256): declarative network / sensitive-file
+// restrictions for agent runs. Resolved workspace < project < issue,
+// most-restrictive wins, enforced fail-closed by the daemon.
+export type SandboxNetworkMode = "unrestricted" | "allowlist" | "none";
+
+export interface SandboxPolicy {
+  network_mode: SandboxNetworkMode;
+  allowed_hosts: string[];
+  block_sensitive_files: boolean;
+}
+
+// GET/PUT /api/projects/:id/sandbox-policy.
+export interface ProjectSandboxPolicyResponse {
+  policy: SandboxPolicy | null;
+  effective: SandboxPolicy;
+}
+
+// GET/PUT /api/issues/:id/sandbox-override.
+export interface IssueSandboxOverrideResponse {
+  override: SandboxPolicy | null;
+  effective: SandboxPolicy;
+}

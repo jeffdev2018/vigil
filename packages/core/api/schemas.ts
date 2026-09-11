@@ -5234,6 +5234,28 @@ export const BlastRadiusPreviewSchema = z.object({
   path_pattern: z.string().optional(),
 }).loose();
 
+// Sandbox policies (JEF-256). Deliberately strict on network_mode: a
+// malformed mode must fail the parse (the client throws) rather than render
+// a falsely permissive "unrestricted" policy — the daemon enforces
+// fail-closed, the UI must not claim otherwise.
+export const SandboxPolicySchema = z.object({
+  network_mode: z.enum(["unrestricted", "allowlist", "none"]),
+  allowed_hosts: z.array(z.string()).catch([]).default([]),
+  block_sensitive_files: z.boolean().catch(false).default(false),
+}).loose();
+
+// GET/PUT /api/projects/:id/sandbox-policy.
+export const ProjectSandboxPolicyResponseSchema = z.object({
+  policy: SandboxPolicySchema.nullable(),
+  effective: SandboxPolicySchema,
+}).loose();
+
+// GET/PUT /api/issues/:id/sandbox-override.
+export const IssueSandboxOverrideResponseSchema = z.object({
+  override: SandboxPolicySchema.nullable(),
+  effective: SandboxPolicySchema,
+}).loose();
+
 // Permission profiles (K06).
 export const PermissionProfileSchema = z.object({
   id: z.string().default(""),

@@ -3,6 +3,7 @@ package daemon
 import (
 	"fmt"
 	"github.com/multica-ai/multica/server/pkg/goalstate"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"strings"
 
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
@@ -68,9 +69,22 @@ func perTurnContextBlocks(task Task, opts promptOpts) string {
 	if task.PriorSessionResumeUnavailable {
 		b.WriteString(sessionContinuityNoticeFor(task))
 	}
+	b.WriteString(buildBlockSensitiveFilesBlock(task))
 	b.WriteString(execenv.BuildTaskInitiatorBlock(task.InitiatorType, task.InitiatorName, task.InitiatorEmail))
 	b.WriteString(execenv.BuildConnectedAppsBlock(task.ConnectedApps))
 	return b.String()
+}
+
+// buildBlockSensitiveFilesBlock (JEF-256) is the sandbox policy's .env read
+// block as prompt text. Claude additionally gets CLI deny rules through
+// applyPermissionProfile; on providers with no read-deny surface — Codex
+// above all — this note and container mode are the enforcement, so it is
+// rendered for every provider, not as a fallback.
+func buildBlockSensitiveFilesBlock(task Task) string {
+	if task.Sandbox == nil || !task.Sandbox.BlockSensitiveFiles {
+		return ""
+	}
+	return permissionprofile.BlockSensitiveFilesPromptSection()
 }
 
 // promptOpts carries per-run facts the claimed Task does not: things only the

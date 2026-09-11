@@ -104,6 +104,7 @@ import { DecisionCardsSection } from "./decision-cards-section";
 import { ApprovalCard, PendingApprovalsBar } from "../../approvals/approval-card";
 import { issueApprovalsOptions, type ApprovalItem } from "@multica/core/approvals";
 import { RunSecretsSection } from "./run-secrets-section";
+import { SandboxOverrideSection } from "./sandbox-override-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
@@ -2754,6 +2755,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Run-scoped secrets (K09): which keys each run received as tokens; hides itself until one exists. */}
       <RunSecretsSection issueId={id} />
+
+      {/* Sandbox override (JEF-256): issue-scoped network / sensitive-file restrictions, on top of the project policy. */}
+      <SandboxOverrideSection issueId={id} />
 
       {/* Runtime failover (K28): moves between runtimes; loud when a run is degraded. */}
       <FailoverSection issueId={id} />

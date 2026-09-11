@@ -7914,8 +7914,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		openclawMode, openclawGateway = decodeOpenclawRuntimeConfig(task.Agent.RuntimeConfig, d.logger)
 	}
 	// Permission profile (K06): withhold hidden secrets and add the flags the
-	// provider enforces, once, before anything reads the agent payload.
-	applyPermissionProfile(task.Agent, provider, taskLog)
+	// provider enforces, once, before anything reads the agent payload. The
+	// sandbox policy's .env block (JEF-256) rides the same emission so the
+	// Claude deny rules and the profile's own land in one --settings payload.
+	applyPermissionProfile(task.Agent, provider, task.Sandbox != nil && task.Sandbox.BlockSensitiveFiles, taskLog)
 	var agentEnvOverrides map[string]string
 	var agentCustomArgs []string
 	if task.Agent != nil {

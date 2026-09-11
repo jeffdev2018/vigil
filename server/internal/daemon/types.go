@@ -76,6 +76,11 @@ type SandboxSpec struct {
 	Mode         string   `json:"mode"`
 	Image        string   `json:"image,omitempty"`
 	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// BlockSensitiveFiles (JEF-256) mirrors handler.SandboxSpec: the merged
+	// sandbox policy asks the run to not read .env files. Enforced per
+	// provider where the CLI allows it (Claude deny rules), advisory
+	// elsewhere; container mode remains the hard boundary.
+	BlockSensitiveFiles bool `json:"block_sensitive_files,omitempty"`
 }
 
 // Task represents a claimed task from the server.
