@@ -142,4 +142,15 @@ describe("EditorBubbleMenu accessibility", () => {
       screen.getByLabelText("Close link editor", { selector: "button" }),
     ).toBeInTheDocument();
   });
+
+  // Regression: a protocol-relative URL was kept as a site path, which the
+  // link handler then routed in-app.
+  it("stores a protocol-relative URL as an explicit https link", () => {
+    const editor = createEditor();
+    render(<EditorBubbleMenu editor={editor} />);
+    fireEvent.click(screen.getByLabelText("Link", { selector: "button" }));
+    fireEvent.change(screen.getByLabelText("URL"), { target: { value: "//attacker.example/x" } });
+    fireEvent.click(screen.getByLabelText("Apply link", { selector: "button" }));
+    expect(editor.chain().setLink).toHaveBeenCalledWith({ href: "https://attacker.example/x" });
+  });
 });

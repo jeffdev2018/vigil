@@ -101,6 +101,18 @@ describe("openLink", () => {
     expect(openSpy).toHaveBeenCalled();
   });
 
+  // A leading slash does not mean "this site": the browser sends
+  // `//attacker.example/x` and `/\\attacker.example/x` to another host, and the
+  // web router turns a push to one into a full-page navigation away.
+  it.each(["//attacker.example/phish", "/\\attacker.example/phish"])(
+    "never routes %s in-app",
+    (href) => {
+      openLink(href, "acme", APP_ORIGIN);
+      expect(dispatched).toHaveLength(0);
+      expect(openSpy).toHaveBeenCalledWith(href, "_blank", "noopener,noreferrer");
+    },
+  );
+
   it("prefixes the current slug on a slugless workspace path", () => {
     openLink("/issues/MUL-1", "acme", APP_ORIGIN);
     expect(navigatedPaths()).toEqual(["/acme/issues/MUL-1"]);
