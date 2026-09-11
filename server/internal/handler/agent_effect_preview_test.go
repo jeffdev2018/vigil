@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // "Show me first" (K69, lot 2): a preview-mode run's writes are held (202,
@@ -178,5 +180,23 @@ func TestSetAgentEffectModeUsesDistinctAuditKind(t *testing.T) {
 	}
 	if n := dbfx.Count(t, `SELECT count(*) FROM audit_log_entry WHERE entity_type = 'agent' AND entity_id = $1 AND action = $2`, agentID, AuditUndoSettings); n != 0 {
 		t.Fatalf("audit_log rows with kind %q (workspace undo settings) for agent %s = %d, want 0: effect-mode toggles must not share the workspace undo-settings audit kind", AuditUndoSettings, agentID, n)
+	}
+}
+
+// TestDescribePendingIssueUpdateIsDeterministic guards a cosmetic but real
+// bug: the EffectIssueUpdate branch iterated a map[string]any with no sort,
+// so the "field1 -> x, field2 -> y" rendering changed between renders of
+// the same effect (Go's randomized map order). Multiple calls must render
+// identical, alphabetically-ordered output. Pure function, no DB needed.
+func TestDescribePendingIssueUpdateIsDeterministic(t *testing.T) {
+	eff := db.AgentEffect{
+		Kind:    service.EffectIssueUpdate,
+		Payload: []byte(`{"title":"New title","status":"in_progress","priority":"high"}`),
+	}
+	want := "Issue update: priority → high, status → in_progress, title → New title"
+	for i := 0; i < 5; i++ {
+		if got := describePending(eff); got != want {
+			t.Fatalf("describePending call %d = %q, want %q", i, got, want)
+		}
 	}
 }

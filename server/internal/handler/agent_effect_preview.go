@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -159,9 +160,14 @@ func describePending(eff db.AgentEffect) string {
 	}
 	switch eff.Kind {
 	case service.EffectIssueUpdate:
-		parts := make([]string, 0, len(payload))
-		for k, v := range payload {
-			parts = append(parts, fmt.Sprintf("%s → %v", k, v))
+		keys := make([]string, 0, len(payload))
+		for k := range payload {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s → %v", k, payload[k]))
 		}
 		return "Issue update: " + strings.Join(parts, ", ")
 	case service.EffectCommentCreate:
