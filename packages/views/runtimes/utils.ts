@@ -1304,18 +1304,22 @@ export function aggregateCostByModel(
 // Walks the same daily-grain `RuntimeUsage` rows that `aggregateByDate` uses,
 // so the runtime-list cost stays consistent with the runtime-detail KPIs
 // (and crucially, hits the same TanStack Query cache key).
+//
+// `pricings` is the custom rate table, passed like every sibling aggregate so a
+// memoized caller re-runs when the user prices a model.
 export function computeCostInWindow(
   rows: readonly RuntimeUsage[],
   daysBack: number,
   tz: string,
   offsetDays: number = 0,
+  pricings?: PricingOverrides,
 ): number {
   const today = todayIso(tz);
   const isoEnd = addDaysIso(today, -offsetDays);
   const isoStart = addDaysIso(today, -offsetDays - daysBack);
   let total = 0;
   for (const r of rows) {
-    if (r.date >= isoStart && r.date < isoEnd) total += estimateCost(r);
+    if (r.date >= isoStart && r.date < isoEnd) total += estimateCost(r, pricings);
   }
   return total;
 }
