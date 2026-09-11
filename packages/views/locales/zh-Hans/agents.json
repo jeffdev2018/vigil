@@ -108,6 +108,7 @@
     "set_access_skipped": "{{count}} 个已跳过(不是你所有)。",
     "set_access_dialog_confirm": "应用",
     "set_access_bulk_partial": "已应用 {{succeeded}} 个;{{failed}} 个失败(保持当前状态)。",
+    "bulk_partial": "成功 {{succeeded}} 个,失败 {{failed}} 个。",
     "agent_archived_toast": "已归档智能体",
     "archive_failed_toast": "归档智能体失败",
     "agent_restored_toast": "已恢复智能体",

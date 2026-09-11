@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { MemberWithUser } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { runBulk } from "@multica/core/utils";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -91,8 +92,8 @@ export function AgentBatchToolbar({
     setAccessChange(null);
   }, [rows.length]);
 
-  const applyAccessBulk = async (change: AccessChange) => {
-    const summary = await runBatch(
+  const applyAccessBulk = (change: AccessChange) =>
+    runBatch(
       (id) =>
         api.updateAgent(id, {
           permission_mode: change.permission_mode,
@@ -100,38 +101,31 @@ export function AgentBatchToolbar({
         }),
       ownedRows,
     );
-    if (summary.failed > 0) {
-      toast.error(
-        t(($) => $.row_actions.set_access_bulk_partial, {
-          succeeded: summary.succeeded,
-          failed: summary.failed,
-        }),
-      );
-    }
-  };
 
+  // One toast per bulk operation: the caller no longer shows its own summary
+  // on top of this one (that produced two error toasts for a single event).
+  // Cache is invalidated unconditionally (succeeded rows did change server
+  // side); the selection is cleared only on a clean run so the failed rows
+  // stay selected for retry.
   const runBatch = async (
     fn: (id: string) => Promise<unknown>,
     targets: AgentListRow[],
   ): Promise<{ succeeded: number; failed: number }> => {
     setBusy(true);
-    const settled = await Promise.allSettled(
-      targets.map((row) => fn(row.agent.id)),
-    );
-    const failed = settled.filter((s) => s.status === "rejected").length;
-    const succeeded = settled.length - failed;
+    const { succeeded, failed } = await runBulk(targets, (row) => fn(row.agent.id));
     invalidate();
-    onClear();
     setBusy(false);
-    if (failed > 0) {
-      const first = settled.find((s) => s.status === "rejected") as
-        | PromiseRejectedResult
-        | undefined;
-      if (first) {
-        toast.error(first.reason instanceof Error ? first.reason.message : String(first.reason));
-      }
+    if (failed.length > 0) {
+      toast.error(
+        t(($) => $.row_actions.bulk_partial, {
+          succeeded: succeeded.length,
+          failed: failed.length,
+        }),
+      );
+    } else {
+      onClear();
     }
-    return { succeeded, failed };
+    return { succeeded: succeeded.length, failed: failed.length };
   };
 
   return (
@@ -261,11 +255,11 @@ export function AgentBatchToolbar({
               size="sm"
               disabled={busy}
               onClick={async () => {
-                await runBatch(
+                const summary = await runBatch(
                   (id) => api.archiveAgent(id),
                   rows.filter((r) => !r.agent.archived_at),
                 );
-                setConfirmArchive(false);
+                if (summary.failed === 0) setConfirmArchive(false);
               }}
             >
               {busy ? (
