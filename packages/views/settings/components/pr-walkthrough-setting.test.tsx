@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PrWalkthroughSettings } from "@multica/core/pr-walkthrough";
 import { renderWithI18n } from "../../test/i18n";
@@ -52,10 +53,11 @@ describe("PrWalkthroughSetting", () => {
 
   it("saves the agent, then the switch", async () => {
     render();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Walkthrough agent" }));
     // Wait for the agent list before selecting: an option that is not rendered
     // yet cannot be chosen, and the select would silently stay empty.
-    await screen.findByRole("option", { name: "Reviewer" });
-    fireEvent.change(screen.getByLabelText("Walkthrough agent"), { target: { value: "agent-1" } });
+    await user.click(await screen.findByRole("option", { name: "Reviewer" }));
     expect(state.save).toHaveBeenLastCalledWith({ enabled: false, agent_id: "agent-1" }, expect.anything());
 
     const toggle = screen.getByLabelText("Generate walkthroughs");
