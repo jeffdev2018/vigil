@@ -930,6 +930,7 @@
   "live_peek": {
     "current_issue_label": "現在の作業",
     "no_current_issue": "課題なし",
+    "issue_load_error": "この課題を読み込めませんでした",
     "last_activity_label": "最終アクセス",
     "no_recent_activity": "最近のアクティビティなし",
     "failed_indicator": "失敗"

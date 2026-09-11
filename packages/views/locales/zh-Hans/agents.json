@@ -1037,6 +1037,7 @@
   "live_peek": {
     "current_issue_label": "正在处理",
     "no_current_issue": "暂无任务",
+    "issue_load_error": "无法加载该任务",
     "last_activity_label": "最近活动",
     "no_recent_activity": "暂无活动",
     "failed_indicator": "失败"

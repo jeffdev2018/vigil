@@ -1053,6 +1053,7 @@
   "live_peek": {
     "current_issue_label": "Actuellement sur",
     "no_current_issue": "Aucune issue",
+    "issue_load_error": "Impossible de charger cette issue",
     "last_activity_label": "Dernière activité",
     "no_recent_activity": "Aucune activité récente",
     "failed_indicator": "Échec"

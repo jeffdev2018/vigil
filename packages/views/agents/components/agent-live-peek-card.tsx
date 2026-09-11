@@ -178,10 +178,11 @@ function CurrentIssueRow({
   // Lazy issue detail — only enabled while the card is mounted AND we have
   // a running issue id. snapshot already gives us the id; this hook just
   // resolves the human identifier (MUL-123) + title.
-  const { data: issue } = useQuery({
+  const { data: issue, isError, refetch } = useQuery({
     ...issueDetailOptions(wsId, issueId ?? ""),
     enabled: !!issueId,
   });
+  const { t } = useT("agents");
 
   return (
     <div className="flex items-center gap-1.5">
@@ -196,6 +197,18 @@ function CurrentIssueRow({
             <span className="mr-1 font-mono text-micro">{issue.identifier}</span>
             <span>{issue.title}</span>
           </AppLink>
+        ) : isError ? (
+          // A failed detail fetch (deleted issue, transient 5xx) must not
+          // render as a permanent Skeleton — that told the user "still
+          // loading" forever with no way to know it had failed.
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="flex min-w-0 items-center gap-1 truncate text-destructive hover:underline"
+          >
+            <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{t(($) => $.live_peek.issue_load_error)}</span>
+          </button>
         ) : (
           <Skeleton className="h-3 w-24" />
         )

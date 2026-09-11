@@ -1053,6 +1053,7 @@
   "live_peek": {
     "current_issue_label": "Now on",
     "no_current_issue": "No issue",
+    "issue_load_error": "Couldn't load this issue",
     "last_activity_label": "Last seen",
     "no_recent_activity": "No recent activity",
     "failed_indicator": "Failed"
