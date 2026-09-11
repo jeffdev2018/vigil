@@ -1904,5 +1904,64 @@
       "cancel": "キャンセル",
       "confirm": "予約"
     }
+  },
+  "recurrence": {
+    "section": "繰り返し",
+    "empty": "この課題は一度きりです。",
+    "make_recurring": "繰り返しにする",
+    "edit": "編集",
+    "stop": "繰り返しを停止",
+    "active": "有効",
+    "paused": "停止中 — 次回の予定はありません。",
+    "next_runs": "次回の予定",
+    "next_on": "次回は {{when}}",
+    "in_time": "{{countdown}} 後",
+    "series": "生成された課題",
+    "source": "元の課題",
+    "part_of_series": "シリーズ {{identifier}} の一部",
+    "occurrence_created": "作成 {{when}}",
+    "occurrence_due": "期限 {{when}}",
+    "saved": "繰り返しを保存しました",
+    "save_failed": "繰り返しを保存できませんでした",
+    "stopped": "繰り返しを停止しました",
+    "stop_failed": "繰り返しを停止できませんでした",
+    "forbidden": "繰り返しを変更できるのはメンバーのみです。",
+    "sentence": {
+      "daily": "毎日 {{time}}（{{tz}}）",
+      "weekdays": "平日 {{time}}（{{tz}}）",
+      "weekly": "毎週{{weekday}} {{time}}（{{tz}}）",
+      "monthly": "毎月 {{day}} 日 {{time}}（{{tz}}）",
+      "custom": "カスタム（{{cron}}）",
+      "on_close": "現在の課題が完了したとき"
+    },
+    "dialog": {
+      "title": "繰り返し",
+      "description": "選んだ間隔で、この課題から新しい課題が作成されます。",
+      "preset": {
+        "daily": "毎日",
+        "weekdays": "平日",
+        "weekly": "毎週",
+        "monthly": "毎月",
+        "custom": "カスタム cron",
+        "on_close": "現在の課題が完了したとき"
+      },
+      "time_label": "時刻",
+      "weekday_label": "曜日",
+      "day_label": "日",
+      "cron_label": "cron 式",
+      "timezone_label": "タイムゾーン",
+      "preview": "次回: {{runs}}",
+      "preview_empty": "この式は実行されません。",
+      "preview_unreadable": "この式をプレビューできませんでした。",
+      "enabled_label": "有効",
+      "cancel": "キャンセル",
+      "confirm": "保存"
+    },
+    "stop_dialog": {
+      "title": "この繰り返しを停止しますか？",
+      "description": "新しい課題は作成されません。作成済みの課題はそのまま残ります。",
+      "keep": "続ける",
+      "confirm": "繰り返しを停止"
+    }
   }
 }

@@ -71,6 +71,7 @@ import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
 import { onBrainCaptureChanged, onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
 import { onFollowupChanged } from "../followups/ws-updaters";
+import { onIssueRecurrenceChanged } from "../recurrence/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -1253,6 +1254,10 @@ export function useRealtimeSync(
       // followup:changed needs its issue_id to refresh that issue's list, and
       // the prefix path hands handlers no payload — specific route below.
       "followup:changed",
+      // issue_recurrence:changed carries no issue payload to merge and its
+      // "issue_recurrence" prefix has no refreshMap entry, so the prefix path
+      // would drop it silently — specific route below.
+      "issue_recurrence:changed",
       // cross_review:rework / escalated raise a notice signal in addition to
       // the invalidation, so they skip the prefix path to avoid handling the
       // same frame twice.
@@ -1279,6 +1284,14 @@ export function useRealtimeSync(
       // types the frame, it does not narrow the callback.
       const payload = p as Partial<FollowupChangedPayload> | undefined;
       onFollowupChanged(qc, wsId, typeof payload?.issue_id === "string" ? payload.issue_id : undefined);
+    });
+
+    // The rule is shared by the series, so this refetches the workspace's
+    // recurrence entries rather than the one issue the frame names.
+    const unsubIssueRecurrence = ws.on("issue_recurrence:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      onIssueRecurrenceChanged(qc, wsId);
     });
 
     const unsubBrainCapture = ws.on("brain_capture:changed", (p) => {
@@ -2233,6 +2246,7 @@ export function useRealtimeSync(
       unsubPackChanged();
       unsubBrainCapture();
       unsubFollowup();
+      unsubIssueRecurrence();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

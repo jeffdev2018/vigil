@@ -1948,5 +1948,64 @@
       "cancel": "Cancel",
       "confirm": "Schedule"
     }
+  },
+  "recurrence": {
+    "section": "Recurrence",
+    "empty": "This issue happens once.",
+    "make_recurring": "Make it recurring",
+    "edit": "Edit",
+    "stop": "Stop recurring",
+    "active": "Active",
+    "paused": "Paused — no next run.",
+    "next_runs": "Next runs",
+    "next_on": "next on {{when}}",
+    "in_time": "in {{countdown}}",
+    "series": "Occurrences",
+    "source": "Source",
+    "part_of_series": "Part of the series {{identifier}}",
+    "occurrence_created": "created {{when}}",
+    "occurrence_due": "due {{when}}",
+    "saved": "Recurrence saved",
+    "save_failed": "Could not save the recurrence",
+    "stopped": "Recurrence stopped",
+    "stop_failed": "Could not stop the recurrence",
+    "forbidden": "Only a member can change a recurrence.",
+    "sentence": {
+      "daily": "Every day at {{time}} ({{tz}})",
+      "weekdays": "Every weekday at {{time}} ({{tz}})",
+      "weekly": "Every {{weekday}} at {{time}} ({{tz}})",
+      "monthly": "Every month on day {{day}} at {{time}} ({{tz}})",
+      "custom": "Custom ({{cron}})",
+      "on_close": "When the current one is closed"
+    },
+    "dialog": {
+      "title": "Recurrence",
+      "description": "A new issue is raised from this one on the rhythm you pick.",
+      "preset": {
+        "daily": "Every day at",
+        "weekdays": "Weekdays",
+        "weekly": "Every week on",
+        "monthly": "Every month on the",
+        "custom": "Custom cron",
+        "on_close": "When the current one is closed"
+      },
+      "time_label": "Time",
+      "weekday_label": "Day of the week",
+      "day_label": "Day of the month",
+      "cron_label": "Cron expression",
+      "timezone_label": "Timezone",
+      "preview": "Next: {{runs}}",
+      "preview_empty": "This expression never fires.",
+      "preview_unreadable": "Could not preview this expression.",
+      "enabled_label": "Active",
+      "cancel": "Cancel",
+      "confirm": "Save"
+    },
+    "stop_dialog": {
+      "title": "Stop this recurrence?",
+      "description": "No new issue will be raised. The ones already created stay.",
+      "keep": "Keep it",
+      "confirm": "Stop recurring"
+    }
   }
 }

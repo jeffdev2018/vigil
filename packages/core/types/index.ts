@@ -209,6 +209,14 @@ export type {
   IssueFollowupsResponse,
   ScheduleFollowupInput,
 } from "./followup";
+export type {
+  IssueRecurrence,
+  IssueRecurrenceMode,
+  IssueRecurrenceOccurrence,
+  IssueRecurrenceResponse,
+  IssueRecurrenceSource,
+  SetIssueRecurrenceInput,
+} from "./recurrence";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";

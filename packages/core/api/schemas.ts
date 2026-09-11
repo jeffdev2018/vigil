@@ -8149,6 +8149,54 @@ export const EMPTY_FOLLOWUP: Followup = Object.freeze({
   created_at: "",
 }) as Followup;
 
+// Recurring issues (OS plan, table stakes): the rule of the series this issue
+// belongs to, plus the series itself. Server source of truth:
+// server/internal/handler/issue_recurrence.go.
+//
+// `mode` and `created_by_type` stay open strings — an added actor kind or mode
+// must degrade in the switch, not drop the rule.
+export const IssueRecurrenceSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  cron_expression: z.string().default(""),
+  timezone: z.string().default("UTC"),
+  mode: z.string().default("schedule"),
+  enabled: z.boolean().default(true),
+  next_run_at: z.string().nullish().transform((v) => v ?? null),
+  last_occurrence_id: z.string().nullish().transform((v) => v ?? null),
+  occurrence_count: z.number().catch(0).default(0),
+  created_by_type: z.string().default("member"),
+  created_by_id: z.string().nullish(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const IssueRecurrenceSourceSchema = z.object({
+  id: z.string().default(""),
+  identifier: z.string().default(""),
+  title: z.string().default(""),
+}).loose();
+
+export const IssueRecurrenceOccurrenceSchema = z.object({
+  id: z.string(),
+  identifier: z.string().default(""),
+  title: z.string().default(""),
+  status: z.string().default("todo"),
+  created_at: z.string().default(""),
+  due_date: z.string().nullish().transform((v) => v ?? null),
+}).loose();
+
+// No EMPTY_* fallback for this one: "no rule" is a real answer (the endpoint
+// 404s), so an unreadable body must degrade to `null` — the same nothing the
+// 404 produces — rather than to an invented rule with an empty cron, which the
+// block would render as "this issue recurs at «»".
+export const IssueRecurrenceResponseSchema = z.object({
+  recurrence: IssueRecurrenceSchema,
+  source: IssueRecurrenceSourceSchema.catch({ id: "", identifier: "", title: "" }),
+  occurrences: z.array(IssueRecurrenceOccurrenceSchema).catch([]).default([]),
+  next_runs: z.array(z.string()).catch([]).default([]),
+}).loose();
+
 // Autopilots from a sentence. `execution_mode` stays an open string: the
 // preview renders it through a defaulted switch, never an exhaustive one.
 export const AutopilotDraftSchema = z.object({

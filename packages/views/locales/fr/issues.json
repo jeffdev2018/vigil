@@ -1948,5 +1948,64 @@
       "cancel": "Annuler",
       "confirm": "Programmer"
     }
+  },
+  "recurrence": {
+    "section": "Récurrence",
+    "empty": "Ce ticket n'a lieu qu'une fois.",
+    "make_recurring": "Rendre récurrente",
+    "edit": "Modifier",
+    "stop": "Arrêter la récurrence",
+    "active": "Active",
+    "paused": "En pause — aucune prochaine occurrence.",
+    "next_runs": "Prochaines occurrences",
+    "next_on": "prochaine le {{when}}",
+    "in_time": "dans {{countdown}}",
+    "series": "Occurrences",
+    "source": "Source",
+    "part_of_series": "Fait partie de la série {{identifier}}",
+    "occurrence_created": "créée le {{when}}",
+    "occurrence_due": "échéance {{when}}",
+    "saved": "Récurrence enregistrée",
+    "save_failed": "Impossible d'enregistrer la récurrence",
+    "stopped": "Récurrence arrêtée",
+    "stop_failed": "Impossible d'arrêter la récurrence",
+    "forbidden": "Seul un membre peut modifier une récurrence.",
+    "sentence": {
+      "daily": "Chaque jour à {{time}} ({{tz}})",
+      "weekdays": "Chaque jour ouvré à {{time}} ({{tz}})",
+      "weekly": "Chaque {{weekday}} à {{time}} ({{tz}})",
+      "monthly": "Chaque mois le {{day}} à {{time}} ({{tz}})",
+      "custom": "Personnalisé ({{cron}})",
+      "on_close": "À la clôture de la précédente"
+    },
+    "dialog": {
+      "title": "Récurrence",
+      "description": "Un nouveau ticket est créé à partir de celui-ci au rythme choisi.",
+      "preset": {
+        "daily": "Chaque jour à",
+        "weekdays": "Jours ouvrés",
+        "weekly": "Chaque semaine le",
+        "monthly": "Chaque mois le",
+        "custom": "Cron personnalisé",
+        "on_close": "À la clôture"
+      },
+      "time_label": "Heure",
+      "weekday_label": "Jour de la semaine",
+      "day_label": "Jour du mois",
+      "cron_label": "Expression cron",
+      "timezone_label": "Fuseau horaire",
+      "preview": "Prochaines : {{runs}}",
+      "preview_empty": "Cette expression ne se déclenche jamais.",
+      "preview_unreadable": "Impossible de prévisualiser cette expression.",
+      "enabled_label": "Active",
+      "cancel": "Annuler",
+      "confirm": "Enregistrer"
+    },
+    "stop_dialog": {
+      "title": "Arrêter cette récurrence ?",
+      "description": "Aucun nouveau ticket ne sera créé. Ceux déjà créés restent.",
+      "keep": "La garder",
+      "confirm": "Arrêter la récurrence"
+    }
   }
 }
