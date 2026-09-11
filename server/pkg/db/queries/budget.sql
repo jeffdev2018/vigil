@@ -78,13 +78,18 @@ INSERT INTO budget_override (id, workspace_id, policy_id, granted_by, reason, ex
 VALUES (@id, @workspace_id, @policy_id, @granted_by, @reason, @expires_at)
 RETURNING *;
 
--- name: GetBudgetReservationByKey :one
+-- name: GetActiveBudgetReservationForTask :one
+-- One task holds at most one live reservation per policy, whatever the period.
+-- Keying the lookup on the period too let a task still queued across a period
+-- boundary be reserved a second time at claim, and settlement then charged its
+-- cost once per reservation. The admitted cost belongs to the period that
+-- admitted it.
 SELECT * FROM budget_reservation
 WHERE policy_id = @policy_id
-  AND period_start = @period_start
-  AND period_end = @period_end
-  AND idempotency_key = @idempotency_key
-  AND state <> 'released';
+  AND task_id = @task_id
+  AND state <> 'released'
+ORDER BY created_at
+LIMIT 1;
 
 -- name: CreateBudgetReservation :one
 INSERT INTO budget_reservation (
@@ -105,10 +110,14 @@ WHERE policy_id = @policy_id
   AND period_end = @period_end
 RETURNING *;
 
--- name: ListReservedBudgetReservationsByTask :many
+-- name: LockBudgetReservationsByTask :many
+-- Every reservation of a task, locked before its usage is read: settlement
+-- and a late usage report serialize on these rows, so whichever runs second
+-- sees the write of the other and prices the usage committed by then.
 SELECT * FROM budget_reservation
-WHERE task_id = @task_id AND state = 'reserved'
-ORDER BY policy_id;
+WHERE task_id = @task_id AND state IN ('reserved', 'consumed', 'released')
+ORDER BY policy_id, id
+FOR UPDATE;
 
 -- name: ConsumeBudgetReservation :one
 WITH locked AS (
@@ -148,6 +157,37 @@ WITH locked AS (
 )
 UPDATE budget_period AS period
 SET reserved_usd_ticks = GREATEST(0, reserved_usd_ticks - changed.estimate_usd_ticks),
+    updated_at = now()
+FROM changed
+WHERE period.policy_id = changed.policy_id
+  AND period.period_start = changed.period_start
+  AND period.period_end = changed.period_end
+RETURNING period.*;
+
+-- name: RechargeBudgetReservation :one
+-- Re-prices a reservation that was already finalized when more usage arrived:
+-- a daemon reports usage after a server-side cancel, a native run records it
+-- after its terminal write, a corrected report overwrites the tokens. The
+-- spend of the period moves by the difference, so repeating it is a no-op.
+WITH input AS (
+  SELECT @reservation_id::uuid AS reservation_id, @actual_usd_ticks::bigint AS actual_usd_ticks
+), locked AS (
+  SELECT reservation.*, input.actual_usd_ticks AS new_actual_usd_ticks
+  FROM budget_reservation AS reservation, input
+  WHERE reservation.id = input.reservation_id
+    AND reservation.state IN ('consumed', 'released')
+    AND reservation.actual_usd_ticks IS DISTINCT FROM input.actual_usd_ticks
+  FOR UPDATE OF reservation
+), changed AS (
+  UPDATE budget_reservation AS reservation
+  SET state = 'consumed', actual_usd_ticks = locked.new_actual_usd_ticks
+  FROM locked
+  WHERE reservation.id = locked.id
+  RETURNING locked.policy_id, locked.period_start, locked.period_end,
+            locked.new_actual_usd_ticks - COALESCE(locked.actual_usd_ticks, 0) AS delta_usd_ticks
+)
+UPDATE budget_period AS period
+SET spent_usd_ticks = GREATEST(0, period.spent_usd_ticks + changed.delta_usd_ticks),
     updated_at = now()
 FROM changed
 WHERE period.policy_id = changed.policy_id

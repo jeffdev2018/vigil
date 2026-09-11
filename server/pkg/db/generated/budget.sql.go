@@ -314,6 +314,44 @@ func (q *Queries) GetActiveBudgetOverride(ctx context.Context, arg GetActiveBudg
 	return i, err
 }
 
+const getActiveBudgetReservationForTask = `-- name: GetActiveBudgetReservationForTask :one
+SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
+WHERE policy_id = $1
+  AND task_id = $2
+  AND state <> 'released'
+ORDER BY created_at
+LIMIT 1
+`
+
+type GetActiveBudgetReservationForTaskParams struct {
+	PolicyID pgtype.UUID `json:"policy_id"`
+	TaskID   pgtype.UUID `json:"task_id"`
+}
+
+// One task holds at most one live reservation per policy, whatever the period.
+// Keying the lookup on the period too let a task still queued across a period
+// boundary be reserved a second time at claim, and settlement then charged its
+// cost once per reservation. The admitted cost belongs to the period that
+// admitted it.
+func (q *Queries) GetActiveBudgetReservationForTask(ctx context.Context, arg GetActiveBudgetReservationForTaskParams) (BudgetReservation, error) {
+	row := q.db.QueryRow(ctx, getActiveBudgetReservationForTask, arg.PolicyID, arg.TaskID)
+	var i BudgetReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.TaskID,
+		&i.EstimateUsdTicks,
+		&i.ActualUsdTicks,
+		&i.State,
+		&i.IdempotencyKey,
+		&i.CreatedAt,
+		&i.FinalizedAt,
+	)
+	return i, err
+}
+
 const getBudgetPeriod = `-- name: GetBudgetPeriod :one
 SELECT policy_id, period_start, period_end, spent_usd_ticks, reserved_usd_ticks, warn_notified_at, block_notified_at, created_at, updated_at FROM budget_period
 WHERE policy_id = $1
@@ -370,46 +408,6 @@ func (q *Queries) GetBudgetPolicyInWorkspace(ctx context.Context, arg GetBudgetP
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getBudgetReservationByKey = `-- name: GetBudgetReservationByKey :one
-SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
-WHERE policy_id = $1
-  AND period_start = $2
-  AND period_end = $3
-  AND idempotency_key = $4
-  AND state <> 'released'
-`
-
-type GetBudgetReservationByKeyParams struct {
-	PolicyID       pgtype.UUID        `json:"policy_id"`
-	PeriodStart    pgtype.Timestamptz `json:"period_start"`
-	PeriodEnd      pgtype.Timestamptz `json:"period_end"`
-	IdempotencyKey string             `json:"idempotency_key"`
-}
-
-func (q *Queries) GetBudgetReservationByKey(ctx context.Context, arg GetBudgetReservationByKeyParams) (BudgetReservation, error) {
-	row := q.db.QueryRow(ctx, getBudgetReservationByKey,
-		arg.PolicyID,
-		arg.PeriodStart,
-		arg.PeriodEnd,
-		arg.IdempotencyKey,
-	)
-	var i BudgetReservation
-	err := row.Scan(
-		&i.ID,
-		&i.PolicyID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.TaskID,
-		&i.EstimateUsdTicks,
-		&i.ActualUsdTicks,
-		&i.State,
-		&i.IdempotencyKey,
-		&i.CreatedAt,
-		&i.FinalizedAt,
 	)
 	return i, err
 }
@@ -913,44 +911,6 @@ func (q *Queries) ListRecoverableBudgetReservations(ctx context.Context, arg Lis
 	return items, nil
 }
 
-const listReservedBudgetReservationsByTask = `-- name: ListReservedBudgetReservationsByTask :many
-SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
-WHERE task_id = $1 AND state = 'reserved'
-ORDER BY policy_id
-`
-
-func (q *Queries) ListReservedBudgetReservationsByTask(ctx context.Context, taskID pgtype.UUID) ([]BudgetReservation, error) {
-	rows, err := q.db.Query(ctx, listReservedBudgetReservationsByTask, taskID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []BudgetReservation{}
-	for rows.Next() {
-		var i BudgetReservation
-		if err := rows.Scan(
-			&i.ID,
-			&i.PolicyID,
-			&i.PeriodStart,
-			&i.PeriodEnd,
-			&i.TaskID,
-			&i.EstimateUsdTicks,
-			&i.ActualUsdTicks,
-			&i.State,
-			&i.IdempotencyKey,
-			&i.CreatedAt,
-			&i.FinalizedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskUsageForBudget = `-- name: ListTaskUsageForBudget :many
 SELECT task_id, provider, model, input_tokens, output_tokens,
        cache_read_tokens, cache_write_tokens, cost_usd_ticks
@@ -988,6 +948,48 @@ func (q *Queries) ListTaskUsageForBudget(ctx context.Context, taskID pgtype.UUID
 			&i.CacheReadTokens,
 			&i.CacheWriteTokens,
 			&i.CostUsdTicks,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockBudgetReservationsByTask = `-- name: LockBudgetReservationsByTask :many
+SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
+WHERE task_id = $1 AND state IN ('reserved', 'consumed', 'released')
+ORDER BY policy_id, id
+FOR UPDATE
+`
+
+// Every reservation of a task, locked before its usage is read: settlement
+// and a late usage report serialize on these rows, so whichever runs second
+// sees the write of the other and prices the usage committed by then.
+func (q *Queries) LockBudgetReservationsByTask(ctx context.Context, taskID pgtype.UUID) ([]BudgetReservation, error) {
+	rows, err := q.db.Query(ctx, lockBudgetReservationsByTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BudgetReservation{}
+	for rows.Next() {
+		var i BudgetReservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.TaskID,
+			&i.EstimateUsdTicks,
+			&i.ActualUsdTicks,
+			&i.State,
+			&i.IdempotencyKey,
+			&i.CreatedAt,
+			&i.FinalizedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1050,6 +1052,60 @@ type MarkBudgetWarnNotifiedParams struct {
 
 func (q *Queries) MarkBudgetWarnNotified(ctx context.Context, arg MarkBudgetWarnNotifiedParams) (BudgetPeriod, error) {
 	row := q.db.QueryRow(ctx, markBudgetWarnNotified, arg.PolicyID, arg.PeriodStart, arg.PeriodEnd)
+	var i BudgetPeriod
+	err := row.Scan(
+		&i.PolicyID,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.SpentUsdTicks,
+		&i.ReservedUsdTicks,
+		&i.WarnNotifiedAt,
+		&i.BlockNotifiedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const rechargeBudgetReservation = `-- name: RechargeBudgetReservation :one
+WITH input AS (
+  SELECT $1::uuid AS reservation_id, $2::bigint AS actual_usd_ticks
+), locked AS (
+  SELECT reservation.id, reservation.policy_id, reservation.period_start, reservation.period_end, reservation.task_id, reservation.estimate_usd_ticks, reservation.actual_usd_ticks, reservation.state, reservation.idempotency_key, reservation.created_at, reservation.finalized_at, input.actual_usd_ticks AS new_actual_usd_ticks
+  FROM budget_reservation AS reservation, input
+  WHERE reservation.id = input.reservation_id
+    AND reservation.state IN ('consumed', 'released')
+    AND reservation.actual_usd_ticks IS DISTINCT FROM input.actual_usd_ticks
+  FOR UPDATE OF reservation
+), changed AS (
+  UPDATE budget_reservation AS reservation
+  SET state = 'consumed', actual_usd_ticks = locked.new_actual_usd_ticks
+  FROM locked
+  WHERE reservation.id = locked.id
+  RETURNING locked.policy_id, locked.period_start, locked.period_end,
+            locked.new_actual_usd_ticks - COALESCE(locked.actual_usd_ticks, 0) AS delta_usd_ticks
+)
+UPDATE budget_period AS period
+SET spent_usd_ticks = GREATEST(0, period.spent_usd_ticks + changed.delta_usd_ticks),
+    updated_at = now()
+FROM changed
+WHERE period.policy_id = changed.policy_id
+  AND period.period_start = changed.period_start
+  AND period.period_end = changed.period_end
+RETURNING period.policy_id, period.period_start, period.period_end, period.spent_usd_ticks, period.reserved_usd_ticks, period.warn_notified_at, period.block_notified_at, period.created_at, period.updated_at
+`
+
+type RechargeBudgetReservationParams struct {
+	ReservationID  pgtype.UUID `json:"reservation_id"`
+	ActualUsdTicks int64       `json:"actual_usd_ticks"`
+}
+
+// Re-prices a reservation that was already finalized when more usage arrived:
+// a daemon reports usage after a server-side cancel, a native run records it
+// after its terminal write, a corrected report overwrites the tokens. The
+// spend of the period moves by the difference, so repeating it is a no-op.
+func (q *Queries) RechargeBudgetReservation(ctx context.Context, arg RechargeBudgetReservationParams) (BudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, rechargeBudgetReservation, arg.ReservationID, arg.ActualUsdTicks)
 	var i BudgetPeriod
 	err := row.Scan(
 		&i.PolicyID,

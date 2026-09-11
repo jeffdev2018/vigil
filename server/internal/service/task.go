@@ -7853,26 +7853,36 @@ func (s *TaskService) broadcastTaskEvent(ctx context.Context, eventType string, 
 }
 
 func (s *TaskService) settleBudgetAfterTerminal(ctx context.Context, eventType string, task db.AgentTaskQueue) {
+	switch eventType {
+	case protocol.EventTaskCompleted, protocol.EventTaskCancelled, protocol.EventTaskFailed:
+		s.settleTaskBudget(ctx, task.ID, true, eventType == protocol.EventTaskCompleted)
+	}
+}
+
+// SettleBudgetAfterUsageReport charges usage that reached task_usage after
+// the run's reservations were settled. Every writer of task_usage calls it
+// once its rows are committed; while the run is still live it changes nothing.
+func (s *TaskService) SettleBudgetAfterUsageReport(ctx context.Context, taskID pgtype.UUID) {
+	s.settleTaskBudget(ctx, taskID, false, false)
+}
+
+func (s *TaskService) settleTaskBudget(ctx context.Context, taskID pgtype.UUID, terminal, completed bool) {
 	if s.Budget == nil {
 		return
 	}
-	consume := false
-	switch eventType {
-	case protocol.EventTaskCompleted:
-		consume = true
-	case protocol.EventTaskCancelled, protocol.EventTaskFailed:
-	default:
-		return
-	}
-	changed, err := s.Budget.settleOne(ctx, task.ID, consume)
+	changed, err := s.Budget.settleOne(ctx, taskID, terminal, completed)
 	if err != nil {
-		slog.Warn("budget settlement deferred to reconciliation", "task_id", util.UUIDToString(task.ID), "error", err)
+		if terminal {
+			slog.Warn("budget settlement deferred to reconciliation", "task_id", util.UUIDToString(taskID), "error", err)
+		} else {
+			slog.Warn("budget settlement of late usage failed", "task_id", util.UUIDToString(taskID), "error", err)
+		}
 		return
 	}
 	if !changed {
 		return
 	}
-	if scope, err := s.Queries.GetTaskBudgetScope(ctx, task.ID); err == nil {
+	if scope, err := s.Queries.GetTaskBudgetScope(ctx, taskID); err == nil {
 		s.Budget.NotifyBudgetChange(ctx, scope.WorkspaceID)
 	}
 }

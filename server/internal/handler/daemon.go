@@ -5172,6 +5172,9 @@ func (h *Handler) ReportTaskUsage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Budgets: a report that arrives after the run was settled (a server-side
+	// cancel, a corrected report) still reaches the period's spend.
+	h.TaskService.SettleBudgetAfterUsageReport(r.Context(), task.ID)
 	// Run limits (K03): fresh usage may cross a cap.
 	h.TaskService.EvaluateRunLimits(r.Context(), task)
 	// CI auto-fix (K49): a correction run has its own budget.
