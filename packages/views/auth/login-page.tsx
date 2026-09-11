@@ -24,6 +24,7 @@ import { workspaceKeys } from "@multica/core/workspace/queries";
 import { api } from "@multica/core/api";
 import type { User } from "@multica/core/types";
 import { useT } from "../i18n";
+import { clearSessionResume, readSessionResume, saveSessionResume } from "../common/session-resume";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,6 +113,27 @@ export function ssoRequiredSlug(err: unknown): string | null {
   return typeof workspace_slug === "string" ? workspace_slug : "";
 }
 
+// A sent code stays usable this long (server: auth.go, verification code
+// expiry), so a reload inside that window resumes on the code step.
+const PENDING_CODE_KEY = "multica_login_pending_code";
+const PENDING_CODE_TTL_MS = 10 * 60 * 1000;
+const RESEND_COOLDOWN_S = 60;
+
+interface PendingCode {
+  email: string;
+  sentAt: number;
+}
+
+function isPendingCode(value: unknown): value is PendingCode {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<PendingCode>;
+  return typeof v.email === "string" && v.email.length > 0 && typeof v.sentAt === "number";
+}
+
+function rememberPendingCode(email: string) {
+  saveSessionResume(PENDING_CODE_KEY, { email, sentAt: Date.now() } satisfies PendingCode, PENDING_CODE_TTL_MS);
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -188,6 +210,18 @@ export function LoginPage({
       });
   }, [cliCallback]);
 
+  // Resume the code step after a reload: the emailed code is still valid, and
+  // asking for a new one would sit behind the resend cooldown. The CLI flow
+  // decides its own step from the existing session.
+  useEffect(() => {
+    if (cliCallback) return;
+    const pending = readSessionResume(PENDING_CODE_KEY, isPendingCode);
+    if (!pending) return;
+    setEmail(pending.email);
+    setStep("code");
+    setCooldown(Math.max(0, RESEND_COOLDOWN_S - Math.floor((Date.now() - pending.sentAt) / 1000)));
+  }, [cliCallback]);
+
   // Cooldown timer for resend
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -206,9 +240,10 @@ export function LoginPage({
       setError("");
       try {
         await useAuthStore.getState().sendCode(email);
+        rememberPendingCode(email);
         setStep("code");
         setCode("");
-        setCooldown(60);
+        setCooldown(RESEND_COOLDOWN_S);
       } catch (err) {
         setError(
           err instanceof Error
@@ -231,6 +266,7 @@ export function LoginPage({
         if (cliCallback) {
           // CLI path: get token directly for the redirect URL
           const { token } = await api.verifyCode(email, value);
+          clearSessionResume(PENDING_CODE_KEY);
           localStorage.setItem("multica_token", token);
           api.setToken(token);
           onTokenObtained?.();
@@ -243,6 +279,7 @@ export function LoginPage({
         // URL (first workspace's slug, or /workspaces/new for zero-workspace
         // users).
         await useAuthStore.getState().verifyCode(email, value);
+        clearSessionResume(PENDING_CODE_KEY);
         const wsList = await api.listWorkspaces();
         qc.setQueryData(workspaceKeys.list(), wsList);
         onTokenObtained?.();
@@ -272,7 +309,8 @@ export function LoginPage({
     setError("");
     try {
       await useAuthStore.getState().sendCode(email);
-      setCooldown(60);
+      rememberPendingCode(email);
+      setCooldown(RESEND_COOLDOWN_S);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : t(($) => $.errors.resend_failed),
@@ -534,6 +572,7 @@ export function LoginPage({
               variant="ghost"
               className="w-full"
               onClick={() => {
+                clearSessionResume(PENDING_CODE_KEY);
                 setStep("email");
                 setCode("");
                 setError("");

@@ -85,6 +85,32 @@ describe("ProjectMembersSection", () => {
     expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "user-2", role: null }, expect.anything());
   });
 
+  it("keeps the role select for a workspace owner who restricted their own project role", async () => {
+    // Regression: the owner lowered themselves to viewer; the server still
+    // lets a workspace owner manage roles, so the UI must not hide the way back.
+    state.role = "owner";
+    state.members = [member({ subject_id: "member-1", name: "Me", workspace_role: "owner", ceiling: "admin", effective_role: "viewer", source: "override", override: "viewer" })];
+    render();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    await user.click(await screen.findByRole("option", { name: "Inherit (Admin)" }));
+    expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "member-1", role: null }, expect.anything());
+  });
+
+  it("reports a refused change in the user's language, not the raw server message", async () => {
+    const { toast } = await import("sonner");
+    state.role = "admin";
+    state.members = [member({})];
+    state.set.mockImplementation((_vars: unknown, opts: { onError: (e: Error) => void }) =>
+      opts.onError(new Error("your project role (contributor) does not allow this")),
+    );
+    render();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    await user.click(await screen.findByRole("option", { name: "Viewer" }));
+    expect(toast.error).toHaveBeenLastCalledWith("Failed to update the role");
+  });
+
   it("labels agents", () => {
     state.members = [member({ subject_type: "agent", subject_id: "agent-1", name: "Reviewer", email: undefined })];
     render();

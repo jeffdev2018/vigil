@@ -118,6 +118,23 @@ describe("getInboxNavigationTarget", () => {
   });
 });
 
+describe("getInboxNavigationTarget for issue-less notifications", () => {
+  // Regression (audit): tapping an "Organisation alert" only marked it read.
+  // Web opens every issue-less notification in its detail pane
+  // (packages/views/inbox/components/inbox-page.tsx); mobile opens the sheet.
+  it.each(["org_alert", "mcp_alert", "budget_warning", "confidence_review"] as const)(
+    "opens %s in the notification sheet",
+    (type) => {
+      expect(
+        getInboxNavigationTarget(item({ issue_id: null, type }), "acme", "history-1"),
+      ).toEqual({
+        pathname: "/[workspace]/inbox/[id]",
+        params: { workspace: "acme", id: "inbox-1" },
+      });
+    },
+  );
+});
+
 describe("getAutopilotQuotaBody", () => {
   it("formats the machine reset timestamp for the device locale", () => {
     const body = getAutopilotQuotaBody(

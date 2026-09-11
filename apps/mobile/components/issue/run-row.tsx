@@ -8,7 +8,8 @@
  *
  * Tapping a running or finished row opens the read-only run replay
  * (`issue/[id]/replay/[taskId]`, k70). Queued / waiting rows have no event
- * log yet, so they stay inert.
+ * log yet: on the fleet screen they open their issue, in the per-issue sheet
+ * they stay inert (see `runRowTapTarget`).
  *
  * Fleet-only props (`agentName`, `issueRef`, `costUsdTicks`, `blockedOn`,
  * `onPressBlocker`, `silent`, `onCancel`) are all optional and undefined in the
@@ -27,7 +28,7 @@ import { useCancelTask } from "@/data/mutations/issues";
 import type { RunBlocker } from "@/data/schemas";
 import { useActorLookup } from "@/data/use-actor-name";
 import { useWorkspaceStore } from "@/data/workspace-store";
-import { blockerLabel, formatRunCost, runSummaryText } from "@/lib/runs-display";
+import { blockerLabel, formatRunCost, runRowTapTarget, runSummaryText } from "@/lib/runs-display";
 import { runFailureBadgeLabel } from "@/lib/run-failure-badge";
 import { timeAgo } from "@/lib/time-ago";
 
@@ -69,13 +70,6 @@ const ACTIVE_STATUSES: readonly AgentTask["status"][] = [
   "paused",
 ];
 
-const REPLAYABLE_STATUSES: readonly AgentTask["status"][] = [
-  "running",
-  "completed",
-  "failed",
-  "cancelled",
-];
-
 export function RunRow({
   task,
   issueId,
@@ -90,12 +84,23 @@ export function RunRow({
   const { getName } = useActorLookup();
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
   const isActive = ACTIVE_STATUSES.includes(task.status);
-  const canReplay = REPLAYABLE_STATUSES.includes(task.status);
-  const openReplay = () => {
-    if (!wsSlug) return;
+  // `issueRef` is only passed by the fleet screen (null when the run has no
+  // issue row), so its presence is what tells the two callers apart.
+  const rawTarget = runRowTapTarget(task.status, { inFleet: issueRef !== undefined });
+  const tapTarget = rawTarget === "issue" && !issueId ? null : rawTarget;
+  const canReplay = tapTarget === "replay";
+  const onPressRow = () => {
+    if (!wsSlug || !tapTarget) return;
+    if (tapTarget === "replay") {
+      router.push({
+        pathname: "/[workspace]/issue/[id]/replay/[taskId]",
+        params: { workspace: wsSlug, id: issueId, taskId: task.id },
+      });
+      return;
+    }
     router.push({
-      pathname: "/[workspace]/issue/[id]/replay/[taskId]",
-      params: { workspace: wsSlug, id: issueId, taskId: task.id },
+      pathname: "/[workspace]/issue/[id]",
+      params: { workspace: wsSlug, id: issueId },
     });
   };
   // Mention markdown renders as its label ("@Analyst"), never as raw link syntax.
@@ -110,14 +115,14 @@ export function RunRow({
 
   return (
     <Pressable
-      onPress={canReplay ? openReplay : undefined}
+      onPress={tapTarget ? onPressRow : undefined}
       // Long-press-to-cancel is a fleet-only affordance (the Runs screen's
       // rows aren't already sitting next to a visible Cancel button the
       // way a picker sheet's are) — only wired when the caller passed
       // `onCancel`. The per-issue sheet keeps its existing tap-the-button
       // path unchanged.
       onLongPress={isActive && onCancel ? () => confirmCancel(task.id, onCancel) : undefined}
-      disabled={!canReplay && !isActive}
+      disabled={!tapTarget && !isActive}
       className="flex-row items-start gap-3 py-2 -mx-2 px-2 rounded-lg active:bg-secondary"
     >
       <ActorAvatar type="agent" id={task.agent_id} size={28} showPresence />

@@ -563,7 +563,7 @@ func (h *Handler) brainCaptureCandidates(ctx context.Context, c db.BrainCapture)
 	if strings.TrimSpace(query) == "" {
 		return nil
 	}
-	rows, err := h.searchWorkspaceNotes(ctx, wsSearch{wsUUID: c.WorkspaceID, query: query, limit: brainCaptureSuggestMaxNotes})
+	rows, err := h.searchWorkspaceNotes(ctx, wsSearch{wsUUID: c.WorkspaceID, query: query, limit: brainCaptureSuggestMaxNotes, neighbours: true})
 	if err != nil {
 		return nil
 	}
@@ -874,12 +874,15 @@ type wsSearch struct {
 	tag             string
 	includeArchived bool
 	limit           int32
+	// neighbours admits notes only the vector leg finds: merge candidates a
+	// model judges. A search a person reads needs a lexical match.
+	neighbours bool
 }
 
 // searchWorkspaceNotes runs the fused search, with the query embedded when
 // a provider is configured.
 func (h *Handler) searchWorkspaceNotes(ctx context.Context, s wsSearch) ([]db.SearchWorkspaceNotesRow, error) {
-	params := db.SearchWorkspaceNotesParams{WorkspaceID: s.wsUUID, Query: s.query, IncludeArchived: s.includeArchived, Prefilter: 60, TopK: s.limit}
+	params := db.SearchWorkspaceNotesParams{WorkspaceID: s.wsUUID, Query: s.query, IncludeArchived: s.includeArchived, Prefilter: 60, TopK: s.limit, VectorOnlyHits: s.neighbours}
 	if s.tag != "" {
 		params.Tag = pgtype.Text{String: s.tag, Valid: true}
 	}

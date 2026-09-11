@@ -148,6 +148,8 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useRecentContextStore } from "@multica/core/chat";
 import { useModalStore } from "@multica/core/modals";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { issueListOptions, issueDetailOptions, childIssuesOptions, childIssueProgressOptions, issueAttachmentsOptions } from "@multica/core/issues/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
@@ -1449,7 +1451,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Issue data from TQ — uses detail query, seeded from list cache if available.
   // Only seed when description is present; the list API omits it, so a partial
   // list row must not masquerade as a hydrated issue detail.
-  const { data: issue = null, isLoading: issueLoading, refetch: refetchIssue } = useQuery({
+  const { data: issue = null, isLoading: issueLoading, error: issueError, refetch: refetchIssue } = useQuery({
     ...issueDetailOptions(wsId, id),
     // List rows and issue-created realtime payloads intentionally omit the
     // detail-only source-context snapshot. They can still seed this query via
@@ -2373,6 +2375,16 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   }
 
   if (!issue) {
+    if (issueError && !isResourceMissingError(issueError)) {
+      return (
+        <div className="flex flex-1 min-h-0 flex-col">
+          {leadingAction && (
+            <div className={cn("flex h-12 shrink-0 items-center gap-2 border-b", PAGE_GUTTER)}>{leadingAction}</div>
+          )}
+          <LoadErrorState onRetry={() => void refetchIssue()} />
+        </div>
+      );
+    }
     return <IssueNotFound showBackLink={!onDelete} leading={leadingAction} />;
   }
 

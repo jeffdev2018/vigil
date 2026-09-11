@@ -103,7 +103,7 @@ The query understands a little syntax:
 - `-word` — exclude notes containing it.
 - `a OR b` — either.
 
-Two rankers are fused. The first is lexical, over title and body. The second is semantic: if the workspace has an embeddings model configured (`MULTICA_LLM_EMBEDDING_MODEL`), every note also carries a vector, and a note that words the same fact differently still surfaces — the search UI marks those results **semantic**. Without that model the search is purely lexical and says so.
+Two rankers are fused. The first is lexical, over title and body. The second is semantic: if the workspace has an embeddings model configured (`MULTICA_LLM_EMBEDDING_MODEL`), every note also carries a vector, and the notes that match the query's words are ordered by meaning as well — the search UI marks that ranking **semantic**. A note must still share a word with the query to appear: nearest vectors alone always exist, even for a query nothing answers. Without that model the search is purely lexical and says so.
 
 Vectors are written when a note is saved or edited. A background pass every ten minutes catches up to 200 notes whose vector is missing, stale or from another model, which is what makes search whole again after an outage or a model change. Nothing has to be re-imported by hand.
 

@@ -34,7 +34,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@multica/ui
 import { CappedNumberFlow } from "@multica/ui/components/ui/number-flow";
 import { StatusIcon } from "../issues/components/status-icon";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
-import { openCreateIssueWithPreference } from "@multica/core/issues/stores/create-mode-store";
+import { useOpenContextualCreateIssue } from "../issues/hooks/use-open-contextual-create-issue";
 import {
   Sidebar,
   SidebarContent,
@@ -517,6 +517,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   }, [pathname, setOpenMobile]);
 
   const wsId = workspace?.id;
+  const openCreateIssue = useOpenContextualCreateIssue();
   const { data: inboxItems = EMPTY_INBOX } = useQuery({
     queryKey: wsId ? inboxKeys.list(wsId) : ["inbox", "disabled"],
     queryFn: () => api.listInbox(),
@@ -852,7 +853,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             <SidebarMenuItem>
               <SidebarMenuButton
                 className="text-muted-foreground"
-                onClick={() => openCreateIssueWithPreference()}
+                onClick={openCreateIssue}
               >
                 <span className="relative">
                   <SquarePen />

@@ -132,16 +132,13 @@ export function getInboxNavigationTarget(
       },
     };
   }
-  if (
-    item.type === "autopilot_quota_exceeded" ||
-    item.type === "autopilot_paused"
-  ) {
-    return {
-      pathname: "/[workspace]/inbox/[id]" as const,
-      params: { workspace, id: item.id },
-    };
-  }
-  return null;
+  // Every other issue-less notification opens its sheet: web shows each one
+  // in the inbox detail pane (title, type, body — packages/views/inbox/
+  // components/inbox-page.tsx). Returning null here made the tap a dead end.
+  return {
+    pathname: "/[workspace]/inbox/[id]" as const,
+    params: { workspace, id: item.id },
+  };
 }
 
 /**

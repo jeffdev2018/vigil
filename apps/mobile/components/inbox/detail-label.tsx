@@ -90,6 +90,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   residency_policy_blocked: "Blocked by data residency",
   linear_alert: "Linear is disconnected",
   decision_auto_decided: "Decided for you",
+  // Delivery confidence and run limits (audit: mobile showed the raw codes).
   confidence_review: "Delivery flagged for review",
   run_limit_warn: "Run nearing its limit",
   run_limit_exceeded: "Run over its limit",

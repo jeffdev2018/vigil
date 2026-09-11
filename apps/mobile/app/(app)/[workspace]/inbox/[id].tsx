@@ -163,11 +163,7 @@ export default function InboxNoticeDetail() {
         <View className="items-center justify-center py-16">
           <ActivityIndicator />
         </View>
-      ) : !item ||
-        (item.type !== "autopilot_quota_exceeded" &&
-          item.type !== "autopilot_paused" &&
-          !isApprovalNotice &&
-          !isCalendarNotice) ? (
+      ) : !item ? (
         <View className="px-4 py-8">
           <Text className="text-sm text-muted-foreground text-center">
             This notification is no longer available.
@@ -246,6 +242,17 @@ export default function InboxNoticeDetail() {
 
           {isQuotaNotice ? (
             <BillingRecovery recovery={recovery} billingUrl={billingUrl} />
+          ) : null}
+
+          {/* An organisation alert is about a structure; its screen is where
+              the reader acts on it. */}
+          {item.type === "org_alert" && wsSlug ? (
+            <Button
+              variant="outline"
+              onPress={() => router.push(`/${wsSlug}/more/org`)}
+            >
+              <Text>View organisation</Text>
+            </Button>
           ) : null}
         </View>
       )}

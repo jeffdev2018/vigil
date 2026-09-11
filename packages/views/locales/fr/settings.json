@@ -158,8 +158,9 @@
       "chinese": "中文",
       "korean": "한국어",
       "japanese": "日本語",
-      "sync_failed": "Langue enregistrée sur cet appareil, mais échec de la synchronisation avec votre compte. Les autres appareils peuvent afficher la langue précédente.",
-      "french": "Français"
+      "sync_failed": "Langue mise à jour sur cet appareil, mais elle n'a pas pu être enregistrée dans votre compte. Les nouveaux appareils risquent de démarrer dans l'ancienne langue.",
+      "french": "Français",
+      "applied": "Langue mise à jour sur cet appareil. Vos autres appareils gardent la leur."
     },
     "timezone": {
       "title": "Fuseau horaire d'affichage",

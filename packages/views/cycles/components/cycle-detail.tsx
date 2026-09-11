@@ -1,5 +1,7 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useMemo, useState } from "react";
 import { CalendarRange, ListTodo, Pencil, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -34,7 +36,7 @@ const errorMessage = (e: unknown, fallback: string) =>
 export function CycleDetail({ cycleId }: { cycleId: string }) {
   const { t } = useT("cycles");
   const wsId = useWorkspaceId();
-  const { data: cycle, isPending } = useQuery(cycleDetailOptions(wsId, cycleId));
+  const { data: cycle, isPending, error: cycleError, refetch: refetchCycle } = useQuery(cycleDetailOptions(wsId, cycleId));
   const { data: burndown } = useQuery(cycleBurndownOptions(wsId, cycleId));
   const closeCycle = useCloseCycle(wsId);
   const [formTarget, setFormTarget] = useState<CycleFormTarget | null>(null);
@@ -54,6 +56,9 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
         {t(($) => $.detail.loading)}
       </div>
     );
+  }
+  if (!cycle && cycleError && !isResourceMissingError(cycleError)) {
+    return <LoadErrorState onRetry={() => void refetchCycle()} />;
   }
   if (!cycle) {
     return (

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   recordVisit: vi.fn(),
   toastSuccess: vi.fn(),
+  projectQuery: null as null | { data: undefined; isLoading: false; error: unknown; refetch: () => void },
 }));
 
 vi.mock("@multica/ui/lib/clipboard", () => ({
@@ -30,7 +31,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   useQuery: (options: { queryKey?: readonly unknown[] }) => {
     switch (options.queryKey?.[0]) {
       case "project-detail":
-        return { data: PROJECT, isLoading: false };
+        return mocks.projectQuery ?? { data: PROJECT, isLoading: false };
       case "members":
         return {
           data: [{ user_id: "user-1", name: "User One", role: mocks.role }],
@@ -334,7 +335,7 @@ function renderProjectDetail() {
     getShareableUrl: mocks.getShareableUrl,
   };
 
-  renderWithI18n(
+  return renderWithI18n(
     <NavigationProvider value={adapter}>
       <ProjectDetail projectId={PROJECT.id} />
     </NavigationProvider>,
@@ -342,6 +343,7 @@ function renderProjectDetail() {
 }
 
 beforeEach(() => {
+  mocks.projectQuery = null;
   mocks.role = "admin";
   mocks.copyText.mockReset().mockResolvedValue(true);
   mocks.deleteProject.mockReset();
@@ -349,6 +351,25 @@ beforeEach(() => {
   mocks.push.mockReset();
   mocks.recordVisit.mockReset();
   mocks.toastSuccess.mockReset();
+});
+
+describe("ProjectDetail load failure", () => {
+  // Regression (audit): a detail page that got no answer said the entity did
+  // not exist. The helper's status matrix lives in core/api/load-error.test.ts.
+  it("offers a retry when the project could not be loaded, and not-found on a 404", async () => {
+    const refetch = vi.fn();
+    mocks.projectQuery = { data: undefined, isLoading: false, error: new TypeError("Failed to fetch"), refetch };
+    const { unmount } = renderProjectDetail();
+    expect(screen.getByText("Couldn't load this page")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+    unmount();
+
+    mocks.projectQuery = { data: undefined, isLoading: false, error: Object.assign(new Error("project not found"), { status: 404 }), refetch };
+    renderProjectDetail();
+    expect(screen.getByText("Project not found")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load this page")).not.toBeInTheDocument();
+  });
 });
 
 describe("ProjectDetail accessibility", () => {

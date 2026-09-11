@@ -1,5 +1,7 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { Check, ChevronRight, Link2, MoreHorizontal, PanelRight, Pin, PinOff, Trash2, UserMinus } from "lucide-react";
@@ -118,7 +120,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const wsPaths = useWorkspacePaths();
   const router = useNavigation();
   const userId = useAuthStore((s) => s.user?.id);
-  const { data: project, isLoading } = useQuery(projectDetailOptions(wsId, projectId));
+  const { data: project, isLoading, error: projectError, refetch: refetchProject } = useQuery(projectDetailOptions(wsId, projectId));
   const recordRecentContext = useRecentContextStore((s) => s.recordVisit);
   useEffect(() => {
     if (project) {
@@ -247,6 +249,10 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         <Skeleton className="h-40 w-full mt-8" />
       </div>
     );
+  }
+
+  if (!project && projectError && !isResourceMissingError(projectError)) {
+    return <LoadErrorState onRetry={() => void refetchProject()} />;
   }
 
   if (!project) {

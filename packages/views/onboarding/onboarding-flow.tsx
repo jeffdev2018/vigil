@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuthStore } from "@multica/core/auth";
 import {
@@ -23,6 +23,7 @@ import { StepPlatformFork } from "./steps/step-platform-fork";
 import { OnboardingLogoutButton } from "./components/onboarding-logout-button";
 import { getMikaOnboarding, pickContentLang } from "./templates";
 import { useT } from "../i18n";
+import { clearSessionResume, readSessionResume, saveSessionResume } from "../common/session-resume";
 
 const EMPTY_QUESTIONNAIRE: QuestionnaireAnswers = {
   source: [],
@@ -77,6 +78,24 @@ function mergeQuestionnaire(
     role_skipped: false,
     use_case_skipped: false,
   };
+}
+
+// The workspace this flow created (or chose), kept for this tab so a reload
+// after that point resumes on the runtime step instead of reopening an empty
+// naming form that would create a duplicate. Keyed to the user so another
+// account signing in on the tab never inherits it.
+const CREATED_WORKSPACE_KEY = "multica_onboarding_workspace";
+const CREATED_WORKSPACE_TTL_MS = 60 * 60 * 1000;
+
+interface CreatedWorkspacePointer {
+  userId: string;
+  workspaceId: string;
+}
+
+function isCreatedWorkspacePointer(value: unknown): value is CreatedWorkspacePointer {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<CreatedWorkspacePointer>;
+  return typeof v.userId === "string" && typeof v.workspaceId === "string";
 }
 
 /**
@@ -152,7 +171,9 @@ function OnboardingStepFlow({
   // Questionnaire answers are server-persisted and pre-fill the per-
   // question steps on re-entry. That's the only piece of onboarding
   // state persisted across sessions — which step the user is on is
-  // deliberately not saved, so every entry starts at Welcome.
+  // deliberately not saved, so every entry starts at Welcome. The one
+  // exception is a reload in this tab after the workspace exists: see
+  // CREATED_WORKSPACE_KEY.
   const storedQuestionnaire = mergeQuestionnaire(user.onboarding_questionnaire);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(storedQuestionnaire);
 
@@ -176,6 +197,29 @@ function OnboardingStepFlow({
   const { workspaces, ready: workspacesReady } = useWorkspaceList({
     enabled: step === "welcome" || step === "workspace",
   });
+  // Resume after a reload once the workspace this flow made is in the list:
+  // straight to the runtime step, never back to the naming form.
+  useEffect(() => {
+    if (workspace || !workspacesReady) return;
+    const pointer = readSessionResume(CREATED_WORKSPACE_KEY, isCreatedWorkspacePointer);
+    if (!pointer || pointer.userId !== user.id) return;
+    const resumed = workspaces.find((ws) => ws.id === pointer.workspaceId);
+    if (!resumed) {
+      clearSessionResume(CREATED_WORKSPACE_KEY);
+      return;
+    }
+    setWorkspace(resumed);
+    setStep("runtime");
+  }, [workspace, workspacesReady, workspaces, user.id]);
+
+  const finish = useCallback<OnboardingFlowProps["onComplete"]>(
+    (ws, destination) => {
+      clearSessionResume(CREATED_WORKSPACE_KEY);
+      onComplete(ws, destination);
+    },
+    [onComplete],
+  );
+
   const existingWorkspace = isNewWorkspace
     ? workspace
     : (workspace ?? workspaces[0] ?? null);
@@ -242,12 +286,13 @@ function OnboardingStepFlow({
       );
       return;
     }
-    onComplete(workspaces[0] ?? undefined);
-  }, [workspaces, onComplete, t]);
+    finish(workspaces[0] ?? undefined);
+  }, [workspaces, finish, t]);
 
   const handleWorkspaceCreated = useCallback(
     (ws: Workspace) => {
       setWorkspace(ws);
+      saveSessionResume(CREATED_WORKSPACE_KEY, { userId: user.id, workspaceId: ws.id } satisfies CreatedWorkspacePointer, CREATED_WORKSPACE_TTL_MS);
       // Deliberately NOT setCurrentWorkspace: that singleton is also written by
       // the desktop tab system, which reclaims it whenever the new workspace
       // has no tab group yet. Racing it sent the rest of this flow — Mika, the
@@ -256,7 +301,7 @@ function OnboardingStepFlow({
       // once, on the navigation in onComplete.
       advanceFrom("workspace");
     },
-    [advanceFrom],
+    [advanceFrom, user.id],
   );
 
   const handleRuntimeNext = useCallback(
@@ -292,11 +337,11 @@ function OnboardingStepFlow({
               choice: "native",
               agentId: result.agent.id,
             });
-            onComplete(workspace, undefined);
+            finish(workspace, undefined);
             return;
           }
           await completeOnboarding("full", workspace.id);
-          onComplete(workspace, {
+          finish(workspace, {
             kind: "chat",
             sessionId: result.chatSession.id,
           });
@@ -322,9 +367,9 @@ function OnboardingStepFlow({
         workspaceId: workspace.id,
         choice: "skip",
       });
-      onComplete(workspace, undefined);
+      finish(workspace, undefined);
     },
-    [answers, bootstrapMika, i18n.language, workspace, onComplete, t],
+    [answers, bootstrapMika, i18n.language, workspace, finish, t],
   );
 
   const handleBack = useCallback((from: OnboardingStep) => {

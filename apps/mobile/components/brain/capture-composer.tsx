@@ -26,7 +26,7 @@
  *
  * Recording follows components/voice/use-voice-conversation.ts (N20): the mic
  * permission is requested on the first tap, `setAudioModeAsync` is set before
- * `prepareToRecordAsync`, and the recorder is stopped on unmount so leaving
+ * `prepareToRecordAsync`, and the recorder's native release on unmount stops it, so leaving
  * the screen never leaves the mic open. A denial is an inline message, not an
  * Alert — the user is mid-gesture and the answer is in Settings, not in a
  * modal. The one thing this composer does NOT do is voice-activity detection:
@@ -40,7 +40,7 @@
  * nothing fails silently — the chip stays until it succeeds or the user
  * dismisses it.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -326,14 +326,12 @@ export function CaptureComposer() {
     [recorder, upload],
   );
 
-  // Never leave the mic open behind us: unmounting the inbox (tab switch,
-  // navigating away) stops an in-flight recording and discards it.
-  useEffect(
-    () => () => {
-      if (recorder.isRecording) void recorder.stop();
-    },
-    [recorder],
-  );
+  // Leaving the screen never leaves the mic open: useAudioRecorder releases
+  // its native recorder on unmount, and the release stops an in-flight
+  // recording (expo-audio AudioRecorder.sharedObjectWillRelease). Do not add
+  // an unmount cleanup that touches `recorder`: it runs after that release
+  // and throws NativeSharedObjectNotFoundException (audit crash on leaving
+  // Brain after a cancelled voice memo).
 
   const onPhoto = useCallback(() => {
     if (Platform.OS !== "ios") {

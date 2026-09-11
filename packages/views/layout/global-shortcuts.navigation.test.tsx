@@ -10,6 +10,12 @@ import { GlobalShortcuts } from "./global-shortcuts";
 
 // The destination map is the only place a `go*` action becomes a route; a new
 // action added to GLOBAL_ACTIONS without an entry there is a silent no-op.
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  // The `c` shortcut reads a loaded cycle from the cache; these suites mount
+  // without a QueryClientProvider.
+  useQueryClient: () => ({ getQueriesData: () => [] }),
+}));
 vi.mock("@multica/ui/components/ui/sidebar", () => ({
   useSidebar: () => ({ toggleSidebar: vi.fn() }),
 }));

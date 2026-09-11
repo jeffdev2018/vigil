@@ -1468,8 +1468,23 @@ describe("IssueDetail (shared)", () => {
     ).toBeTruthy();
   });
 
+  it("offers a retry instead of 'not found' when the issue could not be loaded", async () => {
+    // Regression (audit): a network drop said the issue had been deleted.
+    mockApiObj.getIssue.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderIssueDetail("issue-1");
+
+    expect(await screen.findByText("Couldn't load this page")).toBeInTheDocument();
+    expect(
+      screen.queryByText("This issue does not exist or has been deleted in this workspace."),
+    ).not.toBeInTheDocument();
+    mockApiObj.getIssue.mockResolvedValue(mockIssue);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByText("Couldn't load this page")).not.toBeInTheDocument());
+  });
+
   it("shows 'not found' message when issue does not exist", async () => {
-    mockApiObj.getIssue.mockRejectedValue(new Error("Not found"));
+    mockApiObj.getIssue.mockRejectedValue(Object.assign(new Error("Not found"), { status: 404 }));
 
     renderIssueDetail("nonexistent-id");
 
@@ -1481,7 +1496,7 @@ describe("IssueDetail (shared)", () => {
   });
 
   it("shows 'Back' button when issue is not found and no onDelete prop", async () => {
-    mockApiObj.getIssue.mockRejectedValue(new Error("Not found"));
+    mockApiObj.getIssue.mockRejectedValue(Object.assign(new Error("Not found"), { status: 404 }));
 
     renderIssueDetail("nonexistent-id");
 

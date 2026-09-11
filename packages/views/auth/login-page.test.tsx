@@ -110,6 +110,7 @@ describe("LoginPage", () => {
     // Default: no existing session (getMe rejects when no auth)
     mockApiGetMe.mockRejectedValue(new Error("unauthorized"));
     localStorage.clear();
+    sessionStorage.clear();
     // Reset window.location for tests that change it
     Object.defineProperty(window, "location", {
       writable: true,
@@ -220,6 +221,42 @@ describe("LoginPage", () => {
       ).toBeInTheDocument();
     });
     expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+  });
+
+  // Regression (audit): reloading the login page while waiting for the code
+  // went back to the email step and forced a new code behind a 60s cooldown.
+  it("stays on the code step across a reload while the code is valid", async () => {
+    mockSendCode.mockResolvedValueOnce(undefined);
+    const first = renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await screen.findByText(/check your email/i);
+    first.unmount();
+
+    // The reload: a fresh mount of the page in the same tab.
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    expect(await screen.findByText(/check your email/i)).toBeInTheDocument();
+    expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+    expect(mockSendCode).toHaveBeenCalledTimes(1);
+    // The resend cooldown carries on rather than restarting.
+    expect(screen.getByRole("button", { name: /resend/i })).toBeDisabled();
+  });
+
+  it("starts from the email step again once the code has expired", async () => {
+    mockSendCode.mockResolvedValueOnce(undefined);
+    const first = renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await screen.findByText(/check your email/i);
+    first.unmount();
+
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000);
+    const second = renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    await act(async () => {});
+    expect(screen.queryByText(/check your email/i)).not.toBeInTheDocument();
+    second.unmount();
   });
 
   it("autofocuses the OTP input when the code step opens", async () => {

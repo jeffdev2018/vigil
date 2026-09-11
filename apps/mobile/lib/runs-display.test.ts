@@ -6,6 +6,7 @@ import {
   formatRunSilence,
   groupRunsBySection,
   isRunSilent,
+  runRowTapTarget,
   runSection,
   runCostKnown,
   costTodayLabel,
@@ -146,5 +147,26 @@ describe("runSummaryText", () => {
     expect(runSummaryText({ kind: "comment", trigger_summary: "[@Analyste Concurrentiel](mention://agent/dcb1090f-0000) compare prices" }))
       .toBe("@Analyste Concurrentiel compare prices");
     expect(runSummaryText({ kind: "chat", trigger_summary: "  " })).toBe("Chat task");
+  });
+});
+
+describe("runRowTapTarget", () => {
+  // Regression (audit): an in-flight row that is not replayable yet (queued,
+  // deferred, dispatched, paused) did nothing when tapped on the fleet screen.
+  it("replays a run that has an event log", () => {
+    for (const status of ["running", "completed", "failed", "cancelled"] as const) {
+      expect(runRowTapTarget(status, { inFleet: true })).toBe("replay");
+      expect(runRowTapTarget(status, { inFleet: false })).toBe("replay");
+    }
+  });
+
+  it("opens the run's issue from the fleet when there is nothing to replay yet", () => {
+    for (const status of ["queued", "deferred", "dispatched", "waiting_local_directory", "paused"] as const) {
+      expect(runRowTapTarget(status, { inFleet: true })).toBe("issue");
+    }
+  });
+
+  it("stays inert in the issue's own runs sheet, which is already on that issue", () => {
+    expect(runRowTapTarget("queued", { inFleet: false })).toBeNull();
   });
 });

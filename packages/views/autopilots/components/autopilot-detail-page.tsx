@@ -1,5 +1,7 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useState } from "react";
 import {
   Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
@@ -305,7 +307,7 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const router = useNavigation();
   const { getActorName } = useActorName();
 
-  const { data, isLoading } = useQuery(autopilotDetailOptions(wsId, autopilotId));
+  const { data, isLoading, error: detailError, refetch: refetchDetail } = useQuery(autopilotDetailOptions(wsId, autopilotId));
   const runsQuery = useInfiniteQuery(autopilotRunsOptions(wsId, autopilotId));
   const runs = runsQuery.data?.items ?? [];
   const runsTotal = runsQuery.data?.total ?? 0;
@@ -361,6 +363,10 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
         </div>
       </div>
     );
+  }
+
+  if (!data && detailError && !isResourceMissingError(detailError)) {
+    return <LoadErrorState onRetry={() => void refetchDetail()} />;
   }
 
   if (!data) {
