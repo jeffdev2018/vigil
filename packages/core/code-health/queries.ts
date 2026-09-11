@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
+import { hasRunningScan } from "./schemas";
 import type { CodeHealthScan } from "./schemas";
 
 // Code health autopilot (K22). Settings are static; the scan history polls
@@ -27,8 +28,6 @@ export function codeHealthScansOptions(wsId: string) {
     queryFn: () => api.listCodeHealthScans(),
     enabled: !!wsId,
     refetchInterval: (query) =>
-      (query.state.data as CodeHealthScan[] | undefined)?.some((scan) => scan.status === "running")
-        ? SCAN_POLL_MS
-        : false,
+      hasRunningScan(query.state.data as CodeHealthScan[] | undefined) ? SCAN_POLL_MS : false,
   });
 }
