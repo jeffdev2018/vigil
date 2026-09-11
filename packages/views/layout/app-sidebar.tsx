@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { issueStatusCategory } from "@multica/core/issues";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@multica/ui/lib/utils";
@@ -685,12 +686,24 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         push(paths.workspace(joined.slug).issues());
       }
     },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.sidebar.invitation_accept_failed),
+      ),
   });
   const declineInvitationMut = useMutation({
     mutationFn: (id: string) => api.declineInvitation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
     },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.sidebar.invitation_decline_failed),
+      ),
   });
 
   const createIssueShortcut = useShortcut("createIssue");

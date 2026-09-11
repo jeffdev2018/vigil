@@ -584,6 +584,7 @@
   "memory": {
     "section_title": "记忆",
     "export_button": "导出 DAEMON.md",
+    "export_failed": "无法导出 DAEMON.md。",
     "empty_title": "还没有记忆",
     "empty_hint": "该守护任务的每次运行会写下一次运行需要知道的内容。",
     "updated_at": "更新于 {{at}}",

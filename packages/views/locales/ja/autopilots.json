@@ -584,6 +584,7 @@
   "memory": {
     "section_title": "メモリー",
     "export_button": "DAEMON.md をエクスポート",
+    "export_failed": "DAEMON.md をエクスポートできませんでした。",
     "empty_title": "メモリーはまだありません",
     "empty_hint": "このデーモンの実行が、次の実行に必要なことを書き込みます。",
     "updated_at": "更新 {{at}}",

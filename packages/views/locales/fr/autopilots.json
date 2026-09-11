@@ -587,6 +587,7 @@
   "memory": {
     "section_title": "Mémoire",
     "export_button": "Exporter DAEMON.md",
+    "export_failed": "Impossible d'exporter DAEMON.md.",
     "empty_title": "Aucune mémoire pour l'instant",
     "empty_hint": "Les exécutions de ce daemon y écrivent ce que la suivante doit savoir.",
     "updated_at": "Mis à jour {{at}}",
