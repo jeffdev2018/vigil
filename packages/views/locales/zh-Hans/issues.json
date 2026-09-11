@@ -1904,5 +1904,64 @@
       "cancel": "取消",
       "confirm": "安排"
     }
+  },
+  "recurrence": {
+    "section": "重复",
+    "empty": "该事项只发生一次。",
+    "make_recurring": "设为重复",
+    "edit": "编辑",
+    "stop": "停止重复",
+    "active": "启用",
+    "paused": "已暂停 — 没有下一次。",
+    "next_runs": "接下来",
+    "next_on": "下一次 {{when}}",
+    "in_time": "{{countdown}} 后",
+    "series": "已生成的事项",
+    "source": "源事项",
+    "part_of_series": "属于序列 {{identifier}}",
+    "occurrence_created": "创建于 {{when}}",
+    "occurrence_due": "截止 {{when}}",
+    "saved": "已保存重复规则",
+    "save_failed": "无法保存重复规则",
+    "stopped": "已停止重复",
+    "stop_failed": "无法停止重复",
+    "forbidden": "只有成员可以修改重复规则。",
+    "sentence": {
+      "daily": "每天 {{time}}（{{tz}}）",
+      "weekdays": "每个工作日 {{time}}（{{tz}}）",
+      "weekly": "每周{{weekday}} {{time}}（{{tz}}）",
+      "monthly": "每月 {{day}} 日 {{time}}（{{tz}}）",
+      "custom": "自定义（{{cron}}）",
+      "on_close": "当前一个关闭时"
+    },
+    "dialog": {
+      "title": "重复",
+      "description": "按你选择的节奏，从该事项生成新的事项。",
+      "preset": {
+        "daily": "每天",
+        "weekdays": "工作日",
+        "weekly": "每周",
+        "monthly": "每月",
+        "custom": "自定义 cron",
+        "on_close": "当前一个关闭时"
+      },
+      "time_label": "时间",
+      "weekday_label": "星期",
+      "day_label": "日期",
+      "cron_label": "cron 表达式",
+      "timezone_label": "时区",
+      "preview": "接下来：{{runs}}",
+      "preview_empty": "该表达式永远不会触发。",
+      "preview_unreadable": "无法预览该表达式。",
+      "enabled_label": "启用",
+      "cancel": "取消",
+      "confirm": "保存"
+    },
+    "stop_dialog": {
+      "title": "停止该重复？",
+      "description": "不会再生成新的事项。已生成的事项会保留。",
+      "keep": "保留",
+      "confirm": "停止重复"
+    }
   }
 }

@@ -1654,9 +1654,10 @@ type Issue struct {
 	// F01: optional partner actor kind (member|agent, never squad). Names who the assignee works with; triggers no run and carries no status.
 	DelegateType pgtype.Text `json:"delegate_type"`
 	// F01: optional partner actor id, paired with delegate_type. Both halves move together; neither is a foreign key.
-	DelegateID pgtype.UUID `json:"delegate_id"`
-	CycleID    pgtype.UUID `json:"cycle_id"`
-	IssueType  pgtype.Text `json:"issue_type"`
+	DelegateID   pgtype.UUID `json:"delegate_id"`
+	CycleID      pgtype.UUID `json:"cycle_id"`
+	IssueType    pgtype.Text `json:"issue_type"`
+	RecurrenceID pgtype.UUID `json:"recurrence_id"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
@@ -1822,6 +1823,23 @@ type IssueReaction struct {
 	ActorID     pgtype.UUID        `json:"actor_id"`
 	Emoji       string             `json:"emoji"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type IssueRecurrence struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	CronExpression   string             `json:"cron_expression"`
+	Timezone         string             `json:"timezone"`
+	Mode             string             `json:"mode"`
+	Enabled          bool               `json:"enabled"`
+	NextRunAt        pgtype.Timestamptz `json:"next_run_at"`
+	LastOccurrenceID pgtype.UUID        `json:"last_occurrence_id"`
+	OccurrenceCount  int32              `json:"occurrence_count"`
+	CreatedByType    string             `json:"created_by_type"`
+	CreatedByID      pgtype.UUID        `json:"created_by_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type IssueSourceContext struct {

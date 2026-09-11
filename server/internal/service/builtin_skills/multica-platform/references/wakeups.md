@@ -1,15 +1,20 @@
-# Scheduled wake-ups: follow-ups and autopilots from a sentence
+# Scheduled wake-ups: follow-ups, recurring issues, autopilots from a sentence
 
-Two ways to move work into the future.
+Three ways to move work into the future.
 
 - A **follow-up** fires **once**: a deferred run of *this issue's* agent, at a
   chosen instant, carrying a note that says what to do then. Use it to pause
   and resume instead of looping or idling.
+- A **recurrence** makes an issue **repeat**: each occurrence is a new issue
+  copied from the last one, on a cron or when the current one closes. Only a
+  member may set one.
 - An **autopilot** fires **on a schedule, forever**. You can propose one from a
   plain sentence; it is created *paused* and a person turns it on.
 
-If you are waiting on one thing at one time, schedule a follow-up. If the same
-work should repeat, propose an autopilot instead of stacking wake-ups.
+If you are waiting on one thing at one time, schedule a follow-up. If the work
+itself should come back as a fresh issue each time, that is a recurrence. If
+the repeating thing is an *instruction* rather than an issue — a digest, a
+sweep — propose an autopilot.
 
 ## Follow-ups
 
@@ -56,6 +61,64 @@ Rules the server applies to every entry point:
 The workspace agenda carries them: `multica calendar agenda --from … --to …`
 and `GET /api/calendar/agenda` return a `followups` array alongside events,
 due dates and cycles, so a wake-up is visible next to everything else dated.
+
+## Recurring issues
+
+A **recurrence rule** is a standing order that keeps spawning the same work.
+The rule lives on the issue it was set on (the **source**), and every
+occurrence it creates carries it too, so the same read from any issue of the
+series answers the same rule.
+
+**You may read a rule. You may not write one.** `set` and `clear` answer `403`
+to anything but a member: a recurrence commits the workspace to work nobody
+approves per occurrence. When a repeating issue is the right answer, read the
+rule, say what you would set, and ask a member.
+
+Two modes:
+
+- `schedule` — a 5-field cron read in an IANA timezone. The job ticks every
+  minute; the next occurrence is created when the cron fires.
+- `on_close` — no clock. The next occurrence is created when the *current* one
+  (the latest occurrence, else the source) reaches a `done` or `cancelled`
+  **category**. Custom statuses in those categories count.
+
+An occurrence is a copy of the **latest** occurrence, not of the original
+source: title, description with every markdown checkbox reset to unchecked,
+priority, assignee and delegate, project, labels, custom properties and
+acceptance criteria. Its status is `todo`, its origin is `recurrence`, and its
+due date keeps the lead the previous one had between its creation and its due
+date. So a series inherits whatever it drifted into — an assignee changed last
+week is the assignee from now on.
+
+**An assigned agent gets a run on every occurrence**, exactly as if someone had
+filed the issue by hand. A daily rule on an issue assigned to you is a run a
+day until a member clears it. Read the occurrence count and the next runs
+before suggesting one.
+
+### Tools
+
+- MCP: the `vigil_issue` compound tool — actions `recurrence_get` (a read),
+  `recurrence_set` and `recurrence_clear` (internal writes, members only).
+  Granular names `issue_recurrence_get`, `issue_recurrence_set`,
+  `issue_recurrence_clear`.
+- CLI:
+
+  ```
+  multica issue recurrence show <issue>    # rule, source, occurrences, next runs
+  multica issue recurrence set <issue> --cron "0 9 * * 1" --timezone Europe/Paris
+  multica issue recurrence set <issue> --weekdays 09:00
+  multica issue recurrence set <issue> --mode on_close
+  multica issue recurrence clear <issue>
+  ```
+
+  Presets write the cron for you, read in `--timezone`: `--daily 09:00`,
+  `--weekdays 09:00`, `--weekly "MON 09:00"`, `--monthly "1 09:00"`. One preset
+  at a time; an explicit `--cron` wins over any preset. `--disabled` files the
+  rule without arming it. `--output json` gives the raw payload.
+
+`show` on an issue with no rule answers `404 this issue does not recur` — that
+is the answer, not a fault. Clearing stops the series and leaves every
+occurrence already created as an ordinary issue; nothing is deleted.
 
 ## Autopilots from a sentence
 

@@ -310,6 +310,8 @@ import type {
   DraftAutopilotInput,
   Followup,
   IssueFollowupsResponse,
+  IssueRecurrenceResponse,
+  SetIssueRecurrenceInput,
   ProposeAutopilotInput,
   ScheduleFollowupInput,
   CalendarSlotsResponse,
@@ -724,6 +726,7 @@ import {
   EMPTY_ISSUE_FOLLOWUPS,
   FollowupResponseSchema,
   IssueFollowupsResponseSchema,
+  IssueRecurrenceResponseSchema,
   EMPTY_CALENDAR_AGENDA,
   CalendarSlotsResponseSchema,
   EMPTY_CALENDAR_SLOTS_RESPONSE,
@@ -6167,6 +6170,55 @@ export class ApiClient {
       `/api/issues/${encodeURIComponent(issueId)}/followups/${encodeURIComponent(followupId)}`,
       { method: "DELETE" },
     );
+  }
+
+  // Recurring issues (OS plan, table stakes). The rule belongs to the series,
+  // so this answers the same payload from the source and from any occurrence.
+  //
+  // A 404 is the endpoint's way of saying "this issue does not recur" — a
+  // normal answer, not a failure — so it resolves to `null` rather than
+  // throwing and parking the block in an error state.
+  async getIssueRecurrence(
+    issueId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<IssueRecurrenceResponse | null> {
+    try {
+      const raw = await this.fetch<unknown>(
+        `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+        options?.signal ? { signal: options.signal } : undefined,
+      );
+      return parseWithFallback<IssueRecurrenceResponse | null>(
+        raw,
+        IssueRecurrenceResponseSchema,
+        null,
+        { endpoint: "GET /api/issues/:id/recurrence" },
+      );
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  }
+
+  /** 400 on a bad cron/timezone/mode, 403 for a run — members set the rule. */
+  async setIssueRecurrence(
+    issueId: string,
+    input: SetIssueRecurrenceInput,
+  ): Promise<IssueRecurrenceResponse | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/recurrence`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<IssueRecurrenceResponse | null>(
+      raw,
+      IssueRecurrenceResponseSchema,
+      null,
+      { endpoint: "PUT /api/issues/:id/recurrence" },
+    );
+  }
+
+  /** 404 when the issue does not recur; past occurrences stay as issues. */
+  async clearIssueRecurrence(issueId: string): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(issueId)}/recurrence`, { method: "DELETE" });
   }
 
   // Autopilots from a sentence. Draft writes nothing; 503 means no model is

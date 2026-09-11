@@ -2605,6 +2605,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			// Follow-ups (OS plan, réveil programmé): a deferred wake-up of the
 			// issue's agent, for members and agent runs alike.
+			// Recurring issues (table stakes): the rule an issue carries.
+			r.Route("/api/issues/{id}/recurrence", func(r chi.Router) {
+				r.Get("/", h.GetIssueRecurrence)
+				r.With(handler.RequireHumanActor).Put("/", h.SetIssueRecurrence)
+				r.With(handler.RequireHumanActor).Delete("/", h.DeleteIssueRecurrence)
+			})
 			r.Route("/api/issues/{id}/followups", func(r chi.Router) {
 				r.Get("/", h.ListIssueFollowups)
 				r.Post("/", h.CreateIssueFollowup)

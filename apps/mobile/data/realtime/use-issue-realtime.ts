@@ -35,16 +35,19 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import type {
+  IssueRecurrenceResponse,
   TaskCancelledPayload,
   TaskCompletedPayload,
   TaskDispatchPayload,
   TaskFailedPayload,
   TaskMessagePayload,
   TaskQueuedPayload,
+  WSEventType,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
 import { issueGoalKeys } from "@/data/queries/issue-goal";
 import { followupKeys } from "@/data/queries/followups";
+import { recurrenceKeys } from "@/data/queries/recurrence";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 import {
   addCommentReaction,
@@ -259,10 +262,45 @@ export function useIssueRealtime(
           qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
         }),
 
+        // ----- Recurrence (OS plan, table stakes) -----
+        // Set, toggled or cleared from anywhere. The payload is
+        // {issue_id, recurrence_id, change} — three ids, no rule object — so
+        // invalidate is the only option (condition 1 of the
+        // patch-over-invalidate rule in apps/mobile/CLAUDE.md).
+        //
+        // `issue_id` on this event is the SOURCE issue of the series, so an
+        // occurrence's own screen would never match a `=== issueId` guard.
+        // The cached rule is shared by the whole series, so the honest gate
+        // is "does this rule belong to the series I am showing" — answered by
+        // comparing the recurrence id against the one already in cache, and
+        // by the source id for the moment a rule is created on this issue.
+        //
+        // `issue_recurrence:changed` is not in `WSEventType` yet
+        // (packages/core/types/events.ts, owned by the web side) — hence the
+        // cast, which the runtime dispatcher (a string-keyed Map) does not
+        // care about. Delete it once the union entry lands; the payload type
+        // then comes for free.
+        ws.on("issue_recurrence:changed" as WSEventType, (payload) => {
+          const p = payload as { issue_id?: string; recurrence_id?: string };
+          const cached = qc.getQueryData<IssueRecurrenceResponse | null>(
+            recurrenceKeys.issue(wsId, issueId),
+          );
+          const mine =
+            p.issue_id === issueId ||
+            (!!p.recurrence_id && p.recurrence_id === cached?.recurrence.id);
+          if (!mine) return;
+          qc.invalidateQueries({
+            queryKey: recurrenceKeys.issue(wsId, issueId),
+          });
+        }),
+
         // ----- Reconnect -----
         ws.onReconnect(() => {
           invalidateIssueAfterReconnect(qc, wsId, issueId);
           qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
+          qc.invalidateQueries({
+            queryKey: recurrenceKeys.issue(wsId, issueId),
+          });
         }),
       ];
     },

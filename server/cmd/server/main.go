@@ -797,6 +797,9 @@ func main() {
 	}
 	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
 	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
+	if err := schedulerMgr.Register(scheduler.IssueRecurrenceTickJob(h.TickIssueRecurrences)); err != nil {
+		slog.Error("scheduler: register issue recurrence tick job failed", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.BrainEmbeddingBackfillJob(h.BackfillBrainEmbeddings)); err != nil {
 		slog.Error("scheduler: register brain embedding backfill job failed", "error", err)
 	}

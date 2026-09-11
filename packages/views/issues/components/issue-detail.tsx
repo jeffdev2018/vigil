@@ -99,6 +99,7 @@ import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { GoalSection } from "./goal-section";
 import { FollowupsSection } from "./followups-section";
+import { RecurrenceSection } from "./recurrence-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { ApprovalCard, PendingApprovalsBar } from "../../approvals/approval-card";
 import { issueApprovalsOptions, type ApprovalItem } from "@multica/core/approvals";
@@ -2855,6 +2856,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           goal because both answer "what happens next on this issue", one by
           continuation and one by the clock. */}
       <FollowupsSection issueId={id} issue={issue} />
+
+      {/* Recurrence: the standing order that raises this issue again. Sits
+          beside the follow-ups because both answer "what happens next by the
+          clock" — one wakes the agent, the other files a new issue. */}
+      <RecurrenceSection issueId={id} />
       </>}
 
       {/* Details — creator and timestamps. Sits below the execution log

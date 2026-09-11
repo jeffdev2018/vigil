@@ -273,6 +273,10 @@ export default function WorkspaceLayout() {
             from the follow-up sheet, not stacked on top of it. */}
         <Stack.Screen name="issue/[id]/followup" options={SHEET_OPTIONS} />
         <Stack.Screen name="issue/[id]/autopilot" options={SHEET_OPTIONS} />
+        {/* Recurring issues (OS plan, table stakes). A form with a
+            keyboard (the custom-cron box), so formSheet per the container
+            table in apps/mobile/CLAUDE.md Lesson 5. */}
+        <Stack.Screen name="issue/[id]/recurrence" options={SHEET_OPTIONS} />
         {/* Run replay (k70). A modal, not a formSheet: it is a content view
             whose link chips push another replay on top, so it needs a back
             stack. Pushed from RunRow inside the runs formSheet. */}

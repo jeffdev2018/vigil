@@ -137,6 +137,10 @@ export type WSEventType =
   // issue's agent was scheduled or cancelled — by a member, an agent run, the
   // CLI or MCP. Payload: {issue_id, followup_id, change, followup?}.
   | "followup:changed"
+  // Recurring issues (OS plan, table stakes): a recurrence rule was created,
+  // updated or cleared on an issue. New occurrences arrive through the normal
+  // issue:created event. Payload: {issue_id, recurrence_id, change}.
+  | "issue_recurrence:changed"
   | "cross_review:queued"
   | "cross_review:report"
   | "cross_review:rework"
@@ -398,6 +402,19 @@ export interface FollowupChangedPayload {
   followup_id: string;
   change: "scheduled" | "cancelled" | (string & {});
   followup?: Followup;
+}
+
+/**
+ * Recurring issues (OS plan, table stakes): the standing order on an issue was
+ * created, updated or cleared. The rule belongs to the whole series, so the
+ * payload names the issue it was filed from rather than every member —
+ * listeners refetch the series instead of merging. `change` is open on the
+ * wire: read it with a `default` branch.
+ */
+export interface IssueRecurrenceChangedPayload {
+  issue_id: string;
+  recurrence_id: string;
+  change: "created" | "updated" | "cleared" | (string & {});
 }
 
 export interface CalendarChangedPayload {
@@ -1043,6 +1060,7 @@ export interface WSEventPayloadMap {
   "run_halt:changed": RunHaltChangedPayload;
   "calendar:changed": CalendarChangedPayload;
   "followup:changed": FollowupChangedPayload;
+  "issue_recurrence:changed": IssueRecurrenceChangedPayload;
   "doctrine:changed": DoctrineChangedPayload;
   "pack:changed": PackChangedPayload;
 }

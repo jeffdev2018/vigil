@@ -278,9 +278,15 @@ import type {
   DraftAutopilotInput,
   Followup,
   IssueFollowupsResponse,
+  IssueRecurrenceResponse,
   ProposeAutopilotInput,
   ScheduleFollowupInput,
+  SetIssueRecurrenceInput,
 } from "@multica/core/types";
+// Recurring issues (OS plan, table stakes). Same shared-zod arrangement as
+// the follow-ups above; there is deliberately no EMPTY_* fallback because
+// "no rule" is a real answer — see the comment on the schema in core.
+import { IssueRecurrenceResponseSchema } from "@multica/core/api/schemas";
 // Workspace Brain (notes + capture inbox + ranked search). Schemas and
 // fallbacks are the shared ones in @multica/core/api/schemas — pure zod, on
 // the mobile sharing whitelist — so mobile and web parse the same bytes the
@@ -1276,6 +1282,59 @@ class ApiClient {
   async cancelIssueFollowup(issueId: string, followupId: string): Promise<void> {
     await this.fetch<void>(
       `/api/issues/${encodeURIComponent(issueId)}/followups/${encodeURIComponent(followupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  // --- Recurring issues (OS plan, table stakes) ---
+  // The rule lives on the source issue and every occurrence carries it, so
+  // the same GET from any member of the series answers with the same rule
+  // (server/internal/handler/issue_recurrence.go).
+
+  /**
+   * The rule of the series this issue belongs to, or null when it doesn't
+   * recur. The 404 the server sends for that case is not an error condition —
+   * it is the answer — so it is caught here rather than turned into a query
+   * error that would put a red state on an issue with nothing wrong with it.
+   * Any other status still throws.
+   */
+  async getIssueRecurrence(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueRecurrenceResponse | null> {
+    try {
+      return await this.fetchValidated<IssueRecurrenceResponse | null>(
+        `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+        IssueRecurrenceResponseSchema,
+        null,
+        { ...opts, endpoint: "GET /api/issues/:id/recurrence" },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** Creates the rule on this issue, or updates the rule of its series.
+   *  400 for a bad cron / timezone / mode, 403 for a non-member (an agent
+   *  run's task token). Answers with the same payload as the GET. */
+  async setIssueRecurrence(
+    issueId: string,
+    body: SetIssueRecurrenceInput,
+  ): Promise<IssueRecurrenceResponse | null> {
+    return this.fetchValidatedWith<IssueRecurrenceResponse | null>(
+      `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+      IssueRecurrenceResponseSchema,
+      null,
+      { method: "PUT", body: JSON.stringify(body) },
+      { endpoint: "PUT /api/issues/:id/recurrence" },
+    );
+  }
+
+  /** 204 — the series stops and past occurrences stay as ordinary issues. */
+  async clearIssueRecurrence(issueId: string): Promise<void> {
+    await this.fetch<void>(
+      `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
       { method: "DELETE" },
     );
   }

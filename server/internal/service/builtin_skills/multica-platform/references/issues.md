@@ -496,3 +496,4 @@ once. Stage them instead — see "Stages: order sub-issues into barrier groups".
 `references/undo-and-show-me-first.md` — the undo journal and the `202` "show
 me first" contract: queued for approval, not done, not an error.
 `references/goals.md` — proposing a workspace goal from a run.
+`references/wakeups.md` — making an issue repeat, or waking its agent once.

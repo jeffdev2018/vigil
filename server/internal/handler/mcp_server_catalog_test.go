@@ -148,3 +148,56 @@ func TestMCPFollowupCancelPathCarriesBothIDs(t *testing.T) {
 		t.Errorf("path = %q", path)
 	}
 }
+
+// Recurring issues are reachable from MCP as three actions of vigil_issue.
+// The risk classes are the point: reading a rule is a read a run may do, and
+// both writes are internal — the clear stops a standing order, it deletes no
+// content, so it must not be classed external like note_capture_delete.
+func TestMCPCatalogueCoversRecurringIssues(t *testing.T) {
+	want := map[string]struct {
+		group  string
+		risk   string
+		method string
+	}{
+		"issue_recurrence_get":   {"vigil_issue", mcpgov.RiskRead, "GET"},
+		"issue_recurrence_set":   {"vigil_issue", mcpgov.RiskInternalWrite, "PUT"},
+		"issue_recurrence_clear": {"vigil_issue", mcpgov.RiskInternalWrite, "DELETE"},
+	}
+	for name, w := range want {
+		leaf, ok := mcpLeafByName[name]
+		if !ok {
+			t.Fatalf("catalogue has no %q leaf", name)
+		}
+		if leaf.Group != w.group {
+			t.Errorf("%s is in group %q, want %q", name, leaf.Group, w.group)
+		}
+		if leaf.Risk != w.risk {
+			t.Errorf("%s risk = %q, want %q", name, leaf.Risk, w.risk)
+		}
+		if leaf.Method != w.method {
+			t.Errorf("%s method = %q, want %q", name, leaf.Method, w.method)
+		}
+		path, _, _, err := leaf.build(map[string]any{"id": "MUL-1", "cron_expression": "0 9 * * 1"}, mcpCaller{})
+		if err != nil {
+			t.Fatalf("%s build: %v", name, err)
+		}
+		if path != "/api/issues/MUL-1/recurrence" {
+			t.Errorf("%s path = %q", name, path)
+		}
+	}
+
+	// A run reading the rule must be told, by the tool it can see, that it
+	// cannot set one: the alternative is discovering it as a 403 mid-turn.
+	if desc := mcpLeafByName["issue_recurrence_set"].Description; !strings.Contains(desc, "403") {
+		t.Errorf("issue_recurrence_set description must say a run is refused: %q", desc)
+	}
+
+	// The compound surface is the only place an agent reads what vigil_issue
+	// can do; an action missing from it is an action nothing advertises.
+	group := mcpGroupDescriptions["vigil_issue"]
+	for _, action := range []string{"recurrence_get", "recurrence_set", "recurrence_clear"} {
+		if !strings.Contains(group, action) {
+			t.Errorf("vigil_issue description does not name %q: %q", action, group)
+		}
+	}
+}
