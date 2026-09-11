@@ -123,8 +123,13 @@ export default function ProposeAutopilotSheet() {
   };
 
   return (
-    <View className="flex-1">
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
         <View className="flex-1 min-w-0 pr-2">
           <Text className="text-base font-semibold text-foreground">
             Automate on a schedule
@@ -158,11 +163,7 @@ export default function ProposeAutopilotSheet() {
         </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
+      <View className="gap-4 px-4 pt-2">
         <View className="gap-1">
           <Text className="text-xs text-muted-foreground">In one sentence</Text>
           <AutosizeTextArea
@@ -240,7 +241,7 @@ export default function ProposeAutopilotSheet() {
         ) : null}
 
         {error ? <Text className="text-xs text-destructive">{error}</Text> : null}
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
