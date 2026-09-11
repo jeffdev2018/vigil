@@ -184,7 +184,9 @@ func (h *Handler) SetIssueRecurrence(w http.ResponseWriter, r *http.Request) {
 			CreatedByType: "member", CreatedByID: parseUUID(actorID),
 		})
 		if err == nil {
-			_ = h.Queries.SetIssueRecurrenceLink(r.Context(), db.SetIssueRecurrenceLinkParams{ID: issue.ID, RecurrenceID: rec.ID})
+			if linkErr := h.Queries.SetIssueRecurrenceLink(r.Context(), db.SetIssueRecurrenceLinkParams{ID: issue.ID, RecurrenceID: rec.ID}); linkErr != nil {
+				err = linkErr
+			}
 		}
 	}
 	if err != nil {
@@ -225,7 +227,10 @@ func (h *Handler) DeleteIssueRecurrence(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to clear the recurrence")
 		return
 	}
-	_ = h.Queries.ClearIssueRecurrenceLinks(r.Context(), rec.ID)
+	if err := h.Queries.ClearIssueRecurrenceLinks(r.Context(), rec.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to unlink the recurrence")
+		return
+	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditIssueRecurrenceCleared, "issue_recurrence", rec.ID, map[string]any{"issue_id": uuidToString(issue.ID)}, nil)
 	h.publish(protocol.EventIssueRecurrenceChanged, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue_id": uuidToString(issue.ID), "recurrence_id": uuidToString(rec.ID), "change": "cleared"})
 	w.WriteHeader(http.StatusNoContent)
