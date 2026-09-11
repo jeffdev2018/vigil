@@ -8,6 +8,9 @@ import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import {
   Table,
@@ -46,9 +49,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * listed with what happened to it, including the ones that were dropped for
  * being unsure, already open, or over the per-scan cap.
  */
-
-const SELECT_CLASS =
-  "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
 
 const TONE_CLASS = {
   success: "text-success",
@@ -187,43 +187,53 @@ export function CodeHealthTab() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="code-health-agent">
-                    {t(($) => $.code_health.agent_label)}
-                  </Label>
-                  <select
-                    id="code-health-agent"
-                    className={SELECT_CLASS}
+                  <Label>{t(($) => $.code_health.agent_label)}</Label>
+                  <Select
+                    items={[
+                      { value: "", label: t(($) => $.code_health.pick_agent) },
+                      ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                    ]}
                     value={form.agent_id}
-                    onChange={(event) => patch({ agent_id: event.target.value })}
+                    onValueChange={(value) => patch({ agent_id: value ?? "" })}
                   >
-                    <option value="">{t(($) => $.code_health.pick_agent)}</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t(($) => $.code_health.agent_label)} size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{t(($) => $.code_health.pick_agent)}</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="code-health-project">
-                    {t(($) => $.code_health.project_label)}
-                  </Label>
-                  <select
-                    id="code-health-project"
-                    className={SELECT_CLASS}
+                  <Label>{t(($) => $.code_health.project_label)}</Label>
+                  <Select
+                    items={[
+                      { value: "", label: t(($) => $.code_health.whole_workspace) },
+                      ...projects.map((project) => ({ value: project.id, label: project.title })),
+                    ]}
                     value={form.project_id}
-                    onChange={(event) => patch({ project_id: event.target.value })}
+                    onValueChange={(value) => patch({ project_id: value ?? "" })}
                   >
-                    <option value="">
-                      {t(($) => $.code_health.whole_workspace)}
-                    </option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t(($) => $.code_health.project_label)} size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        {t(($) => $.code_health.whole_workspace)}
+                      </SelectItem>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
