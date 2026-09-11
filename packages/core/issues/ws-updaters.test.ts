@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
   agentActivityKeys,
@@ -267,6 +267,27 @@ describe("onIssueLabelsChanged", () => {
 
     onIssueLabelsChanged(qc, WS_ID, ISSUE_ID, [labelB]);
     expectInvalidated(qc, flatKey);
+  });
+
+  it("skips a flat window that does not hold the patched issue, like its containment-checked siblings", () => {
+    const flatKey = issueKeys.flat(
+      WS_ID,
+      "workspace:all",
+      {},
+      { sort_by: "position" },
+    );
+    qc.setQueryData(flatKey, {
+      pages: [{ issues: [otherIssue], total: 1 }],
+      pageParams: [0],
+    });
+
+    const setQueryDataSpy = vi.spyOn(qc, "setQueryData");
+    patchIssueLabels(qc, WS_ID, ISSUE_ID, [labelB]);
+
+    // patchIssueInChildrenCaches and patchIssueInTableCaches both skip a
+    // window that doesn't contain the patched issue before ever calling
+    // setQueryData; patchIssueInFlatCaches must do the same.
+    expect(setQueryDataSpy).not.toHaveBeenCalledWith(flatKey, expect.anything());
   });
 
   it("patches the parent's children cache so the sub-issues panel stays fresh", () => {
