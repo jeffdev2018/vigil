@@ -143,6 +143,8 @@ interface AgentOverviewPaneProps {
   canEdit: boolean;
   navIntent?: DetailTab | null;
   onNavIntentHandled?: () => void;
+  /** Header "Assign work" action, repeated inside the empty "Now" section. */
+  onAssignWork?: () => void;
 }
 
 /**
@@ -163,6 +165,7 @@ export function AgentOverviewPane({
   canEdit,
   navIntent,
   onNavIntentHandled,
+  onAssignWork,
 }: AgentOverviewPaneProps) {
   const { t } = useT("agents");
   const wsId = useWorkspaceId();
@@ -396,7 +399,7 @@ export function AgentOverviewPane({
             className={cn(PAGE_RAIL, PAGE_GUTTER, "py-4 sm:py-6")}
           >
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <ActivityTab agent={agent} showPerformance={false} />
+              <ActivityTab agent={agent} showPerformance={false} onAssignWork={onAssignWork} />
               <AgentOverviewSummary
                 agent={agent}
                 runtime={runtime}

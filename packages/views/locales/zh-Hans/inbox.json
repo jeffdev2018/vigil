@@ -29,6 +29,7 @@
   },
   "list": {
     "empty": "暂无通知",
+    "empty_hint": "评论、分配和智能体更新会实时出现在这里。",
     "mark_done_tooltip": "标为已完成",
     "archive_tooltip": "归档",
     "time": {
@@ -50,6 +51,8 @@
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
+    "select_prompt_hint": "在左侧选择一条通知即可查看并处理。",
+    "empty_hint": "评论、分配和智能体更新会实时出现在这里。",
     "empty": "收件箱为空",
     "original_input": "原始输入",
     "retry_with_context": "保留上下文重试",

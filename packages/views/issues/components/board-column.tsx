@@ -12,6 +12,7 @@ import type {
   Project,
 } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Empty, EmptyContent, EmptyTitle } from "@multica/ui/components/ui/empty";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -322,9 +323,31 @@ export const BoardColumn = memo(function BoardColumn({
           ) : (
             <>
               {issueIds.length === 0 && (
-                <p className="py-8 text-center text-caption text-muted-foreground">
-                  {t(($) => $.board.empty_column)}
-                </p>
+                <Empty className="gap-2 py-8">
+                  <EmptyTitle className="text-caption font-normal text-muted-foreground">
+                    {t(($) => $.board.empty_column)}
+                  </EmptyTitle>
+                  {onCreateIssue && (
+                    <EmptyContent>
+                      {/* Repeats the header "+" so the first card can be
+                          created from the spot where it will land. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() =>
+                          onCreateIssue({
+                            ...(group.createData ?? {}),
+                            ...(projectId ? { project_id: projectId } : {}),
+                          })
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        {t(($) => $.board.add_issue_tooltip)}
+                      </Button>
+                    </EmptyContent>
+                  )}
+                </Empty>
               )}
               {footer}
             </>
