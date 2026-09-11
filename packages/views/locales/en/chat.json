@@ -247,7 +247,8 @@
     "rename": "Rename chat",
     "archive": "Archive chat",
     "unarchive": "Unarchive chat",
-    "delete": "Delete chat"
+    "delete": "Delete chat",
+    "more_actions_aria": "More actions"
   },
   "voice": {
     "start": "Dictate a message",

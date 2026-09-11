@@ -344,7 +344,8 @@
     "empty_column": "无任务",
     "empty_grouping": "没有匹配的任务",
     "no_value": "未设置",
-    "ordered_by": "按{{field}}排序"
+    "ordered_by": "按{{field}}排序",
+    "column_menu_aria": "列选项"
   },
   "detail": {
     "not_found": "这个任务不存在或已在该工作区被删除。",
@@ -496,7 +497,8 @@
       "hint_close": "关闭"
     },
     "section_related": "相关",
-    "section_duplicate": "重复"
+    "section_duplicate": "重复",
+    "more_actions_tooltip": "更多操作"
   },
   "timeline": {
     "loading": "加载中…"

@@ -243,7 +243,8 @@
     "rename": "이름 변경",
     "delete": "채팅 삭제",
     "archive": "채팅 보관",
-    "unarchive": "채팅 보관 해제"
+    "unarchive": "채팅 보관 해제",
+    "more_actions_aria": "추가 작업"
   },
   "voice": {
     "start": "음성으로 메시지 입력",

@@ -160,6 +160,25 @@ describe("TriggerRow schedule readback", () => {
   });
 });
 
+describe("TriggerRow accessibility", () => {
+  it("gives every icon-only action button an accessible name", () => {
+    renderWithQuery(
+      <TriggerRow
+        trigger={trigger({ kind: "webhook", webhook_token: "tok_123" })}
+        autopilotId={AUTOPILOT_ID}
+        canWrite
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Rotate URL" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Test with a sample event" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit trigger" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+});
+
 describe("TriggerRow enable toggle", () => {
   it("disables an enabled trigger through the update mutation", async () => {
     const user = userEvent.setup();

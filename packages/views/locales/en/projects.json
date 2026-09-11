@@ -81,7 +81,8 @@
     "toast_link_copied": "Link copied",
     "toast_project_deleted": "Project deleted",
     "toast_move_issue_failed": "Failed to move issue",
-    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate."
+    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate.",
+    "more_actions_aria": "More actions"
   },
   "resources": {
     "section_header": "Resources",

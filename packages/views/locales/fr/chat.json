@@ -247,7 +247,8 @@
     "rename": "Renommer le chat",
     "archive": "Archiver le chat",
     "unarchive": "Désarchiver le chat",
-    "delete": "Supprimer le chat"
+    "delete": "Supprimer le chat",
+    "more_actions_aria": "Plus d'actions"
   },
   "voice": {
     "start": "Dicter un message",

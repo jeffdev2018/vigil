@@ -3098,6 +3098,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       size="icon-sm"
                       className="text-muted-foreground"
                       onClick={() => { handleUpdateField({ status: "done" }); onDone?.(); }}
+                      aria-label={t(($) => $.detail.mark_done_tooltip)}
                     >
                       <CircleCheck />
                     </Button>
@@ -3115,6 +3116,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       size="icon-sm"
                       className="text-muted-foreground"
                       onClick={() => { onDone(); }}
+                      aria-label={t(($) => $.detail.archive_tooltip)}
                     >
                       <Archive />
                     </Button>
@@ -3131,6 +3133,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     size="icon-sm"
                     className={cn("text-muted-foreground", actions.isPinned && "text-foreground")}
                     onClick={actions.togglePin}
+                    aria-label={actions.isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
                   >
                     {actions.isPinned ? <PinOff /> : <Pin />}
                   </Button>
@@ -3146,7 +3149,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               // to the list we came from, falling back to all issues.
               onDeletedFallbackPath={onDelete ? undefined : paths.issues()}
               trigger={
-                <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-label={t(($) => $.detail.more_actions_tooltip)}
+                >
                   <MoreHorizontal />
                 </Button>
               }
@@ -3159,6 +3167,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     size="icon-sm"
                     className={sidebarOpen ? "" : "text-muted-foreground"}
                     onClick={handleToggleSidebar}
+                    aria-label={t(($) => $.detail.sidebar_tooltip)}
                   >
                     <PanelRight />
                   </Button>

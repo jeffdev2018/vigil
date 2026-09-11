@@ -243,7 +243,8 @@
     "rename": "名前を変更",
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
-    "unarchive": "アーカイブを解除"
+    "unarchive": "アーカイブを解除",
+    "more_actions_aria": "その他の操作"
   },
   "voice": {
     "start": "音声でメッセージを入力",

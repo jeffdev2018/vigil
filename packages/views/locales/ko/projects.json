@@ -80,7 +80,8 @@
     "toast_link_copied": "링크를 복사했습니다",
     "toast_project_deleted": "프로젝트를 삭제했습니다",
     "toast_move_issue_failed": "이슈를 이동하지 못했습니다",
-    "progress_hint": "완료 및 취소된 이슈를 포함하며 납품 비율이 아닙니다."
+    "progress_hint": "완료 및 취소된 이슈를 포함하며 납품 비율이 아닙니다.",
+    "more_actions_aria": "추가 작업"
   },
   "resources": {
     "section_header": "리소스",

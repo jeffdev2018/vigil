@@ -7,7 +7,8 @@
     "mark_all_read": "すべて既読にする",
     "archive_all": "すべてアーカイブ",
     "archive_all_read": "既読の項目をすべてアーカイブ",
-    "archive_completed": "完了した項目をアーカイブ"
+    "archive_completed": "完了した項目をアーカイブ",
+    "more_actions_aria": "その他の操作"
   },
   "filters": {
     "tooltip": "インボックスを絞り込む",

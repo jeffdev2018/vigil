@@ -160,6 +160,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
       className="h-7 w-7 shrink-0"
       onClick={() => setEditOpen(true)}
       title={t(($) => $.trigger_row.edit_trigger)}
+      aria-label={t(($) => $.trigger_row.edit_trigger)}
     >
       <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
     </Button>
@@ -174,6 +175,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
       className="h-7 w-7 shrink-0"
       onClick={() => setDryRunOpen(true)}
       title={t(($) => $.dry_run.open)}
+      aria-label={t(($) => $.dry_run.open)}
     >
       <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" />
     </Button>
@@ -186,6 +188,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
       className="h-7 w-7 shrink-0"
       onClick={() => setConfirmOpen(true)}
       title={t(($) => $.trigger_row.delete_dialog.confirm)}
+      aria-label={t(($) => $.trigger_row.delete_dialog.confirm)}
     >
       <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
     </Button>
@@ -256,6 +259,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
                       className="h-7 w-7 shrink-0"
                       onClick={() => setRotateOpen(true)}
                       title={t(($) => $.trigger_row.rotate_url)}
+                      aria-label={t(($) => $.trigger_row.rotate_url)}
                       disabled={rotateToken.isPending}
                     >
                       <RotateCw className={cn("h-3.5 w-3.5 text-muted-foreground", rotateToken.isPending && "animate-spin")} />

@@ -326,7 +326,8 @@
     "empty_column": "Aucun issue",
     "empty_grouping": "Aucun issue correspondant",
     "no_value": "Aucune valeur",
-    "ordered_by": "Tableau trié par {{field}}"
+    "ordered_by": "Tableau trié par {{field}}",
+    "column_menu_aria": "Options de la colonne"
   },
   "detail": {
     "not_found": "Cet issue n'existe pas ou a été supprimé dans cet workspace.",
@@ -482,7 +483,8 @@
       "hint_close": "fermer"
     },
     "section_related": "Liées à",
-    "section_duplicate": "Doublons"
+    "section_duplicate": "Doublons",
+    "more_actions_tooltip": "Plus d'actions"
   },
   "timeline": {
     "loading": "Chargement..."
