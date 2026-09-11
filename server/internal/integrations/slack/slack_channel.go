@@ -14,6 +14,7 @@ import (
 	"github.com/slack-go/slack/socketmode"
 
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // slackChannel is ONE installation's Socket Mode connection. Under the
@@ -96,10 +97,10 @@ func (c *slackChannel) Connect(ctx context.Context) error {
 	runCtx, runCancel := context.WithCancel(ctx)
 	runErr := make(chan error, 1)
 	done := make(chan struct{})
-	go func() {
+	util.GoBackground("slack channel: socket mode run", func() {
+		defer close(done)
 		runErr <- sm.RunContext(runCtx)
-		close(done)
-	}()
+	})
 	defer func() {
 		runCancel()
 		<-done
@@ -178,11 +179,11 @@ func (c *slackChannel) handleSocketEvent(ctx context.Context, sm *socketmode.Cli
 			}
 		}
 		if cb, ok := evt.Data.(slack.InteractionCallback); ok && c.interactions != nil {
-			go func() {
+			util.GoBackground("slack channel: interaction", func() {
 				ictx, cancel := context.WithTimeout(context.Background(), slashCommandTimeout)
 				defer cancel()
 				c.interactions.HandleInteraction(ictx, c.appID, cb)
-			}()
+			})
 		}
 		return nil
 	case socketmode.EventTypeConnecting, socketmode.EventTypeConnected, socketmode.EventTypeHello:
@@ -230,11 +231,11 @@ func (c *slackChannel) dispatchSlashCommand(cmd slack.SlashCommand, envelopeID s
 			"command", cmd.Command, "app_id", c.appID)
 		return
 	}
-	go func() {
+	util.GoBackground("slack channel: slash command", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), slashCommandTimeout)
 		defer cancel()
 		c.slash.HandleEnvelope(ctx, cmd, envelopeID)
-	}()
+	})
 }
 
 // ChannelDeps are the shared dependencies the Slack Factory closes over. The

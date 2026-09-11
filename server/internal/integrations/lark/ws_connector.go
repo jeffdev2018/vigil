@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // WSLongConnConnector is the production EventConnector that holds the
@@ -247,13 +249,13 @@ func (c *WSLongConnConnector) Run(ctx context.Context, inst Installation, emit E
 	// returns immediately. Also runs on any other exit path so we
 	// never leak the goroutine.
 	done := make(chan struct{})
-	go func() {
+	util.GoBackground("lark ws connector: watchdog", func() {
 		select {
 		case <-runCtx.Done():
 			closeConn()
 		case <-done:
 		}
-	}()
+	})
 
 	// writeMu serializes WriteMessage from the read loop (ACK send)
 	// and the ping goroutine. gorilla/websocket forbids concurrent
@@ -270,7 +272,9 @@ func (c *WSLongConnConnector) Run(ctx context.Context, inst Installation, emit E
 
 	// Ping loop: app-layer binary ping frames at the server's PingInterval.
 	pingDone := make(chan struct{})
-	go c.pingLoop(runCtx, conn, &writeMu, endpoint.ServiceID, pingInterval, log, pingDone)
+	util.GoBackground("lark ws connector: ping loop", func() {
+		c.pingLoop(runCtx, conn, &writeMu, endpoint.ServiceID, pingInterval, log, pingDone)
+	})
 
 	defer func() {
 		runCancel()

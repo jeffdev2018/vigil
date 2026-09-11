@@ -237,7 +237,9 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 				// Cache miss = TTL expired (or first use after revoke /
 				// process restart). Refresh last_used_at; subsequent hits
 				// within the TTL window skip this write entirely.
-				go queries.UpdatePersonalAccessTokenLastUsed(context.Background(), pat.ID)
+				util.GoBackground("auth: update PAT last_used_at", func() {
+					_ = queries.UpdatePersonalAccessTokenLastUsed(context.Background(), pat.ID)
+				})
 
 				next.ServeHTTP(w, r)
 				return

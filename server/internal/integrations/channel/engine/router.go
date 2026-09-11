@@ -842,7 +842,7 @@ func (r *Router) enqueueMediaJob(set ResolverSet, inst ResolvedInstallation, ide
 	r.mediaWg.Add(1)
 	r.mediaQueueMu.Unlock()
 
-	go func() {
+	util.GoBackground("channel router: media job", func() {
 		defer r.mediaWg.Done()
 		defer close(done)
 		defer r.finishMediaQueue(key, done)
@@ -877,7 +877,7 @@ func (r *Router) enqueueMediaJob(set ResolverSet, inst ResolvedInstallation, ide
 			}
 		}
 		r.resolveAndBindMedia(set, inst, identity, chatMessageID, msg, sessionID, issue, issueDescriptionBase, issueCommandText, issueTaskID, resolveRemote, deadline)
-	}()
+	})
 }
 
 const mediaFinalizeTimeout = 5 * time.Second
@@ -1114,7 +1114,7 @@ func (r *Router) scheduleReply(set ResolverSet, inst ResolvedInstallation, msg c
 		return
 	}
 	r.replyWg.Add(1)
-	go func() {
+	util.GoBackground("channel router: outbound reply", func() {
 		defer r.replyWg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), r.replyTimeout)
 		defer cancel()
@@ -1124,7 +1124,7 @@ func (r *Router) scheduleReply(set ResolverSet, inst ResolvedInstallation, msg c
 				"event_id", msg.EventID, "outcome", string(res.Outcome),
 				"timeout", r.replyTimeout.String())
 		}
-	}()
+	})
 }
 
 // keyForSession is the batcher key. chat_session_id is globally unique.
