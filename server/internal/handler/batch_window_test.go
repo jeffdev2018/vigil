@@ -262,3 +262,30 @@ func TestAutopilotRunReportsDispatchLane(t *testing.T) {
 		t.Fatalf("the ordinary run reported lane %q, want sync", lanes[syncTask])
 	}
 }
+
+// TestSettingsPutsDoNotEraseEachOther: every settings PUT used to read the
+// whole `workspace.settings` blob, change one key and write it all back, so
+// two PUTs on different keys could erase each other. They now merge one key
+// server-side; a second key written afterwards must find the first intact.
+func TestSettingsPutsDoNotEraseEachOther(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	rememberSettings(t)
+
+	testutil.Call(t, testHandler.PutBatchWindow, newRequest(http.MethodPut, "/api/batch-window", map[string]any{
+		"enabled": true, "start_local_time": "22:00", "end_local_time": "06:00", "timezone": "UTC",
+	})).Want(http.StatusOK)
+	testutil.Call(t, testHandler.PutWorkflowPolicySettings, newRequest(http.MethodPut, "/api/workflow-policy", map[string]any{"mode": "auto"})).Want(http.StatusOK)
+
+	var window map[string]any
+	testutil.Call(t, testHandler.GetBatchWindow, newRequest(http.MethodGet, "/api/batch-window", nil)).Want(http.StatusOK).JSON(&window)
+	if window["enabled"] != true || window["start_local_time"] != "22:00" {
+		t.Fatalf("the batch window was erased by the workflow policy write: %v", window)
+	}
+	var policy map[string]any
+	testutil.Call(t, testHandler.GetWorkflowPolicySettings, newRequest(http.MethodGet, "/api/workflow-policy", nil)).Want(http.StatusOK).JSON(&policy)
+	if policy["mode"] != "auto" {
+		t.Fatalf("the workflow policy did not survive: %v", policy)
+	}
+}

@@ -46,19 +46,17 @@ func (h *Handler) PutWorkflowPolicySettings(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "mode must be \"off\" or \"auto\"")
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
+	// Merged server-side: a read-modify-write of the whole blob lost the
+	// writes of any concurrent settings PUT.
 	next := service.WorkflowPolicy{Mode: req.Mode}
-	settings["workflow_policy"] = next
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	patch := map[string]any{}
+	patch["workflow_policy"] = next
+	raw, _ := json.Marshal(patch)
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save workflow policy settings")
 		return
 	}

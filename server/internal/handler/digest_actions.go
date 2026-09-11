@@ -59,8 +59,15 @@ func (h *Handler) briefingDigestActions(ctx context.Context, wsID pgtype.UUID, b
 	// for a team that lives in chat.
 	if reqs, err := h.Queries.ListPendingIssueTransitionRequestsForWorkspace(ctx, wsID); err == nil {
 		prefix := h.getIssuePrefix(ctx, wsID)
+		scanned := 0
 		for _, req := range reqs {
 			if n >= digestMaxDecisionButtons {
+				break
+			}
+			// An orphan request (issue gone, no FK) must not keep the scan
+			// going through the whole table.
+			scanned++
+			if scanned > digestMaxDecisionButtons*10 {
 				break
 			}
 			issue, ierr := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: req.IssueID, WorkspaceID: wsID})

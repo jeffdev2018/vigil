@@ -6,7 +6,6 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
-	"log/slog"
 )
 
 // Off-peak batch lane (K45). The workspace declares one window during which
@@ -55,24 +54,16 @@ func (h *Handler) PutBatchWindow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		if err := json.Unmarshal(ws.Settings, &settings); err != nil {
-			// Writing over a blob we could not read would erase every other
-			// workspace setting; refuse instead.
-			slog.Error("batch window: workspace settings unreadable", "workspace_id", uuidToString(wsUUID), "error", err)
-			writeError(w, http.StatusInternalServerError, "workspace settings are unreadable")
-			return
-		}
-	}
-	settings["batch_window"] = window
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side: a read-modify-write of the whole blob lost the
+	// writes of any concurrent settings PUT.
+	patch := map[string]any{}
+	patch["batch_window"] = window
+	raw, _ := json.Marshal(patch)
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the off-peak window")
 		return
 	}

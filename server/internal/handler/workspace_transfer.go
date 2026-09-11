@@ -1026,7 +1026,9 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			return fmt.Errorf("create skill %q: %w", name, err)
 		}
 		if s.Status == "draft" {
-			_, _ = q.UpdateSkill(ctx, db.UpdateSkillParams{ID: row.ID, Status: pgtype.Text{String: "draft", Valid: true}})
+			if _, err := q.UpdateSkill(ctx, db.UpdateSkillParams{ID: row.ID, Status: pgtype.Text{String: "draft", Valid: true}}); err != nil {
+				return fmt.Errorf("mark imported skill %q as draft: %w", name, err)
+			}
 		}
 		for _, f := range s.Files {
 			if _, err := q.UpsertSkillFile(ctx, db.UpsertSkillFileParams{SkillID: row.ID, Path: f.Path, Content: f.Content}); err != nil {

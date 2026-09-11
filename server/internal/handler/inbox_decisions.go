@@ -48,8 +48,16 @@ func (h *Handler) ListInboxDecisions(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	prefix := h.getIssuePrefix(r.Context(), wsUUID)
+	// Two round trips for the whole page instead of two per row: the inbox
+	// can hold 200 candidate rows for the five cards that get shown.
+	type candidate struct {
+		row        db.ListAttentionInboxItemsRow
+		decisionID pgtype.UUID
+	}
 	seen := map[string]bool{}
-	items := make([]InboxDecisionItem, 0)
+	candidates := make([]candidate, 0)
+	decisionIDs := make([]pgtype.UUID, 0)
+	issueIDs := make([]pgtype.UUID, 0)
 	for _, row := range rows {
 		if row.Type != "decision_request" && row.Type != "decision_escalated" {
 			continue
@@ -64,16 +72,44 @@ func (h *Handler) ListInboxDecisions(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		decision, err := h.Queries.GetIssueDecision(r.Context(), db.GetIssueDecisionParams{ID: did, IssueID: row.IssueID})
-		if err != nil || len(decision.Response) > 0 {
+		seen[details.DecisionID] = true
+		candidates = append(candidates, candidate{row: row, decisionID: did})
+		decisionIDs = append(decisionIDs, did)
+		issueIDs = append(issueIDs, row.IssueID)
+	}
+	decisions := map[string]db.IssueDecision{}
+	issues := map[string]db.Issue{}
+	if len(candidates) > 0 {
+		drows, err := h.Queries.ListIssueDecisionsByIDs(r.Context(), db.ListIssueDecisionsByIDsParams{Ids: decisionIDs, IssueIds: issueIDs})
+		if err != nil {
+			slog.Warn("list inbox decisions: resolve decisions failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to list decisions")
+			return
+		}
+		for _, d := range drows {
+			decisions[uuidToString(d.ID)] = d
+		}
+		irows, err := h.Queries.ListIssuesByIDsInWorkspace(r.Context(), db.ListIssuesByIDsInWorkspaceParams{WorkspaceID: wsUUID, IssueIds: issueIDs})
+		if err != nil {
+			slog.Warn("list inbox decisions: resolve issues failed", append(logger.RequestAttrs(r), "error", err)...)
+		}
+		for _, issue := range irows {
+			issues[uuidToString(issue.ID)] = issue
+		}
+	}
+	items := make([]InboxDecisionItem, 0)
+	for _, c := range candidates {
+		row := c.row
+		decision, ok := decisions[uuidToString(c.decisionID)]
+		// The card names one issue; a decision that moved to another issue is not it.
+		if !ok || decision.IssueID != row.IssueID || len(decision.Response) > 0 {
 			continue
 		}
-		seen[details.DecisionID] = true
 		base := db.ListInboxItemsRow(row)
 		score, _ := attentionScore(base, now)
 		item := InboxDecisionItem{InboxItemID: uuidToString(row.ID), IssueID: uuidToString(row.IssueID), IssueTitle: row.Title, RiskScore: score, Decision: issueDecisionToResponse(decision)}
 		item.Decision.Learned = h.decisionHint(r.Context(), wsUUID, userID, decision)
-		if issue, err := h.Queries.GetIssue(r.Context(), row.IssueID); err == nil {
+		if issue, ok := issues[uuidToString(row.IssueID)]; ok {
 			item.IssueIdentifier = prefix + "-" + strconv.Itoa(int(issue.Number))
 			item.IssueTitle = issue.Title
 		}

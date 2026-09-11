@@ -1599,6 +1599,77 @@ func (q *Queries) ListIssues(ctx context.Context, arg ListIssuesParams) ([]ListI
 	return items, nil
 }
 
+const listIssuesByIDsInWorkspace = `-- name: ListIssuesByIDsInWorkspace :many
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id FROM issue
+WHERE workspace_id = $1
+  AND id = ANY($2::uuid[])
+`
+
+type ListIssuesByIDsInWorkspaceParams struct {
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	IssueIds    []pgtype.UUID `json:"issue_ids"`
+}
+
+// One round trip for a page of runs or inbox rows that point at issues.
+func (q *Queries) ListIssuesByIDsInWorkspace(ctx context.Context, arg ListIssuesByIDsInWorkspaceParams) ([]Issue, error) {
+	rows, err := q.db.Query(ctx, listIssuesByIDsInWorkspace, arg.WorkspaceID, arg.IssueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Issue{}
+	for rows.Next() {
+		var i Issue
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.Priority,
+			&i.AssigneeType,
+			&i.AssigneeID,
+			&i.CreatorType,
+			&i.CreatorID,
+			&i.ParentIssueID,
+			&i.AcceptanceCriteria,
+			&i.ContextRefs,
+			&i.Position,
+			&i.DueDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Number,
+			&i.ProjectID,
+			&i.OriginType,
+			&i.OriginID,
+			&i.FirstExecutedAt,
+			&i.StartDate,
+			&i.Metadata,
+			&i.Stage,
+			&i.Properties,
+			&i.Revision,
+			&i.LastActivityAt,
+			&i.ReopenCount,
+			&i.CompletedAt,
+			&i.ContractRisk,
+			&i.ContractRevision,
+			&i.GoalID,
+			&i.DelegateType,
+			&i.DelegateID,
+			&i.CycleID,
+			&i.IssueType,
+			&i.RecurrenceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenIssues = `-- name: ListOpenIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
@@ -2390,20 +2461,21 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue
 const updateIssueAcceptanceCriteria = `-- name: UpdateIssueAcceptanceCriteria :one
 UPDATE issue
 SET acceptance_criteria = $2, contract_revision = contract_revision + 1, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND workspace_id = $3
 RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id
 `
 
 type UpdateIssueAcceptanceCriteriaParams struct {
 	ID                 pgtype.UUID `json:"id"`
 	AcceptanceCriteria []byte      `json:"acceptance_criteria"`
+	WorkspaceID        pgtype.UUID `json:"workspace_id"`
 }
 
 // Outcome Contract (K12): the criteria list with its proofs, owned by the
 // issue. Not part of the revisioned edit surface, so no revision bump.
 // Every criteria write is a new contract revision (K73 cites it).
 func (q *Queries) UpdateIssueAcceptanceCriteria(ctx context.Context, arg UpdateIssueAcceptanceCriteriaParams) (Issue, error) {
-	row := q.db.QueryRow(ctx, updateIssueAcceptanceCriteria, arg.ID, arg.AcceptanceCriteria)
+	row := q.db.QueryRow(ctx, updateIssueAcceptanceCriteria, arg.ID, arg.AcceptanceCriteria, arg.WorkspaceID)
 	var i Issue
 	err := row.Scan(
 		&i.ID,

@@ -463,6 +463,45 @@ func (q *Queries) LockWorkspaceForDelete(ctx context.Context, id pgtype.UUID) (p
 	return id_2, err
 }
 
+const mergeWorkspaceSettings = `-- name: MergeWorkspaceSettings :one
+UPDATE workspace
+SET settings = COALESCE(settings, '{}'::jsonb) || $1::jsonb, updated_at = now()
+WHERE id = $2
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks, doctrine_revision, doctrine_updated_at, doctrine_updated_by
+`
+
+type MergeWorkspaceSettingsParams struct {
+	Settings []byte      `json:"settings"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+// Merges one settings key server-side: a PUT that read the blob, changed a
+// key and wrote it all back lost the writes of any concurrent PUT.
+func (q *Queries) MergeWorkspaceSettings(ctx context.Context, arg MergeWorkspaceSettingsParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, mergeWorkspaceSettings, arg.Settings, arg.ID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Settings,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Context,
+		&i.Repos,
+		&i.IssuePrefix,
+		&i.IssueCounter,
+		&i.AvatarUrl,
+		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
+		&i.DoctrineRevision,
+		&i.DoctrineUpdatedAt,
+		&i.DoctrineUpdatedBy,
+	)
+	return i, err
+}
+
 const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE workspace SET
     name = COALESCE($2, name),

@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
-	"log/slog"
 )
 
 // Issue router (K27): the decision behind an issue's latest run, and the
@@ -84,25 +83,17 @@ func (h *Handler) PutRoutingSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		pools[level] = id
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		if err := json.Unmarshal(ws.Settings, &settings); err != nil {
-			// Writing over a blob we could not read would erase every other
-			// workspace setting; refuse instead.
-			slog.Error("routing settings: workspace settings unreadable", "workspace_id", uuidToString(ws.ID), "error", err)
-			writeError(w, http.StatusInternalServerError, "workspace settings are unreadable")
-			return
-		}
-	}
+	// Merged server-side: a read-modify-write of the whole blob lost the
+	// writes of any concurrent settings PUT.
 	next := service.Routing{Enabled: req.Enabled, Pools: pools, EscalationFailures: req.EscalationFailures}
-	settings["routing"] = next
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	patch := map[string]any{}
+	patch["routing"] = next
+	raw, _ := json.Marshal(patch)
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save routing settings")
 		return
 	}

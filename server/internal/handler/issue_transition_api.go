@@ -303,6 +303,10 @@ func (h *Handler) UpdateIssueTransitionRule(w http.ResponseWriter, r *http.Reque
 		if !ok {
 			return
 		}
+		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: parsed, WorkspaceID: wsUUID}); err != nil {
+			writeError(w, http.StatusBadRequest, "project not found in this workspace")
+			return
+		}
 		projectID = parsed
 	}
 	row, err := h.Queries.UpdateIssueTransitionRule(r.Context(), db.UpdateIssueTransitionRuleParams{
