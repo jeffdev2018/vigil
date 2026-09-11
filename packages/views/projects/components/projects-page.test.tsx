@@ -211,12 +211,6 @@ const PROJECT: Project = {
   resource_count: 0,
 };
 
-const PROJECT_2: Project = {
-  ...PROJECT,
-  id: "project-2",
-  title: "Second Project",
-};
-
 function makeAdapter(
   overrides: Partial<NavigationAdapter> = {},
 ): NavigationAdapter {
@@ -241,8 +235,8 @@ function renderProjects(adapter = makeAdapter()) {
   return adapter;
 }
 
-function projectRow(title = PROJECT.title) {
-  const row = screen.getByText(title).closest('[role="row"]');
+function projectRow() {
+  const row = screen.getByText(PROJECT.title).closest('[role="row"]');
   if (!row) throw new Error("project row not found");
   return row as HTMLElement;
 }

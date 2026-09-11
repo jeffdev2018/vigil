@@ -5,8 +5,10 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { Project } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
-const mockCreatePinAsync = vi.hoisted(() => vi.fn(async () => ({})));
-const mockDeleteProjectAsync = vi.hoisted(() => vi.fn(async () => ({})));
+const mockCreatePinAsync = vi.hoisted(() =>
+  vi.fn(async (_vars: { item_type: string; item_id: string }) => ({})),
+);
+const mockDeleteProjectAsync = vi.hoisted(() => vi.fn(async (_id: string) => ({})));
 
 vi.mock("@multica/core/pins", () => ({
   useCreatePin: () => ({ mutateAsync: mockCreatePinAsync }),
