@@ -37,6 +37,10 @@ type CaptureParams struct {
 	State           string
 	DropReason      string
 	Shadow          bool
+	// DedupeKey folds repeated deliveries of one upstream event (an email
+	// Message-ID, a webhook delivery id). Empty means "no transport key":
+	// the content digest is the only guard then.
+	DedupeKey string
 }
 
 // AutoAcceptEnabled reports whether a source resolves its own captures without
@@ -110,7 +114,7 @@ func Capture(ctx context.Context, q *db.Queries, p CaptureParams) (db.TriageItem
 		SourceID:        source.ID,
 		OriginType:      p.OriginType,
 		OriginID:        p.OriginID,
-		DedupeKey:       pgtype.Text{Valid: true},
+		DedupeKey:       pgtype.Text{String: p.DedupeKey, Valid: true},
 		ContentDigest:   pgtype.Text{String: ContentDigest(p.Title, p.TriggerPayload), Valid: true},
 		Title:           pgtype.Text{String: p.Title, Valid: true},
 		NormalizedTitle: pgtype.Text{String: NormalizeTitle(p.Title), Valid: true},

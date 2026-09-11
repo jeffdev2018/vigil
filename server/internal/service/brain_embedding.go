@@ -103,6 +103,12 @@ func (b *BrainEmbedder) EmbedNoteAsync(noteID pgtype.UUID) {
 		return
 	}
 	go func() {
+		// Panic containment: a bare goroutine takes the process down.
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("brain embedding panicked", "note_id", util.UUIDToString(noteID), "panic", r)
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), b.Timeout+5*time.Second)
 		defer cancel()
 		if err := b.EmbedNote(ctx, noteID); err != nil {
@@ -140,11 +146,21 @@ func (b *BrainEmbedder) Backfill(ctx context.Context, limit int32) (int, error) 
 		return 0, err
 	}
 	done := 0
+	var firstErr error
 	for _, row := range rows {
 		if err := b.embedRow(ctx, row.ID, row.WorkspaceID, row.Title, row.Content); err != nil {
-			return done, err
+			// One note that never embeds must not block every older note on
+			// every tick: log it, keep going, report the first failure.
+			slog.Warn("brain embedding backfill: note failed", "note_id", util.UUIDToString(row.ID), "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			if ctx.Err() != nil {
+				return done, ctx.Err()
+			}
+			continue
 		}
 		done++
 	}
-	return done, nil
+	return done, firstErr
 }

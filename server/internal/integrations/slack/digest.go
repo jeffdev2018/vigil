@@ -70,8 +70,9 @@ func DigestBlocks(text string, actions []channel.DigestAction) []slack.Block {
 			break
 		}
 		label := a.Label
-		if len(label) > 75 {
-			label = label[:72] + "…"
+		if r := []rune(label); len(r) > 75 {
+			// Cut on runes: a byte cut inside an accent or a CJK character sends Slack invalid UTF-8.
+			label = string(r[:72]) + "…"
 		}
 		btn := slack.NewButtonBlockElement(DigestActionID, a.Value, slack.NewTextBlockObject(slack.PlainTextType, label, false, false))
 		if a.URL != "" {

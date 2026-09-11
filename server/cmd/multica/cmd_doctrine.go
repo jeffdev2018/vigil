@@ -153,6 +153,15 @@ func jsonOutput(cmd *cobra.Command) bool {
 	return output == "json"
 }
 
+// requireJSONOutput is for commands that only print JSON: the --output flag
+// is still honoured in that any other value is refused instead of ignored.
+func requireJSONOutput(cmd *cobra.Command) error {
+	if output, _ := cmd.Flags().GetString("output"); output != "" && output != "json" {
+		return fmt.Errorf("--output %q is not supported by this command (only json)", output)
+	}
+	return nil
+}
+
 func runDoctrineShow(cmd *cobra.Command, _ []string) error {
 	client, err := newAPIClient(cmd)
 	if err != nil {
