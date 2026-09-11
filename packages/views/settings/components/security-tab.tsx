@@ -421,7 +421,7 @@ function ScimSection({ wsId, canManage }: { wsId: string; canManage: boolean }) 
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
-            <p className="text-caption text-amber-600 dark:text-amber-500">
+            <p className="text-caption text-warning">
               {t(($) => $.security.scim.shown_once)}
             </p>
           </div>

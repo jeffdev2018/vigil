@@ -401,7 +401,7 @@ function MemoryEditorDialog({
         </div>
         <div className="space-y-2">
           <FieldLabel htmlFor="agent-memory-expiry">{t(($) => $.tab_body.memory.expiry_label)}</FieldLabel>
-          <input id="agent-memory-expiry" type="datetime-local" className="w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm"
+          <input id="agent-memory-expiry" type="datetime-local" className="w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-body"
             value={expires} disabled={pending} onChange={(event) => setExpires(event.target.value)} />
           <p className="text-caption text-muted-foreground">{t(($) => $.tab_body.memory.expiry_hint)}</p>
           {!validExpiry && <p role="alert" className="text-caption text-destructive">{t(($) => $.tab_body.memory.invalid_expiry)}</p>}

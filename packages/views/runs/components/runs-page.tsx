@@ -542,8 +542,12 @@ function RunRow({
       : run.blocked_on?.summary ?? "";
 
   const handleCancel = async () => {
-    const results = await cancelRuns.mutateAsync([run.id]);
-    reportCancelOutcomes(results.results, t);
+    try {
+      const results = await cancelRuns.mutateAsync([run.id]);
+      reportCancelOutcomes(results.results, t);
+    } catch {
+      toast.error(t(($) => $.list.cancel_failed));
+    }
   };
 
   return (
@@ -713,9 +717,13 @@ function RunsBulkBar({ wsId, ids, onDone }: { wsId: string; ids: string[]; onDon
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleCancel = async () => {
-    const res = await cancelRuns.mutateAsync(ids);
-    reportCancelOutcomes(res.results, t);
-    onDone();
+    try {
+      const res = await cancelRuns.mutateAsync(ids);
+      reportCancelOutcomes(res.results, t);
+      onDone();
+    } catch {
+      toast.error(t(($) => $.list.cancel_failed));
+    }
   };
 
   return (

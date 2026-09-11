@@ -41,13 +41,13 @@ import { DeleteMeetingDialog } from "./delete-meeting-dialog";
 export function meetingStatusDotClass(status: string): string {
   switch (status) {
     case "recording":
-      return "bg-red-500 animate-pulse";
+      return "bg-destructive animate-pulse";
     case "summarizing":
-      return "bg-blue-500";
+      return "bg-info";
     case "done":
-      return "bg-emerald-500";
+      return "bg-success";
     case "failed":
-      return "bg-red-500";
+      return "bg-destructive";
     default:
       return "bg-muted-foreground/40";
   }

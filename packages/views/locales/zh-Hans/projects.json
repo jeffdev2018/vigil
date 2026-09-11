@@ -237,7 +237,12 @@
     "agent": "智能体",
     "updated": "角色已更新",
     "update_failed": "更新角色失败",
-    "read_only": "只有工作区所有者、管理员和项目 admin 可以更改角色。"
+    "read_only": "只有工作区所有者、管理员和项目 admin 可以更改角色。",
+    "roles": {
+      "viewer": "查看者",
+      "contributor": "贡献者",
+      "admin": "管理员"
+    }
   },
   "review": {
     "section": "智能体评审",

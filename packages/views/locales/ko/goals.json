@@ -13,7 +13,8 @@
     "loading_issues": "이슈 불러오는 중...",
     "progress": "{{done}} / {{total}} 완료",
     "no_owner": "담당자 없음",
-    "no_due_date": "마감일 없음"
+    "no_due_date": "마감일 없음",
+    "load_error": "목표를 불러올 수 없습니다"
   },
   "status": {
     "draft": "초안",

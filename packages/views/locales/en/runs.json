@@ -35,7 +35,8 @@
     "empty_description": "Runs appear here once an agent starts working an issue, a chat turn, or an autopilot trigger.",
     "loading": "Loading runs",
     "load_error": "Could not load the runs",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "cancel_failed": "Could not cancel the run"
   },
   "row": {
     "silent": "Silent",

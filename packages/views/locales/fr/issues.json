@@ -1435,7 +1435,8 @@
     "add": "Ajouter un shard",
     "launch": "Lancer la campagne",
     "cancel": "Annuler",
-    "failed": "La requête de campagne a échoué"
+    "failed": "La requête de campagne a échoué",
+    "unknown_agent": "Agent inconnu"
   },
   "competency": {
     "section": "Historique de réussite pour ce type de tâche",

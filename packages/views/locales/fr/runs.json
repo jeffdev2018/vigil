@@ -35,7 +35,8 @@
     "empty_description": "Les runs apparaissent ici dès qu'un agent commence à travailler une issue, un tour de chat, ou un déclenchement d'autopilot.",
     "loading": "Chargement des runs",
     "load_error": "Impossible de charger les runs",
-    "load_more": "Charger plus"
+    "load_more": "Charger plus",
+    "cancel_failed": "Impossible d'annuler le run"
   },
   "row": {
     "silent": "Silencieux",

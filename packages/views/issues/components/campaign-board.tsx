@@ -44,7 +44,7 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
   const emptyRow = { description: "", assignee_id: "", branch_name: "" };
   const [rows, setRows] = useState([emptyRow]);
   const fail = (e: unknown) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.campaign.failed));
-  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? id.slice(0, 8);
+  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? t(($) => $.campaign.unknown_agent);
   const active = campaign?.status === "running" || campaign?.status === "merging";
   const valid = name.trim() !== "" && target.trim() !== "" && leader !== "" && rows.length > 0 && rows.every((r) => r.description.trim() !== "" && r.assignee_id !== "");
   if (!campaign && (!canManage || agents.length === 0)) return null;

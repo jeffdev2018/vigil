@@ -14,7 +14,8 @@
     "edit": "编辑周期",
     "delete": "删除周期",
     "no_project": "先选择一个项目再规划周期。",
-    "loading": "正在加载周期"
+    "loading": "正在加载周期",
+    "load_error": "无法加载周期"
   },
   "status": {
     "upcoming": "即将开始",

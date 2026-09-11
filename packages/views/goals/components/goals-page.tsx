@@ -235,7 +235,7 @@ export function GoalsPage() {
   const { t } = useT("goals");
   const wsId = useWorkspaceId();
   const currentUser = useAuthStore((s) => s.user);
-  const { data: goals = [], isLoading } = useQuery(goalListOptions(wsId));
+  const { data: goals = [], isLoading, isError } = useQuery(goalListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const deleteGoal = useDeleteGoal(wsId);
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
@@ -273,7 +273,9 @@ export function GoalsPage() {
         actions={<CollectionPageHeaderAction icon={Plus} label={t(($) => $.page.new_goal)} onClick={() => setFormTarget({ mode: "create", parentId: null })} />}
       />
 
-      {!isLoading && goals.length === 0 ? (
+      {isError ? (
+        <CollectionPageState icon={Target} tone="destructive" title={t(($) => $.page.load_error)} />
+      ) : !isLoading && goals.length === 0 ? (
         <CollectionPageState
           icon={Target}
           title={t(($) => $.page.empty)}

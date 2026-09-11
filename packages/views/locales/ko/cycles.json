@@ -14,7 +14,8 @@
     "edit": "사이클 편집",
     "delete": "사이클 삭제",
     "no_project": "사이클을 계획할 프로젝트를 선택하세요.",
-    "loading": "사이클 불러오는 중"
+    "loading": "사이클 불러오는 중",
+    "load_error": "사이클을 불러올 수 없습니다"
   },
   "status": {
     "upcoming": "예정",

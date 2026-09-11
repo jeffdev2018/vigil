@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertCircle, Cloud, Monitor, Pencil, Plus, Server } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
@@ -30,6 +30,7 @@ import { pendingRuntimesForProfiles } from "./pending-runtime";
 import { MachineCliSection } from "./machine-cli-section";
 import { SkippedAgentsSection } from "./skipped-agents-section";
 import { HealthIcon, useHealthLabel } from "./shared";
+import { useNowTick } from "./use-now-tick";
 import { useT, useTimeAgo } from "../../i18n";
 
 export interface RuntimeDetailPageProps {
@@ -42,14 +43,6 @@ export interface RuntimeDetailPageProps {
   bootstrapping?: boolean;
 }
 
-function useNowTick(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 function decodeRouteParam(value: string): string {
   try {

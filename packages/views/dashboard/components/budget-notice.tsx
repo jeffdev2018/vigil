@@ -30,7 +30,7 @@ export function BudgetNotice({ onOpen }: { onOpen: () => void }) {
       className="mx-4 mt-4 flex items-center gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 sm:mx-6"
     >
       <Icon className="h-5 w-5 shrink-0 text-warning-foreground" />
-      <p className="min-w-0 flex-1 text-sm">
+      <p className="min-w-0 flex-1 text-body">
         {blocked
           ? t(($) => $.budgets.notice_blocked)
           : t(($) => $.budgets.notice_warning)}

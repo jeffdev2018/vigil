@@ -34,7 +34,8 @@
     "empty_description": "当智能体开始处理某个任务、进行一轮聊天，或被自动化触发时，运行会出现在这里。",
     "loading": "正在加载运行",
     "load_error": "无法加载运行",
-    "load_more": "加载更多"
+    "load_more": "加载更多",
+    "cancel_failed": "无法取消运行"
   },
   "row": {
     "silent": "静默",

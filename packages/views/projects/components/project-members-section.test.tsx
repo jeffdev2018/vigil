@@ -49,7 +49,7 @@ describe("ProjectMembersSection", () => {
     const select = screen.getByRole("combobox", { name: "Project role" });
     const values = within(select).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
     expect(values).toEqual(["__inherit", "viewer", "contributor"]);
-    expect(screen.getByRole("option", { name: "Inherit (contributor)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Inherit (Contributor)" })).toBeInTheDocument();
   });
 
   it("marks inherited and overridden roles", () => {
@@ -58,7 +58,9 @@ describe("ProjectMembersSection", () => {
     const rows = screen.getAllByTestId("project-member-row");
     expect(rows[0]).toHaveTextContent("inherited");
     expect(rows[1]).toHaveTextContent("override");
-    expect(rows[1]).toHaveTextContent("viewer");
+    // Roles are shown through the locale, never as the raw enum.
+    expect(rows[1]).toHaveTextContent("Viewer");
+    expect(rows[1]).not.toHaveTextContent("viewer");
     // A plain member with no project admin role sees no select.
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.getByText(/Only workspace owners, admins and project admins/)).toBeInTheDocument();

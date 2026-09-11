@@ -14,7 +14,8 @@
     "edit": "Edit cycle",
     "delete": "Delete cycle",
     "no_project": "Pick a project to plan a cycle for.",
-    "loading": "Loading cycles"
+    "loading": "Loading cycles",
+    "load_error": "Could not load the cycles"
   },
   "status": {
     "upcoming": "Upcoming",

@@ -1420,7 +1420,8 @@
     "add": "添加分片",
     "launch": "发起战役",
     "cancel": "取消",
-    "failed": "战役请求失败"
+    "failed": "战役请求失败",
+    "unknown_agent": "未知代理"
   },
   "competency": {
     "section": "此类任务的成功历史",

@@ -19,7 +19,7 @@ export function HistoryTab({ agent, canEdit }: { agent: Agent; canEdit: boolean 
   const { t } = useT("agents");
   const timeAgo = useTimeAgo();
   const wsId = useWorkspaceId();
-  const { data: versions = [] } = useQuery(agentVersionsOptions(wsId, agent.id));
+  const { data: versions = [], isLoading } = useQuery(agentVersionsOptions(wsId, agent.id));
   const [selected, setSelected] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const rollback = useRollbackAgentVersion(wsId, agent.id);
@@ -29,6 +29,9 @@ export function HistoryTab({ agent, canEdit }: { agent: Agent; canEdit: boolean 
     enabled: !!active && !!selected && selected !== active.id,
   });
 
+  if (isLoading) {
+    return null;
+  }
   if (versions.length <= 1) {
     return (
       <div data-testid="agent-history" data-empty="true" className="p-4 text-caption text-muted-foreground">
