@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApiError } from "@multica/core/api/client";
 import type { RunGroup, RunGroupAttempt } from "@multica/core/api/schemas";
@@ -73,6 +74,15 @@ beforeEach(() => {
   state.judging = false;
   state.toastError.mockReset();
 });
+
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 describe("RunGroupSection", () => {
   it("shows the empty state with the start button", async () => {
@@ -170,8 +180,8 @@ describe("RunGroupSection", () => {
     const dialog = await screen.findByTestId("run-group-start-dialog");
     expect(dialog).toBeTruthy();
     expect((screen.getByRole("button", { name: "Start the race" }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Attempt 1 — agent"), { target: { value: "a1" } });
-    fireEvent.change(screen.getByLabelText("Attempt 2 — agent"), { target: { value: "a2" } });
+    await pickOption("Attempt 1 — agent", "Alpha");
+    await pickOption("Attempt 2 — agent", "Beta");
     fireEvent.change(screen.getByLabelText("Attempt 2 — model"), { target: { value: " opus " } });
     fireEvent.change(screen.getByLabelText("Note"), { target: { value: " try both " } });
     fireEvent.click(screen.getByRole("button", { name: "Start the race" }));
@@ -189,12 +199,11 @@ describe("RunGroupSection", () => {
     render();
     fireEvent.click(await screen.findByRole("button", { name: "Start a race" }));
     await screen.findByTestId("run-group-start-dialog");
-    const runtime1 = (await screen.findByLabelText("Attempt 1 — runtime")) as HTMLSelectElement;
-    expect(runtime1.options[0]?.textContent).toBe("Default (agent binding)");
-    fireEvent.change(screen.getByLabelText("Attempt 1 — agent"), { target: { value: "a1" } });
-    fireEvent.change(screen.getByLabelText("Attempt 2 — agent"), { target: { value: "a2" } });
-    fireEvent.change(runtime1, { target: { value: "rt-1" } });
-    fireEvent.change(screen.getByLabelText("Attempt 2 — runtime"), { target: { value: "rt-2" } });
+    expect(screen.getByRole("combobox", { name: "Attempt 1 — runtime" }).textContent).toContain("Default (agent binding)");
+    await pickOption("Attempt 1 — agent", "Alpha");
+    await pickOption("Attempt 2 — agent", "Beta");
+    await pickOption("Attempt 1 — runtime", "Claude Code (host)");
+    await pickOption("Attempt 2 — runtime", "Codex (host)");
     fireEvent.click(screen.getByRole("button", { name: "Start the race" }));
     expect(state.start).toHaveBeenCalledWith(
       { attempts: [{ agent_id: "a1", runtime_id: "rt-1" }, { agent_id: "a2", runtime_id: "rt-2" }] },
