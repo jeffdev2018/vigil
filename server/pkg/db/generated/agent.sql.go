@@ -3956,7 +3956,8 @@ INSERT INTO agent_task_queue (
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
     channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
-    task_class, routing, run_group_id, model_override, id
+    task_class, routing, run_group_id, model_override,
+    handoff_note, runtime_pinned, a2a_depth, id
 )
 SELECT
     p.agent_id, COALESCE($2::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -3994,6 +3995,15 @@ SELECT
     -- take that attempt out of the race — its diff would never reach the
     -- comparison, and it would be serialized against its own siblings.
     p.run_group_id, p.model_override,
+    -- The run the retry repeats opened with this note (interview answer,
+    -- rework brief, resume instructions); without it the retry starts blind.
+    p.handoff_note,
+    -- Runtime pin (JEF-234): the parent was pinned where its session lives, so
+    -- the retry stays pinned while it stays there. A failover that moves it
+    -- elsewhere drops the pin; the pool fence authorizes that runtime instead.
+    p.runtime_pinned AND COALESCE($2::uuid, p.runtime_id) = p.runtime_id,
+    -- A2A hop distance (F19): the retry is the same hop, not a new one.
+    p.a2a_depth,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE($9::uuid, gen_random_uuid())
 FROM agent_task_queue p
