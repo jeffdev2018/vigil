@@ -349,7 +349,8 @@
       "completed": "更新完成。守护进程正在重启...",
       "failed": "更新失败",
       "timeout": "超时"
-    }
+    },
+    "updated_to": "已更新到 {{version}}"
   },
   "cli_auth": {
     "authenticated": "已认证",

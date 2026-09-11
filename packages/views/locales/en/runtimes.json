@@ -361,7 +361,8 @@
       "completed": "Update complete. Daemon is restarting...",
       "failed": "Update failed",
       "timeout": "Timeout"
-    }
+    },
+    "updated_to": "Updated to {{version}}"
   },
   "cli_auth": {
     "authenticated": "Authenticated",
