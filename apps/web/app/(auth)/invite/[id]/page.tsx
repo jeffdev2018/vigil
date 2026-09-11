@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
+import { AuthRecoveryPage } from "@multica/views/auth";
 import { paths } from "@multica/core/paths";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
 import { InvitePage } from "@multica/views/invite";
@@ -13,6 +14,7 @@ export default function InviteAcceptPage() {
   const params = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const authStatus = useAuthStore((s) => s.status);
   const { data: wsList = [] } = useQuery({
     ...workspaceListOptions(),
     enabled: !!user,
@@ -27,6 +29,7 @@ export default function InviteAcceptPage() {
     }
   }, [isLoading, user, router, params.id]);
 
+  if (authStatus === "recovering") return <AuthRecoveryPage />;
   if (isLoading || !user) return null;
 
   const onBack =

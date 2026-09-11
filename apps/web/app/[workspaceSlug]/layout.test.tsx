@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
     onboarded_at: "2026-01-01T00:00:00Z",
   } as { id: string; onboarded_at: string | null } | null,
   isAuthLoading: false,
+  authStatus: "authenticated" as string,
   workspace: null as { id: string; slug: string } | null,
   workspacesBySlug: {} as Record<string, { id: string; slug: string } | null>,
   workspaceError: false,
@@ -27,8 +28,30 @@ vi.mock("@multica/core/auth", () => ({
     selector: (auth: {
       user: typeof state.user;
       isLoading: boolean;
+      status: string;
     }) => unknown,
-  ) => selector({ user: state.user, isLoading: state.isAuthLoading }),
+  ) =>
+    selector({
+      user: state.user,
+      isLoading: state.isAuthLoading,
+      status: state.authStatus,
+    }),
+}));
+
+vi.mock("@multica/views/auth", () => ({
+  AuthRecoveryPage: ({
+    onRetry,
+    isRetrying,
+  }: {
+    onRetry?: () => void;
+    isRetrying?: boolean;
+  }) => (
+    <button
+      data-testid="auth-recovery"
+      data-retrying={isRetrying ? "true" : "false"}
+      onClick={onRetry}
+    />
+  ),
 }));
 
 vi.mock("@multica/core/workspace", () => ({
@@ -113,6 +136,7 @@ beforeEach(() => {
     onboarded_at: "2026-01-01T00:00:00Z",
   };
   state.isAuthLoading = false;
+  state.authStatus = "authenticated";
   state.workspace = null;
   state.workspacesBySlug = {};
   state.workspaceError = false;
@@ -121,17 +145,35 @@ beforeEach(() => {
 });
 
 describe("WorkspaceLayout", () => {
-  it("keeps loading instead of showing NoAccess when the initial list request fails", async () => {
+  // The auth initializer keeps retrying an unreachable backend in the
+  // background; the route must say so instead of pulsing the logo forever.
+  it("shows the recovery state instead of the loading logo while auth is recovering", () => {
+    state.user = null;
+    state.isAuthLoading = true;
+    state.authStatus = "recovering";
+    renderLayout();
+
+    expect(screen.getByTestId("auth-recovery")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-loading")).toBeNull();
+    expect(state.replace).not.toHaveBeenCalled();
+  });
+
+  it("offers a retry instead of NoAccess or an endless loader when the initial list request fails", async () => {
     state.workspaceError = true;
     const { queryClient } = renderLayout();
 
-    await waitFor(() => {
-      expect(
-        queryClient.getQueryState(["workspace-by-slug", "acme"])?.status,
-      ).toBe("error");
-    });
+    const recovery = await screen.findByTestId("auth-recovery");
     expect(screen.queryByTestId("no-access")).toBeNull();
-    expect(screen.getByTestId("workspace-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-loading")).toBeNull();
+
+    state.workspaceError = false;
+    state.workspace = { id: "ws-acme", slug: "acme" };
+    fireEvent.click(recovery);
+
+    expect(await screen.findByTestId("workspace-content")).toBeInTheDocument();
+    expect(
+      queryClient.getQueryState(["workspace-by-slug", "acme"])?.status,
+    ).toBe("success");
   });
 
   it("shows NoAccess only after an authoritative list omits the slug", async () => {
