@@ -367,7 +367,9 @@ func (h *Handler) ScimCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ExternalID != "" {
-		_ = h.Queries.SetMemberScimExternalID(r.Context(), db.SetMemberScimExternalIDParams{ID: member.ID, ScimExternalID: pgtype.Text{String: req.ExternalID, Valid: true}})
+		if err := h.Queries.SetMemberScimExternalID(r.Context(), db.SetMemberScimExternalIDParams{ID: member.ID, ScimExternalID: pgtype.Text{String: req.ExternalID, Valid: true}}); err != nil {
+			slog.Warn("scim: set member external id failed", "member_id", uuidToString(member.ID), "error", err)
+		}
 	}
 	h.MembershipCache.Invalidate(r.Context(), uuidToString(user.ID), uuidToString(wsUUID))
 	h.audit(r.Context(), wsUUID, "system", "", AuditScimProvision, "member", member.ID, map[string]any{"email": email, "external_id": req.ExternalID}, nil)

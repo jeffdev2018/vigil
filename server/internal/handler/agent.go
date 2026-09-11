@@ -173,7 +173,9 @@ const runtimeConfigGatewayTokenMask = "***"
 func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 	var rc any
 	if a.RuntimeConfig != nil {
-		json.Unmarshal(a.RuntimeConfig, &rc)
+		if err := json.Unmarshal(a.RuntimeConfig, &rc); err != nil {
+			slog.Warn("failed to unmarshal agent runtime_config", "agent_id", uuidToString(a.ID), "error", err)
+		}
 	}
 	if rc == nil {
 		rc = map[string]any{}
@@ -964,7 +966,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	_ = json.Unmarshal(t.Context, &cancellation)
 	var result any
 	if t.Result != nil {
-		json.Unmarshal(t.Result, &result)
+		if err := json.Unmarshal(t.Result, &result); err != nil {
+			slog.Warn("failed to unmarshal agent task result", "task_id", uuidToString(t.ID), "error", err)
+		}
 	}
 	failureReason := ""
 	if t.FailureReason.Valid {
