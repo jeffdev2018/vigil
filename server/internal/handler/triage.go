@@ -724,50 +724,6 @@ func (h *Handler) BatchAcceptTriageItems(w http.ResponseWriter, r *http.Request)
 	}{Items: results})
 }
 
-// UpdateTriageSourceMode flips a source between gate, direct, and blocked.
-// This is the M2 kill switch: routing changes on the next delivery.
-func (h *Handler) UpdateTriageSource(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := parseUUIDOrBadRequest(w, h.resolveWorkspaceID(r), "workspace_id")
-	if !ok {
-		return
-	}
-	sourceID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "id")
-	if !ok {
-		return
-	}
-	var req struct {
-		Mode string `json:"mode"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	switch req.Mode {
-	case string(triage.ModeGate), string(triage.ModeDirect), string(triage.ModeBlocked):
-	default:
-		writeError(w, http.StatusBadRequest, "mode must be one of: gate, direct, blocked")
-		return
-	}
-
-	src, err := h.Queries.UpdateTriageSourceMode(r.Context(), db.UpdateTriageSourceModeParams{
-		ID: sourceID, WorkspaceID: workspaceID, Mode: req.Mode,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "triage source not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update triage source")
-		return
-	}
-	writeJSON(w, http.StatusOK, TriageSourceStats{
-		ID:    util.UUIDToString(src.ID),
-		Kind:  src.Kind,
-		RefID: util.UUIDToString(src.RefID),
-		Name:  src.Name,
-		Mode:  src.Mode,
-	})
-}
 
 // ExpireStaleTriageItems is the retention sweep behind the scheduler's
 // triage_retention_sweep job. triage.Capture stamps every item with an
