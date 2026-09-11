@@ -91,6 +91,7 @@ import { createLogger } from "@multica/core/logger";
 import type { Agent, Attachment, ChatMessage, ChatSession, PendingChatTasksResponse } from "@multica/core/types";
 import { workspaceApprovalsOptions, approvalsAskedBy } from "@multica/core/approvals";
 import { ChatApprovalsStrip } from "./chat-approvals-strip";
+import { ParticipantBar, useChatAuthorNames } from "./participant-bar";
 import { useLocale, useT } from "../../i18n";
 
 const uiLogger = createLogger("chat.ui");
@@ -218,6 +219,8 @@ export function ChatWindow() {
   const currentSession = activeSessionId
     ? sessions.find((s) => s.id === activeSessionId)
     : null;
+  // Undefined in a solo chat — the bubbles then render exactly as before K31.
+  const resolveAuthorName = useChatAuthorNames(wsId, activeSessionId ?? null);
   const isSessionArchived = currentSession?.status === "archived";
   const candidateProjectId = currentSession
     ? currentSession.project_id ?? null
@@ -929,6 +932,10 @@ export function ChatWindow() {
         </div>
       </div>
 
+      {/* Multiplayer roster (K31), same as the full chat page. Renders
+          nothing for a solo session the viewer did not create. */}
+      {currentSession && <ParticipantBar session={currentSession} wsId={wsId} />}
+
       {/* Messages / skeleton / empty state */}
       {showSkeleton ? (
         <ChatMessageSkeleton />
@@ -960,6 +967,7 @@ export function ChatWindow() {
               : undefined
           }
           quickActionsPendingMessageId={quickActionsPending?.message_id ?? null}
+          resolveAuthorName={resolveAuthorName}
         />
       ) : (
         <EmptyState
