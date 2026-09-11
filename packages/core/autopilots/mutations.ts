@@ -115,17 +115,13 @@ export function useDeleteAutopilot() {
   const wsId = useWorkspaceId();
   return useMutation({
     mutationFn: (id: string) => api.deleteAutopilot(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: autopilotKeys.list(wsId) });
-      const prevList = qc.getQueryData<ListAutopilotsResponse>(autopilotKeys.list(wsId));
+    // A delete awaits the server (JEF-397): the row leaves the cache only
+    // once the server has confirmed it is gone, never optimistically.
+    onSuccess: (_data, id) => {
       qc.setQueryData<ListAutopilotsResponse>(autopilotKeys.list(wsId), (old) =>
         old ? { ...old, autopilots: old.autopilots.filter((a) => a.id !== id), total: old.total - 1 } : old,
       );
       qc.removeQueries({ queryKey: autopilotKeys.detail(wsId, id) });
-      return { prevList };
-    },
-    onError: (_err, _id, ctx) => {
-      if (ctx?.prevList) qc.setQueryData(autopilotKeys.list(wsId), ctx.prevList);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: autopilotKeys.list(wsId) });
