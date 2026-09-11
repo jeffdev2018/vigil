@@ -1005,14 +1005,21 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 	// window where a compromised process could keep authenticating
 	// against the API until the 24h expiry. Failure is non-fatal — the
 	// expiry / FK cascade are the durable guards. MUL-2600.
-	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: "run_cancelled", Valid: true}}); err != nil {
-		slog.Warn("cancel task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "error", err)
+	s.revokeTaskCredentials(ctx, task, "run_cancelled")
+	s.fireTaskCancelled(ctx, task)
+}
+
+// revokeTaskCredentials revokes the run-scoped secrets and mat_ task tokens of
+// a run that reached a terminal status without the daemon's complete/fail
+// handler, which revokes them itself (with an audit entry). Failure is
+// non-fatal: the expiry is the durable guard.
+func (s *TaskService) revokeTaskCredentials(ctx context.Context, task db.AgentTaskQueue, reason string) {
+	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: reason, Valid: true}}); err != nil {
+		slog.Warn("terminal task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "reason", reason, "error", err)
 	}
 	if err := s.Queries.DeleteTaskTokensByTask(ctx, task.ID); err != nil {
-		slog.Warn("cancel task: failed to revoke task tokens",
-			"task_id", util.UUIDToString(task.ID), "error", err)
+		slog.Warn("terminal task: failed to revoke task tokens", "task_id", util.UUIDToString(task.ID), "reason", reason, "error", err)
 	}
-	s.fireTaskCancelled(ctx, task)
 }
 
 // fireTaskCancelled runs the handler-owned terminal cleanup for one cancelled
@@ -6618,6 +6625,7 @@ func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTas
 			failureReason = t.FailureReason.String
 		}
 		s.captureTaskFailed(ctx, t)
+		s.revokeTaskCredentials(ctx, t, "run_finished")
 
 		workspaceID := ""
 		if t.IssueID.Valid {
