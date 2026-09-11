@@ -44,9 +44,17 @@ vi.mock("./tabs/skills-tab", () => ({
 vi.mock("./tabs/env-tab", () => ({
   EnvTab: () => <div>env-tab</div>,
 }));
-vi.mock("./tabs/custom-args-tab", () => ({
-  CustomArgsTab: () => <div>custom-args-tab</div>,
-}));
+// Stateful on purpose: it seeds from the agent it first mounted with, the way
+// the real editors buffer their fields.
+vi.mock("./tabs/custom-args-tab", async () => {
+  const { useState } = await import("react");
+  return {
+    CustomArgsTab: ({ agent }: { agent: Agent }) => {
+      const [seededFor] = useState(agent.id);
+      return <div>custom-args-tab seeded for {seededFor}</div>;
+    },
+  };
+});
 vi.mock("./tabs/mcp-config-tab", () => ({
   McpConfigTab: () => <div>mcp-config-tab</div>,
 }));
@@ -263,6 +271,49 @@ describe("AgentOverviewPane Integrations tab visibility", () => {
     expect(
       screen.queryByRole("tab", { name: /^Integrations$/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Regression: on desktop one router serves every tab, so moving from agent A
+// to agent B keeps the pane mounted. A settings editor that kept A's buffered
+// fields would then save them onto B.
+describe("AgentOverviewPane agent switch", () => {
+  it("remounts the open settings editor for the new agent", () => {
+    const navigation: NavigationAdapter = {
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
+      pathname: "/acme/agents/agent-1",
+      searchParams: new URLSearchParams(),
+      hash: "",
+      getShareableUrl: (path) => path,
+    };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ui = (agent: Agent) => (
+      <I18nProvider locale="en" resources={TEST_RESOURCES}>
+        <NavigationProvider value={navigation}>
+          <QueryClientProvider client={queryClient}>
+            <AgentOverviewPane
+              agent={agent}
+              runtime={makeRuntime("claude")}
+              owner={null}
+              runtimes={[makeRuntime("claude")]}
+              members={[]}
+              onUpdate={vi.fn().mockResolvedValue(undefined)}
+              canEdit
+            />
+          </QueryClientProvider>
+        </NavigationProvider>
+      </I18nProvider>
+    );
+    const { rerender } = render(ui(baseAgent));
+    openSettings();
+    fireEvent.click(screen.getByRole("tab", { name: /^Custom Args$/i }));
+    expect(screen.getByText("custom-args-tab seeded for agent-1")).toBeInTheDocument();
+
+    rerender(ui({ ...baseAgent, id: "agent-2", name: "Other" }));
+
+    expect(screen.getByText("custom-args-tab seeded for agent-2")).toBeInTheDocument();
   });
 });
 
