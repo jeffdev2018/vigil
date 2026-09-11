@@ -1657,7 +1657,12 @@
       "up_to_date": "已是最新版本。",
       "downloading": "v{{version}} 正在后台下载——准备好安装时会通知你。",
       "check_now": "立即检查",
-      "checking": "检查中..."
+      "checking": "检查中...",
+      "notification_ready_title": "更新已就绪",
+      "notification_ready_body": "v{{version}} 将在下次启动时应用。",
+      "see_changelog": "查看更新日志",
+      "restart_now": "立即重启",
+      "dismiss": "关闭"
     },
     "daemon": {
       "title": "守护进程",

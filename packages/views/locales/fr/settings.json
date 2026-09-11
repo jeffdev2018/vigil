@@ -1751,7 +1751,12 @@
       "up_to_date": "Vous utilisez la dernière version.",
       "downloading": "La v{{version}} est en cours de téléchargement en arrière-plan — vous serez notifié lorsqu'elle sera prête à être installée.",
       "check_now": "Rechercher maintenant",
-      "checking": "Recherche…"
+      "checking": "Recherche…",
+      "notification_ready_title": "Mise à jour prête",
+      "notification_ready_body": "La v{{version}} sera appliquée au prochain lancement.",
+      "see_changelog": "Voir le journal des modifications",
+      "restart_now": "Redémarrer maintenant",
+      "dismiss": "Ignorer"
     },
     "daemon": {
       "title": "Daemon",

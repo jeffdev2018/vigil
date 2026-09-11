@@ -42,6 +42,7 @@ export function LandingFooter() {
                 href={twitterUrl}
                 target="_blank"
                 rel="noreferrer"
+                aria-label="X (Twitter)"
                 className="text-white/40 transition-colors hover:text-white"
               >
                 <XMark className="size-4" />
@@ -50,6 +51,7 @@ export function LandingFooter() {
                 href={githubUrl}
                 target="_blank"
                 rel="noreferrer"
+                aria-label="GitHub"
                 className="text-white/40 transition-colors hover:text-white"
               >
                 <GitHubMark className="size-4" />

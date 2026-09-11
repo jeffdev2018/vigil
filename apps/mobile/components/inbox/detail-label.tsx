@@ -90,6 +90,10 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   residency_policy_blocked: "Blocked by data residency",
   linear_alert: "Linear is disconnected",
   decision_auto_decided: "Decided for you",
+  confidence_review: "Delivery flagged for review",
+  run_limit_warn: "Run nearing its limit",
+  run_limit_exceeded: "Run over its limit",
+  run_limit_stopped: "Run stopped: limit reached",
 };
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).

@@ -75,13 +75,23 @@ export async function detectOS(): Promise<DetectResult> {
   const ua = navigator.userAgent;
   const platform = navigator.platform || "";
 
-  const os: OSName = /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS X/i.test(ua)
-    ? "mac"
-    : /Win/i.test(platform) || /Windows/i.test(ua)
-      ? "windows"
-      : /Linux/i.test(platform) || /Linux/i.test(ua)
-        ? "linux"
-        : "unknown";
+  // A real iPhone/iPad/iPod must not be offered the macOS .dmg. This is
+  // deliberately NOT folded into the /Mac/ check below: an iPad requesting
+  // the desktop site reports platform "MacIntel" (matches "Mac" alone,
+  // correctly detected as mac), while normal mobile Safari reports the
+  // literal platform string "iPhone" / "iPad" / "iPod" — only that second
+  // case should route to "unknown" instead of "mac".
+  const isMobileAppleDevice = /iPhone|iPad|iPod/i.test(platform);
+
+  const os: OSName = isMobileAppleDevice
+    ? "unknown"
+    : /Mac/i.test(platform) || /Mac OS X/i.test(ua)
+      ? "mac"
+      : /Win/i.test(platform) || /Windows/i.test(ua)
+        ? "windows"
+        : /Linux/i.test(platform) || /Linux/i.test(ua)
+          ? "linux"
+          : "unknown";
 
   let arch: Arch = "unknown";
   if (os === "mac") {

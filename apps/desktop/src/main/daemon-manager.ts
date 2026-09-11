@@ -1350,7 +1350,11 @@ export function setupDaemonManager(
 ): void {
   getMainWindow = windowGetter;
 
-  ipcMain.handle("daemon:set-target-api-url", async (_e, url: string) => {
+  ipcMain.handle("daemon:set-target-api-url", async (_e, url: unknown) => {
+    // Renderer here is only this app's own bundle (no third-party web
+    // content loads in it, cf. navigation-guard.ts), so a malformed value
+    // can only come from a future bug in our own code — defensive only.
+    if (typeof url !== "string") return;
     const normalized = url || null;
     if (targetApiBaseUrl !== normalized) {
       console.log(`[daemon] target API URL set to ${normalized ?? "(none)"}`);
@@ -1383,7 +1387,8 @@ export function setupDaemonManager(
   ipcMain.handle("daemon:get-host-name", () => hostname());
   ipcMain.handle(
     "daemon:sync-token",
-    async (_event, token: string, userId: string) => {
+    async (_event, token: unknown, userId: unknown) => {
+      if (typeof token !== "string" || typeof userId !== "string") return;
       const result = await syncToken(token, userId);
       if (result.userChanged) {
         await restartDaemonAfterUserSwitch(result.active);
@@ -1396,7 +1401,10 @@ export function setupDaemonManager(
   });
   ipcMain.handle(
     "daemon:reauthenticate",
-    async (_event, token: string, userId: string): Promise<ReauthResult> => {
+    async (_event, token: unknown, userId: unknown): Promise<ReauthResult> => {
+      if (typeof token !== "string" || typeof userId !== "string") {
+        return { ok: false, reason: "transient", message: "invalid reauthenticate arguments" };
+      }
       setDesiredDaemonRunning(true, true);
       return lifecycleOperations.runForeground(() =>
         reauthenticate(token, userId),

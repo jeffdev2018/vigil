@@ -217,7 +217,9 @@ function AttachmentChipView({ item, onRemove, onRetry }: AttachmentChipProps) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole={item.status === "failed" ? "button" : "image"}
+      accessibilityRole={
+        item.status === "completed" || item.status === "failed" ? "button" : "image"
+      }
       accessibilityLabel={
         item.status === "failed"
           ? `Retry upload of ${item.filename}`

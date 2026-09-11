@@ -441,6 +441,24 @@ describe("navigateActiveSession", () => {
     });
   });
 
+  it("caps the history stack instead of growing it unbounded", () => {
+    const store = useTabStore.getState();
+    store.switchWorkspace("acme");
+
+    // Starts with 1 entry ("/acme/issues"); push 150 more so the stack
+    // would reach 151 entries without the cap.
+    for (let i = 0; i < 150; i++) {
+      store.navigateActiveSession(`/acme/projects?p=${i}`);
+    }
+
+    const active = getActiveTab(useTabStore.getState())!;
+    expect(active.history.stack.length).toBe(100);
+    // The most recent entry is kept and still reachable via its index —
+    // eviction from the front must not desync the pointer.
+    expect(active.history.stack[active.history.index]).toBe("/acme/projects?p=149");
+    expect(active.url).toBe("/acme/projects?p=149");
+  });
+
   it("rejects cross-workspace urls (those go through switchWorkspace)", () => {
     const store = useTabStore.getState();
     store.switchWorkspace("acme");

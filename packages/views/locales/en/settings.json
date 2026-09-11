@@ -1662,7 +1662,12 @@
       "up_to_date": "You're on the latest version.",
       "downloading": "v{{version}} is downloading in the background — you'll be notified when it's ready to install.",
       "check_now": "Check now",
-      "checking": "Checking…"
+      "checking": "Checking…",
+      "notification_ready_title": "Update ready",
+      "notification_ready_body": "v{{version}} will be applied on next launch.",
+      "see_changelog": "See changelog",
+      "restart_now": "Restart now",
+      "dismiss": "Dismiss"
     },
     "daemon": {
       "title": "Daemon",

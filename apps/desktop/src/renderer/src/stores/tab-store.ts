@@ -285,7 +285,9 @@ interface TabStore {
 // render time via `routeIconForPath` (@multica/views/layout), which shares the
 // route → icon map in `@multica/core/paths` with the sidebar nav — so the two
 // surfaces cannot drift, and no stale icon can survive in persisted state.
-// Title is likewise not determined here; it comes from document.title.
+// Title is likewise not determined here; the visible tab label comes from
+// useTabPresentation/useTabTitle (@multica/views/layout, i18n), not from
+// document.title (which only ever feeds the OS window title).
 
 /** Extract the leading workspace slug from a path, or null if the path
  *  isn't workspace-scoped (global path, root, or empty). */
@@ -731,16 +733,24 @@ export const useTabStore = create<TabStore>()(
         if (current.url === clean) return;
 
         const replace = opts?.replace === true;
-        const stack = replace
+        const rawStack = replace
           ? [
               ...current.history.stack.slice(0, current.history.index),
               clean,
               ...current.history.stack.slice(current.history.index + 1),
             ]
           : [...current.history.stack.slice(0, current.history.index + 1), clean];
-        const historyIndex = replace
+        const rawHistoryIndex = replace
           ? current.history.index
           : current.history.index + 1;
+        // Cap at VIEW_MEMENTO_MAX_ENTRIES like commitViewState's FIFO
+        // eviction above — a long-pinned tab with days of in-tab navigation
+        // must not grow this unbounded (it's persisted to localStorage on
+        // every navigation). Evicting from the front shifts the index down
+        // by the same count so it keeps pointing at the same entry.
+        const overflow = Math.max(0, rawStack.length - VIEW_MEMENTO_MAX_ENTRIES);
+        const stack = overflow > 0 ? rawStack.slice(overflow) : rawStack;
+        const historyIndex = rawHistoryIndex - overflow;
 
         const next: TabSession = {
           ...current,

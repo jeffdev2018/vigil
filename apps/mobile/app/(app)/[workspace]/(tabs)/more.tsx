@@ -1,8 +1,9 @@
 /**
  * Stub route. The "More" tab in (tabs)/_layout.tsx intercepts tabPress and
- * pushes /[workspace]/menu (formSheet route) instead of navigating here,
- * so this screen is never rendered through normal use. expo-router still
- * requires a file to exist at this path to register the Tabs.Screen entry.
+ * opens a DropdownMenu popover (via MoreTabDropdownAnchor, imperatively
+ * from the tab's `listeners.tabPress`) instead of navigating here, so this
+ * screen is never rendered through normal use. expo-router still requires
+ * a file to exist at this path to register the Tabs.Screen entry.
  *
  * If a deep link or stale tab state somehow lands the user here, bounce
  * to inbox so they don't see a blank screen.

@@ -303,7 +303,7 @@ function SummaryStrip({
           disabled={killSwitchPending}
           className="rounded-md bg-destructive px-2.5 py-1.5 active:bg-destructive/90"
         >
-          <Text className="text-xs font-medium text-white">Kill switch</Text>
+          <Text className="text-xs font-medium text-destructive-foreground">Kill switch</Text>
         </Pressable>
       ) : null}
     </View>

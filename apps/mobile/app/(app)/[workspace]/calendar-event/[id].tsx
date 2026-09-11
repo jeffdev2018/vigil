@@ -112,7 +112,7 @@ export default function CalendarEventDetailSheet() {
               <Text
                 className={cn(
                   "text-sm",
-                  event.status === "proposed" ? "text-amber-600" : "text-muted-foreground",
+                  event.status === "proposed" ? "text-warning" : "text-muted-foreground",
                 )}
               >
                 {statusLabel(event.status)}

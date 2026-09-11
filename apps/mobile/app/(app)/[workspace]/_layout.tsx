@@ -44,9 +44,9 @@ import { useChatSessionPickerResetOnWorkspaceChange } from "@/data/stores/chat-s
  *     to avoid the large blank area below their content.
  *   - `sheetGrabberVisible: true` — surfaces the iOS native drag handle
  *     so users discover the gesture.
- *   - `contentStyle.height: "100%"` — safety net against the same
- *     zero-size class of bugs above; ensures the sheet body fills the
- *     allotted detent.
+ *   - `contentStyle.flex: 1` — safety net against the same zero-size
+ *     class of bugs above; ensures the sheet body fills the allotted
+ *     detent.
  *   - `headerShown: false` — every sheet body draws its own header (title
  *     + optional right action). The native Stack header would double up.
  */
@@ -210,7 +210,7 @@ export default function WorkspaceLayout() {
         {/* Issue-detail formSheet pickers. All share the same sheet config:
             explicit numeric detents to dodge expo/expo#42904+#42965 (the
             `fitToContents` zero-size / padding bugs on iOS 26 + Expo 55),
-            iOS native grabber, and contentStyle.height=100% as a safety
+            iOS native grabber, and contentStyle.flex=1 as a safety
             net against the same zero-size class of bugs. */}
         <Stack.Screen
           name="issue/[id]/picker/status"
