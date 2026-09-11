@@ -428,7 +428,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				d.logger.Debug("runtime profile refresh websocket missing workspace_id")
 				continue
 			}
-			go d.handleRuntimeProfilesChanged(payload)
+			d.goRecover("runtime profiles changed", func() { d.handleRuntimeProfilesChanged(payload) })
 		case protocol.EventDaemonRunHaltChanged:
 			// JEF-257: a halt flip changes the control status of every
 			// in-flight task in the workspace. The reconcile broadcaster nudges
@@ -453,7 +453,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 			}
 			// Own goroutine: the hint triggers an HTTP heartbeat plus the work it
 			// claims, and the read pump must stay free for the next frame.
-			go d.handlePendingWorkHint(payload.RuntimeID, payload.Kind)
+			d.goRecover("pending work hint", func() { d.handlePendingWorkHint(payload.RuntimeID, payload.Kind) })
 		case protocol.EventDaemonHeartbeatAck:
 			var ack HeartbeatResponse
 			if err := json.Unmarshal(msg.Payload, &ack); err != nil {
@@ -473,7 +473,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 			}
 			// Own goroutine: the handler makes a local HTTP call that can take
 			// seconds, and the read pump must stay free for the next frame.
-			go d.handleServerRPC(req)
+			d.goRecover("server rpc", func() { d.handleServerRPC(req) })
 		case protocol.EventDaemonRPCResponse:
 			var resp protocol.RPCResponsePayload
 			if err := json.Unmarshal(msg.Payload, &resp); err != nil {

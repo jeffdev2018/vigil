@@ -3279,10 +3279,10 @@ func (d *Daemon) registerTaskRepos(workspaceID, taskID string, repos []RepoData)
 		// yet, so the agent's first checkout will surface a sync failure
 		// without silently treating it as a config bug.
 		d.bgSyncs.Add(1)
-		go func() {
+		d.goRecover("workspace repo sync", func() {
 			defer d.bgSyncs.Done()
 			d.syncWorkspaceRepos(workspaceID, toSync)
-		}()
+		})
 	}
 }
 
@@ -4183,7 +4183,7 @@ func (d *Daemon) syncWorkspacesFromAPI(ctx context.Context, reconcileProfiles bo
 		}
 
 		if d.repoCache != nil && len(resp.Repos) > 0 {
-			go d.syncWorkspaceRepos(id, resp.Repos)
+			d.goRecover("workspace repo sync", func() { d.syncWorkspaceRepos(id, resp.Repos) })
 		}
 
 		// Tell the server about any tasks the previous daemon process was
@@ -4401,38 +4401,38 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 		)
 	}
 	if resp.PendingUpdate != nil {
-		go d.handleUpdate(ctx, runtimeID, resp.PendingUpdate)
+		d.goRecover("update", func() { d.handleUpdate(ctx, runtimeID, resp.PendingUpdate) })
 	}
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+			d.goRecover("model list", func() { d.handleModelList(ctx, *rt, resp.PendingModelList.ID) })
 		}
 	}
 	if resp.PendingMemoryEvaluation != "" {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation)
+			d.goRecover("memory evaluation", func() { d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation) })
 		}
 	}
 	if resp.PendingCliAuth != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth)
+			d.goRecover("cli auth", func() { d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth) })
 		}
 	}
 	if resp.PendingLocalSkills != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID)
+			d.goRecover("local skill list", func() { d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID) })
 		}
 	}
 	// Prefer the batch field (new backend); fall back to singular (old backend).
 	if len(resp.PendingLocalSkillImports) > 0 {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			for _, imp := range resp.PendingLocalSkillImports {
-				go d.handleLocalSkillImport(ctx, *rt, imp)
+				d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, imp) })
 			}
 		}
 	} else if resp.PendingLocalSkillImport != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport)
+			d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport) })
 		}
 	}
 	if resp.PendingWorktreeRevert != nil {
@@ -4441,7 +4441,7 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			// repository and then has to report what it did. A revert
 			// interrupted between the two would leave the server believing the
 			// branch never moved.
-			go d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert)
+			d.goRecover("worktree revert", func() { d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert) })
 		}
 	}
 	if resp.PendingBranchAction != nil {
@@ -4449,7 +4449,7 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			// WithoutCancel, same reason as the revert above: a push or a
 			// branch deletion that already happened must still be reported,
 			// or the server leaves the request claimed until the sweeper.
-			go d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction)
+			d.goRecover("branch action", func() { d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction) })
 		}
 	}
 }

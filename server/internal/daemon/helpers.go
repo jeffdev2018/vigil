@@ -5,10 +5,26 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// goRecover runs fn in its own goroutine and logs a panic instead of letting
+// it unwind to the top of the goroutine, where it would crash the daemon and
+// every task it is running. For request handlers dispatched from a heartbeat
+// or the WebSocket read pump, whose failure concerns one request only.
+func (d *Daemon) goRecover(name string, fn func()) {
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				d.logger.Error("background handler panicked", "handler", name, "panic", rec, "stack", string(debug.Stack()))
+			}
+		}()
+		fn()
+	}()
+}
 
 func envOrDefault(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
