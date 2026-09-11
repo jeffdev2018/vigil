@@ -16,6 +16,10 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+vi.mock("@multica/core/issue-statuses/hooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/issue-statuses/hooks")>()),
+  useIssueStatuses: () => ({ entryOf: () => undefined }),
+}));
 vi.mock("@multica/core/paths", () => ({ useWorkspacePaths: () => ({ issueDetail: (id: string) => `/w/issues/${id}`, issueReview: (id: string) => `/w/issues/${id}/review` }) }));
 vi.mock("../../navigation", () => ({ AppLink: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@multica/core/issues/mutations", () => ({
@@ -56,7 +60,7 @@ const cockpit = (over: Partial<Cockpit> = {}): Cockpit => ({
   runs: [],
   merge_readiness: {
     prs: [{ id: "p", source: "vcs", number: 41, title: "Add export", html_url: "https://forge/pr/41", state: "open", mergeable: null, merge_state: null, checks: { total: 2, passed: 1, failed: 0, pending: 1 }, stale_snapshot: false, ready: false }],
-    blockers: [{ kind: "checks_pending", label: "Checks still running", count: 1 }],
+    blockers: [{ kind: "checks_pending", label: "Checks still running", count: 1, pr_number: 41 }],
     unresolved_threads: 0, open_todos: 0, ready: false,
   },
   usage: { input_tokens: 1010, output_tokens: 201, cache_read_tokens: 0, cache_write_tokens: 0, cost_usd_ticks: 3_000_000_000, uncosted: true },
@@ -89,8 +93,16 @@ describe("ReviewCockpit", () => {
   it("renders every section from one payload and holds approval while checks run", async () => {
     renderCockpit();
     expect(await screen.findByText("Export CSV")).toBeTruthy();
+    // Status and blocker chrome must render through i18n, not the raw server
+    // code/label — regression for the review cockpit showing "in_review" and
+    // "completed" verbatim, and the blockers list bypassing BlockerLabel.
+    expect(screen.getByText("In Review")).toBeTruthy();
+    expect(screen.getByText("Completed")).toBeTruthy();
+    expect(screen.queryByText("in_review")).toBeNull();
+    expect(screen.queryByText("completed")).toBeNull();
     expect(screen.getByTestId("cockpit-prs").textContent).toContain("#41 Add export");
     expect(screen.getByTestId("cockpit-prs").textContent).toContain("1/2");
+    expect(screen.getByTestId("cockpit-prs").textContent).toContain("Checks pending on #41");
     expect(screen.getByTestId("cockpit-cost").textContent).toContain("$0.30");
     expect(screen.getByTestId("cockpit-questions").textContent).toContain("Include archived?");
     const criteria = screen.getByTestId("cockpit-criteria").querySelectorAll("li");

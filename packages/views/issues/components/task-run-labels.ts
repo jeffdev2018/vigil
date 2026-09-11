@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { AgentTask } from "@multica/core/types";
 import { useT } from "../../i18n";
 import { stripMentionMarkdown } from "../utils/strip-mention-markdown";
@@ -45,8 +46,12 @@ export function useTriggerText(task: AgentTask): string {
   return t(($) => $.execution_log.trigger_initial);
 }
 
-export function useStatusLabel(status: AgentTask["status"]): string {
-  const { t } = useT("issues");
+/**
+ * Pure form of {@link useStatusLabel} for callers that already hold a `t`
+ * from `useT("issues")` and need to label several statuses in one render
+ * (e.g. mapping a list) without calling a hook per item.
+ */
+export function taskStatusLabel(t: TFunction<"issues">, status: AgentTask["status"]): string {
   switch (status) {
     case "queued": return t(($) => $.execution_log.status_queued);
     case "deferred": return t(($) => $.execution_log.status_deferred);
@@ -60,6 +65,11 @@ export function useStatusLabel(status: AgentTask["status"]): string {
     case "paused": return t(($) => $.execution_log.status_paused);
     default: return status;
   }
+}
+
+export function useStatusLabel(status: AgentTask["status"]): string {
+  const { t } = useT("issues");
+  return taskStatusLabel(t, status);
 }
 
 /**
