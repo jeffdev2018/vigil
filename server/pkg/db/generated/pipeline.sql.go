@@ -293,6 +293,44 @@ func (q *Queries) GetPipelineRunByGateDecision(ctx context.Context, gateDecision
 	return i, err
 }
 
+const getPipelineRunsByGateDecisionIDs = `-- name: GetPipelineRunsByGateDecisionIDs :many
+SELECT id, workspace_id, issue_id, pipeline_id, current_stage_id, status, gate_decision_id, last_error, started_by, started_at, completed_at FROM pipeline_run WHERE gate_decision_id = ANY($1::uuid[]) AND status = 'paused'
+`
+
+// Batch variant of GetPipelineRunByGateDecision for ListApprovals'
+// decisionKind, which resolves this once per decision on the feed.
+func (q *Queries) GetPipelineRunsByGateDecisionIDs(ctx context.Context, decisionIds []pgtype.UUID) ([]PipelineRun, error) {
+	rows, err := q.db.Query(ctx, getPipelineRunsByGateDecisionIDs, decisionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PipelineRun{}
+	for rows.Next() {
+		var i PipelineRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.PipelineID,
+			&i.CurrentStageID,
+			&i.Status,
+			&i.GateDecisionID,
+			&i.LastError,
+			&i.StartedBy,
+			&i.StartedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPipelineStage = `-- name: GetPipelineStage :one
 SELECT id, pipeline_id, workspace_id, position, name, executor_type, executor_id, requires_human_gate FROM pipeline_stage WHERE id = $1
 `

@@ -14,6 +14,17 @@ SELECT * FROM approval_gate_event
 WHERE decision_request_id = $1 OR details->>'pending_decision_id' = $1::text
 LIMIT 1;
 
+-- name: GetApprovalGatesByDecisionIDs :many
+-- Batch variant of GetApprovalGateByDecision for ListApprovals' decisionKind,
+-- which otherwise resolves one gate per decision on the feed (up to 200).
+-- Matches the same two ways the single-row query does; the caller maps each
+-- returned row back to the decision id(s) it matched (decision_request_id
+-- directly, and/or details.pending_decision_id, parsed in Go since the ->>
+-- comparison can't be reversed after the fact from a plain ANY() match).
+SELECT * FROM approval_gate_event
+WHERE decision_request_id = ANY(sqlc.arg('decision_ids')::uuid[])
+   OR details->>'pending_decision_id' = ANY(sqlc.arg('decision_id_strings')::text[]);
+
 -- name: ResolveApprovalGateEvent :one
 UPDATE approval_gate_event
 SET resolved_action = $2, resolved_at = now(), details = details || sqlc.arg(extra)::jsonb

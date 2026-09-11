@@ -144,6 +144,36 @@ func TestApprovalsFeedListsEveryKindOfAsk(t *testing.T) {
 	}
 }
 
+// ListApprovals batches decisionKind's four per-decision lookups (approval
+// gate, agent effects, watchdog verdict, pipeline run) into one query each
+// across the whole feed instead of resolving them per decision; this puts a
+// gate-backed decision and a plain decision (neither a gate, a plan, an
+// interview, a preview, a watchdog verdict nor a pipeline run) side by side
+// in one feed call, so a batching bug that hands the gate's kind to the
+// plain decision (or vice versa) fails this test instead of shipping
+// silently.
+func TestApprovalsFeedKindsAreNotMixedAcrossDecisions(t *testing.T) {
+	rememberSettings(t)
+	gateIssue, _, _, gate := openTestGate(t, "kind batch gate")
+
+	plainIssue := dbfx.Issue(t, "kind batch plain")
+	var plain decisionEnvelope
+	askDecision(t, plainIssue, decisionBody()).Want(http.StatusCreated).JSON(&plain)
+
+	feed := listApprovals(t, "")
+	g := findApproval(feed.Approvals, ApprovalSourceDecision, *gate.DecisionID)
+	p := findApproval(feed.Approvals, ApprovalSourceDecision, plain.Decision.ID)
+	if g == nil || p == nil {
+		t.Fatalf("both decisions must be in the feed: gate=%v plain=%v", g, p)
+	}
+	if g.Kind != ApprovalKindGate || g.Gate == nil || g.Issue.ID != gateIssue {
+		t.Fatalf("gate decision must keep kind=gate with its own gate and issue: %+v", *g)
+	}
+	if p.Kind != ApprovalKindDecision || p.Gate != nil || p.Issue.ID != plainIssue {
+		t.Fatalf("plain decision must keep kind=decision with no gate and its own issue: %+v", *p)
+	}
+}
+
 func TestApprovalGatePolicyReservesGatesToOwnersAndAdmins(t *testing.T) {
 	rememberSettings(t)
 	dbfx.Exec(t, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"approval_gates":{"approvers":"owner_admin"}}'::jsonb WHERE id = $1`, testWorkspaceID)

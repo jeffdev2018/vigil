@@ -146,6 +146,121 @@ func (h *Handler) decisionKind(ctx context.Context, d db.IssueDecision) string {
 	return ApprovalKindDecision
 }
 
+// approvalDecisionKinds batches the four per-decision lookups decisionKind
+// needs (approval gate, agent effects, watchdog verdict, pipeline run) into
+// one query each instead of up to four sequential queries per decision --
+// built once per ListApprovals call for the whole feed (up to
+// approvalsFeedCap decisions), rather than resolved inside decisionKind
+// itself. decisionKind is left unchanged for its other, single-decision
+// callers (attention_inbox.go, decision.go), which do not loop.
+type approvalDecisionKinds struct {
+	gates       map[string]db.ApprovalGateEvent
+	hasEffects  map[string]bool
+	hasWatchdog map[string]bool
+	hasPipeline map[string]bool
+}
+
+func (h *Handler) newApprovalDecisionKinds(ctx context.Context, decisions []db.IssueDecision) *approvalDecisionKinds {
+	k := &approvalDecisionKinds{gates: map[string]db.ApprovalGateEvent{}, hasEffects: map[string]bool{}, hasWatchdog: map[string]bool{}, hasPipeline: map[string]bool{}}
+	if len(decisions) == 0 {
+		return k
+	}
+	ids := make([]pgtype.UUID, len(decisions))
+	idStrings := make([]string, len(decisions))
+	for i, d := range decisions {
+		ids[i] = d.ID
+		idStrings[i] = uuidToString(d.ID)
+	}
+	// A dual-approval gate (K07) matches either its own decision_request_id
+	// or a second decision id tracked in details.pending_decision_id, same
+	// as the single-row GetApprovalGateByDecision; details is re-parsed in Go
+	// since a plain ANY() match can't say which predicate a row matched.
+	if gates, err := h.Queries.GetApprovalGatesByDecisionIDs(ctx, db.GetApprovalGatesByDecisionIDsParams{DecisionIds: ids, DecisionIDStrings: idStrings}); err == nil {
+		for _, g := range gates {
+			if g.DecisionRequestID.Valid {
+				key := uuidToString(g.DecisionRequestID)
+				if _, exists := k.gates[key]; !exists {
+					k.gates[key] = g
+				}
+			}
+			var details struct {
+				PendingDecisionID string `json:"pending_decision_id"`
+			}
+			if json.Unmarshal(g.Details, &details) == nil && details.PendingDecisionID != "" {
+				if _, exists := k.gates[details.PendingDecisionID]; !exists {
+					k.gates[details.PendingDecisionID] = g
+				}
+			}
+		}
+	}
+	if effects, err := h.Queries.ListAgentEffectsForDecisions(ctx, ids); err == nil {
+		for _, e := range effects {
+			k.hasEffects[uuidToString(e.DecisionID)] = true
+		}
+	}
+	if verdicts, err := h.Queries.GetWatchdogVerdictsByDecisionIDs(ctx, ids); err == nil {
+		for _, v := range verdicts {
+			k.hasWatchdog[uuidToString(v.DecisionID)] = true
+		}
+	}
+	if runs, err := h.Queries.GetPipelineRunsByGateDecisionIDs(ctx, ids); err == nil {
+		for _, p := range runs {
+			if p.GateDecisionID.Valid {
+				k.hasPipeline[uuidToString(p.GateDecisionID)] = true
+			}
+		}
+	}
+	return k
+}
+
+// gate returns the gate decisionKind (or the redundant second lookup
+// fromDecision used to make) would have found for this decision, from the
+// batch already fetched.
+func (k *approvalDecisionKinds) gate(id pgtype.UUID) (db.ApprovalGateEvent, bool) {
+	g, ok := k.gates[uuidToString(id)]
+	return g, ok
+}
+
+// kindFor mirrors decisionKind's logic exactly, reading from the batch
+// already fetched instead of querying per decision.
+func (k *approvalDecisionKinds) kindFor(d db.IssueDecision) string {
+	if _, ok := k.gate(d.ID); ok {
+		return ApprovalKindGate
+	}
+	if d.PlanVersion.Valid {
+		return ApprovalKindPlan
+	}
+	if d.InterviewGroupID.Valid {
+		return ApprovalKindInterview
+	}
+	if k.hasEffects[uuidToString(d.ID)] {
+		return ApprovalKindPreview
+	}
+	if k.hasWatchdog[uuidToString(d.ID)] {
+		return ApprovalKindWatchdog
+	}
+	if k.hasPipeline[uuidToString(d.ID)] {
+		return ApprovalKindPipeline
+	}
+	var options []DecisionOption
+	_ = json.Unmarshal(d.Options, &options)
+	for _, o := range options {
+		if strings.HasPrefix(o.ID, goalProposalOptionPrefix) {
+			return ApprovalKindGoalAttach
+		}
+		if strings.HasPrefix(o.ID, orgAssignOptionPrefix) {
+			return ApprovalKindOrgAssign
+		}
+		if strings.HasPrefix(o.ID, calendarOptionPrefix) {
+			return ApprovalKindCalendar
+		}
+		if strings.HasPrefix(o.ID, autopilotOptionPrefix) {
+			return ApprovalKindAutopilot
+		}
+	}
+	return ApprovalKindDecision
+}
+
 // approvalFeedBuilder resolves the issues and actors an ask names, once each.
 type approvalFeedBuilder struct {
 	h      *Handler
@@ -156,10 +271,11 @@ type approvalFeedBuilder struct {
 	gates  service.ApprovalGates
 	issues map[string]db.Issue
 	names  map[string]string
+	kinds  *approvalDecisionKinds
 }
 
 func (h *Handler) newApprovalFeedBuilder(ctx context.Context, wsID pgtype.UUID, role string) *approvalFeedBuilder {
-	b := &approvalFeedBuilder{h: h, ctx: ctx, wsID: wsID, prefix: h.getIssuePrefix(ctx, wsID), role: role, gates: service.DefaultApprovalGates, issues: map[string]db.Issue{}, names: map[string]string{}}
+	b := &approvalFeedBuilder{h: h, ctx: ctx, wsID: wsID, prefix: h.getIssuePrefix(ctx, wsID), role: role, gates: service.DefaultApprovalGates, issues: map[string]db.Issue{}, names: map[string]string{}, kinds: &approvalDecisionKinds{}}
 	if ws, err := h.Queries.GetWorkspace(ctx, wsID); err == nil {
 		b.gates = service.ApprovalGatesSettings(ws.Settings)
 	}
@@ -212,12 +328,12 @@ func (b *approvalFeedBuilder) fromDecision(d db.IssueDecision, userID string) (A
 	resp := issueDecisionToResponse(d)
 	resp.Learned = b.h.decisionHint(b.ctx, b.wsID, userID, d)
 	item := ApprovalItem{
-		ID: resp.ID, Source: ApprovalSourceDecision, Kind: b.h.decisionKind(b.ctx, d), Issue: ref, TaskID: resp.TaskID,
+		ID: resp.ID, Source: ApprovalSourceDecision, Kind: b.kinds.kindFor(d), Issue: ref, TaskID: resp.TaskID,
 		AskedBy: b.actor(d.AskedByType, d.AskedByID), Question: d.Question, Options: resp.Options, RecommendedOptionID: resp.RecommendedOptionID,
 		Urgency: d.Urgency, CreatedAt: resp.CreatedAt, SlaDeadlineAt: resp.SlaDeadlineAt, CanDecide: true, Decision: &resp,
 	}
 	if item.Kind == ApprovalKindGate {
-		if gate, err := b.h.Queries.GetApprovalGateByDecision(b.ctx, d.ID); err == nil {
+		if gate, ok := b.kinds.gate(d.ID); ok {
 			gate = b.h.expireGate(b.ctx, gate)
 			g := gateToResponse(gate)
 			item.Gate = &g
@@ -324,6 +440,7 @@ func (h *Handler) ListApprovals(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to load approvals")
 			return
 		}
+		b.kinds = h.newApprovalDecisionKinds(ctx, decisions)
 		for _, d := range decisions {
 			if len(d.Response) > 0 {
 				continue
@@ -349,6 +466,7 @@ func (h *Handler) ListApprovals(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to load approvals")
 			return
 		}
+		b.kinds = h.newApprovalDecisionKinds(ctx, decisions)
 		for _, d := range decisions {
 			if item, ok := b.fromDecision(d, userID); ok {
 				items = append(items, item)
