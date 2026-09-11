@@ -17,7 +17,8 @@
     "no_matches": "No projects match",
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
-    "clear_selection": "Clear selection"
+    "clear_selection": "Clear selection",
+    "pin_partial": "Pinned {{succeeded}}, {{failed}} failed"
   },
   "table": {
     "name": "Name",
@@ -152,7 +153,8 @@
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",
     "confirm": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "partial": "Deleted {{succeeded}}, {{failed}} failed"
   },
   "picker": {
     "no_project": "No project",

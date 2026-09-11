@@ -16,7 +16,8 @@
     "delete": "削除",
     "no_matches": "該当するプロジェクトはありません",
     "selected_other": "{{count}} 件選択中",
-    "clear_selection": "選択を解除"
+    "clear_selection": "選択を解除",
+    "pin_partial": "{{succeeded}} 件ピン留め、{{failed}} 件失敗"
   },
   "table": {
     "name": "名前",
@@ -151,7 +152,8 @@
     "title": "プロジェクトを削除",
     "description": "プロジェクトが削除されます。課題は削除されませんが、リンクが解除されます。",
     "confirm": "削除",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "partial": "{{succeeded}} 件削除、{{failed}} 件失敗"
   },
   "picker": {
     "no_project": "プロジェクトなし",
