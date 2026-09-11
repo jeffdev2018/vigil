@@ -54,5 +54,12 @@ describe("run replay", () => {
     expect(replayCountsUpTo(events, -1).tool_calls).toBe(0);
     expect(replayResumable("running")).toBe(false);
     expect(replayResumable("completed")).toBe(true);
+    // Every non-terminal wire status is still live: resuming one would start a
+    // second run beside it.
+    for (const status of ["queued", "deferred", "dispatched", "waiting_local_directory", "paused", "some_future_status"]) {
+      expect(replayResumable(status)).toBe(false);
+    }
+    expect(replayResumable("failed")).toBe(true);
+    expect(replayResumable("cancelled")).toBe(true);
   });
 });
