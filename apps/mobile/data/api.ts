@@ -259,7 +259,7 @@ import {
   EMPTY_CALENDAR_AGENDA,
 } from "@multica/core/api/schemas";
 import type { CalendarAgenda, CalendarEventEntry, CalendarEventInput } from "@multica/core/types";
-// Réveil programmé (JEF-373). Schemas and fallbacks are the shared ones in
+// Scheduled wake-ups (JEF-373). Schemas and fallbacks are the shared ones in
 // @multica/core/api/schemas — pure zod, on the mobile sharing whitelist — so
 // mobile and web parse the same bytes the same way.
 import {
