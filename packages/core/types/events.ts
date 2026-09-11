@@ -907,6 +907,16 @@ export interface InvitationRevokedPayload {
   invitee_email: string;
 }
 
+export interface DeliveryChangedPayload {
+  issue_id?: string;
+}
+
+export interface BrainCaptureChangedPayload {
+  capture_id: string;
+  status: string;
+  change: string;
+}
+
 export interface ChatSessionCreatedPayload {
   workspace_id: string;
   chat_session_id: string;
@@ -938,10 +948,12 @@ export interface WSEventPayloadMap {
   "issue:created": IssueCreatedPayload;
   "issue:updated": IssueUpdatedPayload;
   "issue:deleted": IssueDeletedPayload;
+  "delivery:changed": DeliveryChangedPayload;
   /** An answer given outside the web app (a decision card answered from Slack). */
   "issue:aux_changed": { issue_id?: string };
   "issue_attachments:changed": IssueAttachmentsChangedPayload;
   "issue_labels:changed": IssueLabelsChangedPayload;
+  "issue_metadata:changed": IssueMetadataChangedPayload;
   "issue_properties:changed": IssuePropertiesChangedPayload;
   "property:created": PropertyChangedPayload;
   "property:updated": PropertyChangedPayload;
@@ -1064,6 +1076,12 @@ export interface WSEventPayloadMap {
   "issue_recurrence:changed": IssueRecurrenceChangedPayload;
   "doctrine:changed": DoctrineChangedPayload;
   "pack:changed": PackChangedPayload;
+  "brain_capture:changed": BrainCaptureChangedPayload;
+  // Field shape is inconsistent across server emitters (some send `note`,
+  // one sends `note_id`), so there is no single honest interface yet.
+  "workspace_note:created": unknown;
+  "workspace_note:updated": unknown;
+  "workspace_note:deleted": unknown;
 }
 
 /**
@@ -1074,3 +1092,13 @@ export interface WSEventPayloadMap {
  */
 export type WSEventPayload<E extends WSEventType> =
   E extends keyof WSEventPayloadMap ? WSEventPayloadMap[E] : unknown;
+
+// Compile-time completeness check. WSEventPayload's fallback above means a
+// WSEventType missing from WSEventPayloadMap degrades silently to `unknown`
+// instead of erroring — exactly how 6 events went unmapped unnoticed. This
+// makes that omission a typecheck failure instead.
+type _MissingWSEventPayloadMapEntries = Exclude<WSEventType, keyof WSEventPayloadMap>;
+const _assertWSEventPayloadMapComplete: [_MissingWSEventPayloadMapEntries] extends [never]
+  ? true
+  : ["WSEventPayloadMap is missing an entry for:", _MissingWSEventPayloadMapEntries] = true;
+void _assertWSEventPayloadMapComplete;

@@ -24,7 +24,9 @@ const POLL_TIMEOUT_MS = 30_000;
 // (server/internal/handler/runtime_local_skills.go).
 // See also IMPORT_CONCURRENCY in packages/views/.../runtime-local-skill-import-panel.tsx
 // and maxLocalSkillImportBatch in server/internal/handler/daemon.go.
-const IMPORT_POLL_TIMEOUT_MS = 4 * 60_000; // 4 minutes
+// Strictly greater than the 240s server-side ceiling (not equal to it) so the
+// client never times out at the exact instant the server would still succeed.
+const IMPORT_POLL_TIMEOUT_MS = 4 * 60_000 + POLL_INTERVAL_MS * 2;
 
 export async function resolveRuntimeLocalSkills(
   runtimeId: string,
