@@ -92,6 +92,23 @@ vi.mock("@multica/views/layout", () => ({
   ),
 }));
 
+const translations = {
+  tab_bar: {
+    pin_tab: "Pin tab",
+    unpin_tab: "Unpin tab",
+    close_tab: "Close tab",
+    close_other_tabs: "Close other tabs",
+    open_as_new_window: "Open as new window",
+    new_tab: "New tab",
+  },
+};
+
+vi.mock("@multica/views/i18n", () => ({
+  useT: () => ({
+    t: (selector: (resources: typeof translations) => string) => selector(translations),
+  }),
+}));
+
 import { TabBar } from "./tab-bar";
 
 function reset() {
