@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   created: [] as unknown[],
   deleteError: null as Error | null,
   toastError: vi.fn(),
+  cyclesLoading: false,
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -25,7 +26,7 @@ vi.mock("sonner", () => ({ toast: { error: state.toastError } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (o: { queryKey?: readonly unknown[] }) => {
     const key = o.queryKey?.[0];
-    if (key === "cycles") return { data: state.cycles, isLoading: false, isPending: false };
+    if (key === "cycles") return { data: state.cycles, isLoading: state.cyclesLoading, isPending: false };
     if (key === "projects") return { data: [{ id: "p1", title: "Billing" }], isLoading: false };
     if (key === "properties") return { data: [], isLoading: false };
     return { data: undefined, isLoading: false, isPending: true };
@@ -91,6 +92,7 @@ beforeEach(() => {
   state.created = [];
   state.deleteError = null;
   state.toastError.mockReset();
+  state.cyclesLoading = false;
 });
 
 // Base UI Select portals its popup onto document.body.
@@ -139,6 +141,18 @@ describe("CyclesPage", () => {
   it("shows the empty state with no cycles", () => {
     renderPage();
     expect(screen.getByText("No cycles yet")).toBeInTheDocument();
+  });
+
+  // P3 audit finding: the empty-state branch required `!isLoading`, but
+  // there was no isLoading branch of its own — so while the initial fetch
+  // was in flight, cycles.length === 0 and isLoading === true fell through
+  // both the error and empty checks, rendering the section list over an
+  // empty array: a blank content area with no loading indicator at all.
+  it("shows a loading indicator instead of a blank area while the fetch is in flight", () => {
+    state.cyclesLoading = true;
+    renderPage();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading cycles");
+    expect(screen.queryByText("No cycles yet")).toBeNull();
   });
 
   it("creates a cycle with the project filter preselected", async () => {
