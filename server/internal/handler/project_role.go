@@ -95,6 +95,22 @@ func (h *Handler) requireProjectRole(w http.ResponseWriter, r *http.Request, pro
 	return true
 }
 
+// requireProjectRoleManager gates changing a project's roles. A workspace
+// owner or admin, acting as themselves, always passes: the workspace role is
+// what grants every ceiling, and gating them on their project role would let
+// one who restricted their own role lock themselves (or be locked) out of
+// undoing it. Anyone else needs to be a project admin.
+func (h *Handler) requireProjectRoleManager(w http.ResponseWriter, r *http.Request, projectID pgtype.UUID) bool {
+	workspaceID, userID := h.resolveWorkspaceID(r), requestUserID(r)
+	member, err := h.Queries.GetMemberByUserAndWorkspace(r.Context(), db.GetMemberByUserAndWorkspaceParams{UserID: parseUUID(userID), WorkspaceID: parseUUID(workspaceID)})
+	if err == nil && roleAllowed(member.Role, "owner", "admin") {
+		if actorType, _ := h.resolveActor(r, userID, workspaceID); actorType != "agent" {
+			return true
+		}
+	}
+	return h.requireProjectRole(w, r, projectID, ProjectRoleAdmin)
+}
+
 // requireProjectWrite is the gate on issue and resource writes.
 func (h *Handler) requireProjectWrite(w http.ResponseWriter, r *http.Request, projectID pgtype.UUID) bool {
 	return h.requireProjectRole(w, r, projectID, ProjectRoleContributor)
@@ -208,7 +224,7 @@ func (h *Handler) SetProjectMemberRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !h.requireProjectRole(w, r, project.ID, ProjectRoleAdmin) {
+	if !h.requireProjectRoleManager(w, r, project.ID) {
 		return
 	}
 	subjectType := chi.URLParam(r, "subjectType")
@@ -266,7 +282,7 @@ func (h *Handler) ClearProjectMemberRole(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !h.requireProjectRole(w, r, project.ID, ProjectRoleAdmin) {
+	if !h.requireProjectRoleManager(w, r, project.ID) {
 		return
 	}
 	subjectID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "subjectId"), "subject id")

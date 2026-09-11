@@ -67,7 +67,8 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
       { subjectType: m.subject_type, subjectId: m.subject_id, role: value === INHERIT ? null : (value as ProjectRole) },
       {
         onSuccess: () => toast.success(t(($) => $.members.updated)),
-        onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.members.update_failed)),
+        // The server's refusal is English prose: the toast stays in the user's language.
+        onError: () => toast.error(t(($) => $.members.update_failed)),
       },
     );
 

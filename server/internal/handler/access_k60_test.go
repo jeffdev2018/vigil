@@ -23,6 +23,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // K60: project roles only restrict the workspace role and are inherited by
@@ -88,6 +89,34 @@ func TestProjectRoles(t *testing.T) {
 	if m := find("member", memberID); m.Source != "inherited" || m.EffectiveRole != "contributor" {
 		t.Fatalf("cleared: %+v", m)
 	}
+}
+
+// TestProjectRolesWorkspaceOwnerCannotLockThemselvesOut is the regression for
+// the audit finding "a workspace owner who restricts their own project role
+// is locked out of the project's administration, even through the API".
+// The workspace role is the authority that grants every ceiling, so a
+// workspace owner or admin always keeps managing the roles of a project.
+func TestProjectRolesWorkspaceOwnerCannotLockThemselvesOut(t *testing.T) {
+	project := dbfx.Project(t, "roles lockout "+uuid.NewString()[:6])
+	proj := func(req *http.Request, more ...string) *http.Request {
+		return testutil.WithURLParams(req, append([]string{"id", project}, more...)...)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM project_member_role WHERE project_id = $1`, project)
+	})
+	owner, err := testHandler.Queries.GetMemberByUserAndWorkspace(context.Background(), db.GetMemberByUserAndWorkspaceParams{UserID: parseUUID(testUserID), WorkspaceID: parseUUID(testWorkspaceID)})
+	if err != nil {
+		t.Fatalf("owner member: %v", err)
+	}
+	ownerID := uuidToString(owner.ID)
+	testutil.Call(t, testHandler.SetProjectMemberRole, proj(newRequest(http.MethodPut, "/x", map[string]any{"role": "contributor"}), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	// Below project admin, the owner still changes their own role...
+	testutil.Call(t, testHandler.SetProjectMemberRole, proj(newRequest(http.MethodPut, "/x", map[string]any{"role": "viewer"}), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	// ...while the restriction holds on the project itself...
+	testutil.Call(t, testHandler.UpdateProject, proj(newRequest(http.MethodPut, "/x", map[string]any{"title": "renamed"}))).Want(http.StatusForbidden)
+	// ...until they clear it.
+	testutil.Call(t, testHandler.ClearProjectMemberRole, proj(newRequest(http.MethodDelete, "/x", nil), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	testutil.Call(t, testHandler.UpdateProject, proj(newRequest(http.MethodPut, "/x", map[string]any{"title": "renamed"}))).Want(http.StatusOK)
 }
 
 func scimRequest(method, path, token string, body any) *http.Request {
