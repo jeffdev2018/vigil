@@ -529,12 +529,44 @@ type DoctrineDiffLine struct {
 	Text string `json:"text"`
 }
 
-// diffDoctrineLines is a plain LCS line diff: the doctrine is capped at
-// 32 000 bytes, so the quadratic table stays small.
+// doctrineDiffMaxCells bounds the LCS table (~16 MiB). The doctrine cap is
+// on bytes, not lines, so 32 000 bytes of short lines would otherwise ask for
+// a table of gigabytes — and any workspace member can request a diff.
+const doctrineDiffMaxCells = 1 << 21
+
+// diffDoctrineLines is an LCS line diff over what differs between the two
+// revisions (the shared head and tail are matched first). When the differing
+// middle is too large for a bounded table the diff degrades: every old line of
+// that middle is removed, then every new one added — still a correct diff,
+// just not a minimal one.
 func diffDoctrineLines(from, to string) (lines []DoctrineDiffLine, added, removed int) {
 	a := splitDoctrineLines(from)
 	b := splitDoctrineLines(to)
+	lines = []DoctrineDiffLine{}
+	head := 0
+	for head < len(a) && head < len(b) && a[head] == b[head] {
+		lines = append(lines, DoctrineDiffLine{Kind: "same", Text: a[head]})
+		head++
+	}
+	tail := 0
+	for tail < len(a)-head && tail < len(b)-head && a[len(a)-1-tail] == b[len(b)-1-tail] {
+		tail++
+	}
+	shared := a[len(a)-tail:]
+	a, b = a[head:len(a)-tail], b[head:len(b)-tail]
 	n, m := len(a), len(b)
+	if n > 0 && m > 0 && (n+1)*(m+1) > doctrineDiffMaxCells {
+		for _, text := range a {
+			lines = append(lines, DoctrineDiffLine{Kind: "del", Text: text})
+		}
+		for _, text := range b {
+			lines = append(lines, DoctrineDiffLine{Kind: "add", Text: text})
+		}
+		for _, text := range shared {
+			lines = append(lines, DoctrineDiffLine{Kind: "same", Text: text})
+		}
+		return lines, m, n
+	}
 	table := make([][]int, n+1)
 	for i := range table {
 		table[i] = make([]int, m+1)
@@ -550,7 +582,6 @@ func diffDoctrineLines(from, to string) (lines []DoctrineDiffLine, added, remove
 			}
 		}
 	}
-	lines = []DoctrineDiffLine{}
 	i, j := 0, 0
 	for i < n && j < m {
 		switch {
@@ -575,6 +606,9 @@ func diffDoctrineLines(from, to string) (lines []DoctrineDiffLine, added, remove
 	for ; j < m; j++ {
 		lines = append(lines, DoctrineDiffLine{Kind: "add", Text: b[j]})
 		added++
+	}
+	for _, text := range shared {
+		lines = append(lines, DoctrineDiffLine{Kind: "same", Text: text})
 	}
 	return lines, added, removed
 }
