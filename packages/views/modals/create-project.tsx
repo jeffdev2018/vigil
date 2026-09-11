@@ -46,6 +46,7 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@multica/ui/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { EmojiPicker } from "@multica/ui/components/common/emoji-picker";
 import { ContentEditor, type ContentEditorRef, TitleEditor } from "../editor";
 import { PriorityIcon } from "../issues/components/priority-icon";
@@ -758,11 +759,10 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                                 checked && "bg-accent",
                               )}
                             >
-                              <input
-                                type="checkbox"
+                              <Checkbox
                                 checked={checked}
-                                readOnly
-                                className="size-3.5"
+                                tabIndex={-1}
+                                className="pointer-events-none"
                               />
                               <GithubIcon className="size-3.5" />
                               <RepoUrlText url={repo.url} />
