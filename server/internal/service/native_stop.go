@@ -25,7 +25,6 @@ var errNativeIssueTerminal = errors.New("native run: issue terminal")
 type nativeStopCheck struct {
 	queries    *db.Queries
 	issueID    pgtype.UUID
-	wsID       pgtype.UUID
 	lastHaltAt int64
 	cachedHalt bool
 	cachedWhy  string

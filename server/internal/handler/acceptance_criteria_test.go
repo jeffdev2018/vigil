@@ -167,3 +167,26 @@ func TestAcceptanceCriteriaGateBatchUpdate(t *testing.T) {
 		"updates":   map[string]any{"status": "done"},
 	})).Want(http.StatusConflict)
 }
+
+// A PUT with no criteria and no explicit clear=true must not silently wipe
+// existing criteria (a typo/oversight in a caller like `multica criteria set`
+// without --text must not erase the Outcome Contract).
+func TestAcceptanceCriteriaSetEmptyRequiresExplicitClear(t *testing.T) {
+	issue := dbfx.Issue(t, "criteria not wiped by accident")
+	crit := criteriaOf(t, setCriteria(t, issue, []map[string]any{{"text": "Keep me"}}))
+	if len(crit) != 1 {
+		t.Fatalf("seed criteria = %+v", crit)
+	}
+
+	setCriteria(t, issue, []map[string]any{}).Want(http.StatusBadRequest)
+	if got := listCriteria(t, issue); len(got) != 1 || got[0].Text != "Keep me" {
+		t.Fatalf("criteria wiped by empty PUT without clear=true: %+v", got)
+	}
+
+	req := testutil.WithURLParams(newRequest(http.MethodPut, "/api/issues/"+issue+"/acceptance-criteria",
+		map[string]any{"criteria": []map[string]any{}, "clear": true}), "id", issue)
+	testutil.Call(t, testHandler.SetAcceptanceCriteria, req).Want(http.StatusOK)
+	if got := listCriteria(t, issue); len(got) != 0 {
+		t.Fatalf("clear=true should empty criteria: %+v", got)
+	}
+}

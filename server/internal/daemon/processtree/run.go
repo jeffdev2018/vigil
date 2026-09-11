@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"time"
 )
@@ -56,9 +57,19 @@ func run(ctx context.Context, cmd *exec.Cmd, waitDelay time.Duration) error {
 		return err
 	}
 	if err := controller.attach(cmd); err != nil {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-		_ = controller.finish(cmd)
+		// Best-effort cleanup after a failed attach: the attach error is what
+		// the caller needs, but a failure here would otherwise vanish
+		// silently and leave no trail if the kill/wait/finish sequence itself
+		// is what's actually going wrong (e.g. a process already reaped).
+		if killErr := cmd.Process.Kill(); killErr != nil {
+			slog.Debug("processtree: kill after failed attach", "error", killErr)
+		}
+		if waitErr := cmd.Wait(); waitErr != nil {
+			slog.Debug("processtree: wait after failed attach", "error", waitErr)
+		}
+		if finishErr := controller.finish(cmd); finishErr != nil {
+			slog.Debug("processtree: finish after failed attach", "error", finishErr)
+		}
 		return fmt.Errorf("attach process tree: %w", err)
 	}
 

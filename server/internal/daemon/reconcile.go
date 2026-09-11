@@ -77,8 +77,11 @@ func (b *reconcileBroadcaster) notify() <-chan struct{} {
 }
 
 // broadcast wakes every current subscriber, then installs a fresh channel
-// for future subscribers. If there are no current subscribers, a one-slot
-// replay flag is set so the next notify() observes the missed event once.
+// for future subscribers. The one-slot replay flag is armed unconditionally
+// (not just when there are no current subscribers): it is idempotent to set
+// when a subscriber already got this broadcast, and it is the only way a
+// subscriber that arrives between this call and the next one still observes
+// the missed event.
 //
 // Calls within minBroadcastInterval of the previous broadcast are dropped;
 // the function reports whether the signal fired so callers can log

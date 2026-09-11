@@ -25,7 +25,7 @@ import (
 // orgUnitHolding is the unit the issue currently sits in: the latest routing
 // flow, else the unit whose members include the assignee.
 func (h *Handler) orgUnitHolding(ctx context.Context, s db.OrgStructure, def OrgDefinition, issue db.Issue) *OrgUnit {
-	if f, err := h.Queries.GetLatestOrgRoutingForIssue(ctx, issue.ID); err == nil && f.StructureID == s.ID {
+	if f, err := h.Queries.GetLatestOrgRoutingForIssue(ctx, db.GetLatestOrgRoutingForIssueParams{WorkspaceID: issue.WorkspaceID, IssueID: issue.ID}); err == nil && f.StructureID == s.ID {
 		if u := def.unit(f.UnitID); u != nil {
 			return u
 		}
@@ -124,7 +124,7 @@ func (h *Handler) EscalateIssue(w http.ResponseWriter, r *http.Request) {
 // orgObserveReassignment records an issue leaving the unit that was routed
 // it (drift signal), when a human reassigns it elsewhere.
 func (h *Handler) orgObserveReassignment(ctx context.Context, issue db.Issue, actorType, actorID string) {
-	f, err := h.Queries.GetLatestOrgRoutingForIssue(ctx, issue.ID)
+	f, err := h.Queries.GetLatestOrgRoutingForIssue(ctx, db.GetLatestOrgRoutingForIssueParams{WorkspaceID: issue.WorkspaceID, IssueID: issue.ID})
 	if err != nil || !issue.AssigneeID.Valid {
 		return
 	}

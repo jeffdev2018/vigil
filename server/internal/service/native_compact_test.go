@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -13,6 +14,17 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	openai "github.com/openai/openai-go/v3"
 )
+
+// clampString used to slice at a raw byte offset, which can land inside a
+// multi-byte UTF-8 rune (e.g. cx.summary = clampString(text, nativeSummaryCap)
+// in this file) and emit an invalid partial sequence.
+func TestClampStringCutsOnARuneBoundary(t *testing.T) {
+	s := "é" + strings.Repeat("a", 9)
+	got := clampString(s, 1) // cuts mid-"é": its second byte alone is invalid
+	if !utf8.ValidString(got) {
+		t.Fatalf("clampString(%q, 1) = %q, not valid UTF-8", s, got)
+	}
+}
 
 // The estimate counts Latin text at a quarter token per character and
 // everything else at one, so CJK is never under-counted.

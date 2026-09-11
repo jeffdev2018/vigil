@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -109,11 +110,7 @@ func Parse(data []byte, from, until time.Time) ([]Event, error) {
 }
 
 func sortByStart(events []Event) []Event {
-	for i := 1; i < len(events); i++ {
-		for j := i; j > 0 && events[j].Start.Before(events[j-1].Start); j-- {
-			events[j], events[j-1] = events[j-1], events[j]
-		}
-	}
+	slices.SortStableFunc(events, func(a, b Event) int { return a.Start.Compare(b.Start) })
 	return events
 }
 

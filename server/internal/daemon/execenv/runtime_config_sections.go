@@ -675,7 +675,7 @@ func writeOrgContext(b *strings.Builder, ctx TaskContextForEnv) {
 			}
 		}
 		if o.UnitModel != "" && o.UnitModel != o.Model {
-			fmt.Fprintf(b, " It operates as a%s %s inside that structure.", map[bool]string{true: "n", false: ""}[strings.HasPrefix(o.UnitModel, "o")], strings.ReplaceAll(o.UnitModel, "_", " "))
+			fmt.Fprintf(b, " It operates as a%s %s inside that structure.", map[bool]string{true: "n", false: ""}[strings.ContainsRune("aeiou", rune(o.UnitModel[0]))], strings.ReplaceAll(o.UnitModel, "_", " "))
 		}
 	}
 	b.WriteString("\n")

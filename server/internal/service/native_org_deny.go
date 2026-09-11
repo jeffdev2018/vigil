@@ -64,7 +64,7 @@ func (s *NativeAgentService) nativeOrgDenies(ctx context.Context, wsID pgtype.UU
 		}
 		return nil
 	}
-	if routing, err := s.Queries.GetLatestOrgRoutingForIssue(ctx, issue.ID); err == nil {
+	if routing, err := s.Queries.GetLatestOrgRoutingForIssue(ctx, db.GetLatestOrgRoutingForIssueParams{WorkspaceID: wsID, IssueID: issue.ID}); err == nil {
 		if denies := unitFor(func(i int) bool { return def.Units[i].ID == routing.UnitID }); denies != nil {
 			return denies
 		}

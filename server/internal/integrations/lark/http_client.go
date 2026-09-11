@@ -73,6 +73,12 @@ const (
 	// transfers off the connector ACK path.
 	maxMessageResourceBytes = 100 << 20
 
+	// maxJSONResponseBytes bounds doJSON's ordinary (non-resource) API
+	// responses — comments, messages, bot info, lists — which have no
+	// business being anywhere near a resource download's size, and
+	// otherwise had no cap at all.
+	maxJSONResponseBytes = 16 << 20
+
 	// Access-credential rejections. Seeing one means the token we
 	// presented is not usable, so drop the cached entry and re-mint from
 	// /tenant_access_token/internal. Both are from Lark's generic
@@ -199,11 +205,11 @@ func (c *httpAPIClient) IsConfigured() bool { return true }
 // given installation, reusing a cached token while it is alive (minus
 // safety margin) and otherwise fetching a fresh one from Lark.
 //
-// Concurrent callers serialize on the per-client mutex during the
-// uncached path; the cached path takes the mutex only for the lookup
-// and releases before doing any I/O. Steady-state contention is
-// therefore one map-read under the lock, not a per-call HTTP round
-// trip.
+// The mutex only guards the map lookup/write, not the HTTP round trip: it
+// is released before the uncached path fetches, so concurrent callers that
+// all miss the cache each mint their own token rather than serializing
+// behind one fetch (no singleflight here, unlike DingTalk's token.go in
+// this same integrations package).
 func (c *httpAPIClient) tenantAccessToken(ctx context.Context, creds InstallationCredentials) (string, error) {
 	if creds.AppID == "" {
 		return "", errors.New("lark http client: missing app_id")
@@ -1176,9 +1182,12 @@ func (c *httpAPIClient) doJSON(ctx context.Context, baseURL, method, path, token
 		return fmt.Errorf("http do: %w", err)
 	}
 	defer resp.Body.Close()
-	rawBody, err := io.ReadAll(resp.Body)
+	rawBody, err := io.ReadAll(io.LimitReader(resp.Body, maxJSONResponseBytes+1))
 	if err != nil {
 		return fmt.Errorf("read body: %w", err)
+	}
+	if len(rawBody) > maxJSONResponseBytes {
+		return fmt.Errorf("lark http client: response exceeds %d bytes", maxJSONResponseBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Lark still reports its business code in the body of a non-2xx
