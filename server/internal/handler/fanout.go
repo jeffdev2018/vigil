@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -115,6 +116,21 @@ func (h *Handler) parseFanoutSubTasks(w http.ResponseWriter, r *http.Request, is
 	return subs, true
 }
 
+// fanoutSubTaskTitle derives a child issue's title from its sub-task
+// description: the first line, capped at 120 bytes without splitting a
+// multi-byte UTF-8 rune (the description is free-form agent/user text and
+// may be CJK — conventions.zh.mdx).
+func fanoutSubTaskTitle(desc string) string {
+	title := desc
+	if nl := strings.IndexByte(title, '\n'); nl > 0 {
+		title = title[:nl]
+	}
+	if len(title) > 120 {
+		title = util.TruncateUTF8Bytes(title, 117) + "..."
+	}
+	return title
+}
+
 // launchFanout creates the batch, one child issue per sub-task (assigned,
 // with its run queued) and the member rows. On error it returns the HTTP
 // status and message to write.
@@ -130,13 +146,7 @@ func (h *Handler) launchFanout(ctx context.Context, issue db.Issue, leader db.Ag
 	prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
 	members := make([]db.FanoutBatchMember, 0, len(subs))
 	for i, st := range subs {
-		title := st.desc
-		if nl := strings.IndexByte(title, '\n'); nl > 0 {
-			title = title[:nl]
-		}
-		if len(title) > 120 {
-			title = title[:117] + "..."
-		}
+		title := fanoutSubTaskTitle(st.desc)
 		res, err := h.IssueService.Create(ctx, service.IssueCreateParams{
 			WorkspaceID: issue.WorkspaceID, Title: title,
 			Description: pgtype.Text{String: fmt.Sprintf("Sub-task %d of the fan-out on %s-%d.\n\n%s", i+1, prefix, issue.Number, st.desc), Valid: true},

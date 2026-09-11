@@ -266,7 +266,7 @@ func notifyTransitionApprovers(ctx context.Context, q *db.Queries, bus *events.B
 	})
 	title := "Approval needed: " + issue.Title
 	if len(title) > 100+len("…") {
-		title = title[:100] + "…"
+		title = util.TruncateUTF8Bytes(title, 100) + "…"
 	}
 	for _, member := range members {
 		if !memberRoleAllowed(member.Role, roles) {

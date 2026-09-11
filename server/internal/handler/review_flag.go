@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -259,11 +260,11 @@ func validateReviewFlagRequest(w http.ResponseWriter, req createReviewFlagReques
 		return out, false
 	}
 	if len(out.Title) > reviewFlagTitleMax {
-		out.Title = out.Title[:reviewFlagTitleMax]
+		out.Title = util.TruncateUTF8Bytes(out.Title, reviewFlagTitleMax)
 	}
 	out.Body = strings.TrimSpace(req.Body)
 	if len(out.Body) > reviewFlagBodyMax {
-		out.Body = out.Body[:reviewFlagBodyMax]
+		out.Body = util.TruncateUTF8Bytes(out.Body, reviewFlagBodyMax)
 	}
 
 	switch strings.ToLower(strings.TrimSpace(req.Severity)) {

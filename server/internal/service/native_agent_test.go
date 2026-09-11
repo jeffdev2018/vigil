@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -1254,6 +1255,26 @@ func TestNativeHeadTailKeepsShortRecords(t *testing.T) {
 	}
 	if !strings.Contains(got, "middle truncated") {
 		t.Fatal("marker missing on a genuinely truncated record")
+	}
+}
+
+// CJK product copy (conventions.zh.mdx) must survive both the head and the
+// tail cut without splitting a multi-byte rune — byte-index slicing at
+// either end can otherwise emit invalid UTF-8 into the model's context.
+func TestNativeHeadTailIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试😀", 400)
+	got := nativeHeadTail(long, nativeBriefDescriptionCap)
+	if !utf8.ValidString(got) {
+		t.Fatalf("nativeHeadTail produced invalid UTF-8: %q", got)
+	}
+}
+
+func TestNativeClampToolResultIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试😀", 400)
+	got := nativeClampToolResult(long)
+	fenced := strings.TrimSuffix(got, `…{"error":"tool result truncated for context"}`)
+	if !utf8.ValidString(fenced) {
+		t.Fatalf("nativeClampToolResult produced invalid UTF-8: %q", fenced)
 	}
 }
 
