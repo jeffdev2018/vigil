@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Pipeline, PipelineRun } from "@multica/core/pipelines";
 import { renderWithI18n } from "../../test/i18n";
@@ -46,6 +47,9 @@ beforeEach(() => {
   state.cancel.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("PipelineProgress", () => {
   it("renders nothing without a pipeline, and a picker to start one when some exist", async () => {
     const { container } = render();
@@ -53,7 +57,9 @@ describe("PipelineProgress", () => {
     expect(container.innerHTML).toBe("");
     state.pipelines = [{ id: "p1", name: "Delivery", stages, open_runs: 0, created_at: "" }];
     render();
-    fireEvent.change(await screen.findByLabelText("Choose a pipeline"), { target: { value: "p1" } });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("combobox", { name: "Choose a pipeline" }));
+    await user.click(await screen.findByRole("option", { name: "Delivery" }));
     fireEvent.click(screen.getByRole("button", { name: "Start pipeline" }));
     expect(state.start).toHaveBeenCalledWith("p1", expect.anything());
   });
