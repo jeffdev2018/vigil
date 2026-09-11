@@ -66,14 +66,20 @@ export default function IssueRunsRoute() {
     });
   }, [allTasks]);
 
+  // One ScrollView with the header pinned as its first child: as a sibling
+  // above a ScrollView the formSheet drew the body over the title (JEF-398).
   return (
-    <View className="flex-1">
-      <View className="px-4 pt-4 pb-3">
+    <ScrollView
+      className="flex-1"
+      stickyHeaderIndices={[0]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="bg-background px-4 pt-4 pb-3">
         <Text className="text-base font-semibold text-foreground">
           Agent Runs
         </Text>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <View>
         <View className="px-4 gap-3 pb-4">
           {active.length > 0 ? (
             <Section title="Active">
@@ -90,8 +96,8 @@ export default function IssueRunsRoute() {
             </Section>
           ) : null}
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
