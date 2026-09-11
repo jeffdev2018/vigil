@@ -80,7 +80,8 @@
     "toast_link_copied": "已复制链接",
     "toast_project_deleted": "已删除项目",
     "toast_move_issue_failed": "移动任务失败",
-    "progress_hint": "包括已完成和已取消的任务，不代表交付率。"
+    "progress_hint": "包括已完成和已取消的任务，不代表交付率。",
+    "more_actions_aria": "更多操作"
   },
   "resources": {
     "section_header": "资源",

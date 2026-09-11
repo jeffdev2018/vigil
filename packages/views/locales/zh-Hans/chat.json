@@ -243,7 +243,8 @@
     "rename": "重命名会话",
     "delete": "删除会话",
     "archive": "归档会话",
-    "unarchive": "取消归档"
+    "unarchive": "取消归档",
+    "more_actions_aria": "更多操作"
   },
   "voice": {
     "start": "语音输入消息",

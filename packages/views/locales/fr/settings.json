@@ -1865,7 +1865,8 @@
     "expiry_24h": "24 heures",
     "expiry_7d": "7 jours",
     "expiry_30d": "30 jours",
-    "expiry_never": "Jamais"
+    "expiry_never": "Jamais",
+    "member_actions_aria": "Actions du membre"
   },
   "run_limits": {
     "title": "Limites d'exécution",

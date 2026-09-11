@@ -80,7 +80,8 @@
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
     "toast_move_issue_failed": "課題を移動できませんでした",
-    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。"
+    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。",
+    "more_actions_aria": "その他の操作"
   },
   "resources": {
     "section_header": "リソース",

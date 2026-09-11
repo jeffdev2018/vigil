@@ -1776,7 +1776,8 @@
     "expiry_24h": "24 hours",
     "expiry_7d": "7 days",
     "expiry_30d": "30 days",
-    "expiry_never": "Never"
+    "expiry_never": "Never",
+    "member_actions_aria": "Member actions"
   },
   "integrations": {
     "description": "Connect your tools and manage each integration in one place.",

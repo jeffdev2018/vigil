@@ -721,6 +721,20 @@ describe("IssueDetail (shared)", () => {
     mockApiObj.getProject.mockReset();
   });
 
+  it("gives every icon-only header action button an accessible name", async () => {
+    renderIssueDetail();
+
+    expect(
+      await screen.findByRole("button", { name: "Pin to sidebar" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "More actions" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Toggle right sidebar" }),
+    ).toBeInTheDocument();
+  });
+
   it("opens source-context creation from both a root comment and a reply", async () => {
     mockApiObj.listTimeline.mockResolvedValue([
       { ...mockTimeline[0], id: "source-root", parent_id: null },

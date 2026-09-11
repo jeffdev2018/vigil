@@ -7,7 +7,8 @@
     "mark_all_read": "모두 읽음으로 표시",
     "archive_all": "모두 보관",
     "archive_all_read": "읽은 항목 모두 보관",
-    "archive_completed": "완료된 항목 보관"
+    "archive_completed": "완료된 항목 보관",
+    "more_actions_aria": "추가 작업"
   },
   "filters": {
     "tooltip": "인박스 필터",

@@ -594,6 +594,7 @@ export function InboxPage() {
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground"
+              aria-label={t(($) => $.menu.more_actions_aria)}
             />
           }
         >

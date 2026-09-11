@@ -1767,7 +1767,8 @@
     "expiry_24h": "24時間",
     "expiry_7d": "7日",
     "expiry_30d": "30日",
-    "expiry_never": "無期限"
+    "expiry_never": "無期限",
+    "member_actions_aria": "メンバーの操作"
   },
   "integrations": {
     "description": "ツールを接続して、各連携を管理します。",

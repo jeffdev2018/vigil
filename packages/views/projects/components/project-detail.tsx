@@ -531,6 +531,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                 size="icon-sm"
                 className={cn("text-muted-foreground", isPinned && "text-foreground")}
                 title={isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
+                aria-label={isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
                 onClick={() => {
                   if (isPinned) {
                     deletePinMut.mutate({ itemType: "project", itemId: projectId });
@@ -544,7 +545,12 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      aria-label={t(($) => $.detail.more_actions_aria)}
+                    >
                       <MoreHorizontal />
                     </Button>
                   }
@@ -580,6 +586,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                       size="icon-sm"
                       className={sidebarOpen ? "" : "text-muted-foreground"}
                       onClick={handleToggleSidebar}
+                      aria-label={t(($) => $.detail.sidebar_tooltip)}
                     >
                       <PanelRight />
                     </Button>
