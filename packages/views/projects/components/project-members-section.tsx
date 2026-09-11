@@ -14,6 +14,13 @@ import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentMember } from "@multica/core/permissions";
 import { Badge } from "@multica/ui/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 const ROLE_ORDER: ProjectRole[] = ["viewer", "contributor", "admin"];
@@ -108,18 +115,24 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                               {m.source === "override" ? t(($) => $.members.override) : t(($) => $.members.inherited)}
                             </Badge>
                             {canEdit && (
-                              <select
-                                aria-label={t(($) => $.members.columns.role)}
-                                className="h-7 rounded-md border bg-background px-2 text-caption"
+                              <Select
+                                items={[
+                                  { value: INHERIT, label: t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) }) },
+                                  ...options.map((r) => ({ value: r, label: roleLabel(r) })),
+                                ]}
                                 value={m.override ?? INHERIT}
-                                disabled={setRole.isPending}
-                                onChange={(e) => change(m, e.target.value)}
+                                onValueChange={(value) => value !== null && change(m, value)}
                               >
-                                <option value={INHERIT}>{t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) })}</option>
-                                {options.map((r) => (
-                                  <option key={r} value={r}>{roleLabel(r)}</option>
-                                ))}
-                              </select>
+                                <SelectTrigger size="sm" aria-label={t(($) => $.members.columns.role)} disabled={setRole.isPending}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={INHERIT}>{t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) })}</SelectItem>
+                                  {options.map((r) => (
+                                    <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             )}
                           </div>
                         </td>
