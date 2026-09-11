@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // ErrNotConfigured is returned by Speak when no provider is configured.
@@ -127,7 +129,7 @@ func (c *Client) Speak(ctx context.Context, text string) (Audio, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet := strings.TrimSpace(string(raw))
 		if len(snippet) > maxErrorBody {
-			snippet = snippet[:maxErrorBody]
+			snippet = util.TruncateUTF8Bytes(snippet, maxErrorBody)
 		}
 		return Audio{}, fmt.Errorf("tts: upstream %d: %s", resp.StatusCode, snippet)
 	}

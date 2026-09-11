@@ -46,6 +46,26 @@ func (q *Queries) AdvanceIssueRecurrence(ctx context.Context, arg AdvanceIssueRe
 	return i, err
 }
 
+const advanceIssueRecurrenceNextRunOnly = `-- name: AdvanceIssueRecurrenceNextRunOnly :exec
+UPDATE issue_recurrence SET next_run_at = $2, updated_at = now() WHERE id = $1
+`
+
+type AdvanceIssueRecurrenceNextRunOnlyParams struct {
+	ID        pgtype.UUID        `json:"id"`
+	NextRunAt pgtype.Timestamptz `json:"next_run_at"`
+}
+
+// Moves next_run_at forward BEFORE the occurrence is created. Spawn calls
+// this first (schedule mode only) so a transient failure anywhere after it
+// (occurrence create, link, or the closing AdvanceIssueRecurrence call)
+// costs at most one skipped occurrence instead of a duplicate one: without
+// it, ListDueIssueRecurrences would keep matching the same past-due rule on
+// every tick until the closing call finally succeeds.
+func (q *Queries) AdvanceIssueRecurrenceNextRunOnly(ctx context.Context, arg AdvanceIssueRecurrenceNextRunOnlyParams) error {
+	_, err := q.db.Exec(ctx, advanceIssueRecurrenceNextRunOnly, arg.ID, arg.NextRunAt)
+	return err
+}
+
 const clearIssueRecurrenceLinks = `-- name: ClearIssueRecurrenceLinks :exec
 UPDATE issue SET recurrence_id = NULL WHERE recurrence_id = $1
 `

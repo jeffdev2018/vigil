@@ -3,9 +3,11 @@ package triage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -126,6 +128,25 @@ func Capture(ctx context.Context, q *db.Queries, p CaptureParams) (db.TriageItem
 		ExpiresAt:       pgtype.Timestamptz{Time: time.Now().Add(retention(source)), Valid: true},
 	})
 	if err != nil {
+		// UpsertTriageItem's ON CONFLICT arbiter is uq_triage_item_pending_title
+		// (Postgres allows only one arbiter per INSERT); it cannot also target
+		// uq_triage_item_dedupe. Two deliveries that share a dedupe_key but
+		// land on different normalized_title (both pending) hit that second
+		// index as a hard unique_violation instead of the graceful DO UPDATE.
+		// Fold into the row that actually conflicted instead of dropping the
+		// delivery.
+		var pgErr *pgconn.PgError
+		if p.DedupeKey != "" && errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uq_triage_item_dedupe" {
+			folded, foldErr := q.FoldTriageItemByDedupeKey(ctx, db.FoldTriageItemByDedupeKeyParams{
+				WorkspaceID: p.WorkspaceID,
+				SourceID:    source.ID,
+				DedupeKey:   p.DedupeKey,
+			})
+			if foldErr == nil {
+				return folded, source, nil
+			}
+			return db.TriageItem{}, source, fmt.Errorf("upsert triage item: %w (dedupe fold also failed: %v)", err, foldErr)
+		}
 		return db.TriageItem{}, source, fmt.Errorf("upsert triage item: %w", err)
 	}
 	return item, source, nil

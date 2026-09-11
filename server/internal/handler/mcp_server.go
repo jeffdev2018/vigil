@@ -631,7 +631,7 @@ func mcpToolResult(leaf mcpLeaf, payload json.RawMessage) map[string]any {
 	}
 	text := string(payload)
 	if len(text) > mcpResultCap {
-		text = text[:mcpResultCap] + "…"
+		text = util.TruncateUTF8Bytes(text, mcpResultCap) + "…"
 	}
 	structuredContent, _ := structured.(map[string]any)
 	if structuredContent == nil {

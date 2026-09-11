@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -73,7 +74,12 @@ func init() {
 	calendarCmd.AddCommand(calendarAgendaCmd, calendarEventsCmd, calendarSlotsCmd, calendarProposeCmd)
 }
 
-func calendarWindowQuery(cmd *cobra.Command) string {
+// calendarWindowQuery builds the from/to query string with url.Values so
+// RFC 3339 offsets (e.g. "+02:00") are percent-encoded. A raw "+" survives
+// transport but the server decodes the query with url.ParseQuery, which
+// treats "+" as a literal space (application/x-www-form-urlencoded), so an
+// unescaped offset breaks time.Parse server-side.
+func calendarWindowQuery(cmd *cobra.Command) url.Values {
 	from, _ := cmd.Flags().GetString("from")
 	to, _ := cmd.Flags().GetString("to")
 	if from == "" {
@@ -83,7 +89,7 @@ func calendarWindowQuery(cmd *cobra.Command) string {
 		t, _ := time.Parse(time.RFC3339, from)
 		to = t.Add(7 * 24 * time.Hour).UTC().Format(time.RFC3339)
 	}
-	return "from=" + from + "&to=" + to
+	return url.Values{"from": {from}, "to": {to}}
 }
 
 func runCalendarAgenda(cmd *cobra.Command, _ []string) error {
@@ -92,7 +98,7 @@ func runCalendarAgenda(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	var resp map[string]any
-	if err := client.GetJSON(cmd.Context(), "/api/calendar/agenda?"+calendarWindowQuery(cmd), &resp); err != nil {
+	if err := client.GetJSON(cmd.Context(), "/api/calendar/agenda?"+calendarWindowQuery(cmd).Encode(), &resp); err != nil {
 		return fmt.Errorf("agenda: %w", err)
 	}
 	if output, _ := cmd.Flags().GetString("output"); output == "json" {
@@ -135,7 +141,7 @@ func runCalendarEvents(cmd *cobra.Command, _ []string) error {
 	var resp struct {
 		Events []map[string]any `json:"events"`
 	}
-	if err := client.GetJSON(cmd.Context(), "/api/calendar/events?"+calendarWindowQuery(cmd), &resp); err != nil {
+	if err := client.GetJSON(cmd.Context(), "/api/calendar/events?"+calendarWindowQuery(cmd).Encode(), &resp); err != nil {
 		return fmt.Errorf("events: %w", err)
 	}
 	if output, _ := cmd.Flags().GetString("output"); output == "json" {
@@ -175,7 +181,11 @@ func runCalendarSlots(cmd *cobra.Command, _ []string) error {
 	var resp struct {
 		Slots []map[string]any `json:"slots"`
 	}
-	path := "/api/calendar/slots?" + calendarWindowQuery(cmd) + "&participants=" + participants + "&duration=" + strconv.Itoa(duration) + "&tz=" + tz
+	q := calendarWindowQuery(cmd)
+	q.Set("participants", participants)
+	q.Set("duration", strconv.Itoa(duration))
+	q.Set("tz", tz)
+	path := "/api/calendar/slots?" + q.Encode()
 	if err := client.GetJSON(cmd.Context(), path, &resp); err != nil {
 		return fmt.Errorf("slots: %w", err)
 	}

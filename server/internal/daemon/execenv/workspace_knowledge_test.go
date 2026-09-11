@@ -162,3 +162,39 @@ func TestWorkspaceKnowledgeBriefSection(t *testing.T) {
 		t.Errorf("a workspace with an empty Brain must keep a byte-identical brief\n---\n%s", empty)
 	}
 }
+
+// Regression test for the budget bug: once the running total would exceed
+// the budget, selection must stop (prefix truncation), not skip the
+// over-budget note and keep scanning for a smaller one further down the
+// list. [pinned 150KiB, recent 60KiB, older 30KiB] against a 200KiB budget:
+// pinned+recent already exceeds it, so recent AND older must both be
+// dropped -- the buggy `continue` kept [pinned, older], silently admitting
+// the older, lower-priority note while dropping the more recent one, which
+// also contradicted the very README message it produced.
+func TestSelectKnowledgeNotesIsPrefixTruncation(t *testing.T) {
+	pinned := note("11111111-1111-1111-1111-111111111111", "Pinned", strings.Repeat("p", 150*1024), true)
+	recent := note("22222222-2222-2222-2222-222222222222", "Recent", strings.Repeat("r", 60*1024), false)
+	older := note("33333333-3333-3333-3333-333333333333", "Older", strings.Repeat("o", 30*1024), false)
+
+	pinnedSize := len(knowledgeNoteBody(pinned))
+	recentSize := len(knowledgeNoteBody(recent))
+	olderSize := len(knowledgeNoteBody(older))
+	if pinnedSize+recentSize <= knowledgeByteBudget {
+		t.Fatalf("test fixture assumption broken: pinned+recent (%d) must exceed the budget (%d)", pinnedSize+recentSize, knowledgeByteBudget)
+	}
+	if pinnedSize+olderSize > knowledgeByteBudget {
+		t.Fatalf("test fixture assumption broken: pinned+older (%d) must fit the budget (%d) -- otherwise this doesn't distinguish break from continue", pinnedSize+olderSize, knowledgeByteBudget)
+	}
+
+	kept, omitted := selectKnowledgeNotes([]WorkspaceNoteForEnv{pinned, recent, older})
+	if len(kept) != 1 || kept[0].ID != pinned.ID {
+		ids := make([]string, len(kept))
+		for i, n := range kept {
+			ids[i] = n.Title
+		}
+		t.Fatalf("kept = %v, want only [Pinned] -- recent and older must both be dropped, not just recent", ids)
+	}
+	if omitted != 2 {
+		t.Fatalf("omitted = %d, want 2", omitted)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/slack-go/slack"
 )
@@ -89,9 +90,18 @@ func DigestBlocks(text string, actions []channel.DigestAction) []slack.Block {
 func chunkText(text string, size int) []string {
 	var out []string
 	for len(text) > size {
-		cut := strings.LastIndex(text[:size], "\n")
+		// The rune-safe prefix's length is always <= size and never splits a
+		// multi-byte rune, unlike a raw text[:size] slice.
+		limit := len(util.TruncateUTF8Bytes(text, size))
+		if limit == 0 {
+			// size is smaller than the text's first rune (pathological;
+			// never happens at the 2900-byte call site). Fall back to a
+			// byte cut so the loop still makes progress.
+			limit = size
+		}
+		cut := strings.LastIndex(text[:limit], "\n")
 		if cut <= 0 {
-			cut = size
+			cut = limit
 		}
 		out = append(out, text[:cut])
 		text = strings.TrimLeft(text[cut:], "\n")

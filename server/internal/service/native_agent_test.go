@@ -8,12 +8,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -1257,6 +1259,26 @@ func TestNativeHeadTailKeepsShortRecords(t *testing.T) {
 	}
 }
 
+// CJK product copy (conventions.zh.mdx) must survive both the head and the
+// tail cut without splitting a multi-byte rune — byte-index slicing at
+// either end can otherwise emit invalid UTF-8 into the model's context.
+func TestNativeHeadTailIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试😀", 400)
+	got := nativeHeadTail(long, nativeBriefDescriptionCap)
+	if !utf8.ValidString(got) {
+		t.Fatalf("nativeHeadTail produced invalid UTF-8: %q", got)
+	}
+}
+
+func TestNativeClampToolResultIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试😀", 400)
+	got := nativeClampToolResult(long)
+	fenced := strings.TrimSuffix(got, `…{"error":"tool result truncated for context"}`)
+	if !utf8.ValidString(fenced) {
+		t.Fatalf("nativeClampToolResult produced invalid UTF-8: %q", fenced)
+	}
+}
+
 // N03 — run continuity. A follow-up run on the same issue opens already
 // knowing what its predecessors concluded: the brief carries the last
 // summaries as fenced records, and only for THAT issue. The budget from N02
@@ -1946,8 +1968,8 @@ func TestNativeAgentRefusesClosedIssueAtEntry(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if status != "failed" || reason != ReasonIssueTerminal {
-		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	if status != "failed" || reason != taskfailure.ReasonIssueTerminal.String() {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, taskfailure.ReasonIssueTerminal)
 	}
 }
 
@@ -1991,8 +2013,8 @@ func TestNativeAgentStopsWhenIssueClosed(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if status != "failed" || reason != ReasonIssueTerminal {
-		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	if status != "failed" || reason != taskfailure.ReasonIssueTerminal.String() {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, taskfailure.ReasonIssueTerminal)
 	}
 	if llm.inner.calls != 1 {
 		t.Fatalf("model calls = %d, want 1 (left at turn boundary)", llm.inner.calls)

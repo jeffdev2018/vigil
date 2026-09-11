@@ -103,7 +103,7 @@ func (c *telegramChannel) Connect(ctx context.Context) error {
 			if !sleepCtx(ctx, pollRetryDelay) {
 				return nil
 			}
-			return fmt.Errorf("telegram: getUpdates: %w", err)
+			continue
 		}
 		for _, u := range updates {
 			if u.UpdateID >= offset {

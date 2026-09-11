@@ -134,6 +134,20 @@ func (s *RecurrenceService) Spawn(ctx context.Context, rec db.IssueRecurrence) (
 		return db.Issue{}, fmt.Errorf("recurrence %s: its issue is gone, rule removed", util.UUIDToString(rec.ID))
 	}
 	now := s.Now()
+	next, nextErr := NextRecurrenceRun(rec.Mode, rec.CronExpression, rec.Timezone, now)
+	if nextErr != nil {
+		slog.Warn("recurrence: next run", "recurrence_id", util.UUIDToString(rec.ID), "error", nextErr)
+	}
+	if rec.Mode == RecurrenceModeSchedule && next.Valid {
+		// Close the re-fire window before doing any of the create/link work
+		// below: if something after this point fails transiently, the rule
+		// is already past its old next_run_at and ListDueIssueRecurrences
+		// will not re-select it until the next scheduled tick, so the
+		// failure costs one skipped occurrence rather than a duplicate one.
+		if err := s.Queries.AdvanceIssueRecurrenceNextRunOnly(ctx, db.AdvanceIssueRecurrenceNextRunOnlyParams{ID: rec.ID, NextRunAt: next}); err != nil {
+			slog.Warn("recurrence: early next-run advance failed", "recurrence_id", util.UUIDToString(rec.ID), "error", err)
+		}
+	}
 	labels, _ := s.Queries.ListLabelsForIssues(ctx, db.ListLabelsForIssuesParams{IssueIds: []pgtype.UUID{source.ID}, WorkspaceID: rec.WorkspaceID})
 	labelIDs := make([]pgtype.UUID, 0, len(labels))
 	for _, l := range labels {
@@ -178,10 +192,6 @@ func (s *RecurrenceService) Spawn(ctx context.Context, rec db.IssueRecurrence) (
 		if _, err := s.Queries.UpdateIssueAcceptanceCriteria(ctx, db.UpdateIssueAcceptanceCriteriaParams{ID: created.ID, AcceptanceCriteria: source.AcceptanceCriteria, WorkspaceID: created.WorkspaceID}); err != nil {
 			slog.Warn("recurrence: criteria copy failed", "error", err)
 		}
-	}
-	next, err := NextRecurrenceRun(rec.Mode, rec.CronExpression, rec.Timezone, now)
-	if err != nil {
-		slog.Warn("recurrence: next run", "recurrence_id", util.UUIDToString(rec.ID), "error", err)
 	}
 	if _, err := s.Queries.AdvanceIssueRecurrence(ctx, db.AdvanceIssueRecurrenceParams{ID: rec.ID, LastOccurrenceID: created.ID, NextRunAt: next}); err != nil {
 		return created, fmt.Errorf("advance rule: %w", err)

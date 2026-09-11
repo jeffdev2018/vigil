@@ -699,7 +699,7 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 		return nil, errors.New("content is required")
 	}
 	if len(content) > nativeCommentMaxLen {
-		content = content[:nativeCommentMaxLen]
+		content = util.TruncateUTF8Bytes(content, nativeCommentMaxLen)
 	}
 	issue, err := s.nativeResolveIssue(ctx, tctx, args)
 	if err != nil {
@@ -764,14 +764,14 @@ func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *native
 			return nil, errors.New("title must not be empty")
 		}
 		if len(title) > 255 {
-			title = title[:255]
+			title = util.TruncateUTF8Bytes(title, 255)
 		}
 	}
 	description, hasDescription := args["description"].(string)
 	if hasDescription {
 		description = util.SanitizeTextForPostgres(description)
 		if len(description) > 100000 {
-			description = description[:100000]
+			description = util.TruncateUTF8Bytes(description, 100000)
 		}
 	}
 	priority, hasPriority := args["priority"].(string)
@@ -868,7 +868,7 @@ func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx *nat
 		return nil, errors.New("title is required")
 	}
 	if len(title) > 255 {
-		title = title[:255]
+		title = util.TruncateUTF8Bytes(title, 255)
 	}
 	description, _ := args["description"].(string)
 	description = util.SanitizeTextForPostgres(description)
@@ -1070,7 +1070,7 @@ func nativeNoteTags(raw []any) ([]string, error) {
 			return nil, errors.New("tags must be non-empty strings")
 		}
 		if len(s) > nativeNoteTagMax {
-			s = s[:nativeNoteTagMax]
+			s = util.TruncateUTF8Bytes(s, nativeNoteTagMax)
 		}
 		out = append(out, util.SanitizeTextForPostgres(s))
 	}
@@ -1207,7 +1207,7 @@ func (s *NativeAgentService) nativeCaptureNote(ctx context.Context, tctx *native
 	hint, _ := args["title_hint"].(string)
 	hint = strings.TrimSpace(util.SanitizeTextForPostgres(hint))
 	if len(hint) > nativeNoteTitleMax {
-		hint = hint[:nativeNoteTitleMax]
+		hint = util.TruncateUTF8Bytes(hint, nativeNoteTitleMax)
 	}
 	kind, _ := args["kind"].(string)
 	switch strings.TrimSpace(kind) {
@@ -1277,7 +1277,7 @@ func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToo
 		return nil, errors.New("title is required")
 	}
 	if len(title) > nativeNoteTitleMax {
-		title = title[:nativeNoteTitleMax]
+		title = util.TruncateUTF8Bytes(title, nativeNoteTitleMax)
 	}
 	content, _ := args["content"].(string)
 	content = util.SanitizeTextForPostgres(content)
@@ -1331,7 +1331,7 @@ func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeT
 	if title, ok := args["title"].(string); ok && strings.TrimSpace(title) != "" {
 		title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
 		if len(title) > nativeNoteTitleMax {
-			title = title[:nativeNoteTitleMax]
+			title = util.TruncateUTF8Bytes(title, nativeNoteTitleMax)
 		}
 		params.Title = pgtype.Text{String: title, Valid: true}
 		hasChange = true
@@ -1379,7 +1379,7 @@ func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx *native
 		return nil, errors.New("title is required")
 	}
 	if len(title) > 255 {
-		title = title[:255]
+		title = util.TruncateUTF8Bytes(title, 255)
 	}
 	description, _ := args["description"].(string)
 	description = util.SanitizeTextForPostgres(description)

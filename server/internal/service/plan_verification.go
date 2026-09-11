@@ -47,11 +47,7 @@ func PlanVerificationGateEnabled(settings []byte) bool {
 func PlanVerificationHandoffNote(issueIdentifier string, plan db.IssuePlan) string {
 	content := strings.TrimSpace(plan.Content)
 	if len(content) > planHandoffMaxBytes {
-		cut := planHandoffMaxBytes
-		for cut > 0 && content[cut]&0xC0 == 0x80 {
-			cut--
-		}
-		content = content[:cut] + "\n…(plan truncated; run `multica issue plan get " + issueIdentifier + "` for the full text)"
+		content = util.TruncateUTF8Bytes(content, planHandoffMaxBytes) + "\n…(plan truncated; run `multica issue plan get " + issueIdentifier + "` for the full text)"
 	}
 	return fmt.Sprintf("%s of %s, plan version %d. Do not change code: compare what the previous run delivered "+
 		"(linked pull requests, branch diff) against this plan and report with `multica issue plan report %s --file findings.json`.\n\n%s",
@@ -99,21 +95,40 @@ func (s *TaskService) MaybeEnqueuePlanVerification(ctx context.Context, taskID p
 		return nil // only an agent-assigned issue can run a verification
 	}
 
+	// The tracking row is created BEFORE the run is enqueued, with task_id
+	// set to the same value as source_task_id as a placeholder. This closes
+	// PlanVerificationExistsForSource's re-fire window immediately: even if
+	// EnqueueTaskForIssueWithHandoff or the swap below fails, the next
+	// completion of this same source task will see a row already exists
+	// and skip, instead of enqueueing a second, uncontrolled verification
+	// run. The placeholder is swapped for the real task_id once the run is
+	// actually enqueued.
+	verificationRow, err := s.Queries.CreatePlanVerification(ctx, db.CreatePlanVerificationParams{
+		WorkspaceID:  issue.WorkspaceID,
+		IssueID:      issue.ID,
+		PlanID:       plan.ID,
+		PlanVersion:  plan.Version,
+		TaskID:       task.ID,
+		SourceTaskID: task.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("record verification: %w", err)
+	}
+
 	identifier := fmt.Sprintf("%s-%d", ws.IssuePrefix, issue.Number)
 	note := PlanVerificationHandoffNote(identifier, plan)
 	verification, err := s.EnqueueTaskForIssueWithHandoff(ctx, issue, note, pgtype.UUID{})
 	if err != nil {
 		return fmt.Errorf("enqueue verification run: %w", err)
 	}
-	if _, err := s.Queries.CreatePlanVerification(ctx, db.CreatePlanVerificationParams{
-		WorkspaceID:  issue.WorkspaceID,
-		IssueID:      issue.ID,
-		PlanID:       plan.ID,
-		PlanVersion:  plan.Version,
-		TaskID:       verification.ID,
-		SourceTaskID: task.ID,
+	if err := s.Queries.SetPlanVerificationTaskID(ctx, db.SetPlanVerificationTaskIDParams{
+		ID:     verificationRow.ID,
+		TaskID: verification.ID,
 	}); err != nil {
-		return fmt.Errorf("record verification: %w", err)
+		slog.Warn("plan verification: task id swap failed; row keeps the source-task placeholder",
+			"verification_id", util.UUIDToString(verificationRow.ID),
+			"verification_task_id", util.UUIDToString(verification.ID),
+			"error", err)
 	}
 	slog.Info("plan verification queued",
 		"issue_id", util.UUIDToString(issue.ID),

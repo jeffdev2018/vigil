@@ -49,6 +49,8 @@ func init() {
 	runsListCmd.Flags().String("cursor", "", "page cursor from a previous read")
 	runsListCmd.Flags().Int("limit", 50, "rows per page (max 200)")
 	runsListCmd.Flags().Bool("full-id", false, "print full run ids")
+	runsListCmd.Flags().String("output", "table", "Output format: table or json")
+	runsCancelCmd.Flags().String("output", "table", "Output format: table or json")
 	runsCmd.AddCommand(runsListCmd)
 	runsCmd.AddCommand(runsCancelCmd)
 }

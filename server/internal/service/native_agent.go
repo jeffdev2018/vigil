@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -19,6 +20,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/llm"
 	"github.com/multica-ai/multica/server/pkg/protocol"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -454,7 +456,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	if task.IssueID.Valid {
 		if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil && nativeIssueIsTerminal(ctx, s.Queries, agent.WorkspaceID, issue.Status) {
 			msg := "The issue was closed while this run was still going, so there is nothing left for it to deliver."
-			if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+			if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", taskfailure.ReasonIssueTerminal.String(), false, "", ""); err != nil {
 				slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
 			}
 			return
@@ -503,7 +505,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		if msg == "" {
 			msg = "The issue was closed while this run was still going, so there is nothing left for it to deliver."
 		}
-		if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+		if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", taskfailure.ReasonIssueTerminal.String(), false, "", ""); err != nil {
 			slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
 		}
 		recordUsage()
@@ -1039,7 +1041,7 @@ func nativeClampToolResult(s string) string {
 	if len(s) <= nativeToolResultCap {
 		return s
 	}
-	return s[:nativeToolResultCap] + `…{"error":"tool result truncated for context"}`
+	return util.TruncateUTF8Bytes(s, nativeToolResultCap) + `…{"error":"tool result truncated for context"}`
 }
 
 // errNativeRunLimitStopped: the workspace's run limits (K03) failed the run
@@ -1070,7 +1072,25 @@ func nativeHeadTail(content string, cap int) string {
 	}
 	half := cap / 2
 	marker := "\n…[middle truncated — record is longer than the brief budget]…\n"
-	return content[:half] + marker + content[len(content)-half:]
+	return util.TruncateUTF8Bytes(content, half) + marker + nativeSuffixUTF8Bytes(content, half)
+}
+
+// nativeSuffixUTF8Bytes returns the longest suffix of s that is at most
+// maxBytes bytes without splitting a multi-byte UTF-8 rune — the mirror of
+// util.TruncateUTF8Bytes (which trims a prefix) for nativeHeadTail's "keep
+// both ends" budget.
+func nativeSuffixUTF8Bytes(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	start := len(s) - maxBytes
+	for start < len(s) && !utf8.RuneStart(s[start]) {
+		start++
+	}
+	return s[start:]
 }
 
 // nativeSystemPrompt states the agent's contract. Instructions from the agent
@@ -1291,7 +1311,7 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, goal *GoalLoopService, 
 			}
 			content := c.Content
 			if len(content) > 2000 {
-				content = content[:2000] + "…"
+				content = util.TruncateUTF8Bytes(content, 2000) + "…"
 			}
 			entry := fmt.Sprintf("- [%s] %s\n", author, nativeDataFence("comment", content))
 			cost := nativeTokenEstimate(entry)

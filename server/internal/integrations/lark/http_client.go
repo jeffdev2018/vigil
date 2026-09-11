@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // Real Lark/飞书 Open Platform HTTP APIClient.
@@ -1323,7 +1325,7 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return util.TruncateUTF8Bytes(s, n) + "…"
 }
 
 // bindingPromptTemplate renders the "you need to bind" interactive
