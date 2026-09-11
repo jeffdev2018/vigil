@@ -11,6 +11,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -311,8 +312,18 @@ func normalizeAttachmentDownloadMode(raw string) (attachmentDownloadMode, bool) 
 	}
 }
 
+var attachmentDownloadModeWarnOnce sync.Once
+
 func (h *Handler) attachmentDownloadMode() attachmentDownloadMode {
-	mode, _ := normalizeAttachmentDownloadMode(h.cfg.AttachmentDownloadMode)
+	mode, ok := normalizeAttachmentDownloadMode(h.cfg.AttachmentDownloadMode)
+	if !ok {
+		// Logged once (not per call, since this runs on every download) so an
+		// operator typo in the env var is visible instead of silently
+		// degrading to "auto" on every request.
+		attachmentDownloadModeWarnOnce.Do(func() {
+			slog.Warn("unrecognized attachment download mode, defaulting to auto", "configured_value", h.cfg.AttachmentDownloadMode)
+		})
+	}
 	return mode
 }
 
@@ -480,8 +491,11 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			comment, err := h.Queries.GetComment(r.Context(), commentUUID)
-			if err != nil || uuidToString(comment.WorkspaceID) != workspaceID {
+			comment, err := h.Queries.GetCommentInWorkspace(r.Context(), db.GetCommentInWorkspaceParams{
+				ID:          commentUUID,
+				WorkspaceID: parseUUID(workspaceID),
+			})
+			if err != nil {
 				writeError(w, http.StatusForbidden, "invalid comment_id")
 				return
 			}
