@@ -128,7 +128,15 @@ func (h *Handler) CreateFeedback(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		workspaceID = ws
+		// Attribution only, not access control (there is no read route for
+		// feedback), but a caller who isn't a member of the workspace
+		// shouldn't be able to tag their feedback to it. Non-fatal: clear
+		// the field rather than rejecting the whole submission.
+		if _, err := h.getWorkspaceMember(r.Context(), userID, *req.WorkspaceID); err != nil {
+			workspaceID = pgtype.UUID{}
+		} else {
+			workspaceID = ws
+		}
 	}
 
 	fb, err := h.Queries.CreateFeedback(r.Context(), db.CreateFeedbackParams{
