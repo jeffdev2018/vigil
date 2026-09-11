@@ -10,6 +10,13 @@ import { issueKeys } from "@multica/core/issues/queries";
 import { useCreateIssueDecision } from "@multica/core/projects/decisions";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import {
   Dialog,
@@ -174,42 +181,67 @@ export function RecordDecisionDialog({
 
           <div className="mt-4 flex flex-col gap-3">
             <Field label={t(($) => $.decisions.record.issue_label)}>
-              <select
-                aria-label={t(($) => $.decisions.record.issue_label)}
-                className="h-8 w-full rounded-md border bg-background px-2 text-body"
-                value={issueId}
-                onChange={(e) => setIssueId(e.target.value)}
-              >
-                <option value="">
-                  {t(($) => $.decisions.record.issue_placeholder)}
-                </option>
-                {issues.map((issue) => (
-                  <option key={issue.id} value={issue.id}>
-                    {issue.identifier
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.decisions.record.issue_placeholder) },
+                  ...issues.map((issue) => ({
+                    value: issue.id,
+                    label: issue.identifier
                       ? `${issue.identifier} ${issue.title}`
-                      : issue.title}
-                  </option>
-                ))}
-              </select>
+                      : issue.title,
+                  })),
+                ]}
+                value={issueId}
+                onValueChange={(value) => value !== null && setIssueId(value)}
+              >
+                <SelectTrigger className="w-full" aria-label={t(($) => $.decisions.record.issue_label)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">
+                    {t(($) => $.decisions.record.issue_placeholder)}
+                  </SelectItem>
+                  {issues.map((issue) => (
+                    <SelectItem key={issue.id} value={issue.id}>
+                      {issue.identifier
+                        ? `${issue.identifier} ${issue.title}`
+                        : issue.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
 
             <Field label={t(($) => $.decisions.record.source_label)}>
-              <select
-                aria-label={t(($) => $.decisions.record.source_label)}
-                className="h-8 w-full rounded-md border bg-background px-2 text-body"
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.decisions.record.source_placeholder) },
+                  ...citable.map((message) => ({
+                    value: String(message.seq),
+                    label: `#${message.seq} · ${previewOf(message.content ?? message.output ?? "")}`,
+                  })),
+                ]}
                 value={seq}
-                onChange={(e) => setSeq(e.target.value)}
-                disabled={!run || citable.length === 0}
+                onValueChange={(value) => value !== null && setSeq(value)}
               >
-                <option value="">
-                  {t(($) => $.decisions.record.source_placeholder)}
-                </option>
-                {citable.map((message) => (
-                  <option key={message.seq} value={String(message.seq)}>
-                    {`#${message.seq} · ${previewOf(message.content ?? message.output ?? "")}`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  className="w-full"
+                  aria-label={t(($) => $.decisions.record.source_label)}
+                  disabled={!run || citable.length === 0}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">
+                    {t(($) => $.decisions.record.source_placeholder)}
+                  </SelectItem>
+                  {citable.map((message) => (
+                    <SelectItem key={message.seq} value={String(message.seq)}>
+                      {`#${message.seq} · ${previewOf(message.content ?? message.output ?? "")}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {loadingRun && (
                 <p className="mt-1 text-caption text-muted-foreground">
                   {t(($) => $.decisions.record.source_loading)}
