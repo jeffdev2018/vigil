@@ -7,12 +7,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
@@ -211,5 +213,23 @@ func TestExpireOverdueGatesAnswersTheCardAndAnnouncesIt(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no approval:decided event with the expired outcome")
+	}
+}
+
+// A gate reserved to owners and admins must fail closed: a read failure on
+// the gate or its workspace is a server error, never "no gate here".
+func TestApprovalGatePolicyFailsClosedOnReadError(t *testing.T) {
+	rememberSettings(t)
+	dbfx.Exec(t, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"approval_gates":{"approvers":"owner_admin"}}'::jsonb WHERE id = $1`, testWorkspaceID)
+	issue, _, _, gate := openTestGate(t, "fail closed gate")
+	dbfx.Exec(t, `UPDATE member SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
+	dbfx.Cleanup(t, `UPDATE member SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
+	for _, failOn := range []string{"-- name: GetApprovalGateByDecision :one", "-- name: GetWorkspace :one"} {
+		broken := *testHandler
+		broken.Queries = db.New(failQueryDBTX{DBTX: testPool, failOn: failOn, err: errors.New("injected read failure")})
+		testutil.Call(t, broken.RespondIssueDecision, testutil.WithURLParams(
+			newRequest(http.MethodPost, "/api/issues/"+issue+"/decisions/"+*gate.DecisionID+"/respond", map[string]any{"option_id": "approve"}),
+			"id", issue, "decisionId", *gate.DecisionID,
+		)).Want(http.StatusInternalServerError)
 	}
 }
