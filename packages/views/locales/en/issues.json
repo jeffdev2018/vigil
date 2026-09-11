@@ -2006,6 +2006,7 @@
       "description": "No new issue will be raised. The ones already created stay.",
       "keep": "Keep it",
       "confirm": "Stop recurring"
-    }
+    },
+    "badge": "Recurring"
   }
 }

@@ -1558,6 +1558,9 @@ export const IssueSchema = z.object({
   // here", so consumers must not read it as "no origin".
   origin_type: z.string().nullish(),
   origin_id: z.string().nullish(),
+  // The recurrence series the issue belongs to (source or occurrence). Sent
+  // on list rows too; absent on an older backend, which parses to null.
+  recurrence_id: z.string().nullable().optional().default(null),
   position: z.number(),
   // Older backends predate `stage`; default to null so a missing field parses
   // cleanly into the non-optional Issue.stage (number | null).
