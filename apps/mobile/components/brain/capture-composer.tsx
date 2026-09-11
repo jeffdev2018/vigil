@@ -173,7 +173,10 @@ export function CaptureComposer() {
   const onSend = useCallback(async () => {
     const body = text.trim();
     if (body === "") return;
-    if (body.length > MAX_CONTENT_CHARS) {
+    // Server counts runes (utf8.RuneCountInString), not UTF-16 code units:
+    // body.length over-counts astral characters (emoji etc, 2 units each),
+    // which would refuse content the server would actually accept.
+    if ([...body].length > MAX_CONTENT_CHARS) {
       Alert.alert(
         "Too long to capture",
         `A capture holds at most ${MAX_CONTENT_CHARS} characters. Shorten it or save it as a note.`,

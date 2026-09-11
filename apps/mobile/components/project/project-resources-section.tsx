@@ -148,7 +148,7 @@ function iconFor(type: string): keyof typeof Ionicons.glyphMap {
 function getResourceUrl(resource: ProjectResource): string | null {
   if (resource.resource_type === "github_repo") {
     const ref = resource.resource_ref as GithubRepoResourceRef | undefined;
-    return ref?.url ?? null;
+    return typeof ref?.url === "string" ? ref.url : null;
   }
   // Unknown type — try a `.url` field as a generic fallback.
   const ref = resource.resource_ref as { url?: unknown } | undefined;
