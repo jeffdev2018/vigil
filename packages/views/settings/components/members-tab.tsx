@@ -189,7 +189,12 @@ function MemberRow({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" size="icon-sm" disabled={busy}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={busy}
+                aria-label={t(($) => $.members.member_actions_aria)}
+              >
                 <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
               </Button>
             }
@@ -292,6 +297,7 @@ function InvitationRow({
           disabled={busy}
           onClick={onRevoke}
           title={t(($) => $.members.revoke_invitation_tooltip)}
+          aria-label={t(($) => $.members.revoke_invitation_tooltip)}
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </Button>
@@ -343,6 +349,7 @@ function ShareLinkRow({
         size="icon-sm"
         onClick={onCopy}
         title={t(($) => $.members.share_link_copy_tooltip)}
+        aria-label={t(($) => $.members.share_link_copy_tooltip)}
       >
         <Copy className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -352,6 +359,7 @@ function ShareLinkRow({
         disabled={busy}
         onClick={onRevoke}
         title={t(($) => $.members.share_link_revoke_tooltip)}
+        aria-label={t(($) => $.members.share_link_revoke_tooltip)}
       >
         <Trash2 className="h-4 w-4 text-muted-foreground" />
       </Button>

@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { BenchmarkCorpus, BenchmarkRun, EvalCase, EvalRun, EvalSuite } from "@multica/core/eval";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Score banding and drift-tolerant parsing: packages/core/eval/schemas.test.ts.
 
@@ -131,7 +143,10 @@ describe("EvalLabTab", () => {
     expect(screen.getByTestId("eval-suites-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-cases-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-runs-empty").textContent).toBe("No run yet");
-    expect(screen.getAllByText(/Promote a resolved issue/).length).toBeGreaterThan(0);
+    // The promote instruction lives in the Suites card only; the New suite
+    // card explains what will show up there instead of repeating it.
+    expect(screen.getAllByText(/Promote a resolved issue/)).toHaveLength(1);
+    expect(screen.getByTestId("eval-cases-empty").textContent).toContain("The form opens once a case exists");
     // Without a case there is nothing to name a suite after.
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
@@ -207,7 +222,7 @@ describe("EvalLabTab", () => {
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Nightly");
   });
 
-  it("runs a suite against one agent version", () => {
+  it("runs a suite against one agent version", async () => {
     state.suites = [suite()];
     renderWithI18n(<EvalLabTab />);
 
@@ -216,14 +231,14 @@ describe("EvalLabTab", () => {
     expect(row.getByText(/never run/)).toBeTruthy();
 
     fireEvent.click(row.getByRole("button", { name: "Run" }));
-    const version = screen.getByLabelText("Version") as HTMLSelectElement;
+    const version = screen.getByRole("combobox", { name: "Version" });
     // No agent picked yet: the version list stays locked.
-    expect(version.disabled).toBe(true);
+    expect(version).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-2" } });
-    expect(version.disabled).toBe(false);
-    expect(screen.getByRole("option", { name: "v3 — tuned prompt" })).toBeTruthy();
-    fireEvent.change(version, { target: { value: "ver-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Beta");
+    expect(version).not.toBeDisabled();
+    await pickOption(user, "Version", "v3 — tuned prompt");
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
     expect(state.run).toHaveBeenCalledWith(
@@ -278,14 +293,16 @@ describe("EvalLabTab", () => {
   it("renders an unknown status from a newer server without breaking", () => {
     state.runs = [run({ status: "quantum" as EvalRun["status"], score: null })];
     renderWithI18n(<EvalLabTab />);
-    expect(screen.getByTestId("eval-run-status").textContent).toBe("Unknown");
+    // Unknown-status fallback (humanize + muted tone) is StatusBadge's own
+    // contract, covered exhaustively in packages/views/common/status-badge.test.tsx.
+    expect(screen.getByTestId("eval-run-status").textContent).toBe("Quantum");
   });
 });
 
 // Delta banding, corpus ordering and drift-tolerant benchmark parsing:
 // packages/core/eval/schemas.test.ts.
 describe("EvalLabTab benchmarks", () => {
-  it("benchmarks a suite against several runtime/model candidates", () => {
+  it("benchmarks a suite against several runtime/model candidates", async () => {
     state.suites = [suite()];
     state.benchmarks = [benchmarkRun({ id: "bench-old", score: 70, runtime_name: "Codex (host)", model: "gpt-5" })];
     renderWithI18n(<EvalLabTab />);
@@ -295,21 +312,23 @@ describe("EvalLabTab benchmarks", () => {
     // Nothing picked yet: an agent version and at least one candidate are required.
     expect(submit.disabled).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-1" } });
-    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "ver-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Alpha");
+    await pickOption(user, "Version", "v3 — tuned prompt");
     expect(submit.disabled).toBe(true);
 
     // A custom alias must not hide which CLI backs the runtime.
-    expect(screen.getByRole("option", { name: "Laptop (Claude)" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Runtime 1"), { target: { value: "rt-1" } });
+    await user.click(screen.getByRole("combobox", { name: "Runtime 1" }));
+    expect(await screen.findByRole("option", { name: "Laptop (Claude)" })).toBeTruthy();
+    await user.click(screen.getByRole("option", { name: "Codex (host)" }));
     fireEvent.change(screen.getByLabelText("Model 1"), { target: { value: "gpt-5" } });
     expect(submit.disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Add a candidate" }));
-    fireEvent.change(screen.getByLabelText("Runtime 2"), { target: { value: "rt-2" } });
+    await pickOption(user, "Runtime 2", "Laptop (Claude)");
     // Second candidate keeps the empty model: the server reads it as "the
     // runtime's default", so it must be sent, not dropped.
-    fireEvent.change(screen.getByLabelText("Baseline"), { target: { value: "bench-old" } });
+    await pickOption(user, "Baseline", /Codex \(host\)/);
     fireEvent.click(submit);
 
     expect(state.benchmark).toHaveBeenCalledWith(
@@ -324,13 +343,14 @@ describe("EvalLabTab benchmarks", () => {
     );
   });
 
-  it("drops a candidate row whose runtime was never picked", () => {
+  it("drops a candidate row whose runtime was never picked", async () => {
     state.suites = [suite()];
     renderWithI18n(<EvalLabTab />);
     fireEvent.click(within(screen.getByTestId("eval-suite")).getByRole("button", { name: "Benchmark" }));
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-1" } });
-    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "ver-1" } });
-    fireEvent.change(screen.getByLabelText("Runtime 1"), { target: { value: "rt-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Alpha");
+    await pickOption(user, "Version", "v3 — tuned prompt");
+    await pickOption(user, "Runtime 1", "Codex (host)");
     fireEvent.click(screen.getByRole("button", { name: "Add a candidate" }));
 
     fireEvent.click(screen.getByTestId("eval-benchmark-form").querySelector("button[type=submit]") as HTMLButtonElement);

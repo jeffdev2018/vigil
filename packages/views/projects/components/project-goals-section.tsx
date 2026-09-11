@@ -53,7 +53,7 @@ export function ProjectGoalsSection({ projectId }: { projectId: string }) {
               <div key={g.id} data-testid="project-goal" className="flex items-center gap-2 px-2 text-body">
                 <span className="min-w-0 flex-1 truncate">{g.title}</span>
                 <span className="text-caption text-muted-foreground">{t(($) => $.status[g.status])}</span>
-                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted-foreground/20" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
                   <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
                 </div>
               </div>

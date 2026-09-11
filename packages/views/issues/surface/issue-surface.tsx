@@ -302,7 +302,12 @@ function IssueSurfaceContent({
             </div>
           )
         ) : (
-          <div className={cn("flex flex-col flex-1 min-h-0", contentClassName)}>
+          <div
+            // min-w-0: a flex child defaults to min-width:auto, which would
+            // let a wide board push this pane past its parent and hand the
+            // horizontal overflow to the page instead of the board's scroller.
+            className={cn("flex min-w-0 flex-col flex-1 min-h-0", contentClassName)}
+          >
             {controller.viewMode === "board" && (
               <BoardView
                 issues={issues}

@@ -4,6 +4,17 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import { ApiError } from "@multica/core/api";
@@ -67,8 +78,8 @@ describe("McpToolCatalog", () => {
 
     expect(await screen.findByText("search")).toBeInTheDocument();
     expect(screen.getByText("Find issues")).toBeInTheDocument();
-    expect(screen.getByLabelText("Risk of search")).toHaveValue("read");
-    expect(screen.getByLabelText("Risk of send_email")).toHaveValue("external_effect");
+    expect(screen.getByRole("combobox", { name: "Risk of search" })).toHaveTextContent("Read");
+    expect(screen.getByRole("combobox", { name: "Risk of send_email" })).toHaveTextContent("External effect");
     expect(screen.getByText("auto")).toBeInTheDocument();
     expect(screen.getByText("manual")).toBeInTheDocument();
     expect(mockApi.listWorkspaceMcpServerTools).toHaveBeenCalledWith("ws-1", "srv-1");
@@ -79,11 +90,11 @@ describe("McpToolCatalog", () => {
     renderCatalog();
     await screen.findByText("search");
 
-    await user.selectOptions(screen.getByLabelText("Risk of search"), "sensitive_data");
+    await pickOption(user, "Risk of search", "Sensitive data");
     await user.click(screen.getByRole("button", { name: "Remove send_email" }));
     await user.type(screen.getByLabelText("Tool name"), "create_issue");
     await user.type(screen.getByLabelText("Description (optional)"), "Files an issue");
-    await user.selectOptions(screen.getByLabelText("Risk of create_issue"), "internal_write");
+    await pickOption(user, "Risk of create_issue", "Internal write");
     await user.click(screen.getByRole("button", { name: /Add tool/ }));
     await user.click(screen.getByRole("button", { name: /Save tools/ }));
 

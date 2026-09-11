@@ -1767,7 +1767,8 @@
     "expiry_24h": "24時間",
     "expiry_7d": "7日",
     "expiry_30d": "30日",
-    "expiry_never": "無期限"
+    "expiry_never": "無期限",
+    "member_actions_aria": "メンバーの操作"
   },
   "integrations": {
     "description": "ツールを接続して、各連携を管理します。",
@@ -2203,6 +2204,8 @@
     "suites_load_error": "スイートを読み込めませんでした。",
     "cases_empty_title": "評価ケースがありません",
     "cases_empty_hint": "受け入れ基準がすべて証明された解決済みの課題を昇格して、最初のケースを作成してください。",
+    "new_suite_waiting_title": "ケースが作成されるとフォームが開きます",
+    "new_suite_waiting_hint": "最初の評価ケースが昇格されたら、ここでスイートに名前を付けてケースを選べます。それまではまとめるものがありません。",
     "cases_load_error": "評価ケースを読み込めませんでした。",
     "case_count": "{{n}} 件のケース",
     "case_meta": "課題 #{{number}} · 基準 {{criteria}} 件",

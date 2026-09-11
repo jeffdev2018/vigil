@@ -170,7 +170,9 @@ beforeEach(() => {
 describe("RunsPage", () => {
   it("renders the fleet rows from the runs list", async () => {
     renderPage();
-    await screen.findByText("ACM-1 · Payment gateway timeout");
+    const title = await screen.findByText("ACM-1 · Payment gateway timeout");
+    // Truncating cells keep the full text reachable as a tooltip.
+    expect(title.getAttribute("title")).toBe("ACM-1 · Payment gateway timeout");
     expect(screen.getByText("ACM-2 · Flaky test")).toBeInTheDocument();
     expect(screen.getAllByTestId("actor-avatar")).toHaveLength(2);
     // Blocker chip renders the server-provided summary.

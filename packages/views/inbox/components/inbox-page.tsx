@@ -85,6 +85,7 @@ import {
 import { useIsCompact } from "@multica/ui/hooks/use-mobile";
 import { cn } from "@multica/ui/lib/utils";
 import { PAGE_GUTTER, PageHeader } from "../../layout/page-header";
+import { CollectionPageState } from "../../layout/collection-page";
 import { useTimeAgo } from "./inbox-list-item";
 import { InboxList } from "./inbox-list";
 import { InboxFilterMenu } from "./inbox-filter-menu";
@@ -593,6 +594,7 @@ export function InboxPage() {
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground"
+              aria-label={t(($) => $.menu.more_actions_aria)}
             />
           }
         >
@@ -1057,14 +1059,20 @@ export function InboxPage() {
       <ResizablePanel id="detail" minSize="40%">
       <div className="flex flex-col min-h-0 h-full">
         {detailContent ?? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-            <Inbox className="mb-3 h-10 w-10 text-faint-foreground" />
-            <p className="text-body">
-              {visibleItems.length === 0
+          <CollectionPageState
+            icon={Inbox}
+            className="h-full"
+            title={
+              visibleItems.length === 0
                 ? t(($) => $.detail.empty)
-                : t(($) => $.detail.select_prompt)}
-            </p>
-          </div>
+                : t(($) => $.detail.select_prompt)
+            }
+            description={
+              visibleItems.length === 0
+                ? t(($) => $.detail.empty_hint)
+                : t(($) => $.detail.select_prompt_hint)
+            }
+          />
         )}
       </div>
       </ResizablePanel>

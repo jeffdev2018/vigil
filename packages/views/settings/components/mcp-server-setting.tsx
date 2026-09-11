@@ -16,14 +16,14 @@ import {
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
-
-const SELECT_CLASS =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-caption";
 
 const RISK_BADGE: Record<string, "outline" | "secondary" | "destructive"> = {
   read: "outline",
@@ -249,18 +249,30 @@ export function MCPServerSetting({ canEdit }: { canEdit: boolean }) {
                             </td>
                             <td className="max-w-96 py-1.5 pr-3 text-muted-foreground">{tool.description}</td>
                             <td className="py-1.5">
-                              <select
-                                aria-label={t(($) => $.mcp_server.override_aria, { name: tool.name })}
-                                className={SELECT_CLASS}
+                              <Select
+                                items={[
+                                  { value: "", label: t(($) => $.mcp_server.decision_default) },
+                                  { value: "allow", label: t(($) => $.mcp_server.decision_allow) },
+                                  { value: "ask", label: t(($) => $.mcp_server.decision_ask) },
+                                  { value: "deny", label: t(($) => $.mcp_server.decision_deny) },
+                                ]}
                                 value={overrides[tool.name] ?? ""}
-                                disabled={!canEdit || save.isPending}
-                                onChange={(event) => setOverride(tool.name, event.target.value)}
+                                onValueChange={(value) => setOverride(tool.name, value ?? "")}
                               >
-                                <option value="">{t(($) => $.mcp_server.decision_default)}</option>
-                                <option value="allow">{t(($) => $.mcp_server.decision_allow)}</option>
-                                <option value="ask">{t(($) => $.mcp_server.decision_ask)}</option>
-                                <option value="deny">{t(($) => $.mcp_server.decision_deny)}</option>
-                              </select>
+                                <SelectTrigger
+                                  aria-label={t(($) => $.mcp_server.override_aria, { name: tool.name })}
+                                  size="sm"
+                                  disabled={!canEdit || save.isPending}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">{t(($) => $.mcp_server.decision_default)}</SelectItem>
+                                  <SelectItem value="allow">{t(($) => $.mcp_server.decision_allow)}</SelectItem>
+                                  <SelectItem value="ask">{t(($) => $.mcp_server.decision_ask)}</SelectItem>
+                                  <SelectItem value="deny">{t(($) => $.mcp_server.decision_deny)}</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </td>
                           </tr>
                         );

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type {
   PackInstall,
   PackInstallDetail,
@@ -8,6 +9,18 @@ import type {
   PackSummary,
 } from "@multica/core/packs";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name (scoped to `within`
+// when given) and clicks the option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  scope: { getByRole: typeof screen.getByRole },
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(scope.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // The pack contract parsing, the per-field drift repair and the count helper
 // are covered canonically in packages/core/packs/schemas.test.ts. This suite
@@ -279,13 +292,12 @@ describe("PacksTab detail and install", () => {
     expect(state.preview).toHaveBeenCalledWith({ id: "helpdesk-it" }, expect.anything());
   });
 
-  it("installs with the strategy the user picked", () => {
+  it("installs with the strategy the user picked", async () => {
     state.previewData = preview();
     const dialog = openDetail();
     expect(within(dialog).getByText(/1 name collisions/)).toBeTruthy();
-    fireEvent.change(within(dialog).getByLabelText("On collision"), {
-      target: { value: "merge" },
-    });
+    const user = userEvent.setup();
+    await pickOption(user, within(dialog), "On collision", "Merge into what exists");
     fireEvent.click(within(dialog).getByRole("button", { name: "Install" }));
     expect(state.install).toHaveBeenCalledWith(
       { id: "helpdesk-it", strategy: "merge" },
@@ -449,14 +461,13 @@ describe("PacksTab upload", () => {
     );
   });
 
-  it("installs the uploaded file with the picked strategy", () => {
+  it("installs the uploaded file with the picked strategy", async () => {
     state.uploadPreviewData = preview({ collisions: [] });
     renderWithI18n(<PacksTab />);
     const panel = screen.getByTestId("pack-upload");
     fireEvent.change(screen.getByLabelText("Pack file"), { target: { files: [file()] } });
-    fireEvent.change(within(panel).getByLabelText("On collision"), {
-      target: { value: "rename" },
-    });
+    const user = userEvent.setup();
+    await pickOption(user, within(panel), "On collision", "Rename what the pack brings");
     fireEvent.click(within(panel).getByRole("button", { name: "Install" }));
     expect(state.installUpload).toHaveBeenCalledWith(
       { file: expect.any(File), strategy: "rename" },
@@ -477,7 +488,7 @@ describe("PacksTab export", () => {
     fireEvent.change(within(panel).getByLabelText("Title"), { target: { value: "My desk" } });
     fireEvent.change(within(panel).getByLabelText("Summary"), { target: { value: "Ours." } });
     expect(button.hasAttribute("disabled")).toBe(false);
-    fireEvent.click(within(panel).getByLabelText("Include notes"));
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Include notes" }));
     fireEvent.click(button);
     expect(state.exportPack).toHaveBeenCalledWith(
       {
@@ -508,7 +519,7 @@ describe("PacksTab export", () => {
     });
     fireEvent.change(within(panel).getByLabelText("Title"), { target: { value: "My desk" } });
     fireEvent.change(within(panel).getByLabelText("Summary"), { target: { value: "Ours." } });
-    fireEvent.click(within(panel).getByLabelText("Include procedures (skills)"));
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Include procedures (skills)" }));
     fireEvent.click(screen.getByRole("button", { name: /Export the pack/ }));
     expect(state.exportPack).toHaveBeenCalledWith(
       expect.objectContaining({ include_skills: false }),

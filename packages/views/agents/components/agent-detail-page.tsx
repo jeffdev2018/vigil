@@ -421,6 +421,9 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
           canEdit={canEdit.allowed}
           navIntent={tabNavIntent}
           onNavIntentHandled={() => setTabNavIntent(null)}
+          onAssignWork={
+            !agent.archived_at && canAssign.allowed ? handleAssign : undefined
+          }
         />
       </div>
 

@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@multica/ui/components/ui/select";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { useT } from "../../i18n";
 
 /**
@@ -73,7 +74,7 @@ export function ProjectReviewSection({ projectId, canEdit = true }: { projectId:
         <span className="font-medium">{t(($) => $.review.section)}</span>
       </div>
       <p className="mb-2 px-2 text-muted-foreground">{t(($) => $.review.description)}</p>
-      {isLoading && <p className="px-2 text-muted-foreground animate-pulse">…</p>}
+      {isLoading && <Skeleton className="mx-2 h-4 w-24" />}
       {isError && <p className="px-2 text-destructive">{t(($) => $.review.failed)}</p>}
       {config && (
         <>

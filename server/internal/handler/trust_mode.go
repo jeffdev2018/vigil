@@ -305,11 +305,16 @@ func (h *Handler) SetAgentTrustMode(w http.ResponseWriter, r *http.Request) {
 		ID: dbid.NewV7(), WorkspaceID: agent.WorkspaceID, AgentID: agent.ID, FromMode: agent.TrustMode, ToMode: req.Mode,
 		Reason: pgtype.Text{String: strings.TrimSpace(req.Reason), Valid: strings.TrimSpace(req.Reason) != ""}, TriggeredByType: "member", TriggeredByID: parseUUID(userID),
 	})
+	// The mode is changed either way; a change record that failed to write
+	// is reported as absent, not as a zero-value record.
+	var changeResp any
 	if err != nil {
 		slog.Warn("trust dial: record change failed", append(logger.RequestAttrs(r), "error", err)...)
+	} else {
+		changeResp = trustChangeToResponse(change)
 	}
 	h.audit(r.Context(), agent.WorkspaceID, "member", userID, AuditTrustModeChanged, "agent", agent.ID, map[string]any{"from": agent.TrustMode, "to": req.Mode, "reason": strings.TrimSpace(req.Reason)}, nil)
-	writeJSON(w, http.StatusOK, map[string]any{"agent_id": uuidToString(agent.ID), "mode": updated.TrustMode, "change": trustChangeToResponse(change)})
+	writeJSON(w, http.StatusOK, map[string]any{"agent_id": uuidToString(agent.ID), "mode": updated.TrustMode, "change": changeResp})
 }
 
 // GET /api/agents/{id}/trust-mode/suggestions

@@ -4,9 +4,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, FileDiff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import {
@@ -34,6 +36,7 @@ import {
   type DocDriftSettingsInput,
 } from "@multica/core/doc-drift";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -47,14 +50,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * Off by default, admin-only to configure.
  */
 
-const SELECT_CLASS =
-  "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
-
-const TONE_CLASS = {
-  success: "text-success",
-  warning: "text-warning",
-  muted: "text-muted-foreground",
-} as const;
 
 const PROPOSAL_STATUSES = ["draft", "opened_pr", "dismissed", "merged"] as const;
 
@@ -163,22 +158,27 @@ export function DocDriftTab() {
               </label>
 
               <div className="space-y-1.5">
-                <Label htmlFor="doc-drift-agent">
-                  {t(($) => $.doc_drift.agent_label)}
-                </Label>
-                <select
-                  id="doc-drift-agent"
-                  className={SELECT_CLASS}
+                <Label>{t(($) => $.doc_drift.agent_label)}</Label>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.doc_drift.pick_agent) },
+                    ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                  ]}
                   value={form.agent_id}
-                  onChange={(event) => patch({ agent_id: event.target.value })}
+                  onValueChange={(value) => patch({ agent_id: value ?? "" })}
                 >
-                  <option value="">{t(($) => $.doc_drift.pick_agent)}</option>
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger aria-label={t(($) => $.doc_drift.agent_label)} size="sm" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.doc_drift.pick_agent)}</SelectItem>
+                    {agents.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-1.5">
@@ -431,18 +431,8 @@ function ProposalRow({ proposal, wsId }: { proposal: DocDriftProposal; wsId: str
 
 function ProposalStatus({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = (PROPOSAL_STATUSES as readonly string[]).includes(status);
-  const tone = proposalTone(status);
-  return (
-    <Badge
-      variant="outline"
-      className={TONE_CLASS[tone]}
-      data-testid="doc-drift-proposal-status"
-      data-status={status}
-    >
-      {known
-        ? t(($) => $.doc_drift.status[status as (typeof PROPOSAL_STATUSES)[number]])
-        : t(($) => $.doc_drift.status_unknown)}
-    </Badge>
+  const config: StatusBadgeConfig = Object.fromEntries(
+    PROPOSAL_STATUSES.map((s) => [s, { tone: proposalTone(s), label: t(($) => $.doc_drift.status[s]) }]),
   );
+  return <StatusBadge status={status} config={config} data-testid="doc-drift-proposal-status" />;
 }

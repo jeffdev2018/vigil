@@ -470,6 +470,11 @@ export function SkillListToolbar({
                       ? t(($) => $.toolbar.direction_asc)
                       : t(($) => $.toolbar.direction_desc)
                   }
+                  aria-label={
+                    sortDirection === "asc"
+                      ? t(($) => $.toolbar.direction_asc)
+                      : t(($) => $.toolbar.direction_desc)
+                  }
                 >
                   {sortDirection === "asc" ? (
                     <ArrowUp className="size-3.5" />

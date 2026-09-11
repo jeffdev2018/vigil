@@ -7,7 +7,8 @@
     "mark_all_read": "Tout marquer comme lu",
     "archive_all": "Tout archiver",
     "archive_all_read": "Archiver tout ce qui est lu",
-    "archive_completed": "Archiver les éléments terminés"
+    "archive_completed": "Archiver les éléments terminés",
+    "more_actions_aria": "Plus d'actions"
   },
   "filters": {
     "tooltip": "Filtrer la boîte de réception",
@@ -31,6 +32,7 @@
   },
   "list": {
     "empty": "Aucune notification",
+    "empty_hint": "Les commentaires, affectations et mises à jour des agents arrivent ici au fil de l'eau.",
     "mark_done_tooltip": "Marquer comme terminé",
     "archive_tooltip": "Archiver",
     "time": {
@@ -52,6 +54,8 @@
   },
   "detail": {
     "select_prompt": "Sélectionnez une notification pour afficher les détails",
+    "select_prompt_hint": "Choisissez une notification à gauche pour la lire et agir dessus.",
+    "empty_hint": "Les commentaires, affectations et mises à jour des agents arrivent ici au fil de l'eau.",
     "empty": "Votre boîte de réception est vide",
     "original_input": "Saisie d'origine",
     "retry_with_context": "Réessayer avec le contexte",

@@ -137,9 +137,16 @@ export default function InboxNoticeDetail() {
     webUrl && wsSlug ? `${webUrl}/${wsSlug}/settings?tab=billing` : null;
   const body = item ? getAutopilotQuotaBody(item) : null;
 
+  // One ScrollView with the header pinned as its first child: as a sibling
+  // above a ScrollView the formSheet drew the body over the title (JEF-398).
   return (
-    <View className="flex-1 bg-background">
-      <View className="flex-row items-center border-b border-border px-4 py-3">
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
         <Text className="flex-1 text-lg font-semibold text-foreground">
           {item ? getInboxDisplayTitle(item) : "Notification"}
         </Text>
@@ -153,7 +160,7 @@ export default function InboxNoticeDetail() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
+        <View className="items-center justify-center py-16">
           <ActivityIndicator />
         </View>
       ) : !item ||
@@ -167,11 +174,7 @@ export default function InboxNoticeDetail() {
           </Text>
         </View>
       ) : isApprovalNotice ? (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-4 px-4 py-5"
-          showsVerticalScrollIndicator={false}
-        >
+        <View className="gap-4 px-4 py-5">
           {wsId && matchedApproval ? (
             <ApprovalAskCard approval={matchedApproval} wsId={wsId} />
           ) : (
@@ -184,13 +187,9 @@ export default function InboxNoticeDetail() {
               {item.body}
             </Text>
           ) : null}
-        </ScrollView>
+        </View>
       ) : isCalendarNotice ? (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-4 px-4 py-5"
-          showsVerticalScrollIndicator={false}
-        >
+        <View className="gap-4 px-4 py-5">
           <Text className="text-base leading-6 text-foreground">
             {calendarEvent ? formatEventTimeRange(calendarEvent) : item.body}
           </Text>
@@ -236,13 +235,9 @@ export default function InboxNoticeDetail() {
               <Text>View event</Text>
             </Button>
           ) : null}
-        </ScrollView>
+        </View>
       ) : (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-5 px-4 py-5"
-          showsVerticalScrollIndicator={false}
-        >
+        <View className="gap-5 px-4 py-5">
           {body ? (
             <Text className="text-base leading-6 text-foreground">
               {body}
@@ -252,8 +247,8 @@ export default function InboxNoticeDetail() {
           {isQuotaNotice ? (
             <BillingRecovery recovery={recovery} billingUrl={billingUrl} />
           ) : null}
-        </ScrollView>
+        </View>
       )}
-    </View>
+    </ScrollView>
   );
 }

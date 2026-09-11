@@ -18,6 +18,9 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Label as FieldLabel } from "@multica/ui/components/ui/label";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -272,30 +275,41 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <FieldLabel htmlFor="transition-from">{t(($) => $.transitions.editor.from)}</FieldLabel>
-              <select
-                id="transition-from"
-                className="h-9 w-full rounded-md border border-surface-border bg-background px-2 text-body"
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.transitions.any_origin) },
+                  ...CATEGORIES.map((c) => ({ value: c, label: statusLabel(c) })),
+                ]}
                 value={local.from_category}
-                onChange={(e) => setLocal({ ...local, from_category: e.target.value })}
+                onValueChange={(value) => setLocal({ ...local, from_category: value ?? "" })}
               >
-                <option value="">{t(($) => $.transitions.any_origin)}</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{statusLabel(c)}</option>
-                ))}
-              </select>
+                <SelectTrigger id="transition-from" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.transitions.any_origin)}</SelectItem>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>{statusLabel(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <FieldLabel htmlFor="transition-to">{t(($) => $.transitions.editor.to)}</FieldLabel>
-              <select
-                id="transition-to"
-                className="h-9 w-full rounded-md border border-surface-border bg-background px-2 text-body"
+              <Select
+                items={CATEGORIES.map((c) => ({ value: c, label: statusLabel(c) }))}
                 value={local.to_category}
-                onChange={(e) => setLocal({ ...local, to_category: e.target.value })}
+                onValueChange={(value) => value && setLocal({ ...local, to_category: value })}
               >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{statusLabel(c)}</option>
-                ))}
-              </select>
+                <SelectTrigger id="transition-to" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>{statusLabel(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

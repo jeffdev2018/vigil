@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Pipeline } from "@multica/core/pipelines";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Parsing and stage states: packages/core/pipelines/pipeline-run.test.ts.
 
@@ -42,7 +54,8 @@ describe("PipelinesSetting", () => {
     render();
     fireEvent.click(await screen.findByRole("button", { name: "Start from the triage → review template" }));
     fireEvent.change(screen.getByLabelText("Pipeline name"), { target: { value: "Delivery" } });
-    fireEvent.change(screen.getByLabelText("Executor of stage 3"), { target: { value: "squad:q1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Executor of stage 3", "Squad Core squad");
     fireEvent.click(screen.getByRole("button", { name: "Save pipeline" }));
     expect(state.save).toHaveBeenCalledTimes(1);
     const call = state.save.mock.calls[0]?.[0] as { input: { name: string; stages: { name: string; executor_type: string; requires_human_gate: boolean }[] } };

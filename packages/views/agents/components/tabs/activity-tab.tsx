@@ -7,6 +7,7 @@ import {
   CircleHelp,
   Hash,
   MessageSquare,
+  Plus,
   Sparkles,
   Workflow,
   X,
@@ -17,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@multica/ui/components/ui/tooltip";
+import { Button } from "@multica/ui/components/ui/button";
 import { NumberFlow } from "@multica/ui/components/ui/number-flow";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -56,6 +58,8 @@ const RECENT_SKELETON_ROWS = 4;
 interface ActivityTabProps {
   agent: Agent;
   showPerformance?: boolean;
+  /** When present, the empty "Now" section offers to assign the first issue. */
+  onAssignWork?: () => void;
 }
 
 /**
@@ -71,7 +75,7 @@ interface ActivityTabProps {
  * the workspace 7d activity buckets for the trend), so opening this tab
  * adds no extra fetches once the page is hydrated.
  */
-export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps) {
+export function ActivityTab({ agent, showPerformance = true, onAssignWork }: ActivityTabProps) {
   const wsId = useWorkspaceId();
 
   const { data: snapshot = [] } = useQuery(agentTaskSnapshotOptions(wsId));
@@ -175,7 +179,7 @@ export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps)
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} />
+      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} onAssignWork={onAssignWork} />
       {showPerformance && (
         <Last30dSection activity={activity} avgDurationMs={avgDurationMs} />
       )}
@@ -288,10 +292,12 @@ function NowSection({
   tasks,
   issueMap,
   agent,
+  onAssignWork,
 }: {
   tasks: AgentTask[];
   issueMap: Map<string, Issue>;
   agent: Agent;
+  onAssignWork?: () => void;
 }) {
   const { t } = useT("agents");
   return (
@@ -304,7 +310,15 @@ function NowSection({
       }
     >
       {tasks.length === 0 ? (
-        <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+        <div className="flex flex-wrap items-center gap-3">
+          <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+          {onAssignWork && (
+            <Button type="button" variant="outline" size="sm" onClick={onAssignWork}>
+              <Plus aria-hidden="true" className="size-3.5" />
+              {t(($) => $.detail.assign_work)}
+            </Button>
+          )}
+        </div>
       ) : (
         <TaskList
           tasks={tasks}

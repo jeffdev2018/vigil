@@ -351,6 +351,18 @@ beforeEach(() => {
   mocks.toastSuccess.mockReset();
 });
 
+describe("ProjectDetail accessibility", () => {
+  it("gives every icon-only header button an accessible name", () => {
+    renderProjectDetail();
+
+    expect(screen.getByRole("button", { name: "Pin to sidebar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Toggle right sidebar" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ProjectDetail sharing", () => {
   it("copies the platform shareable URL instead of the renderer URL", async () => {
     const user = userEvent.setup();

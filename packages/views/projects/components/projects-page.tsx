@@ -1151,6 +1151,7 @@ export function ProjectsPage() {
                           size="icon-sm"
                           onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
                           title={sortDirection === "asc" ? t(($) => $.toolbar.direction_asc) : t(($) => $.toolbar.direction_desc)}
+                          aria-label={sortDirection === "asc" ? t(($) => $.toolbar.direction_asc) : t(($) => $.toolbar.direction_desc)}
                         >
                           {sortDirection === "asc" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                         </Button>

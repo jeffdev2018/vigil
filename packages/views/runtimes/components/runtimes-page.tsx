@@ -468,7 +468,7 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body font-medium">
+        <span title={machine.title} className="block truncate text-body font-medium">
           {machine.title}
         </span>
         <span className="mt-1 flex min-w-0 items-center gap-2 text-caption text-muted-foreground">

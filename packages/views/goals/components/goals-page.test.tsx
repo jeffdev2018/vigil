@@ -72,6 +72,11 @@ describe("GoalsPage", () => {
     expect(rows[0]?.textContent).toContain("Ada");
     expect(rows[0]?.textContent).toContain("ARR x2");
     expect(rows[1]?.textContent).toContain("1 / 4 done");
+    // The track must stay visible on the light canvas: plain bg-muted is
+    // ~0.02 L away from the page background and disappears at 0 %.
+    const bar = screen.getAllByRole("progressbar")[0]!;
+    expect(bar.className).toContain("bg-muted-foreground/20");
+    expect(bar.firstElementChild?.className).toContain("bg-primary");
   });
 
   it("shows the empty state without goals", () => {

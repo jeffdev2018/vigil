@@ -353,7 +353,7 @@ export function GoalsPage() {
                       <span className="text-caption text-muted-foreground">{goal.due_date ?? t(($) => $.page.no_due_date)}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-2">
-                      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted-foreground/20" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
                         <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
                       </div>
                       <span className="text-caption tabular-nums text-muted-foreground">

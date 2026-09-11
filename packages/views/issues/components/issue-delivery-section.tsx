@@ -122,12 +122,12 @@ export function IssueDeliverySection({
     <p className="text-caption text-muted-foreground">{t(($) => $.delivery.description)}</p>
     <p className="text-caption text-muted-foreground">{t(($) => $.delivery.honesty)}</p>
     {boardStatusIsReview && (
-      <p role="note" className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
+      <p role="note" className="text-caption text-muted-foreground">
         {t(($) => $.delivery.board_status_note)}
       </p>
     )}
     {needsHumanDecision && !unavailable && data && (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2">
         <p className="text-caption">{needsCorrectionLaunch
           ? t(($) => $.delivery.loop_correction_pending)
           : t(($) => $.delivery.loop_review_pending)}</p>
@@ -145,7 +145,7 @@ export function IssueDeliverySection({
       </div>
     )}
     {showProposeDone && (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2">
         <div className="min-w-0 space-y-1">
           <p className="text-caption font-medium">{t(($) => $.delivery.propose_done_title)}</p>
           <p className="text-caption text-muted-foreground">{t(($) => $.delivery.propose_done_hint)}</p>
@@ -201,7 +201,7 @@ export function IssueDeliverySection({
           {incompleteCost && <span>{t(($) => $.delivery.incomplete)}</span>}
         </> : <span>{t(($) => $.delivery.cost_unavailable)}</span>}
       </div>
-      {data.latestReview && <div className="space-y-2 rounded-md bg-muted/50 p-3 text-caption">
+      {data.latestReview && <div className="space-y-2 pt-2 text-caption">
         <p className="font-medium">{data.reviewStale ? t(($) => $.delivery.outdated_review)
           : data.latestReview.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
         <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, {
@@ -256,7 +256,7 @@ export function IssueDeliverySection({
           {!history.isPending && !history.isError && history.data?.pages.every((page) => page.reviews.length === 0) && <p>{t(($) => $.delivery.history_empty)}</p>}
           {history.data?.pages.flatMap((page) => page.reviews).map((review) => {
             const historicalTask = tasks.find((task) => task.id === review.snapshot.run?.id);
-            return <div key={review.id} className="space-y-3 rounded-lg border p-3">
+            return <div key={review.id} className="space-y-3 pt-3">
               <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
               <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString() })}</p>
               {review.feedback && <p className="whitespace-pre-wrap break-words">{review.feedback}</p>}

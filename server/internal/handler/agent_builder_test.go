@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1345,21 +1346,37 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("hold unrelated session lock: %v", err)
 	}
 
-	blocked := make(chan struct{})
+	// Take the waiter's connection here, not inside the goroutine. Under a
+	// parallel `go test ./...` every package's pool dials the same server and
+	// a fresh connection can be refused at max_connections; a Begin failure
+	// swallowed in the goroutine left no waiter at all, and the probe below
+	// then spent its full 10 s to report the wrong cause.
+	waiterConn, err := testPool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire a connection for the unrelated waiter: %v", err)
+	}
+	defer waiterConn.Release()
+	blocked := make(chan error, 1)
 	go func() {
-		defer close(blocked)
-		waiterTx, err := testPool.Begin(context.Background())
+		waiterTx, err := waiterConn.Begin(context.Background())
 		if err != nil {
+			blocked <- fmt.Errorf("begin unrelated waiter tx: %w", err)
 			return
 		}
 		defer waiterTx.Rollback(context.Background())
-		_, _ = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		_, err = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		blocked <- err
 	}()
 
 	// The unrelated waiter is genuinely parked, so a database-wide probe would
 	// fire here.
 	if !waitForWaiterBlockedBy(t, otherPID, 10*time.Second) {
-		t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		select {
+		case err := <-blocked:
+			t.Fatalf("the unrelated waiter finished without blocking (err: %v); this test cannot prove anything", err)
+		default:
+			t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		}
 	}
 	// Attributed to our holder, it must not.
 	if waitForWaiterBlockedBy(t, holderPID, 500*time.Millisecond) {
@@ -1370,7 +1387,10 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("release unrelated lock: %v", err)
 	}
 	select {
-	case <-blocked:
+	case err := <-blocked:
+		if err != nil {
+			t.Fatalf("unrelated waiter after its blocker released: %v", err)
+		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("unrelated waiter did not finish after its blocker released")
 	}

@@ -659,7 +659,9 @@ func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request,
 	})
 	if err != nil {
 		slog.Error("complete meeting failed", "error", err)
-		_ = h.Queries.FailMeeting(context.Background(), db.FailMeetingParams{ID: m.ID, WorkspaceID: workspaceID})
+		if ferr := h.Queries.FailMeeting(context.Background(), db.FailMeetingParams{ID: m.ID, WorkspaceID: workspaceID}); ferr != nil {
+			slog.Error("meeting: mark failed after summary error", "meeting_id", uuidToString(m.ID), "error", ferr)
+		}
 		// A meeting stuck in `summarizing` is exactly what the poll fallback
 		// waits out, so the failure has to be announced too.
 		m.Status = "failed"

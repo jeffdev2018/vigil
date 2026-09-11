@@ -91,7 +91,7 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 // the documented exception to the single-line management-list rule.
 const GRID_COLS =
   "grid-cols-[0.75rem_minmax(120px,1fr)_var(--agc-status-mobile)_1.75rem_0.75rem] " +
-  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-created)_1.75rem_0.75rem]";
+  "@2xl:grid-cols-[0.75rem_1rem_minmax(240px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-created)_1.75rem_0.75rem]";
 
 // Two-line rows; the virtualizer's fixed-size contract.
 const ROW_HEIGHT = 64;
@@ -112,10 +112,12 @@ const COLUMN_WIDTHS: Record<AgentColumnKey, number> = {
   created: 104,
 };
 
-// Fixed tracks (edges 12+12, checkbox 16, name min 200, kebab 28) plus the
+// Fixed tracks (edges 12+12, checkbox 16, name min 240, kebab 28) plus the
 // 11 gap-x-3 gaps between the wide template's 12 tracks (zero-width tracks
-// still carry gaps).
-const FIXED_TRACKS_WIDTH = 268 + 11 * 12;
+// still carry gaps). The name track's floor leaves ~190px for the name itself
+// once the avatar and gap are paid, so ~25 characters survive before the
+// ellipsis; the `title` on the cell carries the rest.
+const FIXED_TRACKS_WIDTH = 308 + 11 * 12;
 
 function columnTrackVars(
   isVisible: (key: AgentColumnKey) => boolean,
@@ -404,6 +406,7 @@ function NameCell({ row }: { row: AgentListRow }) {
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <span
+            title={agent.name}
             className={`min-w-0 truncate text-body font-medium ${
               isArchived ? "text-muted-foreground" : ""
             }`}
@@ -427,7 +430,10 @@ function NameCell({ row }: { row: AgentListRow }) {
           )}
         </div>
         {agent.description ? (
-          <div className="mt-0.5 truncate text-caption text-muted-foreground">
+          <div
+            title={agent.description}
+            className="mt-0.5 truncate text-caption text-muted-foreground"
+          >
             {agent.description}
           </div>
         ) : null}

@@ -224,7 +224,9 @@ func (h *Handler) learnFromDecision(ctx context.Context, wsID pgtype.UUID, userI
 		for _, c := range hist {
 			n += c
 		}
-		_, _ = h.Queries.UpsertWorkProfileObservation(ctx, db.UpsertWorkProfileObservationParams{ID: dbid.NewV7(), WorkspaceID: wsID, UserID: uid, Key: hkey, Value: hv, Source: "decisions", Count: int32(n), State: "learned"})
+		if _, err := h.Queries.UpsertWorkProfileObservation(ctx, db.UpsertWorkProfileObservationParams{ID: dbid.NewV7(), WorkspaceID: wsID, UserID: uid, Key: hkey, Value: hv, Source: "decisions", Count: int32(n), State: "learned"}); err != nil {
+			slog.Warn("work profile: upsert decision habit failed", "error", err)
+		}
 	}
 }
 

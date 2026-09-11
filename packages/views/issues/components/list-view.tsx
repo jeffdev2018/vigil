@@ -582,6 +582,7 @@ function StatusAccordionItem({
                   variant="ghost"
                   size="icon-sm"
                   className="rounded-full text-muted-foreground opacity-0 group-hover/header:opacity-100 transition-opacity"
+                  aria-label={t(($) => $.list.add_issue_tooltip)}
                   onClick={() => {
                     const defaults = {
                       status,

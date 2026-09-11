@@ -10,6 +10,9 @@ import { agentListOptions, memberListOptions } from "@multica/core/workspace/que
 import type { Workspace } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { SettingsCard, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
@@ -97,24 +100,54 @@ export function ModuleOwnershipSetting({ workspace, canEdit }: { workspace: Work
                 value={pattern}
                 onChange={(e) => setPattern(e.target.value)}
               />
-              <select aria-label={t(($) => $.workspace.ownership_label)} className="h-8 rounded-md border bg-background px-2" value={labelId} onChange={(e) => setLabelId(e.target.value)}>
-                <option value="">{t(($) => $.workspace.ownership_no_label)}</option>
-                {labels.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-              <select aria-label={t(($) => $.workspace.ownership_owner)} className="h-8 rounded-md border bg-background px-2" value={owner} onChange={(e) => setOwner(e.target.value)}>
-                <option value="">{t(($) => $.workspace.ownership_owner)}</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>{m.name || m.email}</option>
-                ))}
-              </select>
-              <select aria-label={t(($) => $.workspace.ownership_agent)} className="h-8 rounded-md border bg-background px-2" value={agent} onChange={(e) => setAgent(e.target.value)}>
-                <option value="">{t(($) => $.workspace.ownership_no_agent)}</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.workspace.ownership_no_label) },
+                  ...labels.map((l) => ({ value: l.id, label: l.name })),
+                ]}
+                value={labelId}
+                onValueChange={(value) => setLabelId(value ?? "")}
+              >
+                <SelectTrigger aria-label={t(($) => $.workspace.ownership_label)} size="sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.workspace.ownership_no_label)}</SelectItem>
+                  {labels.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.workspace.ownership_owner) },
+                  ...members.map((m) => ({ value: m.user_id, label: m.name || m.email })),
+                ]}
+                value={owner}
+                onValueChange={(value) => setOwner(value ?? "")}
+              >
+                <SelectTrigger aria-label={t(($) => $.workspace.ownership_owner)} size="sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.workspace.ownership_owner)}</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.name || m.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.workspace.ownership_no_agent) },
+                  ...agents.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                value={agent}
+                onValueChange={(value) => setAgent(value ?? "")}
+              >
+                <SelectTrigger aria-label={t(($) => $.workspace.ownership_agent)} size="sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.workspace.ownership_no_agent)}</SelectItem>
+                  {agents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button type="button" size="sm" disabled={create.isPending || !owner || (pattern.trim() === "" && labelId === "")} onClick={submit}>
                 {t(($) => $.workspace.ownership_add)}
               </Button>

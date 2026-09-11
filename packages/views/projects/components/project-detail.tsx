@@ -442,9 +442,11 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
               <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${progressOpen ? "rotate-90" : ""}`} />
             </button>
             {progressOpen && <div className="pl-2 flex items-center gap-3">
-              <div className="relative h-2 flex-1 rounded-full bg-muted overflow-hidden">
+              {/* Track uses muted-foreground at 20%: plain bg-muted is ~0.02 L away from
+                  the page canvas in light mode and vanished. */}
+              <div className="relative h-2 flex-1 rounded-full bg-muted-foreground/20 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all"
+                  className="absolute inset-y-0 left-0 rounded-full bg-success transition-all"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -529,6 +531,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                 size="icon-sm"
                 className={cn("text-muted-foreground", isPinned && "text-foreground")}
                 title={isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
+                aria-label={isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
                 onClick={() => {
                   if (isPinned) {
                     deletePinMut.mutate({ itemType: "project", itemId: projectId });
@@ -542,7 +545,12 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      aria-label={t(($) => $.detail.more_actions_aria)}
+                    >
                       <MoreHorizontal />
                     </Button>
                   }
@@ -578,6 +586,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                       size="icon-sm"
                       className={sidebarOpen ? "" : "text-muted-foreground"}
                       onClick={handleToggleSidebar}
+                      aria-label={t(($) => $.detail.sidebar_tooltip)}
                     >
                       <PanelRight />
                     </Button>

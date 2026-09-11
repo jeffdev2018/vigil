@@ -1505,7 +1505,8 @@
     "expiry_24h": "24시간",
     "expiry_7d": "7일",
     "expiry_30d": "30일",
-    "expiry_never": "무기한"
+    "expiry_never": "무기한",
+    "member_actions_aria": "멤버 작업"
   },
   "lark": {
     "section_title": "Lark",
@@ -2203,6 +2204,8 @@
     "suites_load_error": "스위트를 불러올 수 없습니다.",
     "cases_empty_title": "평가 케이스가 없습니다",
     "cases_empty_hint": "수용 기준이 모두 증명된 해결된 이슈를 승격해 첫 케이스를 만드세요.",
+    "new_suite_waiting_title": "케이스가 생기면 양식이 열립니다",
+    "new_suite_waiting_hint": "첫 평가 케이스가 승격되면 여기에서 스위트 이름을 정하고 케이스를 고를 수 있습니다. 그전에는 묶을 것이 없습니다.",
     "cases_load_error": "평가 케이스를 불러올 수 없습니다.",
     "case_count": "케이스 {{n}}개",
     "case_meta": "이슈 #{{number}} · 기준 {{criteria}}개",
