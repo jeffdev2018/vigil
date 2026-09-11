@@ -50,6 +50,10 @@ export function useCommentLongPress(
   entry: TimelineEntry,
   issueId: string,
   issueIdentifier: string | undefined,
+  /** True when this comment is a root with at least one reply — picks the
+   *  delete confirmation copy that warns replies are also removed.
+   *  Mirrors web's `hasReplies` prop on comment-card.tsx's delete dialog. */
+  hasReplies = false,
 ): { onLongPress: () => void; isPressed: boolean } {
   const [isPressed, setIsPressed] = useState(false);
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
@@ -205,7 +209,9 @@ export function useCommentLongPress(
           case "delete":
             Alert.alert(
               "Delete comment?",
-              "This comment will be permanently deleted. Replies in the thread will also be removed. This cannot be undone.",
+              hasReplies
+                ? "This comment and all its replies will be permanently deleted. This cannot be undone."
+                : "This comment will be permanently deleted. This cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -229,6 +235,7 @@ export function useCommentLongPress(
     deleteComment,
     resolveComment,
     getName,
+    hasReplies,
   ]);
 
   return { onLongPress, isPressed };

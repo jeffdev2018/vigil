@@ -316,6 +316,7 @@ export default function SearchModal() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultsState>(EMPTY_RESULTS);
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -359,10 +360,12 @@ export default function SearchModal() {
     if (!q.trim()) {
       setResults(EMPTY_RESULTS);
       setIsLoading(false);
+      setIsError(false);
       return;
     }
 
     setIsLoading(true);
+    setIsError(false);
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -383,9 +386,14 @@ export default function SearchModal() {
         }
       } catch {
         // Abort throws here too; ignore — a newer request is in flight, or
-        // the user dismissed the modal. Drift / network errors are already
-        // logged inside parseWithFallback + the api logger.
-        if (!controller.signal.aborted) setIsLoading(false);
+        // the user dismissed the modal. A real network/5xx error clears
+        // stale results and surfaces a retry instead of leaving the
+        // previous query's results looking like a match for this one.
+        if (!controller.signal.aborted) {
+          setResults(EMPTY_RESULTS);
+          setIsLoading(false);
+          setIsError(true);
+        }
       }
     }, DEBOUNCE_MS);
   }, []);
@@ -471,6 +479,15 @@ export default function SearchModal() {
             isLoading ? (
               <View className="items-center justify-center py-12">
                 <ActivityIndicator color="#71717a" />
+              </View>
+            ) : isError ? (
+              <View className="items-center justify-center gap-3 py-12 px-6">
+                <Text className="text-sm text-destructive text-center">
+                  Search failed. Check your connection and try again.
+                </Text>
+                <Pressable onPress={() => runSearch(query)}>
+                  <Text className="text-sm text-brand">Retry</Text>
+                </Pressable>
               </View>
             ) : trimmedQuery && !hasResults ? (
               <View className="items-center justify-center py-12 px-6">

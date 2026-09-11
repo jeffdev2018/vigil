@@ -107,7 +107,20 @@ export function ChatComposer({
       // through the normal chat path.
       const joined = value.trim() ? `${value.replace(/\s+$/, "")} ${text}` : text;
       onChangeText(joined);
-      void onSend(joined, []);
+      // Await + catch instead of a bare `void onSend(...)`: onSend
+      // (chat.tsx's handleSend) already Alerts the user and rolls back
+      // its own optimistic cache on failure, but a fire-and-forget call
+      // here left that rejection unhandled. The catch is a no-op beyond
+      // that — the dictated draft is never cleared on failure (only a
+      // successful send clears it), so it stays visible for retry, the
+      // same outcome MessageComposer's typed-send path restores to.
+      void (async () => {
+        try {
+          await onSend(joined, []);
+        } catch {
+          // Handled by onSend itself; swallow here so nothing rethrows.
+        }
+      })();
     },
     [value, onChangeText, onSend],
   );

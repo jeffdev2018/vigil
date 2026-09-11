@@ -39,17 +39,13 @@ export function useDeleteChatSession() {
 
   return useMutation({
     mutationFn: (id: string) => api.deleteChatSession(id),
-    onMutate: async (id) => {
-      const key = chatKeys.sessions(wsId);
-      await qc.cancelQueries({ queryKey: key });
-      const prev = qc.getQueryData<ChatSession[]>(key);
-      qc.setQueryData<ChatSession[]>(key, (old) =>
+    // No optimistic removal: delete is a confirm/cleanup flow (root
+    // CLAUDE.md "State Rules" — await the server, never optimistically
+    // remove an entity). Cache is patched only once the server confirms.
+    onSuccess: (_data, id) => {
+      qc.setQueryData<ChatSession[]>(chatKeys.sessions(wsId), (old) =>
         old ? old.filter((s) => s.id !== id) : old,
       );
-      return { prev, key };
-    },
-    onError: (_err, _id, ctx) => {
-      if (ctx?.prev) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: (_data, _err, id) => {
       qc.invalidateQueries({ queryKey: chatKeys.sessions(wsId) });

@@ -144,5 +144,8 @@ export function CreateFormAttributeRow() {
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).
 function formatDueDate(iso: string): string {
-  return formatDateOnly(iso, { month: "short", day: "numeric" }) || "Due date";
+  return (
+    formatDateOnly(iso, { month: "short", day: "numeric" }, "en-US") ||
+    "Due date"
+  );
 }

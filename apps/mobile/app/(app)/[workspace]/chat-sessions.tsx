@@ -39,12 +39,22 @@ export default function ChatSessionsRoute() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            deleteSession.mutate(session.id);
-            // If we just deleted the active one, the chat tab clears its
-            // local activeSessionId via the picker-store request.
-            if (session.id === activeSessionId) {
-              requestSelect(null);
-            }
+            deleteSession.mutate(session.id, {
+              onSuccess: () => {
+                // If we just deleted the active one, the chat tab clears
+                // its local activeSessionId via the picker-store request.
+                // Only fires once the server confirms the delete.
+                if (session.id === activeSessionId) {
+                  requestSelect(null);
+                }
+              },
+              onError: () => {
+                Alert.alert(
+                  "Couldn't delete chat",
+                  "Something went wrong. Please try again.",
+                );
+              },
+            });
           },
         },
       ],
