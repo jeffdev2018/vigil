@@ -163,6 +163,14 @@ func TestIsBlockedEnvKey(t *testing.T) {
 		{key: "CURSOR_MCP_AUTH_SOURCE", want: true},
 		{key: "OPENCLAW_CONFIG_PATH", want: true},
 		{key: "OPENCLAW_INCLUDE_ROOTS", want: true},
+		// The approval gate (K05) selects its pre-push hook through git's
+		// environment config; custom_env must not be able to replace it.
+		{key: "GIT_CONFIG_COUNT", want: true},
+		{key: "GIT_CONFIG_KEY_0", want: true},
+		{key: "git_config_value_3", want: true},
+		{key: "GIT_CONFIG_PARAMETERS", want: true},
+		{key: "GIT_AUTHOR_EMAIL", want: false},
+		{key: "GIT_CONFIG_GLOBAL", want: false},
 		{key: "ANTHROPIC_API_KEY", want: false},
 		{key: "CURSOR_AGENT", want: false},
 		// HERMES_HOME is intentionally NOT blocked: a skill-less Hermes task
@@ -182,6 +190,29 @@ func TestIsBlockedEnvKey(t *testing.T) {
 				t.Fatalf("isBlockedEnvKey(%q) = %v, want %v", tt.key, got, tt.want)
 			}
 		})
+	}
+}
+
+// A custom_env carrying git environment config (even for a harmless key such as
+// user.email) used to overwrite the approval gate's core.hooksPath silently,
+// leaving the run's pushes ungated.
+func TestLayerCustomEnvKeepsApprovalGateGitConfig(t *testing.T) {
+	t.Parallel()
+	agentEnv := gateEnvironment("/daemon/hooks", "git@example.com:o/r.git", time.Minute)
+	layerCustomEnvAndHermesHome(agentEnv, map[string]string{
+		"GIT_CONFIG_COUNT":      "1",
+		"GIT_CONFIG_KEY_0":      "user.email",
+		"GIT_CONFIG_VALUE_0":    "bot@example.com",
+		"GIT_CONFIG_PARAMETERS": "'core.hooksPath'='/tmp/none'",
+	}, "", nil)
+	want := gateEnvironment("/daemon/hooks", "git@example.com:o/r.git", time.Minute)
+	for k, v := range want {
+		if agentEnv[k] != v {
+			t.Errorf("%s = %q, want the gate's %q", k, agentEnv[k], v)
+		}
+	}
+	if _, ok := agentEnv["GIT_CONFIG_PARAMETERS"]; ok {
+		t.Error("GIT_CONFIG_PARAMETERS reached the child env; it can override core.hooksPath")
 	}
 }
 

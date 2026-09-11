@@ -10370,8 +10370,16 @@ func isBlockedEnvKey(key string) bool {
 	if strings.HasPrefix(upper, "MULTICA_") {
 		return true
 	}
+	// Git's environment config is how the approval gate (K05) installs its
+	// pre-push hook for every git call of the run (gateEnvironment). A custom
+	// value, even for an unrelated key, would replace or outrank that
+	// core.hooksPath and leave pushes ungated.
+	if strings.HasPrefix(upper, "GIT_CONFIG_KEY_") || strings.HasPrefix(upper, "GIT_CONFIG_VALUE_") {
+		return true
+	}
 	switch upper {
-	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS":
+	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS",
+		"GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS":
 		return true
 	}
 	return false
