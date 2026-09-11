@@ -2568,6 +2568,7 @@ func (h *Handler) ListAgentSkills(w http.ResponseWriter, r *http.Request) {
 			s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
 			s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 		)
+		resp[i].Status = s.Status
 		resp[i].Enabled = &s.Enabled
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -2792,6 +2793,7 @@ func (h *Handler) writeUpdatedAgentSkills(w http.ResponseWriter, r *http.Request
 			s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
 			s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 		)
+		resp[i].Status = s.Status
 		resp[i].Enabled = &s.Enabled
 	}
 	actorType, actorID := h.resolveActor(r, requestUserID(r), uuidToString(agent.WorkspaceID))
