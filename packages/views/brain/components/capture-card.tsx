@@ -206,7 +206,9 @@ export function CaptureCard({
       ) : null}
 
       {suggestion ? (
-        <div className="flex flex-col gap-1 rounded-md bg-accent/40 px-2 py-1.5">
+        // A section inside the card, not a card inside the card: the heading
+        // and the spacing above carry the separation.
+        <div className="mt-1 flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-caption font-medium">
             <Sparkles aria-hidden="true" className="size-3.5" />
             {t(($) => $.card.suggestion_heading)}

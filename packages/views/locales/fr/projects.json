@@ -81,7 +81,8 @@
     "toast_link_copied": "Lien copié",
     "toast_project_deleted": "Projet supprimé",
     "toast_move_issue_failed": "Échec du déplacement de l'issue",
-    "progress_hint": "Inclut les issues terminées et annulées ; ce n'est pas un taux de livraison."
+    "progress_hint": "Inclut les issues terminées et annulées ; ce n'est pas un taux de livraison.",
+    "more_actions_aria": "Plus d'actions"
   },
   "resources": {
     "section_header": "Ressources",

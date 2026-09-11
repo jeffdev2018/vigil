@@ -203,6 +203,14 @@ func TestScimProvisioning(t *testing.T) {
 // id_token for the email it was told to vouch for.
 func fakeOIDCProvider(t *testing.T, clientID string, email string) *httptest.Server {
 	t.Helper()
+	return fakeOIDCProviderWithClaims(t, clientID, jwt.MapClaims{"email": email, "email_verified": true})
+}
+
+// fakeOIDCProviderWithClaims serves discovery, JWKS and a token endpoint whose
+// id_token carries `extra` on top of iss/aud/sub/nonce/exp/iat, so a test can
+// shape the identity claims (or leave one out) and pin what the callback does.
+func fakeOIDCProviderWithClaims(t *testing.T, clientID string, extra jwt.MapClaims) *httptest.Server {
+	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -221,7 +229,11 @@ func fakeOIDCProvider(t *testing.T, clientID string, email string) *httptest.Ser
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{"iss": srv.URL, "aud": clientID, "sub": "idp-user", "email": email, "email_verified": true, "nonce": nonce, "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix()})
+			claims := jwt.MapClaims{"iss": srv.URL, "aud": clientID, "sub": "idp-user", "nonce": nonce, "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix()}
+			for k, v := range extra {
+				claims[k] = v
+			}
+			tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 			tok.Header["kid"] = "k1"
 			signed, _ := tok.SignedString(key)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id_token": signed, "access_token": "x", "token_type": "Bearer"})

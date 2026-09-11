@@ -7,7 +7,8 @@
     "mark_all_read": "모두 읽음으로 표시",
     "archive_all": "모두 보관",
     "archive_all_read": "읽은 항목 모두 보관",
-    "archive_completed": "완료된 항목 보관"
+    "archive_completed": "완료된 항목 보관",
+    "more_actions_aria": "추가 작업"
   },
   "filters": {
     "tooltip": "인박스 필터",
@@ -29,6 +30,7 @@
   },
   "list": {
     "empty": "알림이 없습니다",
+    "empty_hint": "댓글, 할당, 에이전트 업데이트가 이곳에 도착합니다.",
     "mark_done_tooltip": "완료로 표시",
     "archive_tooltip": "보관",
     "time": {
@@ -50,6 +52,8 @@
   },
   "detail": {
     "select_prompt": "자세히 볼 알림을 선택하세요",
+    "select_prompt_hint": "왼쪽에서 알림을 선택하면 내용을 읽고 바로 처리할 수 있습니다.",
+    "empty_hint": "댓글, 할당, 에이전트 업데이트가 이곳에 도착합니다.",
     "empty": "인박스가 비어 있습니다",
     "original_input": "원본 입력",
     "retry_with_context": "컨텍스트를 유지하여 재시도",

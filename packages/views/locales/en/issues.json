@@ -348,7 +348,8 @@
     "empty_column": "No issues",
     "empty_grouping": "No matching issues",
     "no_value": "No value",
-    "ordered_by": "Board ordered by {{field}}"
+    "ordered_by": "Board ordered by {{field}}",
+    "column_menu_aria": "Column options"
   },
   "detail": {
     "not_found": "This issue does not exist or has been deleted in this workspace.",
@@ -504,7 +505,8 @@
       "hint_close": "close"
     },
     "section_related": "Related",
-    "section_duplicate": "Duplicates"
+    "section_duplicate": "Duplicates",
+    "more_actions_tooltip": "More actions"
   },
   "timeline": {
     "loading": "Loading..."

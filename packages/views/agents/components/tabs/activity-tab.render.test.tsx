@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent, AgentTask } from "@multica/core/types";
 import { I18nProvider } from "@multica/core/i18n/react";
@@ -78,7 +78,7 @@ const baseAgent = {
 
 const EMPTY_RECENT = "This agent hasn't completed anything yet.";
 
-function renderTab() {
+function renderTab(props: { onAssignWork?: () => void } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -95,7 +95,7 @@ function renderTab() {
     <I18nProvider locale="en" resources={TEST_RESOURCES}>
       <NavigationProvider value={navigation}>
         <QueryClientProvider client={queryClient}>
-          <ActivityTab agent={baseAgent} showPerformance={false} />
+          <ActivityTab agent={baseAgent} showPerformance={false} {...props} />
         </QueryClientProvider>
       </NavigationProvider>
     </I18nProvider>,
@@ -105,6 +105,26 @@ function renderTab() {
 beforeEach(() => {
   agentTasksRef.current = () => new Promise<unknown>(() => {});
   snapshotRef.current = () => Promise.resolve([]);
+});
+
+describe("ActivityTab Now empty state", () => {
+  it("repeats the Assign work action when nothing is running", async () => {
+    agentTasksRef.current = () => Promise.resolve([]);
+    const onAssignWork = vi.fn();
+    renderTab({ onAssignWork });
+    expect(
+      await screen.findByText("This agent isn't running anything right now."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Assign work" }));
+    expect(onAssignWork).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays text-only without a handler", async () => {
+    agentTasksRef.current = () => Promise.resolve([]);
+    renderTab();
+    await screen.findByText("This agent isn't running anything right now.");
+    expect(screen.queryByRole("button", { name: "Assign work" })).toBeNull();
+  });
 });
 
 describe("ActivityTab Recent work loading state", () => {

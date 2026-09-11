@@ -56,6 +56,10 @@ describe("HandoffPacketCard", () => {
     expect(screen.queryByText("First try")).toBeNull();
     fireEvent.click(screen.getByText("Show 1 earlier packet"));
     expect(screen.getByText("First try")).toBeTruthy();
+    // Packets are sections under the heading, not cards nested in the sidebar card.
+    for (const item of screen.getAllByTestId("handoff-packet-item")) {
+      expect(item.className).not.toMatch(/\bborder\b/);
+    }
   });
 
   it("lets a member leave a packet against the latest run", async () => {

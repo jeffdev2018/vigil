@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, FileDiff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Label } from "@multica/ui/components/ui/label";
 import {
@@ -37,6 +36,7 @@ import {
   type DocDriftSettingsInput,
 } from "@multica/core/doc-drift";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -50,11 +50,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * Off by default, admin-only to configure.
  */
 
-const TONE_CLASS = {
-  success: "text-success",
-  warning: "text-warning",
-  muted: "text-muted-foreground",
-} as const;
 
 const PROPOSAL_STATUSES = ["draft", "opened_pr", "dismissed", "merged"] as const;
 
@@ -436,18 +431,8 @@ function ProposalRow({ proposal, wsId }: { proposal: DocDriftProposal; wsId: str
 
 function ProposalStatus({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = (PROPOSAL_STATUSES as readonly string[]).includes(status);
-  const tone = proposalTone(status);
-  return (
-    <Badge
-      variant="outline"
-      className={TONE_CLASS[tone]}
-      data-testid="doc-drift-proposal-status"
-      data-status={status}
-    >
-      {known
-        ? t(($) => $.doc_drift.status[status as (typeof PROPOSAL_STATUSES)[number]])
-        : t(($) => $.doc_drift.status_unknown)}
-    </Badge>
+  const config: StatusBadgeConfig = Object.fromEntries(
+    PROPOSAL_STATUSES.map((s) => [s, { tone: proposalTone(s), label: t(($) => $.doc_drift.status[s]) }]),
   );
+  return <StatusBadge status={status} config={config} data-testid="doc-drift-proposal-status" />;
 }

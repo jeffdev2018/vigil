@@ -46,7 +46,7 @@ export function CompactRuntimeRow({
     >
       <ProviderLogo provider={runtime.provider} className="h-5 w-5" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-body font-medium">
+        <div title={runtimeDisplayName(runtime)} className="truncate text-body font-medium">
           {runtimeDisplayName(runtime)}
         </div>
         <div className="text-caption text-muted-foreground">{runtime.provider}</div>

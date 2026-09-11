@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HeartPulse, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
@@ -35,6 +34,7 @@ import {
 } from "@multica/core/code-health";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -50,12 +50,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * being unsure, already open, or over the per-scan cap.
  */
 
-const TONE_CLASS = {
-  success: "text-success",
-  warning: "text-warning",
-  destructive: "text-destructive",
-  muted: "text-muted-foreground",
-} as const;
 
 const SCAN_STATUSES = ["running", "completed", "failed", "empty"] as const;
 const SKIP_REASONS = ["low_confidence", "duplicate", "cap", "budget", "error"] as const;
@@ -414,20 +408,10 @@ function ScanRow({
 
 function ScanStatus({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = (SCAN_STATUSES as readonly string[]).includes(status);
-  const tone = scanTone(status);
-  return (
-    <Badge
-      variant={tone === "destructive" ? "destructive" : "outline"}
-      className={TONE_CLASS[tone]}
-      data-testid="code-health-scan-status"
-      data-status={status}
-    >
-      {known
-        ? t(($) => $.code_health.status[status as (typeof SCAN_STATUSES)[number]])
-        : t(($) => $.code_health.status_unknown)}
-    </Badge>
+  const config: StatusBadgeConfig = Object.fromEntries(
+    SCAN_STATUSES.map((s) => [s, { tone: scanTone(s), label: t(($) => $.code_health.status[s]) }]),
   );
+  return <StatusBadge status={status} config={config} data-testid="code-health-scan-status" />;
 }
 
 function SkipReason({ reason }: { reason: string }) {

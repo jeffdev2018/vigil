@@ -143,7 +143,10 @@ describe("EvalLabTab", () => {
     expect(screen.getByTestId("eval-suites-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-cases-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-runs-empty").textContent).toBe("No run yet");
-    expect(screen.getAllByText(/Promote a resolved issue/).length).toBeGreaterThan(0);
+    // The promote instruction lives in the Suites card only; the New suite
+    // card explains what will show up there instead of repeating it.
+    expect(screen.getAllByText(/Promote a resolved issue/)).toHaveLength(1);
+    expect(screen.getByTestId("eval-cases-empty").textContent).toContain("The form opens once a case exists");
     // Without a case there is nothing to name a suite after.
     expect(screen.queryByLabelText("Name")).toBeNull();
   });
@@ -290,7 +293,9 @@ describe("EvalLabTab", () => {
   it("renders an unknown status from a newer server without breaking", () => {
     state.runs = [run({ status: "quantum" as EvalRun["status"], score: null })];
     renderWithI18n(<EvalLabTab />);
-    expect(screen.getByTestId("eval-run-status").textContent).toBe("Unknown");
+    // Unknown-status fallback (humanize + muted tone) is StatusBadge's own
+    // contract, covered exhaustively in packages/views/common/status-badge.test.tsx.
+    expect(screen.getByTestId("eval-run-status").textContent).toBe("Quantum");
   });
 });
 

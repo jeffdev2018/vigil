@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { OrgDefinition, OrgHealth, OrgStructure, OrgTemplate } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
@@ -97,18 +97,28 @@ async function choose(trigger: HTMLElement, label: string | RegExp) {
 }
 
 describe("OrgPage", () => {
+  // OrgPage's first render in a worker carries the module's cold start (lazy
+  // imports, i18n resources, JIT): ~1 s here and several under a loaded
+  // full-suite run, charged to whichever test happened to run first. Pay it
+  // once, outside any test's 5 s budget.
+  beforeAll(() => {
+    state.structures = [structure({})];
+    renderWithI18n(<OrgPage />);
+    cleanup();
+  });
+
   it("creates a relationship from Relationships without adding a team", async () => {
     state.structures = [structure({})];
     renderWithI18n(<OrgPage />);
-    await userEvent.click(screen.getByRole("tab", { name: "Relationships" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Relationships" }));
     expect(screen.queryByRole("button", { name: "Add team" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Create a relationship" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create a relationship" }));
     const dialog = screen.getByRole("dialog");
     await choose(within(dialog).getByRole("combobox", { name: "From team" }), "Dev");
     await choose(within(dialog).getByRole("combobox", { name: "Connection type" }), "Escalates to");
     await choose(within(dialog).getByRole("combobox", { name: "Target team" }), "Lead");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Add connection" }));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add connection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     const saved = (state.updated[0] as { data: { definition: OrgDefinition } }).data.definition;
     expect(saved.units).toHaveLength(2);
     expect(saved.edges).toContainEqual({ from: "dev", to: "lead", kind: "escalates_to" });

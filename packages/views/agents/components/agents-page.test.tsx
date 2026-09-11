@@ -291,6 +291,8 @@ describe("AgentsPage listReady gate", () => {
     expect(screen.getByText("Alpha Agent")).toBeInTheDocument();
     expect(screen.getByText("Beta Agent")).toBeInTheDocument();
     expect(betaPrecedesAlpha()).toBe(true);
+    // The name cell truncates; the full name must survive as a tooltip.
+    expect(screen.getByText("Alpha Agent").getAttribute("title")).toBe("Alpha Agent");
   });
 
   it("renders rows immediately for name sort without waiting on activity/run-counts", () => {

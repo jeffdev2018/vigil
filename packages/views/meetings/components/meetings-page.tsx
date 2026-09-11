@@ -136,6 +136,11 @@ export function MeetingsPage() {
             : undefined
         }
         loadingMore={meetingsQuery.isFetchingNextPage}
+        onRecord={
+          sttUnavailable || recorderPhase !== "idle"
+            ? undefined
+            : () => openMeetingRecorder()
+        }
       />
     </div>
   );
@@ -170,6 +175,7 @@ function MeetingList({
   searching,
   onLoadMore,
   loadingMore,
+  onRecord,
 }: {
   meetings: Meeting[];
   isLoading: boolean;
@@ -177,6 +183,8 @@ function MeetingList({
   searching: boolean;
   onLoadMore?: () => void;
   loadingMore: boolean;
+  /** Absent when recording is unavailable; the empty state then stays text-only. */
+  onRecord?: () => void;
 }) {
   const { t } = useT("meetings");
 
@@ -214,6 +222,14 @@ function MeetingList({
         icon={AudioLines}
         title={t(($) => $.list.empty_title)}
         description={t(($) => $.list.empty_description)}
+        actions={
+          onRecord ? (
+            <Button size="sm" onClick={onRecord}>
+              <Mic aria-hidden="true" className="size-3.5" />
+              {t(($) => $.list.record)}
+            </Button>
+          ) : undefined
+        }
       />
     );
   }

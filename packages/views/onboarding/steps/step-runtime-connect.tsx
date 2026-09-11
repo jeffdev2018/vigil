@@ -8,6 +8,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { runtimeKeys } from "@multica/core/runtimes/queries";
 import {
@@ -562,14 +563,16 @@ function SkeletonRuntimeCard() {
   return (
     <div
       aria-hidden
-      className="flex animate-pulse items-center gap-3 rounded-lg border bg-card p-4"
+      className="flex items-center gap-3 rounded-lg border bg-card p-4"
     >
-      <div className="h-7 w-7 shrink-0 rounded-md bg-muted" />
+      <Skeleton className="h-7 w-7 shrink-0 rounded-md" />
       <div className="flex-1 space-y-2">
-        <div className="h-3 w-28 rounded bg-muted" />
-        <div className="h-2.5 w-16 rounded bg-muted/70" />
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-2.5 w-16 bg-muted/70" />
       </div>
-      <div className="h-4 w-4 shrink-0 rounded-full border-[1.5px] border-muted" />
+      {/* Outline ring, not a filled block: Skeleton's bg-muted fill would
+          misrepresent it, so it keeps its own pulse. */}
+      <div className="h-4 w-4 shrink-0 animate-pulse rounded-full border-[1.5px] border-muted" />
     </div>
   );
 }

@@ -2456,6 +2456,7 @@ export function IssueDisplayControls({
                         act.setSortDirection(sortDirection === "asc" ? "desc" : "asc")
                       }
                       title={sortDirection === "asc" ? t(($) => $.display.ascending_title) : t(($) => $.display.descending_title)}
+                      aria-label={sortDirection === "asc" ? t(($) => $.display.ascending_title) : t(($) => $.display.descending_title)}
                     >
                       {sortDirection === "asc" ? (
                         <ArrowUp className="size-3.5" />

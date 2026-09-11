@@ -19,6 +19,7 @@ import { InboxListItem } from "./inbox-list-item";
 import { VirtuosoSeed, VIRTUOSO_SEED_COUNT } from "../../common/virtuoso-seed";
 import { useRestoredScrollOffset, useRestoredScrollRef } from "../../platform";
 import { useT } from "../../i18n";
+import { CollectionPageState } from "../../layout/collection-page";
 
 // Sizing only (like the board's card estimate): the seed's trailing spacer
 // and Virtuoso's defaultItemHeight share this value so the scroller's height
@@ -265,18 +266,24 @@ export function InboxList({
   if (items.length === 0) {
     return (
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Inbox className="mb-3 h-8 w-8 text-faint-foreground" />
-          <p className="text-body">
-            {emptyLabel ??
-              (isArchivedView
-                ? t(($) => $.list.archived_empty)
-                : isAttentionView
-                  ? t(($) => $.list.attention_empty)
-                  : t(($) => $.list.empty))}
-          </p>
-          {emptyAction && <div className="mt-3">{emptyAction}</div>}
-        </div>
+        <CollectionPageState
+          icon={Inbox}
+          className="py-12"
+          title={
+            emptyLabel ??
+            (isArchivedView
+              ? t(($) => $.list.archived_empty)
+              : isAttentionView
+                ? t(($) => $.list.attention_empty)
+                : t(($) => $.list.empty))
+          }
+          description={
+            emptyLabel || isArchivedView || isAttentionView
+              ? undefined
+              : t(($) => $.list.empty_hint)
+          }
+          actions={emptyAction}
+        />
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
         {briefingEntry && <div className="px-2">{briefingEntry}</div>}

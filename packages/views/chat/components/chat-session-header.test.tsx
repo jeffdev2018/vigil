@@ -63,6 +63,20 @@ function startRename(): HTMLInputElement {
   return screen.getByRole("textbox", { name: RENAME_LABEL });
 }
 
+describe("ChatSessionHeader accessibility", () => {
+  it("gives the more-actions icon button an accessible name", () => {
+    render(
+      <I18nProvider locale="en" resources={TEST_RESOURCES}>
+        <ChatSessionHeader session={session} agent={null} />
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: enChat.header.more_actions_aria }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("ChatSessionHeader rename keyboard behavior", () => {
   beforeEach(() => {
     updateMutate.mockReset();
