@@ -23,6 +23,7 @@ async function pickOption(
 
 const state = vi.hoisted(() => ({
   save: vi.fn(),
+  fetchError: null as Error | null,
   envelope: {
     settings: { enabled: true, default_surface: "compound" as const, tools: {} },
     tools: [] as MCPServerSettingsEnvelope["tools"],
@@ -52,7 +53,10 @@ vi.mock("@multica/core/agents/mcp-server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/agents/mcp-server")>()),
   mcpServerSettingsOptions: () => ({
     queryKey: ["mcp-server-settings", JSON.stringify(state.envelope)],
-    queryFn: async () => state.envelope,
+    queryFn: async () => {
+      if (state.fetchError) throw state.fetchError;
+      return state.envelope;
+    },
   }),
   useUpdateMCPServerSettings: () => ({ mutate: state.save, isPending: false }),
 }));
@@ -70,6 +74,7 @@ function render(canEdit = true) {
 
 beforeEach(() => {
   state.save.mockReset();
+  state.fetchError = null;
   state.envelope = {
     settings: { enabled: true, default_surface: "compound", tools: {} },
     tools: [
@@ -159,5 +164,20 @@ describe("MCPServerSetting", () => {
     expect(screen.getByLabelText("Override for issue_create")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.getByText("Only workspace owners and admins can change these settings.")).toBeTruthy();
+  });
+
+  // Regression: only `data` was destructured — a failed fetch left every
+  // toggle at its plausible-but-possibly-wrong default (enabled, compound
+  // surface, no overrides) with no indication the real settings never loaded.
+  it("shows an error state with retry instead of default values when the fetch fails", async () => {
+    state.fetchError = new Error("boom");
+    render();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load the MCP server settings.",
+    );
+    expect(screen.queryByLabelText("Enabled")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   });
 });

@@ -20,12 +20,32 @@ export function LearningTab() {
   const { t } = useT("settings");
   const timeAgo = useTimeAgo();
   const wsId = useWorkspaceId();
-  const { data, isPending } = useQuery(workProfileOptions(wsId));
+  const { data, isPending, isError, refetch } = useQuery(workProfileOptions(wsId));
   const setAuto = useSetObservationAuto(wsId);
   const forget = useForgetObservation(wsId);
   const fail = (e: unknown, fallback: string) => toast.error(e instanceof Error && e.message ? e.message : fallback);
   const rules = (data?.observations ?? []).filter((o) => o.kind === "decision_rule");
   const hours = (data?.observations ?? []).find((o) => o.key === "decision_hour");
+
+  // A failed fetch must not read as "nothing learned yet" — every field below
+  // (examples, review load, rules) silently defaults to 0/empty on `data`
+  // being undefined, indistinguishable from a genuinely blank profile.
+  if (isError) {
+    return (
+      <div data-testid="learning-tab" className="flex flex-col gap-6">
+        <SettingsCard>
+          <div className="flex flex-col items-center gap-2 p-8 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.learning.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.learning.retry)}
+            </Button>
+          </div>
+        </SettingsCard>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="learning-tab" className="flex flex-col gap-6">
