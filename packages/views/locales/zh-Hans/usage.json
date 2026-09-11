@@ -152,6 +152,7 @@
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",
     "scope_note": "覆盖整个工作区的所有项目 · 按 UTC 日期统计",
+    "load_error": "无法加载智能体成绩单。",
     "agent": "智能体",
     "runs": "运行",
     "accepted": "已接受",
@@ -159,12 +160,15 @@
     "reopened": "重新打开",
     "no_intervention": "无人工",
     "mean_cost": "平均成本",
-    "low_sample": "（运行较少）"
+    "low_sample": "（运行较少）",
+    "retry": "重试"
   },
   "autopilot_quota": {
     "title": "本期自动化运行次数：{{used}} / {{limit}}",
+    "load_error": "无法加载自动驾驶配额。",
     "near_limit": "接近上限——达到上限后自动化将不再触发。",
-    "reached": "已达上限——在本期重置前自动化不会触发。"
+    "reached": "已达上限——在本期重置前自动化不会触发。",
+    "retry": "重试"
   },
   "workflow_outcomes": {
     "title": "工作流结果",

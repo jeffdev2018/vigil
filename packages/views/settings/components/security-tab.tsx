@@ -94,6 +94,15 @@ export function SecurityTab() {
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
+      ) : ssoQuery.isError ? (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <p role="alert" className="text-caption text-destructive">
+            {t(($) => $.security.sso.load_error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void ssoQuery.refetch()}>
+            {t(($) => $.security.sso.retry)}
+          </Button>
+        </div>
       ) : configured ? (
         <SsoSection
           key={connection?.updated_at ?? "none"}
@@ -430,6 +439,15 @@ function ScimSection({ wsId, canManage }: { wsId: string; canManage: boolean }) 
         {tokensQuery.isLoading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : tokensQuery.isError ? (
+          <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+            <p role="alert" className="text-caption text-destructive">
+              {t(($) => $.security.scim.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void tokensQuery.refetch()}>
+              {t(($) => $.security.scim.retry)}
+            </Button>
           </div>
         ) : tokens.length === 0 ? (
           <p className="px-4 py-6 text-center text-caption text-muted-foreground">

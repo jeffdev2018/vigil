@@ -30,7 +30,7 @@ const CHECK_WITHIN = "336h";
 export function CalendarFeedSection() {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data: feed, isLoading } = useQuery(calendarFeedOptions(wsId));
+  const { data: feed, isLoading, isError, refetch } = useQuery(calendarFeedOptions(wsId));
   const saveFeed = useSetCalendarFeed(wsId);
   const removeFeed = useDeleteCalendarFeed(wsId);
   // null means "showing whatever the server holds"; a string means the user
@@ -105,6 +105,16 @@ export function CalendarFeedSection() {
           align="start"
           className="flex-col sm:flex-col sm:items-stretch sm:gap-3"
         >
+          {isError ? (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.preferences.calendar_feed.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.preferences.calendar_feed.retry)}
+              </Button>
+            </div>
+          ) : (
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Input
@@ -157,6 +167,7 @@ export function CalendarFeedSection() {
               </p>
             ) : null}
           </div>
+          )}
         </SettingsRow>
       </SettingsCard>
     </SettingsSection>

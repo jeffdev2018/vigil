@@ -140,6 +140,15 @@ export function McpToolCatalog({
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
           {t(($) => $.mcp.tools.loading)}
         </p>
+      ) : catalogQuery.isError ? (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-caption text-destructive">
+            {t(($) => $.mcp.tools.load_error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void catalogQuery.refetch()}>
+            {t(($) => $.mcp.tools.retry)}
+          </Button>
+        </div>
       ) : tools.length === 0 ? (
         <p className="text-caption text-muted-foreground">
           {t(($) => $.mcp.tools.empty)}

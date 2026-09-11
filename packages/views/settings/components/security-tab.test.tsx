@@ -13,15 +13,19 @@ const mockDeleteToken = vi.hoisted(() => vi.fn());
 
 const data = vi.hoisted(() => ({
   sso: undefined as Record<string, unknown> | undefined,
+  ssoError: false,
   tokens: { tokens: [] as Record<string, unknown>[] },
+  tokensError: false,
   role: "owner" as "owner" | "admin" | "member",
+  refetchSso: vi.fn(),
+  refetchTokens: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[] }) =>
     options.queryKey[0] === "workspace-sso"
-      ? { data: data.sso, isLoading: false }
-      : { data: data.tokens, isLoading: false },
+      ? { data: data.sso, isLoading: false, isError: data.ssoError, refetch: data.refetchSso }
+      : { data: data.tokens, isLoading: false, isError: data.tokensError, refetch: data.refetchTokens },
 }));
 
 vi.mock("@multica/core/access", async (importOriginal) => ({
@@ -63,10 +67,37 @@ describe("SecurityTab", () => {
     vi.clearAllMocks();
     data.role = "owner";
     data.sso = { configured: true, connection };
+    data.ssoError = false;
     data.tokens = { tokens: [] };
+    data.tokensError = false;
     mockPut.mockResolvedValue({});
     mockEnforce.mockResolvedValue({});
     mockCreateToken.mockResolvedValue({ id: "tok-1", token_hint: "scim_***abcd", token: "scim_raw_secret_value", active: true, created_at: "2026-09-01T00:00:00Z", last_used_at: null });
+  });
+
+  // A failed fetch must not silently render nothing where the SSO section
+  // usually sits — before this fix isLoading and configured were both
+  // false on error, and the section rendered blank.
+  it("reports an SSO load failure instead of rendering nothing, with a retry", () => {
+    data.ssoError = true;
+    data.sso = undefined;
+    renderWithI18n(<SecurityTab />);
+    expect(screen.getByText("Could not load the SSO connection.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Issuer URL")).toBeNull();
+    screen.getByRole("button", { name: "Retry" }).click();
+    expect(data.refetchSso).toHaveBeenCalled();
+  });
+
+  // Same failure mode for the SCIM token list: it must not read as "no
+  // token yet".
+  it("reports a SCIM load failure instead of the empty state, with a retry", () => {
+    data.tokensError = true;
+    data.tokens = { tokens: [] };
+    renderWithI18n(<SecurityTab />);
+    expect(screen.getByText("Could not load the SCIM tokens.")).toBeInTheDocument();
+    expect(screen.queryByText("No SCIM token yet.")).toBeNull();
+    screen.getByRole("button", { name: "Retry" }).click();
+    expect(data.refetchTokens).toHaveBeenCalled();
   });
 
   it("shows a callout and hides the form when the server has no secret key", () => {

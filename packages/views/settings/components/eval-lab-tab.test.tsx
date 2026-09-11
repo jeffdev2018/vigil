@@ -15,18 +15,30 @@ const state = vi.hoisted(() => ({
   corpus: null as BenchmarkCorpus | null,
   runtimes: [] as unknown[],
   loading: false,
+  casesError: false,
+  suitesError: false,
+  runsError: false,
+  benchmarksError: false,
   create: vi.fn(),
   run: vi.fn(),
   benchmark: vi.fn(),
+  refetchCases: vi.fn(),
+  refetchSuites: vi.fn(),
+  refetchRuns: vi.fn(),
+  refetchBenchmarks: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
     const key = options.queryKey[0];
-    if (key === "eval-cases") return { data: state.cases, isLoading: state.loading };
-    if (key === "eval-suites") return { data: state.suites, isLoading: state.loading };
-    if (key === "eval-runs") return { data: state.runs, isLoading: false };
-    if (key === "eval-benchmarks") return { data: state.benchmarks, isLoading: false };
+    if (key === "eval-cases")
+      return { data: state.cases, isLoading: state.loading, isError: state.casesError, refetch: state.refetchCases };
+    if (key === "eval-suites")
+      return { data: state.suites, isLoading: state.loading, isError: state.suitesError, refetch: state.refetchSuites };
+    if (key === "eval-runs")
+      return { data: state.runs, isLoading: false, isError: state.runsError, refetch: state.refetchRuns };
+    if (key === "eval-benchmarks")
+      return { data: state.benchmarks, isLoading: false, isError: state.benchmarksError, refetch: state.refetchBenchmarks };
     if (key === "eval-suite-corpus") return { data: state.corpus, isLoading: false };
     if (key === "runtimes") return { data: state.runtimes, isLoading: false };
     if (key === "agent-versions") return { data: options.enabled === false ? undefined : state.versions, isLoading: false };
@@ -106,6 +118,10 @@ beforeEach(() => {
     { id: "rt-2", name: "Claude (host)", custom_name: "Laptop", provider: "claude" },
   ];
   state.loading = false;
+  state.casesError = false;
+  state.suitesError = false;
+  state.runsError = false;
+  state.benchmarksError = false;
   state.create.mockResolvedValue({});
 });
 
@@ -118,6 +134,44 @@ describe("EvalLabTab", () => {
     expect(screen.getAllByText(/Promote a resolved issue/).length).toBeGreaterThan(0);
     // Without a case there is nothing to name a suite after.
     expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
+  // A failed fetch must not read as "nothing here yet" — each section that
+  // has its own empty state gets its own error state and retry action.
+  it("reports a load failure for suites instead of the empty state", () => {
+    state.suitesError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-suites-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-suites-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-suites-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchSuites).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for eval cases instead of the empty state", () => {
+    state.casesError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-cases-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-cases-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-cases-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchCases).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for run history instead of the empty state", () => {
+    state.runsError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-runs-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-runs-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-runs-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchRuns).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for benchmarks instead of the empty state", () => {
+    state.benchmarksError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("benchmark-runs-error")).toBeTruthy();
+    expect(screen.queryByTestId("benchmark-runs-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("benchmark-runs-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchBenchmarks).toHaveBeenCalled();
   });
 
   it("creates a suite from the promoted cases", async () => {

@@ -92,6 +92,8 @@
     "copied": "Copié",
     "configured_since": "Actif depuis le {{date}}",
     "not_configured": "Pas encore publié",
+    "load_error": "Impossible de charger les paramètres de publication du calendrier.",
+    "retry": "Réessayer",
     "mint_error": "Impossible de générer le lien",
     "revoke_error": "Impossible de révoquer le lien",
     "google_title": "Google Agenda",

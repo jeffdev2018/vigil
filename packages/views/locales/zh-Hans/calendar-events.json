@@ -92,6 +92,8 @@
     "copied": "已复制",
     "configured_since": "自 {{date}} 起生效",
     "not_configured": "尚未发布",
+    "load_error": "无法加载日历发布设置。",
+    "retry": "重试",
     "mint_error": "无法生成链接",
     "revoke_error": "无法撤销链接",
     "google_title": "Google 日历",

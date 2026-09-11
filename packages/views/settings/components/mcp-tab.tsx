@@ -224,6 +224,15 @@ export function McpTab() {
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
+          ) : serversQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.mcp.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void serversQuery.refetch()}>
+                {t(($) => $.mcp.retry)}
+              </Button>
+            </div>
           ) : servers.length === 0 ? (
             <div className="px-4 py-8 text-center">
               <Server className="mx-auto h-5 w-5 text-muted-foreground" />

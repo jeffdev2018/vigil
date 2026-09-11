@@ -146,6 +146,15 @@ export function EvalLabTab() {
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
+          ) : suitesQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="eval-suites-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.suites_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void suitesQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
           ) : suites.length === 0 ? (
             <div className="px-4 py-8 text-center" data-testid="eval-suites-empty">
               <FlaskRound className="mx-auto h-5 w-5 text-muted-foreground" aria-hidden="true" />
@@ -181,7 +190,16 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.new_suite_description)}
       >
         <SettingsCard className="p-4">
-          {cases.length === 0 ? (
+          {casesQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 py-4 text-center" data-testid="eval-cases-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.cases_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void casesQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : cases.length === 0 ? (
             <div className="py-4 text-center" data-testid="eval-cases-empty">
               <p className="text-body font-medium">{t(($) => $.eval_lab.cases_empty_title)}</p>
               <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.cases_empty_hint)}</p>
@@ -234,7 +252,16 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.history_description)}
       >
         <SettingsCard>
-          {runs.length === 0 ? (
+          {runsQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="eval-runs-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.history_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void runsQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : runs.length === 0 ? (
             <p className="px-4 py-8 text-center text-caption text-muted-foreground" data-testid="eval-runs-empty">
               {t(($) => $.eval_lab.history_empty)}
             </p>
@@ -265,7 +292,16 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.benchmark_description)}
       >
         <SettingsCard>
-          {benchmarks.length === 0 ? (
+          {benchmarksQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="benchmark-runs-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.benchmark_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void benchmarksQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : benchmarks.length === 0 ? (
             <p className="px-4 py-8 text-center text-caption text-muted-foreground" data-testid="benchmark-runs-empty">
               {t(($) => $.eval_lab.benchmark_empty)}
             </p>

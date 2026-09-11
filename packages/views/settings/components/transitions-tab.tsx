@@ -75,7 +75,7 @@ export function TransitionsTab() {
 
   const [editing, setEditing] = useState<RuleDraft | null>(null);
 
-  const { data, isLoading } = useQuery(issueTransitionRulesOptions(wsId));
+  const { data, isLoading, isError, refetch } = useQuery(issueTransitionRulesOptions(wsId));
   const rules = data?.rules ?? [];
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const currentUser = useAuthStore((s) => s.user);
@@ -105,6 +105,15 @@ export function TransitionsTab() {
         {isLoading ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">
             {t(($) => $.transitions.loading)}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-surface-border bg-card px-4 py-12 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.transitions.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.transitions.retry)}
+            </Button>
           </div>
         ) : rules.length === 0 ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">

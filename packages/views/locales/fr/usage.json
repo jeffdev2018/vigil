@@ -152,6 +152,7 @@
   "scorecards": {
     "title": "Bilans des agents · {{days}}J",
     "scope_note": "Tout le workspace, tous les projets · jours UTC",
+    "load_error": "Impossible de charger les fiches de performance des agents.",
     "agent": "Agent",
     "runs": "Exécutions",
     "accepted": "Acceptés",
@@ -159,12 +160,15 @@
     "reopened": "Réouverts",
     "no_intervention": "Sans intervention",
     "mean_cost": "Coût moyen",
-    "low_sample": "(peu d'exécutions)"
+    "low_sample": "(peu d'exécutions)",
+    "retry": "Réessayer"
   },
   "autopilot_quota": {
     "title": "Runs d'autopilote cette période : {{used}} / {{limit}}",
+    "load_error": "Impossible de charger le quota d'autopilotes.",
     "near_limit": "Proche de la limite : les autopilotes cessent de se déclencher une fois atteinte.",
-    "reached": "Limite atteinte : les autopilotes ne se déclencheront plus avant la remise à zéro de la période."
+    "reached": "Limite atteinte : les autopilotes ne se déclencheront plus avant la remise à zéro de la période.",
+    "retry": "Réessayer"
   },
   "workflow_outcomes": {
     "title": "Résultats par workflow",

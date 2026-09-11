@@ -140,4 +140,19 @@ describe("McpToolCatalog", () => {
 
     expect(await screen.findByText(/No tools catalogued yet/)).toBeInTheDocument();
   });
+
+  // A failed fetch must not read as an empty catalogue: that hides a real
+  // backend problem behind a normal "nothing here" state.
+  it("reports a load failure instead of the empty catalogue, with a retry", async () => {
+    mockApi.listWorkspaceMcpServerTools.mockRejectedValueOnce(new ApiError("boom", 500, "Internal Server Error"));
+    renderCatalog();
+
+    expect(await screen.findByText(enSettings.mcp.tools.load_error)).toBeInTheDocument();
+    expect(screen.queryByText(/No tools catalogued yet/)).toBeNull();
+
+    mockApi.listWorkspaceMcpServerTools.mockResolvedValue(catalog);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: enSettings.mcp.tools.retry }));
+    expect(await screen.findByText("search")).toBeInTheDocument();
+  });
 });
