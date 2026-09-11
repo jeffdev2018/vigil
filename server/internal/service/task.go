@@ -5378,7 +5378,7 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 	var failover FailoverTarget
 	var checkpointAttempts pgtype.Int4
 	if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr == nil {
-		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK {
+		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK && failoverRetryAllowed(parent) {
 			failover = target
 			wantRetry = true
 			retryFireAt = pgtype.Timestamptz{}
@@ -5396,7 +5396,10 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 		}
 		// BYOK (K48): a vendor authentication or quota failure retires the
 		// key and retries once on the next one, bypassing the reason gate.
-		if !wantRetry && s.ModelKeyFailover != nil && s.ModelKeyFailover(ctx, parent, failureReason) {
+		// Only a run this failure can still settle retires a key: a late /fail
+		// on a cancelled run changes nothing below.
+		if !wantRetry && s.ModelKeyFailover != nil && taskStillActive(parent) &&
+			s.ModelKeyFailover(ctx, parent, failureReason) && failoverRetryAllowed(parent) {
 			wantRetry = true
 			retryFireAt = pgtype.Timestamptz{}
 			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
@@ -5907,6 +5910,25 @@ func retryEligible(failureReason string, t db.AgentTaskQueue) bool {
 		t.Attempt < retryAttemptCeiling(failureReason, t.MaxAttempts) &&
 		!t.AutopilotRunID.Valid &&
 		(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t))
+}
+
+// failoverRetryAllowed is what a failover retry (runtime pool K28, model key
+// K48) keeps of retryEligible: it replaces the reason gate and the attempt
+// budget, never the task shapes the retry machinery refuses — an autopilot
+// run, whose scheduler owns what follows a failure, a plain quick-create — nor
+// an explicit max_attempts<=1 opt-out.
+func failoverRetryAllowed(t db.AgentTaskQueue) bool {
+	return t.MaxAttempts > 1 && !t.AutopilotRunID.Valid &&
+		(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t))
+}
+
+// taskStillActive mirrors the statuses FailAgentTask settles.
+func taskStillActive(t db.AgentTaskQueue) bool {
+	switch t.Status {
+	case "dispatched", "running", "waiting_local_directory":
+		return true
+	}
+	return false
 }
 
 func isSourceContextQuickCreateTask(task db.AgentTaskQueue) bool {
