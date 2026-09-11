@@ -407,6 +407,8 @@ proves it. A `human_validation` from a run only marks the criterion as
 waiting for the human: their own click satisfies it, not your claim. If the
 issue has no criteria yet and the task states some, set them with
 `multica criteria set <issue-id> --text "..." --text "..."` before starting.
+`criteria set` replaces the whole list, so it refuses to run with no `--text`
+at all — pass `--clear` explicitly if you mean to remove every criterion.
 
 ## Sub-issues: todo starts work now, backlog parks it
 

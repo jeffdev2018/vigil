@@ -183,9 +183,17 @@ func (h *Handler) SetAcceptanceCriteria(w http.ResponseWriter, r *http.Request) 
 			ID   string `json:"id"`
 			Text string `json:"text"`
 		} `json:"criteria"`
+		// Clear must be explicit for an empty list: without it, an empty
+		// criteria array (e.g. a caller that forgot to pass any) is rejected
+		// instead of silently wiping the Outcome Contract (K12).
+		Clear bool `json:"clear"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.Criteria) == 0 && !req.Clear {
+		writeError(w, http.StatusBadRequest, "no criteria given; pass clear=true to remove all acceptance criteria")
 		return
 	}
 	if len(req.Criteria) > acceptanceMaxCriteria {
