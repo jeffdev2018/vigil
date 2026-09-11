@@ -391,7 +391,9 @@ describe("InboxPage", () => {
     render(<InboxPage />);
 
     expect(screen.queryByTestId("row")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Inbox" }));
+    // The i18n mock names every control "Inbox", so the clear-filters
+    // button is addressed by its test id rather than its (shared) name.
+    fireEvent.click(screen.getByTestId("inbox-clear-filters"));
     expect(screen.getByTestId("row")).toHaveTextContent("todo-high");
   });
 
