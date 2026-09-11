@@ -57,6 +57,8 @@
     "add": "クイックアクションを作成",
     "search_placeholder": "クイックアクションを検索",
     "loading": "クイックアクションを読み込んでいます…",
+    "load_error": "クイックアクションを読み込めませんでした。",
+    "retry": "再試行",
     "no_results": "一致するクイックアクションはありません",
     "actions_open": "「{{name}}」のアクションメニューを開く",
     "columns": {
@@ -1011,6 +1013,9 @@
     "branch_cleanup_skipped_toast": "{{count}} 件のブランチはスキップされました",
     "profiles_section": "権限プロファイル",
     "profiles_intro": "エージェントが実行時に触れられる範囲です。プロファイルはエージェント（または個々の実行）に割り当てます。以下のルールはランタイムが許す範囲で強制され（Claude の拒否ルール、Codex の読み取り専用サンドボックス、承認ゲート）、それ以外はモデルに伝えられます。",
+    "profiles_loading": "権限プロファイルを読み込み中…",
+    "profiles_load_error": "権限プロファイルを読み込めませんでした。",
+    "profiles_retry": "再試行",
     "profiles_read_only": "読み取り専用",
     "profiles_denied_paths": "禁止パス",
     "profiles_denied_paths_description": "実行が読み取り・編集・push できないグロブ（カンマ区切り）。例: .env, infra/**",

@@ -57,6 +57,8 @@
     "add": "New quick action",
     "search_placeholder": "Search quick actions",
     "loading": "Loading quick actions…",
+    "load_error": "Could not load quick actions.",
+    "retry": "Retry",
     "no_results": "No quick actions match your search",
     "actions_open": "Open actions for {{name}}",
     "columns": {
@@ -1015,6 +1017,9 @@
     "branch_cleanup_skipped_toast": "{{count}} branches were skipped",
     "profiles_section": "Permission profiles",
     "profiles_intro": "What an agent may touch when it runs. Assign a profile on the agent (or on one run); the rules below are enforced where the runtime allows it (Claude deny rules, Codex read-only sandbox, approval gates) and told to the model otherwise.",
+    "profiles_loading": "Loading permission profiles…",
+    "profiles_load_error": "Could not load permission profiles.",
+    "profiles_retry": "Retry",
     "profiles_read_only": "Read-only",
     "profiles_denied_paths": "Denied paths",
     "profiles_denied_paths_description": "Globs the run may neither read, edit nor push, comma separated. Example: .env, infra/**",

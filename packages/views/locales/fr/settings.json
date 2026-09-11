@@ -95,6 +95,8 @@
     "add": "Nouvelle action rapide",
     "search_placeholder": "Rechercher des actions rapides",
     "loading": "Chargement des actions rapides…",
+    "load_error": "Impossible de charger les actions rapides.",
+    "retry": "Réessayer",
     "no_results": "Aucune action rapide ne correspond à votre recherche",
     "actions_open": "Actions pour {{name}}",
     "columns": {
@@ -1053,6 +1055,9 @@
     "branch_cleanup_skipped_toast": "{{count}} branches ont été ignorées",
     "profiles_section": "Profils de permission",
     "profiles_intro": "Définit ce à quoi un agent peut accéder lors de son exécution. Assignez un profil à l'agent (ou à une exécution) ; les règles ci-dessous sont appliquées lorsque le runtime le permet (règles de refus Claude, sandbox lecture seule Codex, portails d'approbation) et communiquées au modèle dans le cas contraire.",
+    "profiles_loading": "Chargement des profils de permission…",
+    "profiles_load_error": "Impossible de charger les profils de permission.",
+    "profiles_retry": "Réessayer",
     "profiles_read_only": "Lecture seule",
     "profiles_denied_paths": "Chemins d'accès refusés",
     "profiles_denied_paths_description": "Globs que l'exécution ne peut ni lire, ni modifier, ni pusher, séparés par des virgules. Exemple : .env, infra/**",

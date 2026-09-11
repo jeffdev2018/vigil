@@ -57,6 +57,8 @@
     "add": "新建快捷操作",
     "search_placeholder": "搜索快捷操作",
     "loading": "正在加载快捷操作…",
+    "load_error": "无法加载快捷操作。",
+    "retry": "重试",
     "no_results": "没有匹配的快捷操作",
     "actions_open": "打开\"{{name}}\"的操作菜单",
     "columns": {
@@ -1011,6 +1013,9 @@
     "branch_cleanup_skipped_toast": "已跳过 {{count}} 个分支",
     "profiles_section": "权限配置",
     "profiles_intro": "智能体运行时可触及的范围。在智能体（或单次运行）上指定配置；以下规则在运行时允许的范围内强制执行（Claude 拒绝规则、Codex 只读沙箱、审批关卡），其余则告知模型。",
+    "profiles_loading": "正在加载权限配置…",
+    "profiles_load_error": "无法加载权限配置。",
+    "profiles_retry": "重试",
     "profiles_read_only": "只读",
     "profiles_denied_paths": "禁止路径",
     "profiles_denied_paths_description": "运行不得读取、编辑或推送的 glob，逗号分隔。示例：.env, infra/**",
