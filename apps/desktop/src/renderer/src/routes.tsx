@@ -79,7 +79,9 @@ function DesktopSettingsRoute() {
 
 /**
  * Sets document.title from the deepest matched route's handle.title.
- * The tab system observes document.title via MutationObserver.
+ * document.title only ever feeds the OS window title / TitleSync — the
+ * visible tab-bar label comes from useTabPresentation/useTabTitle (i18n),
+ * not from this or a MutationObserver (see tab-bar.tsx).
  * Pages with dynamic titles (e.g. issue detail) override by setting
  * document.title directly via useDocumentTitle().
  */
