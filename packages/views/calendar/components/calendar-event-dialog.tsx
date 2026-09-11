@@ -20,6 +20,7 @@ import type {
   CalendarEventParticipantInput,
 } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Spinner } from "@multica/ui/components/ui/spinner";
@@ -398,10 +399,9 @@ export function CalendarEventDialog({
           </label>
 
           <label className="flex items-center gap-2 text-caption text-muted-foreground">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={form.allDay}
-              onChange={(e) => set("allDay", e.target.checked)}
+              onCheckedChange={(checked) => set("allDay", checked === true)}
             />
             <span>{t(($) => $.form.all_day)}</span>
           </label>
