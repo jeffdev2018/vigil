@@ -84,6 +84,11 @@ export function CodeBlock({
 
       const cached = highlightCache.get(cacheKey)
       if (cached) {
+        // Move to the end (most-recently-used) on hit — a Map iterates in
+        // insertion order, so without this a frequently-revisited block
+        // would still be evicted before one that was never seen again.
+        highlightCache.delete(cacheKey)
+        highlightCache.set(cacheKey, cached)
         if (!cancelled) {
           setHighlighted(cached)
           setIsLoading(false)
