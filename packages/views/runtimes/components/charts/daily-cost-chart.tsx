@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -13,26 +14,40 @@ import {
 } from "@multica/ui/components/ui/chart";
 import type { DailyCostStackData } from "../../utils";
 import { useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
 
-// Four-segment stack (input / output / cache read / cache write) — every
-// category `estimateCost` bills for, so the bars add up to the same money the
-// Cost KPI reports. The tooltip derives Total by summing the segments it can
-// see, so a category left out of this config is a category left out of the
-// user's total (MUL-6334: cache read alone was >50% of some buckets).
-//
-// Series → CSS chart token: input/output/cache-write keep chart-1/2/3, and
-// cache read takes chart-4 in the output→cache-write slot — the same colour
-// and position DailyTokensChart gives it, so the cost and token views of the
-// same day read as one chart at two scales.
-export const costStackConfig = {
-  input: { label: "Input", color: "var(--chart-1)" },
-  output: { label: "Output", color: "var(--chart-2)" },
-  cacheRead: { label: "Cache read", color: "var(--chart-4)" },
-  cacheWrite: { label: "Cache write", color: "var(--chart-3)" },
-} satisfies ChartConfig;
+/**
+ * Four-segment stack (input / output / cache read / cache write) — every
+ * category `estimateCost` bills for, so the bars add up to the same money the
+ * Cost KPI reports. The tooltip derives Total by summing the segments it can
+ * see, so a category left out of this config is a category left out of the
+ * user's total (MUL-6334: cache read alone was >50% of some buckets).
+ *
+ * Series → CSS chart token: input/output/cache-write keep chart-1/2/3, and
+ * cache read takes chart-4 in the output→cache-write slot — the same colour
+ * and position DailyTokensChart gives it, so the cost and token views of the
+ * same day read as one chart at two scales.
+ *
+ * Labels reuse usage.legend_* — the same keys the parent's ChartLegend
+ * (usage-section.tsx) already renders for this exact stack, so the legend
+ * and the tooltip say the same thing in every locale.
+ */
+export function useCostStackConfig(): ChartConfig {
+  const { t } = useT("runtimes");
+  return useMemo(
+    () => ({
+      input: { label: t(($) => $.usage.legend_input), color: "var(--chart-1)" },
+      output: { label: t(($) => $.usage.legend_output), color: "var(--chart-2)" },
+      cacheRead: { label: t(($) => $.usage.legend_cache_read), color: "var(--chart-4)" },
+      cacheWrite: { label: t(($) => $.usage.legend_cache_write), color: "var(--chart-3)" },
+    }),
+    [t],
+  );
+}
 
 export function DailyCostChart({ data }: { data: DailyCostStackData[] }) {
   const { t } = useT("runtimes");
+  const costStackConfig = useCostStackConfig();
   // No internal empty-state — the parent decides what to show in place of
   // the chart (often a diagnostic explaining *why* there's no cost). Letting
   // recharts render an empty axis would be both ugly and uninformative.
@@ -59,8 +74,8 @@ export function DailyCostChart({ data }: { data: DailyCostStackData[] }) {
             <ChartTooltipContent
               formatter={(value, name) =>
                 typeof value === "number"
-                  ? `$${value.toFixed(2)} ${name}`
-                  : `${value} ${name}`
+                  ? `$${value.toFixed(2)} ${labelOf(costStackConfig, name)}`
+                  : `${value} ${labelOf(costStackConfig, name)}`
               }
               footer={(payload) => {
                 const total = payload.reduce(

@@ -392,7 +392,11 @@
     "heatmap_average": "avg {{value}}",
     "heatmap_window_total_one": "{{count}}-day total",
     "heatmap_window_total_other": "{{count}}-day total",
-    "tooltip_total": "Total"
+    "tooltip_total": "Total",
+    "tasks_completed": "Completed",
+    "tasks_cancelled": "Cancelled",
+    "tasks_failed": "Failed",
+    "time_run_time": "Run time"
   },
   "list": {
     "col_runtime": "Runtime",
