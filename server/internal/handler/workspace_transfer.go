@@ -871,6 +871,12 @@ func (h *Handler) ImportWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// Importing a doctrine publishes it: same human-only rule as the
+	// doctrine's other doors (UpdateWorkspace, PUT /api/workspace/doctrine).
+	if strings.TrimSpace(b.Doctrine) != "" && isMachineCredentialActor(r) {
+		writeError(w, http.StatusForbidden, "the doctrine can only be changed by a human")
+		return
+	}
 	report, runID, err := h.importTransferBundle(r.Context(), wsUUID, b, strategy, secrets, parseUUID(userID), data)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "import failed: "+err.Error())

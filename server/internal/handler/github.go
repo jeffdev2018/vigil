@@ -1008,8 +1008,11 @@ func (h *Handler) ListPullRequestsForIssue(w http.ResponseWriter, r *http.Reques
 // open issue detail page re-queries its PR list and picks up the fresh CI /
 // mergeability state. Runs on a background pipeline goroutine.
 func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UUID) {
+	// The pipeline cannot observe a failure here (onApplied returns nothing),
+	// so every skipped step is logged.
 	pr, err := h.Queries.GetGitHubPullRequestByID(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but pull request read failed; skipping follow-ups", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	// CI auto-fix (K49): the snapshot says the checks are red.
@@ -1027,6 +1030,7 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	h.staleReviewFlagsForHead(ctx, pr.WorkspaceID, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but linked issues read failed; skipping the realtime update", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	linked := make([]string, 0, len(issueIDs))

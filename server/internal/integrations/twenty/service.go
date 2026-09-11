@@ -21,6 +21,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
 	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
+	"github.com/multica-ai/multica/server/internal/util/netguard"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -71,7 +72,7 @@ type Service struct {
 }
 
 func NewService(q *db.Queries, box *secretbox.Box, publicURL string) *Service {
-	return &Service{Store: q, Queries: q, Box: box, HTTP: &http.Client{Timeout: clientTimeout}, PublicURL: strings.TrimRight(strings.TrimSpace(publicURL), "/")}
+	return &Service{Store: q, Queries: q, Box: box, HTTP: newGuardedHTTPClient(), PublicURL: strings.TrimRight(strings.TrimSpace(publicURL), "/")}
 }
 
 // Connection is the non-secret view of a connection.
@@ -108,8 +109,13 @@ var (
 	ErrUpstream     = errors.New("twenty upstream error")
 )
 
-func invalid(err error) error  { return fmt.Errorf("%w: %v", ErrInvalidInput, err) }
-func upstream(err error) error { return fmt.Errorf("%w: %v", ErrUpstream, err) }
+func invalid(err error) error { return fmt.Errorf("%w: %v", ErrInvalidInput, err) }
+func upstream(err error) error {
+	if errors.Is(err, netguard.ErrAddrBlocked) {
+		return invalid(errors.New("base_url must point to a public address"))
+	}
+	return fmt.Errorf("%w: %v", ErrUpstream, err)
+}
 
 // Get returns the connection view, or ErrNotConnected.
 func (s *Service) Get(ctx context.Context, workspaceID pgtype.UUID) (Connection, error) {

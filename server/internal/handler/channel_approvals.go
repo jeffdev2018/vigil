@@ -271,7 +271,10 @@ func (h *Handler) decideTransitionFromChannel(ctx context.Context, issue db.Issu
 		pgtype.UUID{}, h.issueTriggerWriteProbeCtx(ctx, actor.Type, actor.ID, issue))
 	if err != nil {
 		var applyErr transitionApplyError
+		var refusal transitionGateRefusal
 		switch {
+		case errors.As(err, &refusal):
+			return "Not decided yet: " + refusal.msg + ". Open the issue in Multica."
 		case errors.Is(err, pgx.ErrNoRows):
 			return "Already decided."
 		case errors.As(err, &applyErr):

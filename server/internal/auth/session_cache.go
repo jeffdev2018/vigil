@@ -5,11 +5,54 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 )
+
+// Session JWT refusals. Callers map them to their own transport error.
+var (
+	ErrInvalidToken   = errors.New("invalid token")
+	ErrInvalidClaims  = errors.New("invalid claims")
+	ErrSessionRevoked = errors.New("session revoked")
+)
+
+// ParseSessionJWT validates a session JWT (HMAC signature, expiry, non-empty
+// sub) and refuses one minted before the user's sessions were revoked (K60).
+// Every JWT entry point (HTTP, daemon, realtime) goes through it so a new
+// session rule cannot be added to one path and forgotten on the others.
+// revocations may be nil, which skips the revocation check.
+func ParseSessionJWT(ctx context.Context, tokenString string, revocations *SessionRevocations) (sub, email string, err error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return JWTSecret(), nil
+	})
+	if err != nil || !token.Valid {
+		return "", "", errors.Join(ErrInvalidToken, err)
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", "", ErrInvalidClaims
+	}
+	sub, ok = claims["sub"].(string)
+	if !ok || strings.TrimSpace(sub) == "" {
+		return "", "", ErrInvalidClaims
+	}
+	email, _ = claims["email"].(string)
+	iat := time.Time{}
+	if v, ok := claims["iat"].(float64); ok {
+		iat = time.Unix(int64(v), 0)
+	}
+	if revocations.RefusesTokenIssuedAt(ctx, sub, iat) {
+		return "", "", ErrSessionRevoked
+	}
+	return sub, email, nil
+}
 
 // SessionRevocations (K60) answers, per user, the instant before which a
 // JWT is refused. SCIM deprovisioning stamps it synchronously; the auth

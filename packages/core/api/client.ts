@@ -1487,10 +1487,26 @@ export class ApiClient {
     return login;
   }
 
-  async googleLogin(code: string, redirectUri: string): Promise<LoginResponse> {
+  /**
+   * Starts a Google sign-in: the server pins a fresh state to this browser in
+   * an HttpOnly cookie and returns it for Google's authorization URL. The
+   * exchange (`googleLogin`) must send the same state back.
+   */
+  async startGoogleLogin(): Promise<string> {
+    const raw = await this.fetch<unknown>("/auth/google/start", { method: "POST" });
+    const state = parseWithFallback(raw, z.object({ state: z.string().catch("") }).loose(), { state: "" }, {
+      endpoint: "POST /auth/google/start",
+    }).state;
+    if (!state) {
+      throw new Error("POST /auth/google/start returned a malformed response");
+    }
+    return state;
+  }
+
+  async googleLogin(code: string, redirectUri: string, state: string): Promise<LoginResponse> {
     const raw = await this.fetch<unknown>("/auth/google", {
       method: "POST",
-      body: JSON.stringify({ code, redirect_uri: redirectUri }),
+      body: JSON.stringify({ code, redirect_uri: redirectUri, state }),
     });
     const login = parseWithFallback<LoginResponse | null>(raw, LoginResponseSchema, null, {
       endpoint: "POST /auth/google",

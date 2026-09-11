@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -359,5 +361,35 @@ func TestDaemonAuth_MCN_OwnerNotInLocalDB(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 when local user is missing, got %d", w.Code)
+	}
+}
+
+// TestDaemonAuth_JWTRefusesRevokedSession pins K60 on the daemon JWT
+// fallback: a JWT minted before the user's sessions were revoked must be
+// refused here exactly as middleware.Auth refuses it.
+func TestDaemonAuth_JWTRefusesRevokedSession(t *testing.T) {
+	const userID = "9d1c0e52-7f4a-4d8e-9a57-2f0b7f3e1a11"
+	prev := Revocations
+	t.Cleanup(func() { Revocations = prev })
+	Revocations = auth.NewSessionRevocations(nil, func(context.Context, string) (time.Time, bool, error) {
+		return time.Now(), true, nil
+	})
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": userID, "iat": time.Now().Add(-time.Hour).Unix(), "exp": time.Now().Add(time.Hour).Unix(),
+	})
+	signed, err := token.SignedString(auth.JWTSecret())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached := false
+	handler := DaemonAuth(nil, nil, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+	}))
+	req := httptest.NewRequest("POST", "/api/daemon/heartbeat", nil)
+	req.Header.Set("Authorization", "Bearer "+signed)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if reached || w.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked JWT must be refused: status %d, reached %v", w.Code, reached)
 	}
 }

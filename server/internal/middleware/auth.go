@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -245,46 +244,22 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 			}
 
 			// JWT
-			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, jwt.ErrSignatureInvalid
-				}
-				return auth.JWTSecret(), nil
-			})
-			if err != nil || !token.Valid {
+			sub, email, err := auth.ParseSessionJWT(r.Context(), tokenString, Revocations)
+			switch {
+			case errors.Is(err, auth.ErrSessionRevoked):
+				http.Error(w, `{"error":"session revoked"}`, http.StatusUnauthorized)
+				return
+			case errors.Is(err, auth.ErrInvalidClaims):
+				slog.Warn("auth: invalid claims", "path", r.URL.Path)
+				http.Error(w, `{"error":"invalid claims"}`, http.StatusUnauthorized)
+				return
+			case err != nil:
 				slog.Warn("auth: invalid token", "path", r.URL.Path, "error", err)
 				http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 				return
 			}
-
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				slog.Warn("auth: invalid claims", "path", r.URL.Path)
-				http.Error(w, `{"error":"invalid claims"}`, http.StatusUnauthorized)
-				return
-			}
-
-			sub, ok := claims["sub"].(string)
-			if !ok || strings.TrimSpace(sub) == "" {
-				slog.Warn("auth: invalid claims", "path", r.URL.Path)
-				http.Error(w, `{"error":"invalid claims"}`, http.StatusUnauthorized)
-				return
-			}
-			email, _ := claims["email"].(string)
 			if rejectTemporarilyDisabledUser(w, r, sub, email, "jwt") {
 				return
-			}
-			// Session revocation (K60): a token minted before the user's
-			// sessions were invalidated is refused, whatever its exp.
-			if Revocations != nil {
-				iat := time.Time{}
-				if v, ok := claims["iat"].(float64); ok {
-					iat = time.Unix(int64(v), 0)
-				}
-				if Revocations.RefusesTokenIssuedAt(r.Context(), sub, iat) {
-					http.Error(w, `{"error":"session revoked"}`, http.StatusUnauthorized)
-					return
-				}
 			}
 			r.Header.Set("X-User-ID", sub)
 			if email != "" {

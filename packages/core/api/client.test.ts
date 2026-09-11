@@ -3078,3 +3078,31 @@ describe("ApiClient runtime compliance responses", () => {
     ).rejects.toThrow(/malformed runtime/);
   });
 });
+
+describe("ApiClient Google sign-in state", () => {
+  it("returns the browser-bound state and sends it back with the code", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ state: "abc123" }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "jwt", user: { id: "u1", name: "U", email: "u@example.test", avatar_url: null, created_at: "", updated_at: "" } }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.startGoogleLogin()).resolves.toBe("abc123");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/auth/google/start");
+    await client.googleLogin("code-1", "https://app.example.test/auth/callback", "abc123");
+    expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({
+      code: "code-1",
+      redirect_uri: "https://app.example.test/auth/callback",
+      state: "abc123",
+    });
+  });
+
+  it("refuses to start a Google sign-in on a malformed start response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ state: 42 }), { status: 200 })));
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.startGoogleLogin()).rejects.toThrow(/malformed/);
+  });
+});

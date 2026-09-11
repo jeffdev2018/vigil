@@ -32,7 +32,8 @@ import { useT } from "../i18n";
 interface GoogleAuthConfig {
   clientId: string;
   redirectUri: string;
-  /** Opaque state passed through Google OAuth (e.g. "platform:desktop"). */
+  /** Opaque state passed through Google OAuth (e.g. "platform:desktop").
+   *  An `oauth:<state>` part binding the flow to this browser is appended. */
   state?: string;
 }
 
@@ -307,12 +308,24 @@ export function LoginPage({
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     if (onGoogleLogin) {
       onGoogleLogin();
       return;
     }
     if (!google) return;
+    setLoading(true);
+    setError("");
+    let oauthState: string;
+    try {
+      // The server pins this state to the browser (HttpOnly cookie); the
+      // callback page sends it back so a code is only exchanged here.
+      oauthState = await api.startGoogleLogin();
+    } catch {
+      setError(t(($) => $.web.callback.login_failed));
+      setLoading(false);
+      return;
+    }
     const params = new URLSearchParams({
       client_id: google.clientId,
       redirect_uri: google.redirectUri,
@@ -320,8 +333,8 @@ export function LoginPage({
       scope: "openid email profile",
       access_type: "offline",
       prompt: "select_account",
+      state: [google.state, `oauth:${oauthState}`].filter(Boolean).join(","),
     });
-    if (google.state) params.set("state", google.state);
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
 

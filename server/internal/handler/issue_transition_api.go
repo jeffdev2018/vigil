@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -548,7 +549,10 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 		h.actingTaskID(r), h.issueTriggerWriteProbe(r, actor.Type, actor.ID, issue))
 	if err != nil {
 		var applyErr transitionApplyError
+		var refusal transitionGateRefusal
 		switch {
+		case errors.As(err, &refusal):
+			writeErrorCode(w, http.StatusConflict, refusal.code, refusal.msg)
 		case errors.As(err, &applyErr):
 			if writeIssueStatusRaceError(w, applyErr.err) {
 				return
@@ -591,6 +595,26 @@ func (h *Handler) decideTransitionCore(ctx context.Context, issue db.Issue, req 
 	if err != nil {
 		return db.IssueTransitionRequest{}, issue, err
 	}
+	// The request passed the state gates when it was filed, but an approval
+	// can come much later: a criterion lost its proof, a mirror opened. Those
+	// are re-checked before deciding, so a refusal leaves the request pending
+	// rather than recording an approval that cannot be applied. Actor gates
+	// (critic hold, trust dial, submit-review rules) judged the requester and
+	// stay settled; the transition rule itself is what the approver decides.
+	decidedTarget := ""
+	switch state {
+	case "approved":
+		decidedTarget = req.ToStatus
+	case "rejected":
+		if rule != nil {
+			decidedTarget = rule.RejectStatusKey
+		}
+	}
+	if decidedTarget != "" && decidedTarget != issue.Status {
+		if err := h.stateGatesAllowDecidedMove(ctx, issue, decidedTarget); err != nil {
+			return db.IssueTransitionRequest{}, issue, err
+		}
+	}
 	// The concurrency fence: two approvers racing both run this and only the
 	// first matches a pending row.
 	decided, err := h.Queries.DecideIssueTransitionRequest(ctx, db.DecideIssueTransitionRequestParams{
@@ -632,6 +656,42 @@ func (h *Handler) decideTransitionCore(ctx context.Context, issue db.Issue, req 
 		map[string]any{"request": issueTransitionRequestToResponse(decided)})
 	h.publishApproval(ctx, protocol.EventApprovalDecided, actor.Type, actor.ID, issue.WorkspaceID, issue.ID, ApprovalSourceTransition, uuidToString(decided.ID), ApprovalKindTransition, state)
 	return decided, applied, nil
+}
+
+// transitionGateRefusal is a state gate refusing a decided move; the request
+// stays pending. Code is the same error code the gate answers on UpdateIssue.
+type transitionGateRefusal struct {
+	code string
+	msg  string
+}
+
+func (e transitionGateRefusal) Error() string { return e.msg }
+
+// stateGatesAllowDecidedMove runs the issue-state gates UpdateIssue runs
+// (plan verification, review gate, acceptance criteria, open mirrors) for a
+// move an approver is deciding. A read failure is an error, never a pass.
+func (h *Handler) stateGatesAllowDecidedMove(ctx context.Context, issue db.Issue, statusKey string) error {
+	if blocked, err := h.planVerificationBlocksDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if blocked {
+		return transitionGateRefusal{code: ErrCodePlanVerificationCritical, msg: "plan verification found a critical divergence; publish a new plan version or a clean verification before marking done"}
+	}
+	if reason, err := h.reviewGateBlocksDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if reason != "" {
+		return transitionGateRefusal{msg: reason}
+	}
+	if issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, statusKey) == issuestatus.Done {
+		if unsatisfied := unsatisfiedAcceptanceCriteria(issue.AcceptanceCriteria); len(unsatisfied) > 0 {
+			return transitionGateRefusal{code: ErrCodeUnsatisfiedAcceptanceCriteria, msg: fmt.Sprintf("%d acceptance criteria lack proof", len(unsatisfied))}
+		}
+	}
+	if _, identifiers, err := h.openMirrorsBlockingDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if len(identifiers) > 0 {
+		return transitionGateRefusal{code: ErrCodeOpenMirrors, msg: openMirrorsMessage(identifiers)}
+	}
+	return nil
 }
 
 // transitionRuleFor is ruleForRequest without a request, for the chat-button

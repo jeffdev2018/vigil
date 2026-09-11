@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/multica-ai/multica/server/internal/auth"
 )
@@ -676,7 +675,9 @@ func (h *Hub) Snapshot() map[string]any {
 }
 
 // authenticateToken validates a JWT or PAT string and returns the user ID.
-func authenticateToken(tokenStr string, pr PATResolver, ctx context.Context) (string, string) {
+// revocations (K60) refuses a JWT minted before the user's sessions were
+// revoked; nil skips that check.
+func authenticateToken(tokenStr string, pr PATResolver, revocations *auth.SessionRevocations, ctx context.Context) (string, string) {
 	if strings.HasPrefix(tokenStr, "mul_") {
 		if pr == nil {
 			return "", `{"error":"invalid token"}`
@@ -691,26 +692,15 @@ func authenticateToken(tokenStr string, pr PATResolver, ctx context.Context) (st
 		return uid, ""
 	}
 
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return auth.JWTSecret(), nil
-	})
-	if err != nil || !token.Valid {
+	uid, email, err := auth.ParseSessionJWT(ctx, tokenStr, revocations)
+	switch {
+	case errors.Is(err, auth.ErrSessionRevoked):
+		return "", `{"error":"session revoked"}`
+	case errors.Is(err, auth.ErrInvalidClaims):
+		return "", `{"error":"invalid claims"}`
+	case err != nil:
 		return "", `{"error":"invalid token"}`
 	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", `{"error":"invalid claims"}`
-	}
-
-	uid, ok := claims["sub"].(string)
-	if !ok || strings.TrimSpace(uid) == "" {
-		return "", `{"error":"invalid claims"}`
-	}
-	email, _ := claims["email"].(string)
 	if auth.IsTemporarilyDisabledUser(uid, email) {
 		return "", `{"error":"account disabled"}`
 	}
@@ -772,7 +762,7 @@ func writeWSAuthErrorAndClose(conn *websocket.Conn, payload []byte, attrs ...any
 
 // HandleWebSocket upgrades an HTTP connection to WebSocket with cookie or
 // first-message auth.
-func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
+func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, revocations *auth.SessionRevocations, resolveSlug SlugResolver, w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
 	if workspaceID == "" {
 		if slug := r.URL.Query().Get("workspace_slug"); slug != "" && resolveSlug != nil {
@@ -791,7 +781,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 
 	var userID string
 	if cookie, err := r.Cookie(auth.AuthCookieName); err == nil && cookie.Value != "" {
-		uid, errMsg := authenticateToken(cookie.Value, pr, r.Context())
+		uid, errMsg := authenticateToken(cookie.Value, pr, revocations, r.Context())
 		if errMsg != "" {
 			status := http.StatusUnauthorized
 			if errMsg == `{"error":"account disabled"}` {
@@ -827,7 +817,7 @@ func HandleWebSocket(hub *Hub, mc MembershipChecker, pr PATResolver, resolveSlug
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
 			return
 		}
-		uid, errMsg := authenticateToken(tokenStr, pr, r.Context())
+		uid, errMsg := authenticateToken(tokenStr, pr, revocations, r.Context())
 		if errMsg != "" {
 			writeWSAuthErrorAndClose(conn, []byte(errMsg), "workspace_id", workspaceID)
 			return

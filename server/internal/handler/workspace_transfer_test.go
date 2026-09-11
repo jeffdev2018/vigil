@@ -308,3 +308,24 @@ func TestTransferScrub(t *testing.T) {
 		t.Fatal("garbage becomes an empty object; token shapes are masked in text")
 	}
 }
+
+// The doctrine is human-only on every door (PUT /api/workspace/doctrine,
+// PUT /api/workspace context). An import bundle carrying doctrine, or a new
+// workspace seeded from a pack or template, must refuse a machine
+// credential the same way.
+func TestTransferDoctrineRefusesMachineActors(t *testing.T) {
+	doctrineCleanup(t)
+	data, err := zipTransferBundle(&transferBundle{Manifest: transferManifest{FormatVersion: transferFormatVersion, Name: "machine rules"}, Doctrine: "Ship on Fridays."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := transferMultipart(t, testWorkspaceID, "/api/workspace-transfer/import", data, map[string]string{"strategy": "merge"})
+	req.Header.Set("X-Actor-Source", "task_token")
+	testutil.Call(t, testHandler.ImportWorkspace, req).Want(http.StatusForbidden)
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM workspace_doctrine_version WHERE workspace_id = $1`, testWorkspaceID); n != 0 {
+		t.Fatalf("a machine import published %d doctrine versions", n)
+	}
+	seed := newRequest(http.MethodPost, "/api/workspaces", map[string]any{"name": "Machine seed", "slug": "machine-seed-" + uuid.NewString()[:8], "pack_id": "helpdesk-it"})
+	seed.Header.Set("X-Actor-Source", "cloud_pat")
+	testutil.Call(t, testHandler.CreateWorkspace, seed).Want(http.StatusForbidden)
+}

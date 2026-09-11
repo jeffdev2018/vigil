@@ -62,8 +62,10 @@ var issueStatusWriters = map[string]statusWriterClass{
 	// gated path. Gating here would evaluate the same move twice.
 	"internal/handler/issue_move.go": statusWriterDownstream,
 	// The approve/reject handlers apply a move an approver just authorised.
-	// The approver's decision IS the gate; re-running it would refuse the very
-	// transition that was approved.
+	// The approver's decision IS the transition gate; re-running it would
+	// refuse the very transition that was approved. The issue-state gates
+	// (criteria, mirrors, plan verification, review) are re-checked before
+	// deciding, since that state can change while the request waits.
 	"internal/handler/issue_transition_api.go": statusWriterDownstream,
 	// IssueService.Create is called by the handlers above, which have already
 	// gated the create. The service has no request and therefore no actor.

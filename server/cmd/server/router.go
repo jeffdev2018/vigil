@@ -1545,7 +1545,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		return util.UUIDToString(ws.ID), nil
 	})
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
+		realtime.HandleWebSocket(hub, mc, pr, middleware.Revocations, slugResolver, w, r)
 	})
 
 	// Local file serving (when using local storage). Served through the
@@ -1594,6 +1594,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	contactSalesRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_CONTACT_SALES", 5), time.Hour, trustedProxies)
 	r.With(authRL).Post("/auth/send-code", h.SendCode)
 	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
+	r.With(authRL).Post("/auth/google/start", h.GoogleLoginStart)
 	r.With(authRL).Post("/auth/google", h.GoogleLogin)
 	r.Post("/auth/logout", h.Logout)
 	// SSO (K60): the browser starts an OIDC login for a workspace and trades the code.
@@ -3034,8 +3035,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/epic", h.GetProjectEpic)
 					r.Post("/epic/steps/{kind}/generate", h.GenerateProjectEpicStep)
 					r.Put("/epic/steps/{kind}", h.PutProjectEpicStep)
-					r.Post("/epic/steps/{kind}/approve", h.ApproveProjectEpicStep)
-					r.Post("/epic/steps/{kind}/apply", h.ApplyProjectEpicTickets)
+					// Approve and apply are the human gates between steps: an
+					// agent must not approve its own draft or create the
+					// child issues it wrote.
+					r.With(handler.RequireHumanActor).Post("/epic/steps/{kind}/approve", h.ApproveProjectEpicStep)
+					r.With(handler.RequireHumanActor).Post("/epic/steps/{kind}/apply", h.ApplyProjectEpicTickets)
 				})
 			})
 

@@ -225,14 +225,23 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 	}
 	// Approval gates (K05) may be reserved to owners and admins by policy;
 	// every other card keeps the rule that whoever sees the issue may answer.
+	// A failed read fails closed: only "no gate" skips the approver check.
 	if _, gerr := h.Queries.GetApprovalGateByDecision(ctx, decision.ID); gerr == nil {
-		if ws, werr := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); werr == nil {
-			member, merr := h.getWorkspaceMember(ctx, userID, uuidToString(issue.WorkspaceID))
-			if merr != nil || !service.ApprovalGatesSettings(ws.Settings).GateApproverAllowed(member.Role) {
-				writeErrorCode(w, http.StatusForbidden, "not_an_approver", "this workspace reserves approval gates to owners and admins")
-				return
-			}
+		ws, werr := h.Queries.GetWorkspace(ctx, issue.WorkspaceID)
+		if werr != nil {
+			slog.Error("decision: load workspace for approval gate", "decision_id", uuidToString(decision.ID), "error", werr)
+			writeError(w, http.StatusInternalServerError, "failed to check the approval gate")
+			return
 		}
+		member, merr := h.getWorkspaceMember(ctx, userID, uuidToString(issue.WorkspaceID))
+		if merr != nil || !service.ApprovalGatesSettings(ws.Settings).GateApproverAllowed(member.Role) {
+			writeErrorCode(w, http.StatusForbidden, "not_an_approver", "this workspace reserves approval gates to owners and admins")
+			return
+		}
+	} else if !errors.Is(gerr, pgx.ErrNoRows) {
+		slog.Error("decision: load approval gate", "decision_id", uuidToString(decision.ID), "error", gerr)
+		writeError(w, http.StatusInternalServerError, "failed to check the approval gate")
+		return
 	}
 	var options []DecisionOption
 	_ = json.Unmarshal(decision.Options, &options)

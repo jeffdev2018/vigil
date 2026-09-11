@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -109,7 +110,9 @@ func newTestService(t *testing.T, publicURL string) (*Service, *memStore) {
 		t.Fatal(err)
 	}
 	store := newMemStore()
-	svc := &Service{Store: store, Box: box, PublicURL: publicURL}
+	// The fake instance listens on loopback, which the production client
+	// refuses (client_test.go); these tests are about the service, not the guard.
+	svc := &Service{Store: store, Box: box, PublicURL: publicURL, HTTP: &http.Client{}}
 	return svc, store
 }
 

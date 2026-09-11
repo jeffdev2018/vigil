@@ -16,10 +16,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util/netguard"
 )
 
 const (
@@ -46,9 +49,16 @@ func NewClient(baseURL, apiKey string, httpClient *http.Client) (*Client, error)
 		return nil, errors.New("api_key is required")
 	}
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: clientTimeout}
+		httpClient = newGuardedHTTPClient()
 	}
 	return &Client{BaseURL: u.String(), APIKey: strings.TrimSpace(apiKey), HTTP: httpClient}, nil
+}
+
+// newGuardedHTTPClient is the production client: the base URL is typed by a
+// workspace admin and fetched from inside the deployment, so it may only
+// reach public addresses (no metadata endpoint, loopback or private network).
+func newGuardedHTTPClient() *http.Client {
+	return netguard.NewHTTPClient(netguard.Dialer{}, clientTimeout)
 }
 
 // MCPURL is the instance's MCP endpoint.
@@ -219,7 +229,11 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		return errors.New("twenty: the API key was refused")
 	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("twenty: %s %s: HTTP %d: %s", method, path, resp.StatusCode, truncate(string(raw), 300))
+		// The body stays in the server log: the error reaches the requester
+		// and the connection's last_error, and whatever the base URL points
+		// at must not be readable back through them.
+		slog.Warn("twenty: upstream error", "method", method, "path", path, "status", resp.StatusCode, "body", truncate(string(raw), 300))
+		return fmt.Errorf("twenty: %s %s: HTTP %d", method, path, resp.StatusCode)
 	}
 	if out == nil || len(bytes.TrimSpace(raw)) == 0 {
 		return nil

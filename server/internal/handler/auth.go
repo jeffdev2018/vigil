@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +46,7 @@ const (
 	googleLoginCodeEmailNotAllowed     = "email_not_allowed"
 	googleLoginCodeAccountWithoutEmail = "google_account_no_email"
 	googleLoginCodeInvalidOAuthCode    = "oauth_code_invalid"
+	googleLoginCodeInvalidOAuthState   = "oauth_state_invalid"
 )
 
 const devVerificationCodeEnv = "MULTICA_DEV_VERIFICATION_CODE"
@@ -301,7 +303,11 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check signup restrictions before sending magic link
+	// Signup restrictions. A refused new email gets the same answer as an
+	// existing account — same status, same body, same rate limit — so
+	// send-code cannot be used to enumerate accounts on a closed instance.
+	// No code is mailed for it; verify-code still refuses the signup.
+	mailCode := true
 	existingUser, err := h.Queries.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		if !isNotFound(err) {
@@ -309,34 +315,13 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to lookup user")
 			return
 		}
-		// User does not exist → treat as new user
-		isNewUser := true
-		if err := h.checkSignupAllowed(email, isNewUser); err != nil {
-			var signupErr SignupError
-			if errors.As(err, &signupErr) {
-				writeError(w, http.StatusForbidden, signupErr.Error())
-			} else {
-				writeError(w, http.StatusForbidden, "user registration is disabled")
-			}
-			return
+		if err := h.checkSignupAllowed(email, true); err != nil {
+			slog.Info("send-code: signup refused; answering like an existing account", "error", err)
+			mailCode = false
 		}
-	} else {
-		// User already exists → always allowed to login
-		if auth.IsTemporarilyDisabledUser(uuidToString(existingUser.ID), existingUser.Email) {
-			writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
-			return
-		}
-		isNewUser := false
-		if err := h.checkSignupAllowed(email, isNewUser); err != nil {
-			// This should rarely happen, but handle it anyway
-			var signupErr SignupError
-			if errors.As(err, &signupErr) {
-				writeError(w, http.StatusForbidden, signupErr.Error())
-			} else {
-				writeError(w, http.StatusForbidden, "user registration is disabled")
-			}
-			return
-		}
+	} else if auth.IsTemporarilyDisabledUser(uuidToString(existingUser.ID), existingUser.Email) {
+		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		return
 	}
 
 	// Rate limit: max 1 code per 60 seconds per email
@@ -362,10 +347,12 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.EmailService.SendVerificationCode(email, code); err != nil {
-		slog.Error("failed to send verification code", "email", email, "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to send verification code")
-		return
+	if mailCode {
+		if err := h.EmailService.SendVerificationCode(email, code); err != nil {
+			slog.Error("failed to send verification code", "email", email, "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to send verification code")
+			return
+		}
 	}
 
 	// Best-effort cleanup of expired codes
@@ -504,6 +491,9 @@ type UpdateMeRequest struct {
 type GoogleLoginRequest struct {
 	Code        string `json:"code"`
 	RedirectURI string `json:"redirect_uri"`
+	// State is the value POST /auth/google/start returned, echoed back from
+	// Google's redirect. It must match the browser's state cookie.
+	State string `json:"state"`
 }
 
 type googleTokenResponse struct {
@@ -544,6 +534,22 @@ func (h *Handler) googleHTTPClient() *http.Client {
 	return http.DefaultClient
 }
 
+// GoogleLoginStart: POST /auth/google/start → {state}. It mints the state
+// the browser puts in Google's authorization URL and pins it to that browser
+// in an HttpOnly cookie, so POST /auth/google only exchanges a code for the
+// browser that started the flow. The desktop app starts Google sign-in in
+// the system browser, which carries the cookie through the whole round-trip.
+func (h *Handler) GoogleLoginStart(w http.ResponseWriter, r *http.Request) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start Google login")
+		return
+	}
+	state := hex.EncodeToString(buf)
+	auth.SetGoogleOAuthStateCookie(w, state)
+	writeJSON(w, http.StatusOK, map[string]string{"state": state})
+}
+
 func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	var req GoogleLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -553,6 +559,16 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if req.Code == "" {
 		writeError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+
+	// Login CSRF: the state is single-use and must be the one this browser
+	// was handed by GoogleLoginStart.
+	stateCookie, cookieErr := r.Cookie(auth.GoogleOAuthStateCookieName)
+	auth.ClearGoogleOAuthStateCookie(w)
+	if cookieErr != nil || stateCookie.Value == "" || req.State == "" ||
+		subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(req.State)) != 1 {
+		writeErrorCode(w, http.StatusBadRequest, googleLoginCodeInvalidOAuthState, "the Google sign-in was not started from this browser; sign in again")
 		return
 	}
 
@@ -732,7 +748,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.CFSigner != nil {
-		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(72 * time.Hour)) {
+		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(auth.AuthTokenTTL())) {
 			http.SetCookie(w, cookie)
 		}
 	}

@@ -869,7 +869,9 @@ func (h *Handler) CreateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	req, def, owner, dissolve, ok := h.decodeOrgRequest(w, r)
@@ -941,7 +943,9 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "structure id")
@@ -1076,7 +1080,9 @@ func (h *Handler) SetOrgStructureStatus(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "structure id")

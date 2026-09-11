@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -197,6 +199,41 @@ func TestScimProvisioning(t *testing.T) {
 	member := dbfx.User(t, "scim viewer", "scim-viewer-"+uuid.NewString()[:6]+"@example.test")
 	dbfx.Member(t, testWorkspaceID, member, "admin")
 	testutil.Call(t, testHandler.CreateScimToken, ws(newRequestAs(member, http.MethodPost, "/x", nil))).Want(http.StatusForbidden)
+}
+
+type failingBeginTxStarter struct{}
+
+func (failingBeginTxStarter) Begin(context.Context) (pgx.Tx, error) {
+	return nil, errors.New("injected begin failure")
+}
+
+// A deprovisioning whose membership removal fails must not answer success:
+// the identity provider would stop retrying while the member row survives.
+func TestScimDeprovisionFailureIsReported(t *testing.T) {
+	ctx := context.Background()
+	ws := func(req *http.Request) *http.Request {
+		return testutil.WithURLParams(req, "id", testWorkspaceID)
+	}
+	var tok ScimTokenResponse
+	testutil.Call(t, testHandler.CreateScimToken, ws(newRequest(http.MethodPost, "/x", nil))).Want(http.StatusCreated).JSON(&tok)
+	t.Cleanup(func() { testPool.Exec(ctx, `DELETE FROM scim_token WHERE workspace_id = $1`, testWorkspaceID) })
+	user := dbfx.User(t, "scim failing", "scim-failing-"+uuid.NewString()[:6]+"@example.test")
+	member := dbfx.Member(t, testWorkspaceID, user, "member")
+
+	original := testHandler.TxStarter
+	t.Cleanup(func() { testHandler.TxStarter = original })
+	testHandler.TxStarter = failingBeginTxStarter{}
+
+	scim := middleware.SCIMBearerOnly(testHandler.Queries)
+	call := func(handler http.HandlerFunc, req *http.Request) *testutil.Response {
+		return testutil.Call(t, scim(http.HandlerFunc(handler)).ServeHTTP, testutil.WithURLParams(req, "id", member))
+	}
+	call(testHandler.ScimDeleteUser, scimRequest(http.MethodDelete, "/scim/v2/Users/"+member, tok.Token, nil)).Want(http.StatusInternalServerError)
+	call(testHandler.ScimPatchUser, scimRequest(http.MethodPatch, "/scim/v2/Users/"+member, tok.Token, map[string]any{"Operations": []map[string]any{{"op": "replace", "path": "active", "value": false}}})).Want(http.StatusInternalServerError)
+	call(testHandler.ScimReplaceUser, scimRequest(http.MethodPut, "/scim/v2/Users/"+member, tok.Token, map[string]any{"active": false})).Want(http.StatusInternalServerError)
+	if dbfx.Count(t, `SELECT COUNT(*) FROM member WHERE id = $1`, member) != 1 {
+		t.Fatal("the failed removal left the membership in place")
+	}
 }
 
 // fakeOIDCProvider answers discovery, JWKS and the token endpoint, signing an

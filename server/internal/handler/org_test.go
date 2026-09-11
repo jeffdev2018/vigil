@@ -354,3 +354,23 @@ func TestOrgChart(t *testing.T) {
 		t.Fatalf("preflight: %+v", pf)
 	}
 }
+
+// Creating, editing and driving the lifecycle of an org structure changes
+// who routes the workspace's work and how much autonomy agents get: the same
+// owner/admin bar as deleting one.
+func TestOrgStructureWritesRequireOwnerOrAdmin(t *testing.T) {
+	ctx := context.Background()
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM org_revision WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(ctx, `DELETE FROM org_structure WHERE workspace_id = $1 AND project_id IS NOT NULL`, testWorkspaceID)
+	})
+	body := map[string]any{"project_id": dbfx.Project(t, "org roles "+uuid.NewString()[:6]), "model": "owner_network", "definition": OrgDefinition{Units: []OrgUnit{orgUnit("u", "U", testUserID)}}}
+	s := orgCreate(t, body, http.StatusCreated)
+
+	member := dbfx.User(t, "org member", "org-member-"+uuid.NewString()[:6]+"@example.test")
+	dbfx.Member(t, testWorkspaceID, member, "member")
+	body["project_id"] = dbfx.Project(t, "org roles member "+uuid.NewString()[:6])
+	testutil.Call(t, testHandler.CreateOrgStructure, newRequestAs(member, http.MethodPost, "/api/org", body)).Want(http.StatusForbidden)
+	testutil.Call(t, testHandler.UpdateOrgStructure, testutil.WithURLParams(newRequestAs(member, http.MethodPut, "/api/org/"+s.ID, map[string]any{"name": "renamed"}), "id", s.ID)).Want(http.StatusForbidden)
+	testutil.Call(t, testHandler.SetOrgStructureStatus, testutil.WithURLParams(newRequestAs(member, http.MethodPost, "/api/org/"+s.ID+"/activate", map[string]any{}), "id", s.ID, "action", "activate")).Want(http.StatusForbidden)
+}

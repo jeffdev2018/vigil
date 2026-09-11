@@ -232,6 +232,12 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	// Seeding from a template or pack imports its doctrine, agents and
+	// autopilots — human-only, like installing a pack into a workspace.
+	if ((req.TemplateRunID != nil && *req.TemplateRunID != "") || (req.PackID != nil && *req.PackID != "")) && isMachineCredentialActor(r) {
+		writeError(w, http.StatusForbidden, "only a human can seed a workspace from a template or pack")
+		return
+	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	req.Slug = strings.ToLower(strings.TrimSpace(req.Slug))
