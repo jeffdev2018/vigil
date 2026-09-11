@@ -429,3 +429,74 @@ func TestFirstLineCutsAtAWordBoundary(t *testing.T) {
 		}
 	}
 }
+
+// TestBrainCaptureUploadCompensatesOnAttachFailure covers the fix for the
+// audit finding "AttachAttachmentToCapture fails after a successful
+// upload+CreateAttachment+CreateBrainCapture leaves an orphan attachment row
+// and an orphan storage object" (brain_capture.go:UploadBrainCapture). A
+// BEFORE UPDATE trigger on attachment forces the same failure
+// AttachAttachmentToCapture would hit in production (DB blip, constraint),
+// and the test asserts both the attachment row and the storage object are
+// gone afterward, not just the brain_capture row.
+func TestBrainCaptureUploadCompensatesOnAttachFailure(t *testing.T) {
+	ctx := context.Background()
+	workspaceID := brainWorkspace(t)
+	store := &mockStorage{}
+	origStorage := testHandler.Storage
+	testHandler.Storage = store
+	t.Cleanup(func() { testHandler.Storage = origStorage })
+
+	const functionName = "brain_capture_attach_fail_fn"
+	const triggerName = "brain_capture_attach_fail_trg"
+	if _, err := testPool.Exec(ctx, `
+CREATE OR REPLACE FUNCTION `+functionName+`() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW.capture_id IS NOT NULL THEN
+		RAISE EXCEPTION 'forced attach-to-capture failure';
+	END IF;
+	RETURN NEW;
+END;
+$$;`); err != nil {
+		t.Fatalf("install failure function: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, `
+CREATE TRIGGER `+triggerName+`
+BEFORE UPDATE ON attachment
+FOR EACH ROW EXECUTE FUNCTION `+functionName+`();`); err != nil {
+		t.Fatalf("install failure trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DROP TRIGGER IF EXISTS `+triggerName+` ON attachment`)
+		testPool.Exec(ctx, `DROP FUNCTION IF EXISTS `+functionName+`()`)
+	})
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "whiteboard.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte("\x89PNG\r\n\x1a\nrest-of-bytes"))
+	_ = writer.WriteField("content", "photo of the sprint board")
+	_ = writer.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-User-ID", testUserID)
+	req.Header.Set("X-Workspace-ID", workspaceID)
+
+	resp := testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture), req).Want(http.StatusInternalServerError)
+	_ = resp
+
+	if n := dbfx.Count(t, `SELECT count(*) FROM brain_capture WHERE workspace_id = $1`, workspaceID); n != 0 {
+		t.Fatalf("brain_capture rows after failed attach = %d, want 0 (DeleteBrainCapture already covered this)", n)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM attachment WHERE workspace_id = $1`, workspaceID); n != 0 {
+		t.Fatalf("attachment rows after failed attach = %d, want 0: the fix must delete the orphan attachment row", n)
+	}
+	store.mu.Lock()
+	remaining := len(store.files)
+	store.mu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("storage objects after failed attach = %d, want 0: the fix must delete the orphan storage object", remaining)
+	}
+}

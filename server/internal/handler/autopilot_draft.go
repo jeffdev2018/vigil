@@ -379,7 +379,10 @@ func (h *Handler) applyAutopilotForDecision(ctx context.Context, decision db.Iss
 		return true
 	}
 	if activate {
-		triggers, _ := h.Queries.ListAutopilotTriggers(ctx, ap.ID)
+		triggers, err := h.Queries.ListAutopilotTriggers(ctx, ap.ID)
+		if err != nil {
+			slog.Warn("autopilot decision: listing triggers failed, activating without reactivating any", "error", err, "autopilot_id", uuidToString(ap.ID))
+		}
 		for _, tr := range triggers {
 			next := pgtype.Timestamptz{}
 			if tr.CronExpression.Valid {
@@ -387,14 +390,21 @@ func (h *Handler) applyAutopilotForDecision(ctx context.Context, decision db.Iss
 					next = pgtype.Timestamptz{Time: runs[0], Valid: true}
 				}
 			}
-			_, _ = h.Queries.UpdateAutopilotTrigger(ctx, db.UpdateAutopilotTriggerParams{ID: tr.ID, Enabled: pgtype.Bool{Bool: true, Valid: true}, NextRunAt: next})
+			if _, err := h.Queries.UpdateAutopilotTrigger(ctx, db.UpdateAutopilotTriggerParams{ID: tr.ID, Enabled: pgtype.Bool{Bool: true, Valid: true}, NextRunAt: next}); err != nil {
+				slog.Warn("autopilot decision: trigger reactivation failed", "error", err, "autopilot_id", uuidToString(ap.ID), "trigger_id", uuidToString(tr.ID))
+			}
 		}
 		if updated, err := h.Queries.UpdateAutopilot(ctx, db.UpdateAutopilotParams{ID: ap.ID, Status: pgtype.Text{String: "active", Valid: true}}); err == nil {
 			ap = updated
+		} else {
+			slog.Warn("autopilot decision: activation status update failed", "error", err, "autopilot_id", uuidToString(ap.ID))
 		}
 	} else {
-		_ = h.Queries.ArchiveAutopilot(ctx, ap.ID)
-		ap.Status = "archived"
+		if err := h.Queries.ArchiveAutopilot(ctx, ap.ID); err != nil {
+			slog.Warn("autopilot decision: archive failed", "error", err, "autopilot_id", uuidToString(ap.ID))
+		} else {
+			ap.Status = "archived"
+		}
 	}
 	h.audit(ctx, ap.WorkspaceID, actorType, actorID, AuditAutopilotDecided, "autopilot", ap.ID, map[string]any{"activated": activate, "decision_id": uuidToString(decision.ID)}, nil)
 	h.publish(protocol.EventAutopilotUpdated, uuidToString(ap.WorkspaceID), actorType, actorID, map[string]any{"autopilot": autopilotToResponse(ap, nil)})

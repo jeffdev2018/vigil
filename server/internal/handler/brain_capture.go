@@ -371,14 +371,33 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 		CreatedByType: actorType, CreatedByID: actorID, SourceTaskID: taskID,
 	})
 	if err != nil {
+		// The capture failed but the attachment and its file were already
+		// persisted above: compensate both, symmetric to the link-failure
+		// path below, so no orphan attachment/file survives the request.
+		slog.Error("brain capture: create capture failed", "error", err)
+		if _, derr := h.Queries.DeleteAttachment(r.Context(), db.DeleteAttachmentParams{ID: att.ID, WorkspaceID: wsUUID}); derr != nil {
+			slog.Error("brain capture: compensating attachment delete failed", "attachment_id", uuidToString(att.ID), "error", derr)
+		}
+		if derr := h.Storage.DeleteObject(r.Context(), key); derr != nil {
+			slog.Error("brain capture: compensating storage delete failed", "key", key, "error", derr)
+		}
 		writeError(w, http.StatusInternalServerError, "failed to capture")
 		return
 	}
 	if err := h.Queries.AttachAttachmentToCapture(r.Context(), db.AttachAttachmentToCaptureParams{ID: att.ID, WorkspaceID: wsUUID, CaptureID: capture.ID}); err != nil {
 		// Without the link the capture would sit in the inbox with no file
-		// behind it: drop it so the client can retry the upload cleanly.
+		// behind it: drop it so the client can retry the upload cleanly, and
+		// compensate the attachment row plus its storage object too, or
+		// they'd survive as orphans (att exists in DB, key exists on disk)
+		// after the capture itself is gone.
 		slog.Error("brain capture: link attachment failed", "capture_id", uuidToString(capture.ID), "error", err)
 		_, _ = h.Queries.DeleteBrainCapture(r.Context(), db.DeleteBrainCaptureParams{ID: capture.ID, WorkspaceID: wsUUID})
+		if _, derr := h.Queries.DeleteAttachment(r.Context(), db.DeleteAttachmentParams{ID: att.ID, WorkspaceID: wsUUID}); derr != nil {
+			slog.Error("brain capture: compensating attachment delete failed", "attachment_id", uuidToString(att.ID), "error", derr)
+		}
+		if derr := h.Storage.DeleteObject(r.Context(), key); derr != nil {
+			slog.Error("brain capture: compensating storage delete failed", "key", key, "error", derr)
+		}
 		writeError(w, http.StatusInternalServerError, "failed to store the capture")
 		return
 	}
