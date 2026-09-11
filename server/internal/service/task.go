@@ -1377,17 +1377,16 @@ func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.
 // children (JEF-257) collide with the pending slot of the PAUSED TASK's
 // agent, which is not necessarily the issue's current assignee.
 func (s *TaskService) mergeHandoffIntoPendingTaskForAgent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, handoffNote string) (db.AgentTaskQueue, error) {
-	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
-		IssueID: issue.ID,
-		AgentID: agentID,
+	merged, err := s.Queries.AppendHandoffNoteToPendingTask(ctx, db.AppendHandoffNoteToPendingTaskParams{
+		IssueID:     issue.ID,
+		AgentID:     agentID,
+		HandoffNote: handoffNote,
 	})
-	if err != nil {
-		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The slot is held by a run that was already dispatched (or it
+		// finished meanwhile): there is no waiting run to carry the note.
+		return db.AgentTaskQueue{}, fmt.Errorf("handoff note not merged, the pending run already started: %w", ErrDuplicatePendingTask)
 	}
-	merged, err := s.Queries.AppendTaskHandoffNote(ctx, db.AppendTaskHandoffNoteParams{
-		ID:          pending.ID,
-		HandoffNote: pgtype.Text{String: handoffNote, Valid: true},
-	})
 	if err != nil {
 		return db.AgentTaskQueue{}, fmt.Errorf("append handoff note: %w", err)
 	}

@@ -3044,28 +3044,32 @@ INSERT INTO agent (
 )
 RETURNING *;
 
--- name: GetPendingTaskForIssueAndAgent :one
--- Returns the task occupying the pending slot (the same predicate as
--- idx_one_pending_task_per_issue_agent_v2). Used by the handoff coalescing
--- path (JEF-241): when an interview answer / review rework / resume arrives
--- while a run is already queued, its note merges into that task instead of
--- failing the enqueue on the unique index.
-SELECT * FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
-  AND (
-    status IN ('queued', 'dispatched')
-    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
-  );
-
--- name: AppendTaskHandoffNote :one
--- Appends a handoff note to the task's existing one (JEF-241 coalescing).
+-- name: AppendHandoffNoteToPendingTask :one
+-- Handoff coalescing (JEF-241): when an interview answer / review rework /
+-- resume arrives while a run is already queued, its note merges into that task
+-- instead of failing the enqueue on the unique pending index. A handoff enqueue
+-- carries no trigger comment and no run group, so the only row it can have
+-- collided with is the assignment-level one (comment_thread_id NULL, outside
+-- any run group) — idx_one_pending_task_per_issue_agent_thread admits at most
+-- one such row. A dispatched occupant is excluded: its claim payload, and so
+-- its prompt, was built from the row as it stood, and a note written now would
+-- never be read. The status re-check under the row lock also closes the race
+-- with a claim committing between the enqueue failure and this write. No row
+-- means the note has no pending run to ride on.
 -- The separator keeps successive notes readable as distinct blocks.
 UPDATE agent_task_queue
 SET handoff_note = CASE
-    WHEN handoff_note IS NULL OR handoff_note = '' THEN $2
-    ELSE handoff_note || E'\n\n---\n\n' || $2
+    WHEN handoff_note IS NULL OR handoff_note = '' THEN sqlc.arg('handoff_note')::text
+    ELSE handoff_note || E'\n\n---\n\n' || sqlc.arg('handoff_note')::text
   END
-WHERE id = $1
+WHERE issue_id = sqlc.arg('issue_id')
+  AND agent_id = sqlc.arg('agent_id')
+  AND comment_thread_id IS NULL
+  AND run_group_id IS NULL
+  AND (
+    status = 'queued'
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  )
 RETURNING *;
 
 -- name: StampTaskDispatchLane :exec
