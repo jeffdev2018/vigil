@@ -135,6 +135,8 @@
     "cancel_dialog_keep": "Keep them",
     "cancel_dialog_confirm": "Cancel all runs",
     "archive_dialog_title": "Archive \"{{name}}\"?",
+    "archive_dialog_title_bulk_one": "Archive {{count}} agent?",
+    "archive_dialog_title_bulk_other": "Archive {{count}} agents?",
     "archive_dialog_description": "The agent won't be assignable or mentionable, and any active runs will be cancelled. All history is preserved and you can restore it later.",
     "archive_dialog_cancel": "Cancel",
     "archive_dialog_confirm": "Archive"

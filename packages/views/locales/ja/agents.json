@@ -118,6 +118,7 @@
     "cancel_dialog_keep": "そのままにする",
     "cancel_dialog_confirm": "すべての実行をキャンセル",
     "archive_dialog_title": "\"{{name}}\" をアーカイブしますか？",
+    "archive_dialog_title_bulk_other": "エージェント{{count}}件をアーカイブしますか？",
     "archive_dialog_description": "このエージェントは割り当てやメンションができなくなり、アクティブな実行はすべてキャンセルされます。履歴はすべて保持され、後で復元できます。",
     "archive_dialog_cancel": "キャンセル",
     "archive_dialog_confirm": "アーカイブ"

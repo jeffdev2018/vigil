@@ -126,6 +126,7 @@
     "cancel_dialog_keep": "계속 실행",
     "cancel_dialog_confirm": "모든 실행 취소",
     "archive_dialog_title": "\"{{name}}\"을(를) 보관할까요?",
+    "archive_dialog_title_bulk_other": "에이전트 {{count}}개를 보관할까요?",
     "archive_dialog_description": "이 에이전트는 할당하거나 멘션할 수 없고, 활성 실행은 모두 취소됩니다. 기록은 유지되며 나중에 복원할 수 있습니다.",
     "archive_dialog_cancel": "취소",
     "archive_dialog_confirm": "보관"

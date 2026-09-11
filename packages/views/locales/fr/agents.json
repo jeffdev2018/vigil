@@ -135,6 +135,8 @@
     "cancel_dialog_keep": "Les conserver",
     "cancel_dialog_confirm": "Annuler toutes les exécutions",
     "archive_dialog_title": "Archiver \"{{name}}\" ?",
+    "archive_dialog_title_bulk_one": "Archiver {{count}} agent ?",
+    "archive_dialog_title_bulk_other": "Archiver {{count}} agents ?",
     "archive_dialog_description": "L'agent ne pourra plus être assigné ni mentionné, et toutes les exécutions actives seront annulées. L'historique est conservé et vous pourrez le restaurer plus tard.",
     "archive_dialog_cancel": "Annuler",
     "archive_dialog_confirm": "Archiver"

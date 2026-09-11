@@ -228,12 +228,9 @@ export function AgentBatchToolbar({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {t(($) => $.row_actions.archive_dialog_title, {
-                name:
-                  rows.length === 1 && rows[0]
-                    ? rows[0].agent.name
-                    : String(rows.length),
-              })}
+              {rows.length === 1 && rows[0]
+                ? t(($) => $.row_actions.archive_dialog_title, { name: rows[0].agent.name })
+                : t(($) => $.row_actions.archive_dialog_title_bulk, { count: rows.length })}
             </DialogTitle>
             <DialogDescription>
               {t(($) => $.row_actions.archive_dialog_description)}

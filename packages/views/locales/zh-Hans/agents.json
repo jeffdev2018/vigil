@@ -126,6 +126,7 @@
     "cancel_dialog_keep": "保留",
     "cancel_dialog_confirm": "取消全部运行",
     "archive_dialog_title": "归档\"{{name}}\"？",
+    "archive_dialog_title_bulk_other": "归档 {{count}} 个智能体？",
     "archive_dialog_description": "归档后这个智能体将无法被分配或提及，进行中的运行会被取消。所有历史会被保留，可以稍后恢复。",
     "archive_dialog_cancel": "取消",
     "archive_dialog_confirm": "归档"
