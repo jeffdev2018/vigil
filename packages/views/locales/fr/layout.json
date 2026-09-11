@@ -57,6 +57,8 @@
     "invitation_workspace_fallback": "Workspace",
     "invitation_join": "Rejoindre",
     "invitation_decline": "Décliner",
+    "invitation_accept_failed": "Impossible de rejoindre le workspace.",
+    "invitation_decline_failed": "Impossible de décliner l'invitation.",
     "log_out": "Se déconnecter",
     "new_issue": "Nouvelle issue",
     "new_issue_shortcut": "C",

@@ -46,7 +46,7 @@ export function MCPServerSetting({ canEdit }: { canEdit: boolean }) {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
   const paths = useWorkspacePaths();
-  const { data } = useQuery(mcpServerSettingsOptions(wsId));
+  const { data, isError, refetch } = useQuery(mcpServerSettingsOptions(wsId));
   const save = useUpdateMCPServerSettings(wsId);
 
   const [enabled, setEnabled] = useState(true);
@@ -123,6 +123,35 @@ export function MCPServerSetting({ canEdit }: { canEdit: boolean }) {
 
   const tools = data?.tools ?? [];
   const groups = [...new Set(tools.map((tool) => tool.group))];
+
+  // A failed fetch must not silently render as an already-configured server
+  // (enabled, compound surface, no overrides) — every piece of local state
+  // above only overwrites those plausible-but-possibly-wrong defaults once
+  // `data` actually arrives.
+  if (isError) {
+    return (
+      <SettingsSection
+        title={
+          <span className="inline-flex items-center gap-2">
+            <Server className="h-4 w-4 text-muted-foreground" />
+            {t(($) => $.mcp_server.section)}
+          </span>
+        }
+        description={t(($) => $.mcp_server.intro)}
+      >
+        <SettingsCard>
+          <div className="flex flex-col items-center gap-2 p-8 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.mcp_server.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.mcp_server.retry)}
+            </Button>
+          </div>
+        </SettingsCard>
+      </SettingsSection>
+    );
+  }
 
   return (
     <SettingsSection

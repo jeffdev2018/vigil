@@ -130,6 +130,7 @@
     "local_on_device": "绑定到 {{device}}",
     "local_this_machine": "本机",
     "local_daemon_offline": "守护进程未运行——启动后才能绑定本地目录。",
+    "local_daemon_dropped": "选择文件夹期间守护进程已离线——请先重新连接，再创建项目。",
     "local_pick": "选择目录…",
     "local_picking": "正在打开选择器…",
     "local_change": "更换目录…",

@@ -130,6 +130,7 @@
     "local_on_device": "{{device}} にバインド済み",
     "local_this_machine": "このマシン",
     "local_daemon_offline": "デーモンがオフラインです。ローカルディレクトリをバインドするには起動してください。",
+    "local_daemon_dropped": "フォルダ選択中にデーモンがオフラインになりました。プロジェクトを作成する前に再接続してください。",
     "local_pick": "ディレクトリを選択…",
     "local_picking": "選択画面を開いています…",
     "local_change": "ディレクトリを変更…",

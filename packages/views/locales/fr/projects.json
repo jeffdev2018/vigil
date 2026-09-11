@@ -17,7 +17,8 @@
     "no_matches": "Aucun projet ne correspond",
     "selected_one": "{{count}} sélectionné",
     "selected_other": "{{count}} sélectionnés",
-    "clear_selection": "Effacer la sélection"
+    "clear_selection": "Effacer la sélection",
+    "pin_partial": "{{succeeded}} épinglé(s), {{failed}} échoué(s)"
   },
   "table": {
     "name": "Nom",
@@ -152,7 +153,8 @@
     "title": "Supprimer le projet",
     "description": "Cette action supprimera le projet. Les issues ne seront pas supprimées mais seront dissociées.",
     "confirm": "Supprimer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "partial": "{{succeeded}} supprimé(s), {{failed}} échoué(s)"
   },
   "picker": {
     "no_project": "Aucun projet",

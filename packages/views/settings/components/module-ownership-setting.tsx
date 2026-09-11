@@ -24,7 +24,7 @@ import { useT } from "../../i18n";
 export function ModuleOwnershipSetting({ workspace, canEdit }: { workspace: Workspace; canEdit: boolean }) {
   const { t } = useT("settings");
   const wsId = workspace.id;
-  const { data: rules = [] } = useQuery(moduleOwnershipOptions(wsId));
+  const { data: rules = [], isError, refetch } = useQuery(moduleOwnershipOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: labels = [] } = useQuery(labelListOptions(wsId));
@@ -69,7 +69,16 @@ export function ModuleOwnershipSetting({ workspace, canEdit }: { workspace: Work
       <SettingsCard>
         <div className="flex flex-col gap-2 p-3 text-caption">
           <p className="text-muted-foreground">{t(($) => $.workspace.ownership_description)}</p>
-          {rules.length === 0 ? (
+          {isError ? (
+            <div className="flex flex-col items-center gap-2 py-4 text-center">
+              <p role="alert" className="text-destructive">
+                {t(($) => $.workspace.ownership_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.workspace.ownership_retry)}
+              </Button>
+            </div>
+          ) : rules.length === 0 ? (
             <p data-testid="ownership-empty" className="text-muted-foreground">{t(($) => $.workspace.ownership_empty)}</p>
           ) : (
             <ul className="flex flex-col gap-1">

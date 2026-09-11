@@ -879,6 +879,7 @@
     "add_blocking": "Mark as blocking...",
     "add_blocked_by": "Mark as blocked by...",
     "remove_dependency": "Remove dependency",
+    "remove_dependency_failed": "Could not remove the dependency.",
     "add_relation": "Add relation…"
   },
   "pickers": {

@@ -128,7 +128,7 @@ export function IssueStatusesTab() {
   const [editing, setEditing] = useState<IssueStatusEntry | null>(null);
   const [pendingArchive, setPendingArchive] = useState<IssueStatusEntry | null>(null);
 
-  const { data: statuses = [], isLoading } = useQuery(issueStatusListOptions(wsId));
+  const { data: statuses = [], isLoading, isError, refetch } = useQuery(issueStatusListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const currentUser = useAuthStore((s) => s.user);
   const myRole = useMemo(() => {
@@ -175,6 +175,15 @@ export function IssueStatusesTab() {
         {isLoading ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">
             {t(($) => $.issue_statuses.loading)}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-surface-border bg-card px-4 py-12 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.issue_statuses.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.issue_statuses.retry)}
+            </Button>
           </div>
         ) : (
           // One list, not seven cards: the categories are sections of a single

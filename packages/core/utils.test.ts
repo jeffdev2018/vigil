@@ -5,6 +5,7 @@ import {
   generateUUID,
   humanizeIdentifier,
   isImeComposing,
+  runBulk,
   truncateWithEllipsis,
 } from "./utils";
 
@@ -123,5 +124,30 @@ describe("humanizeIdentifier", () => {
   it("returns the input when nothing readable remains", () => {
     expect(humanizeIdentifier("")).toBe("");
     expect(humanizeIdentifier("---")).toBe("---");
+  });
+});
+
+describe("runBulk", () => {
+  it("reports every item as succeeded when all resolve", async () => {
+    const result = await runBulk([1, 2, 3], async (n) => n * 2);
+    expect(result.succeeded).toEqual([1, 2, 3]);
+    expect(result.failed).toEqual([]);
+  });
+
+  it("keeps going past a rejection and reports partial failure with the original error", async () => {
+    const boom = new Error("boom");
+    const result = await runBulk(["a", "b", "c"], async (item) => {
+      if (item === "b") throw boom;
+      return item;
+    });
+    expect(result.succeeded).toEqual(["a", "c"]);
+    expect(result.failed).toEqual([{ item: "b", error: boom }]);
+  });
+
+  it("returns empty results for an empty input without calling fn", async () => {
+    const fn = vi.fn();
+    const result = await runBulk([], fn);
+    expect(result).toEqual({ succeeded: [], failed: [] });
+    expect(fn).not.toHaveBeenCalled();
   });
 });

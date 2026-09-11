@@ -57,6 +57,8 @@
     "invitation_workspace_fallback": "Workspace",
     "invitation_join": "Join",
     "invitation_decline": "Decline",
+    "invitation_accept_failed": "Could not join the workspace.",
+    "invitation_decline_failed": "Could not decline the invitation.",
     "log_out": "Log out",
     "new_issue": "New Issue",
     "new_issue_shortcut": "C",

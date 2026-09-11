@@ -204,6 +204,9 @@
     "too_many_series": "{{count}} catégories — affichées sous forme de tableau.",
     "move_up": "Monter",
     "move_down": "Descendre",
-    "remove": "Supprimer"
+    "remove": "Supprimer",
+    "pin_failed": "Impossible d'épingler cette réponse.",
+    "reorder_failed": "Impossible de réordonner cette carte.",
+    "remove_failed": "Impossible de supprimer cette carte."
   }
 }

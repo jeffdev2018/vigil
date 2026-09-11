@@ -539,7 +539,8 @@
       "warning": "이 작업은 되돌릴 수 없습니다.",
       "cancel": "취소",
       "confirm": "영구 삭제",
-      "deleting": "삭제 중…"
+      "deleting": "삭제 중…",
+      "partial": "{{succeeded}}개 삭제, {{failed}}개 실패."
     }
   },
   "daemon_import": {
@@ -583,6 +584,7 @@
   "memory": {
     "section_title": "메모리",
     "export_button": "DAEMON.md 내보내기",
+    "export_failed": "DAEMON.md 내보내기에 실패했습니다.",
     "empty_title": "아직 메모리가 없습니다",
     "empty_hint": "이 데몬의 실행이 다음 실행에 필요한 내용을 기록합니다.",
     "updated_at": "업데이트 {{at}}",

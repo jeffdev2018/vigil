@@ -539,7 +539,8 @@
       "warning": "この操作は取り消せません。",
       "cancel": "キャンセル",
       "confirm": "完全に削除",
-      "deleting": "削除中…"
+      "deleting": "削除中…",
+      "partial": "{{succeeded}} 件削除、{{failed}} 件失敗。"
     }
   },
   "daemon_import": {
@@ -583,6 +584,7 @@
   "memory": {
     "section_title": "メモリー",
     "export_button": "DAEMON.md をエクスポート",
+    "export_failed": "DAEMON.md をエクスポートできませんでした。",
     "empty_title": "メモリーはまだありません",
     "empty_hint": "このデーモンの実行が、次の実行に必要なことを書き込みます。",
     "updated_at": "更新 {{at}}",

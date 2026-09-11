@@ -32,6 +32,7 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+import { toast } from "sonner";
 import { AgentBatchToolbar } from "./agent-batch-toolbar";
 import type { AgentListRow } from "./agents-page";
 
@@ -112,6 +113,7 @@ function renderToolbar(rows: AgentListRow[]) {
 beforeEach(() => {
   updateAgentSpy.mockClear();
   updateAgentSpy.mockResolvedValue({});
+  vi.mocked(toast.error).mockClear();
 });
 
 describe("AgentBatchToolbar — action order", () => {
@@ -267,5 +269,28 @@ describe("AgentBatchToolbar — bulk Set access scope", () => {
       screen.getByRole("radio", { name: /Entire workspace/ }),
     ).not.toBeChecked();
     expect(updateAgentSpy).not.toHaveBeenCalled();
+  });
+
+  // Regression: runBatch used to show its own toast.error from the first
+  // rejection AND applyAccessBulk showed a second summary toast for the same
+  // partial failure — one user action produced two error toasts.
+  it("shows exactly one summary toast on partial failure", async () => {
+    updateAgentSpy.mockImplementation(async (id: string) => {
+      if (id === "b") throw new Error("network blip");
+      return {};
+    });
+
+    renderToolbar([makeRow("a", "user-1"), makeRow("b", "user-1")]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Set access scope" }));
+    await screen.findByText(/Applies to 2 agents/);
+    fireEvent.click(screen.getByRole("radio", { name: /Entire workspace/ }));
+    const apply = screen.getByRole("button", { name: "Apply" });
+    await waitFor(() => expect(apply).toBeEnabled());
+    fireEvent.click(apply);
+
+    await waitFor(() => expect(updateAgentSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("1 succeeded, 1 failed.");
   });
 });

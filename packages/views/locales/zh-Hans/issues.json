@@ -844,6 +844,7 @@
     "add_blocking": "添加阻塞的任务...",
     "add_blocked_by": "添加被阻塞于...",
     "remove_dependency": "移除依赖",
+    "remove_dependency_failed": "无法移除依赖。",
     "add_relation": "添加关系…"
   },
   "pickers": {

@@ -57,6 +57,8 @@
     "invitation_workspace_fallback": "ワークスペース",
     "invitation_join": "参加",
     "invitation_decline": "辞退",
+    "invitation_accept_failed": "ワークスペースに参加できませんでした。",
+    "invitation_decline_failed": "招待を辞退できませんでした。",
     "log_out": "ログアウト",
     "new_issue": "新規課題",
     "new_issue_shortcut": "C",

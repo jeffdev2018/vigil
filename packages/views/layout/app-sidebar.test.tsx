@@ -1,17 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
+import { toast } from "sonner";
 import { renderWithI18n } from "../test/i18n";
 import { AppSidebar, hasOverflowBelow } from "./app-sidebar";
 
-const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
+const { appForeground, chatSessions, chatStore, detail, deletePin, acceptInvitation, declineInvitation, inboxItems, myInvitations, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
   chatStore: { current: { activeSessionId: null as string | null, isOpen: false } },
   detail: { current: { isPending: false, isError: false, data: null as unknown, error: null as unknown } },
   deletePin: vi.fn(),
+  acceptInvitation: vi.fn(),
+  declineInvitation: vi.fn(),
   inboxItems: { current: [] as { id: string; read: boolean }[] },
+  myInvitations: { current: [] as { id: string; workspace_id: string; workspace_name?: string }[] },
   navigation: { current: { pathname: "/acme/issues" } },
   summary: { current: [] as { workspace_id: string; count: number }[] },
   triageStats: { current: { pending: 0 } },
@@ -111,6 +115,9 @@ vi.mock("../navigation", () => ({
 vi.mock("../projects/components/project-icon", () => ({ ProjectIcon: () => <span /> }));
 vi.mock("../workspace/workspace-avatar", () => ({ WorkspaceAvatar: () => <span /> }));
 vi.mock("@multica/ui/components/common/actor-avatar", () => ({ ActorAvatar: () => <span /> }));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
 
 vi.mock("@multica/core/auth", () => ({
   useAuthStore: (selector: (state: { user: { id: string } }) => unknown) => selector({ user: { id: "user-1" } }),
@@ -163,6 +170,8 @@ vi.mock("@multica/core/api", async (importOriginal) => {
     api: {
       ...actual.api,
       getBaseUrl: () => "http://127.0.0.1:8080",
+      acceptInvitation: (id: string) => acceptInvitation(id),
+      declineInvitation: (id: string) => declineInvitation(id),
     },
   };
 });
@@ -200,13 +209,30 @@ vi.mock("@multica/core/workspace/queries", () => ({
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+  // Only acceptInvitationMut/declineInvitationMut in app-sidebar.tsx call
+  // this hook directly (pins go through useReorderPins/useDeletePin, mocked
+  // separately below) — real enough to run mutationFn and invoke
+  // onSuccess/onError so their error handling is exercisable here.
+  useMutation: <TVars,>(config: {
+    mutationFn: (vars: TVars) => Promise<unknown>;
+    onSuccess?: (data: unknown, vars: TVars) => void;
+    onError?: (err: unknown, vars: TVars) => void;
+  }) => ({
+    isPending: false,
+    mutate: (vars: TVars) => {
+      config
+        .mutationFn(vars)
+        .then((data) => config.onSuccess?.(data, vars))
+        .catch((err: unknown) => config.onError?.(err, vars));
+    },
+  }),
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "pins") return { data: pins.current };
     if (queryKey[0] === "issue") return detail.current;
     if (queryKey[0] === "inbox" && queryKey[1] === "unread-summary") return { data: summary.current };
     if (queryKey[0] === "inbox") return { data: inboxItems.current };
     if (queryKey[0] === "workspaces") return { data: workspaces.current };
+    if (queryKey[0] === "invitations") return { data: myInvitations.current };
     if (queryKey[0] === "chat" && queryKey[2] === "sessions") return { data: chatSessions.current };
     if (queryKey[0] === "triage") return { data: triageStats.current };
     if (queryKey[0] === "postmortem") return { data: postmortemStats.current };
@@ -577,5 +603,34 @@ describe("hasOverflowBelow", () => {
     expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 0 })).toBe(true);
     expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 300 })).toBe(false);
     expect(hasOverflowBelow({ scrollHeight: 600, clientHeight: 600, scrollTop: 0 })).toBe(false);
+  });
+});
+
+// Regression: acceptInvitationMut/declineInvitationMut had no onError — a
+// failed accept/decline just re-enabled the button with zero feedback.
+describe("AppSidebar — pending invitations", () => {
+  beforeEach(() => {
+    myInvitations.current = [{ id: "inv-1", workspace_id: "ws-2", workspace_name: "Other Co" }];
+    acceptInvitation.mockReset();
+    declineInvitation.mockReset();
+    vi.mocked(toast.error).mockClear();
+  });
+
+  it("shows a toast when accepting an invitation fails", async () => {
+    acceptInvitation.mockRejectedValue(new Error("invitation expired"));
+    render(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("invitation expired"));
+  });
+
+  it("shows a toast when declining an invitation fails", async () => {
+    declineInvitation.mockRejectedValue(new Error("already accepted"));
+    render(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("already accepted"));
   });
 });

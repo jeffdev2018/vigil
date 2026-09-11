@@ -189,7 +189,7 @@ export function QuickActionsTab() {
   const { t } = useT("settings");
   const locale = useLocale();
   const wsId = useWorkspaceId();
-  const { data: actions = [], isLoading } = useQuery(quickActionListOptions(wsId, true));
+  const { data: actions = [], isLoading, isError, refetch } = useQuery(quickActionListOptions(wsId, true));
 
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<QuickAction | null>(null);
@@ -279,6 +279,15 @@ export function QuickActionsTab() {
           {isLoading ? (
             <div className="px-4 py-12 text-center text-body text-muted-foreground">
               {t(($) => $.quick_actions.loading)}
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.quick_actions.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.quick_actions.retry)}
+              </Button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="px-4 py-12 text-center">

@@ -844,6 +844,7 @@
     "add_blocking": "ブロック対象を追加...",
     "add_blocked_by": "ブロック元を追加...",
     "remove_dependency": "依存関係を解除",
+    "remove_dependency_failed": "依存関係を解除できませんでした。",
     "add_relation": "関連を追加…"
   },
   "pickers": {

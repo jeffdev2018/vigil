@@ -204,6 +204,9 @@
     "too_many_series": "{{count}} 件のカテゴリ — 表として表示します。",
     "move_up": "上へ移動",
     "move_down": "下へ移動",
-    "remove": "削除"
+    "remove": "削除",
+    "pin_failed": "この回答をピン留めできませんでした。",
+    "reorder_failed": "このカードを並べ替えできませんでした。",
+    "remove_failed": "このカードを削除できませんでした。"
   }
 }

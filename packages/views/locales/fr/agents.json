@@ -113,6 +113,7 @@
     "set_access_skipped": "{{count}} ignorés (ne vous appartiennent pas).",
     "set_access_dialog_confirm": "Appliquer",
     "set_access_bulk_partial": "Appliqué à {{succeeded}} ; {{failed}} échoués (état actuel conservé).",
+    "bulk_partial": "{{succeeded}} réussi(s), {{failed}} échoué(s).",
     "agent_archived_toast": "Agent archivé",
     "archive_failed_toast": "Échec de l'archivage de l'agent",
     "agent_restored_toast": "Agent restauré",

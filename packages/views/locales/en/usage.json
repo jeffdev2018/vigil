@@ -204,6 +204,9 @@
     "too_many_series": "{{count}} categories — shown as a table.",
     "move_up": "Move up",
     "move_down": "Move down",
-    "remove": "Remove"
+    "remove": "Remove",
+    "pin_failed": "Could not pin this answer.",
+    "reorder_failed": "Could not reorder this card.",
+    "remove_failed": "Could not remove this card."
   }
 }

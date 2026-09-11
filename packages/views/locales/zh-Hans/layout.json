@@ -57,6 +57,8 @@
     "invitation_workspace_fallback": "工作区",
     "invitation_join": "加入",
     "invitation_decline": "拒绝",
+    "invitation_accept_failed": "无法加入工作区。",
+    "invitation_decline_failed": "无法拒绝邀请。",
     "log_out": "退出登录",
     "new_issue": "新建任务",
     "new_issue_shortcut": "C",

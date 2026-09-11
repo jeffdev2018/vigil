@@ -132,6 +132,7 @@
     "local_on_device": "Lié à {{device}}",
     "local_this_machine": "cette machine",
     "local_daemon_offline": "Daemon hors ligne — démarrez-le pour lier un répertoire local.",
+    "local_daemon_dropped": "Le daemon est passé hors ligne pendant la sélection du dossier — reconnectez-le avant de créer le projet.",
     "local_pick": "Choisir le répertoire…",
     "local_picking": "Ouverture du sélecteur…",
     "local_change": "Changer de répertoire…",

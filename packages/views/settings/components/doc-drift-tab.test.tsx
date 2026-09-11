@@ -10,6 +10,10 @@ import { renderWithI18n } from "../../test/i18n";
 const state = vi.hoisted(() => ({
   settings: null as unknown,
   proposals: [] as unknown[],
+  proposalsError: false,
+  agentsError: false,
+  refetchProposals: vi.fn(),
+  refetchAgents: vi.fn(),
   save: vi.fn(),
   check: vi.fn(),
   dismiss: vi.fn(),
@@ -21,8 +25,19 @@ vi.mock("@tanstack/react-query", () => ({
     const key = options.queryKey[0];
     if (key === "doc-drift-settings")
       return { data: state.settings, isPending: state.settings === null };
-    if (key === "doc-drift-proposals") return { data: state.proposals, isPending: false };
-    return { data: [{ id: "agent-1", name: "Alpha" }], isPending: false };
+    if (key === "doc-drift-proposals")
+      return {
+        data: state.proposals,
+        isPending: false,
+        isError: state.proposalsError,
+        refetch: state.refetchProposals,
+      };
+    return {
+      data: [{ id: "agent-1", name: "Alpha" }],
+      isPending: false,
+      isError: state.agentsError,
+      refetch: state.refetchAgents,
+    };
   },
 }));
 
@@ -89,6 +104,10 @@ const proposal = (over: Partial<DocDriftProposal> = {}): DocDriftProposal => ({
 beforeEach(() => {
   state.settings = settings();
   state.proposals = [];
+  state.proposalsError = false;
+  state.agentsError = false;
+  state.refetchProposals.mockReset();
+  state.refetchAgents.mockReset();
   state.save.mockReset();
   state.check.mockReset();
   state.dismiss.mockReset();
@@ -197,5 +216,20 @@ describe("DocDriftTab", () => {
     expect(screen.getByTestId("doc-drift-proposal-status").getAttribute("data-status")).toBe("dismissed");
     expect(screen.queryByTestId("doc-drift-dismiss")).toBeNull();
     expect(screen.queryByTestId("doc-drift-open-pr-action")).toBeNull();
+  });
+
+  // Regression: proposals/agents ignored isError entirely — a failed fetch
+  // fell through to the exact same "up to date" empty state as a workspace
+  // with no real drift, with no way to tell them apart.
+  it("shows an error state with retry instead of a false empty state when proposals fail to load", () => {
+    state.settings = settings({ enabled: true, agent_id: "agent-1" });
+    state.proposalsError = true;
+    renderWithI18n(<DocDriftTab />);
+
+    expect(screen.queryByTestId("doc-drift-proposals-empty")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load agent context drift.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchProposals).toHaveBeenCalled();
   });
 });

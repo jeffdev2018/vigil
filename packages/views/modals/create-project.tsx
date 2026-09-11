@@ -321,6 +321,15 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = async () => {
     if (!title.trim() || submitting) return;
+    // The daemon can drop between picking a local folder and clicking
+    // Create — daemonStatus is live-reactive (the amber banner shows it),
+    // but nothing previously blocked submit past it, so `resources` below
+    // would silently end up `undefined` and the project would be created
+    // with no attached folder at all.
+    if (sourceMode === "local" && selectedLocalPath && !daemonStatus.daemonId) {
+      toast.error(t(($) => $.create_project.local_daemon_dropped));
+      return;
+    }
     // `sourceMode` decides which side's stash gets persisted — the other
     // side is silently dropped, so repos picked then abandoned for local
     // mode don't leak into the project.

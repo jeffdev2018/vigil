@@ -857,6 +857,7 @@
     "add_blocking": "Marquer comme bloquante...",
     "add_blocked_by": "Marquer comme bloquée par...",
     "remove_dependency": "Retirer la dépendance",
+    "remove_dependency_failed": "Impossible de retirer la dépendance.",
     "add_relation": "Ajouter une relation…"
   },
   "pickers": {

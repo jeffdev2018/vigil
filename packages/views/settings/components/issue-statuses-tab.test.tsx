@@ -8,14 +8,18 @@ import en from "../../locales/en/settings.json";
 import { IssueStatusesTab } from "./issue-statuses-tab";
 
 const reorderMutate = vi.hoisted(() => vi.fn());
+const refetchStatuses = vi.hoisted(() => vi.fn());
 let catalog: IssueStatusEntry[] = [];
 let role: string = "owner";
+let statusesError = false;
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: { queryKey: readonly unknown[] }) => ({
-    data: options.queryKey[0] === "issue-statuses" ? catalog : members(),
-    isLoading: false,
-  }),
+  useQuery: (options: { queryKey: readonly unknown[] }) => {
+    if (options.queryKey[0] === "issue-statuses") {
+      return { data: catalog, isLoading: false, isError: statusesError, refetch: refetchStatuses };
+    }
+    return { data: members(), isLoading: false, isError: false };
+  },
 }));
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/auth", () => ({
@@ -82,8 +86,10 @@ const BUILT_IN_IN_REVIEW = entry({
 afterEach(() => {
   cleanup();
   reorderMutate.mockClear();
+  refetchStatuses.mockClear();
   catalog = [];
   role = "owner";
+  statusesError = false;
 });
 
 describe("IssueStatusesTab", () => {
@@ -164,5 +170,17 @@ describe("IssueStatusesTab", () => {
     expect(
       screen.getByLabelText(en.issue_statuses.actions.reorder.replace("{{name}}", "QA")),
     ).toBeInTheDocument();
+  });
+
+  // Regression: only {data, isLoading} were destructured — a failed fetch
+  // rendered every category as built-in-only, indistinguishable from a
+  // brand-new workspace.
+  it("shows an error state with retry instead of a false empty catalog when the fetch fails", () => {
+    statusesError = true;
+    render(<IssueStatusesTab />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(en.issue_statuses.load_error);
+    screen.getByRole("button", { name: en.issue_statuses.retry }).click();
+    expect(refetchStatuses).toHaveBeenCalled();
   });
 });

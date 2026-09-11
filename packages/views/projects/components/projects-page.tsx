@@ -37,6 +37,7 @@ import {
 } from "@multica/core/pins";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
+import { runBulk } from "@multica/core/utils";
 import { useAuthStore } from "@multica/core/auth";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { memberListOptions } from "@multica/core/workspace/queries";
@@ -696,7 +697,7 @@ function countActiveFilters(f: ProjectListFilters): number {
 
 // Batch toolbar — page-anchored (not viewport). Pin all selected (any
 // member) + Delete (workspace admin). Mirrors the other lists.
-function ProjectBatchToolbar({
+export function ProjectBatchToolbar({
   rows,
   pinnedIds,
   canDelete,
@@ -735,13 +736,26 @@ function ProjectBatchToolbar({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              for (const p of rows) {
-                if (!pinnedIds.has(p.id)) {
-                  createPin.mutate({ item_type: "project", item_id: p.id });
-                }
+            onClick={async () => {
+              const targets = rows.filter((p) => !pinnedIds.has(p.id));
+              // Every project is pinned independently: useCreatePin already
+              // patches/invalidates the pins cache per item on its own
+              // onSuccess/onSettled, so a rejection here only needs to be
+              // reported, not un-done. Selection clears only on a clean run
+              // so the failed rows stay selected for retry.
+              const { succeeded, failed } = await runBulk(targets, (p) =>
+                createPin.mutateAsync({ item_type: "project", item_id: p.id }),
+              );
+              if (failed.length === 0) {
+                onClear();
+                return;
               }
-              onClear();
+              toast.error(
+                t(($) => $.page.pin_partial, {
+                  succeeded: succeeded.length,
+                  failed: failed.length,
+                }),
+              );
             }}
           >
             <Pin className="mr-1 size-3.5" />
@@ -775,10 +789,21 @@ function ProjectBatchToolbar({
               type="button"
               variant="destructive"
               size="sm"
-              onClick={() => {
-                for (const p of rows) deleteProject.mutate(p.id);
-                setConfirmDelete(false);
-                onClear();
+              onClick={async () => {
+                const { succeeded, failed } = await runBulk(rows, (p) =>
+                  deleteProject.mutateAsync(p.id),
+                );
+                if (failed.length === 0) {
+                  setConfirmDelete(false);
+                  onClear();
+                  return;
+                }
+                toast.error(
+                  t(($) => $.delete_dialog.partial, {
+                    succeeded: succeeded.length,
+                    failed: failed.length,
+                  }),
+                );
               }}
             >
               {t(($) => $.delete_dialog.confirm)}
