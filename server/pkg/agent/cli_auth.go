@@ -64,12 +64,6 @@ var cliAuthCommands = map[string]CLIAuthCommands{
 	},
 }
 
-// CLIAuth returns the sign-in commands for a provider.
-func CLIAuth(provider string) (CLIAuthCommands, bool) {
-	cmds, ok := cliAuthCommands[provider]
-	return cmds, ok
-}
-
 // CLIAuthAction returns the arguments for "login" or "logout". Absent means
 // the provider documents no such command, and the caller must not run the
 // executable with no arguments — that would start the agent CLI itself.
