@@ -1236,13 +1236,7 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	authMs = time.Since(start).Milliseconds()
 
 	updateStart := time.Now()
-	if req.DirtyCheckouts != nil {
-		if raw, err := json.Marshal(req.DirtyCheckouts); err == nil {
-			if err := h.Queries.UpdateAgentRuntimeDirtyCheckouts(r.Context(), db.UpdateAgentRuntimeDirtyCheckoutsParams{ID: rt.ID, Dirty: raw}); err != nil {
-				slog.Warn("traffic: store dirty checkouts failed", "runtime_id", req.RuntimeID, "error", err)
-			}
-		}
-	}
+	h.storeDirtyCheckouts(r.Context(), rt.ID, req.DirtyCheckouts)
 	if req.SkippedAgents != nil {
 		// Same normalization and same metadata key registration writes, so the
 		// two paths cannot disagree on the shape the UI reads.
@@ -1321,7 +1315,8 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 // captured each runtime's liveness state in a connection lease, so the hot
 // path never reads agent_runtime. HTTP heartbeat remains the stateless lookup
 // fallback for a daemon that stops receiving WebSocket acknowledgements.
-func (h *Handler) HandleDaemonWSHeartbeat(ctx context.Context, identity daemonws.ClientIdentity, runtimeID string, supportsBatchImport bool) (*protocol.DaemonHeartbeatAckPayload, error) {
+func (h *Handler) HandleDaemonWSHeartbeat(ctx context.Context, identity daemonws.ClientIdentity, payload protocol.DaemonHeartbeatRequestPayload) (*protocol.DaemonHeartbeatAckPayload, error) {
+	runtimeID := payload.RuntimeID
 	lease := identity.RuntimeLeases[runtimeID]
 	if lease == nil {
 		return nil, fmt.Errorf("runtime not in connection lease")
@@ -1341,8 +1336,37 @@ func (h *Handler) HandleDaemonWSHeartbeat(ctx context.Context, identity daemonws
 		}
 		return nil, err
 	}
-	ack, _, err := h.processHeartbeat(ctx, runtimeID, supportsBatchImport)
+	if payload.DirtyCheckouts != nil {
+		// The runtime row exists (the lease write above just succeeded), so the
+		// ID parses; recordHeartbeatLease rejected it otherwise.
+		if runtimeUUID, err := util.ParseUUID(runtimeID); err == nil {
+			dirty := make([]service.DirtyCheckout, 0, len(payload.DirtyCheckouts))
+			for _, c := range payload.DirtyCheckouts {
+				dirty = append(dirty, service.DirtyCheckout(c))
+			}
+			h.storeDirtyCheckouts(ctx, runtimeUUID, dirty)
+		}
+	}
+	ack, _, err := h.processHeartbeat(ctx, runtimeID, payload.SupportsBatchImport)
 	return ack, err
+}
+
+// storeDirtyCheckouts persists a daemon's K18 report and refreshes its
+// timestamp. A nil report means the daemon did not send the field (older
+// daemons), which leaves the stored report alone; an empty one clears it.
+// Best effort: a failed write only delays human-edit conflict detection.
+func (h *Handler) storeDirtyCheckouts(ctx context.Context, runtimeID pgtype.UUID, dirty []service.DirtyCheckout) {
+	if dirty == nil {
+		return
+	}
+	raw, err := json.Marshal(dirty)
+	if err != nil {
+		slog.Warn("traffic: encode dirty checkouts failed", "runtime_id", uuidToString(runtimeID), "error", err)
+		return
+	}
+	if err := h.Queries.UpdateAgentRuntimeDirtyCheckouts(ctx, db.UpdateAgentRuntimeDirtyCheckoutsParams{ID: runtimeID, Dirty: raw}); err != nil {
+		slog.Warn("traffic: store dirty checkouts failed", "runtime_id", uuidToString(runtimeID), "error", err)
+	}
 }
 
 func runtimeGoneHeartbeatAck(runtimeID string) *protocol.DaemonHeartbeatAckPayload {

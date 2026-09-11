@@ -163,6 +163,14 @@ func TestIsBlockedEnvKey(t *testing.T) {
 		{key: "CURSOR_MCP_AUTH_SOURCE", want: true},
 		{key: "OPENCLAW_CONFIG_PATH", want: true},
 		{key: "OPENCLAW_INCLUDE_ROOTS", want: true},
+		// The approval gate (K05) selects its pre-push hook through git's
+		// environment config; custom_env must not be able to replace it.
+		{key: "GIT_CONFIG_COUNT", want: true},
+		{key: "GIT_CONFIG_KEY_0", want: true},
+		{key: "git_config_value_3", want: true},
+		{key: "GIT_CONFIG_PARAMETERS", want: true},
+		{key: "GIT_AUTHOR_EMAIL", want: false},
+		{key: "GIT_CONFIG_GLOBAL", want: false},
 		{key: "ANTHROPIC_API_KEY", want: false},
 		{key: "CURSOR_AGENT", want: false},
 		// HERMES_HOME is intentionally NOT blocked: a skill-less Hermes task
@@ -182,6 +190,29 @@ func TestIsBlockedEnvKey(t *testing.T) {
 				t.Fatalf("isBlockedEnvKey(%q) = %v, want %v", tt.key, got, tt.want)
 			}
 		})
+	}
+}
+
+// A custom_env carrying git environment config (even for a harmless key such as
+// user.email) used to overwrite the approval gate's core.hooksPath silently,
+// leaving the run's pushes ungated.
+func TestLayerCustomEnvKeepsApprovalGateGitConfig(t *testing.T) {
+	t.Parallel()
+	agentEnv := gateEnvironment("/daemon/hooks", "git@example.com:o/r.git", time.Minute)
+	layerCustomEnvAndHermesHome(agentEnv, map[string]string{
+		"GIT_CONFIG_COUNT":      "1",
+		"GIT_CONFIG_KEY_0":      "user.email",
+		"GIT_CONFIG_VALUE_0":    "bot@example.com",
+		"GIT_CONFIG_PARAMETERS": "'core.hooksPath'='/tmp/none'",
+	}, "", nil)
+	want := gateEnvironment("/daemon/hooks", "git@example.com:o/r.git", time.Minute)
+	for k, v := range want {
+		if agentEnv[k] != v {
+			t.Errorf("%s = %q, want the gate's %q", k, agentEnv[k], v)
+		}
+	}
+	if _, ok := agentEnv["GIT_CONFIG_PARAMETERS"]; ok {
+		t.Error("GIT_CONFIG_PARAMETERS reached the child env; it can override core.hooksPath")
 	}
 }
 
@@ -6011,5 +6042,51 @@ func TestHermesProfileChainCoversLaunchPrefix(t *testing.T) {
 	}
 	if strings.Join(strippedCustom, "\x00") != "--yolo" {
 		t.Errorf("custom = %v, want only the selector removed", strippedCustom)
+	}
+}
+
+// A paused worktree run whose Finalize could not complete keeps its work only in
+// the preserved worktree, and the error naming it is the one pointer to that
+// work. Acking the pause dropped it; the run must fail with it instead, as the
+// same finalize failure does on every other path.
+func TestHandleTask_PauseWithPreservedWorktreeReportsTheFailure(t *testing.T) {
+	t.Parallel()
+
+	var paths sync.Map
+	var failBody atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		paths.Store(req.URL.Path, true)
+		if strings.HasSuffix(req.URL.Path, "/fail") {
+			var body map[string]any
+			_ = json.NewDecoder(req.Body).Decode(&body)
+			failBody.Store(body)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	d := &Daemon{
+		client:             NewClient(srv.URL),
+		logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		runtimeIndex:       map[string]Runtime{"rt-1": {ID: "rt-1", Provider: "codex"}},
+		cancelPollInterval: time.Hour,
+	}
+	const taskID = "task-pause-preserved"
+	d.runner = taskRunnerFunc(func(runCtx context.Context, _ Task, _ string, _ int, _ *slog.Logger) (TaskResult, error) {
+		pause := d.pauseControlFor(taskID)
+		pause.request(runCtx)
+		pause.atBoundary()
+		<-runCtx.Done()
+		return TaskResult{}, &worktreePreservedError{err: errors.New("local_directory worktree: uncommitted work kept at /wt/task")}
+	})
+
+	d.handleTask(context.Background(), Task{ID: taskID, RuntimeID: "rt-1"}, 0)
+
+	if _, acked := paths.Load("/api/daemon/tasks/" + taskID + "/paused"); acked {
+		t.Fatal("the run was acked as paused; the preserved worktree error was dropped")
+	}
+	body, _ := failBody.Load().(map[string]any)
+	if msg, _ := body["error"].(string); !strings.Contains(msg, "/wt/task") {
+		t.Fatalf("fail body = %v, want the preserved worktree error", body)
 	}
 }

@@ -408,6 +408,14 @@ type workspaceState struct {
 	// revisits it. A failed register records nothing, so the workspace stays
 	// behind and is retried. Guarded by Daemon.mu.
 	builtinVersions map[string]string
+	// convergedToZero marks a runtime set emptied on purpose by
+	// convergeWorkspaceRuntimesToZero: there is nothing to host, so the sync
+	// loop's zero-runtime recovery must not retry it (it could only fail with
+	// ErrNoRuntimesToRegister). A profile re-enable or a newly discovered CLI
+	// registers it again through their own paths. Cleared when a server-side
+	// deletion prunes a runtime, the case recovery exists for. Guarded by
+	// Daemon.mu.
+	convergedToZero bool
 }
 
 // contextLock is a zero-value-ready mutex whose wait can be cancelled. Repo
@@ -1457,6 +1465,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 		}
 		if found {
 			ws.runtimeIDs = filtered
+			ws.convergedToZero = false
 			workspaceID = wsID
 			break
 		}
@@ -1479,7 +1488,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 // has zero runtime IDs — the state reached when handleRuntimeGone pruned every
 // runtime and its inline re-register failed. workspaceSyncLoop calls this on
 // each tick so the workspace can recover without waiting for an external
-// trigger.
+// trigger. A workspace that converged to zero on purpose is not in that state.
 func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1487,7 +1496,7 @@ func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	if !ok {
 		return false
 	}
-	return len(ws.runtimeIDs) == 0
+	return len(ws.runtimeIDs) == 0 && !ws.convergedToZero
 }
 
 // reregisterWorkspaceAfterRuntimeGone calls registerRuntimesForWorkspace and
@@ -1932,7 +1941,7 @@ func (d *Daemon) untrackedRuntimeIDs(ids []string) []string {
 }
 
 func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, workspaceID string) error {
-	var newIDs []string
+	var newIDs, recoverIDs []string
 	// Send, apply and clean up as one ordered step — see workspaceRegisterLock.
 	err := d.withWorkspaceRegisterLock(workspaceID, func() error {
 		resp, profileSig, preserve, err := d.registerRuntimesForWorkspaceLocked(ctx, workspaceID)
@@ -1940,11 +1949,29 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 			return fmt.Errorf("register runtimes: %w", err)
 		}
 
+		// Snapshot which returned IDs this daemon was NOT tracking before the
+		// apply: only those rows were deleted (or never known) here. A sibling
+		// that survived keeps its ID through the upsert and may be executing a
+		// task right now, so it must not be orphan-recovered below.
+		respIDs := make([]string, 0, len(resp.Runtimes))
+		for _, rt := range resp.Runtimes {
+			respIDs = append(respIDs, rt.ID)
+		}
+		untracked := make(map[string]struct{})
+		for _, id := range d.untrackedRuntimeIDs(respIDs) {
+			untracked[id] = struct{}{}
+		}
+
 		ids, droppedIDs, ok := d.applyRegisterResponseInPlace(workspaceID, resp, profileSig, preserve)
 		if !ok {
 			return fmt.Errorf("workspace %s no longer tracked", workspaceID)
 		}
 		newIDs = ids
+		for _, id := range ids {
+			if _, fresh := untracked[id]; fresh {
+				recoverIDs = append(recoverIDs, id)
+			}
+		}
 
 		for _, rid := range newIDs {
 			d.logger.Info("re-registered runtime after server-side deletion",
@@ -1966,14 +1993,12 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 
 	// Tell the server about any tasks the previous (now-deleted) runtime
 	// was working on, mirroring the registration path's recover-orphans call.
-	// This is intentionally scoped to the runtime_gone recovery: the
-	// runtimes were truly gone server-side, so anything still in
-	// dispatched/running/waiting_local_directory on those rows is an orphan
-	// that needs to be failed-and-retried. The drift-refresh path (which
-	// also feeds applyRegisterResponseInPlace) deliberately skips this step
-	// because its surviving runtime IDs may still be actively executing
-	// tasks for the user (MUL-3332).
-	for _, rid := range newIDs {
+	// This is intentionally scoped to the runtimes that were truly gone: a
+	// row this daemon was not tracking before the register. Surviving
+	// siblings are skipped for the same reason the drift-refresh path skips
+	// the step entirely — they may still be actively executing tasks for the
+	// user (MUL-3332).
+	for _, rid := range recoverIDs {
 		if err := d.client.RecoverOrphans(ctx, rid); err != nil {
 			d.logger.Warn("recover-orphans after re-register failed",
 				"runtime_id", rid, "error", err)
@@ -3263,10 +3288,10 @@ func (d *Daemon) registerTaskRepos(workspaceID, taskID string, repos []RepoData)
 		// yet, so the agent's first checkout will surface a sync failure
 		// without silently treating it as a config bug.
 		d.bgSyncs.Add(1)
-		go func() {
+		d.goRecover("workspace repo sync", func() {
 			defer d.bgSyncs.Done()
 			d.syncWorkspaceRepos(workspaceID, toSync)
-		}()
+		})
 	}
 }
 
@@ -3757,6 +3782,7 @@ func (d *Daemon) convergeWorkspaceRuntimesToZero(ctx context.Context, workspaceI
 		dropped = append(dropped, rid)
 	}
 	ws.runtimeIDs = kept
+	ws.convergedToZero = len(kept) == 0
 	if profileSig != "" {
 		// Cache the converged signature so we don't loop into re-converging
 		// on every subsequent sync tick.
@@ -4167,7 +4193,7 @@ func (d *Daemon) syncWorkspacesFromAPI(ctx context.Context, reconcileProfiles bo
 		}
 
 		if d.repoCache != nil && len(resp.Repos) > 0 {
-			go d.syncWorkspaceRepos(id, resp.Repos)
+			d.goRecover("workspace repo sync", func() { d.syncWorkspaceRepos(id, resp.Repos) })
 		}
 
 		// Tell the server about any tasks the previous daemon process was
@@ -4385,38 +4411,38 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 		)
 	}
 	if resp.PendingUpdate != nil {
-		go d.handleUpdate(ctx, runtimeID, resp.PendingUpdate)
+		d.goRecover("update", func() { d.handleUpdate(ctx, runtimeID, resp.PendingUpdate) })
 	}
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+			d.goRecover("model list", func() { d.handleModelList(ctx, *rt, resp.PendingModelList.ID) })
 		}
 	}
 	if resp.PendingMemoryEvaluation != "" {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation)
+			d.goRecover("memory evaluation", func() { d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation) })
 		}
 	}
 	if resp.PendingCliAuth != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth)
+			d.goRecover("cli auth", func() { d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth) })
 		}
 	}
 	if resp.PendingLocalSkills != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID)
+			d.goRecover("local skill list", func() { d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID) })
 		}
 	}
 	// Prefer the batch field (new backend); fall back to singular (old backend).
 	if len(resp.PendingLocalSkillImports) > 0 {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			for _, imp := range resp.PendingLocalSkillImports {
-				go d.handleLocalSkillImport(ctx, *rt, imp)
+				d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, imp) })
 			}
 		}
 	} else if resp.PendingLocalSkillImport != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport)
+			d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport) })
 		}
 	}
 	if resp.PendingWorktreeRevert != nil {
@@ -4425,7 +4451,7 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			// repository and then has to report what it did. A revert
 			// interrupted between the two would leave the server believing the
 			// branch never moved.
-			go d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert)
+			d.goRecover("worktree revert", func() { d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert) })
 		}
 	}
 	if resp.PendingBranchAction != nil {
@@ -4433,7 +4459,7 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			// WithoutCancel, same reason as the revert above: a push or a
 			// branch deletion that already happened must still be reported,
 			// or the server leaves the request claimed until the sweeper.
-			go d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction)
+			d.goRecover("branch action", func() { d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction) })
 		}
 	}
 }
@@ -5750,7 +5776,15 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 
 	// Pause (K19): the run stopped at a boundary on a human's request. Report
 	// where the session lives and leave the result to the resumed run.
-	if pauseCtl.paused() {
+	//
+	// Except when worktree Finalize could not complete: the agent's work then
+	// lives only in the preserved worktree, the error names it, and a pause ack
+	// has nowhere to put it. Fall through so the run fails with that error, as
+	// the same finalize failure does on the completion path.
+	var preservedOnPause *worktreePreservedError
+	if pauseCtl.paused() && errors.As(err, &preservedOnPause) {
+		taskLog.Warn("pause requested but the worktree could not be finalized; reporting the failure instead of the pause", "error", err)
+	} else if pauseCtl.paused() {
 		select {
 		case <-cancelledByPoll:
 		default:
@@ -6099,19 +6133,7 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		// server status update below fails.
 		d.resourceWaitTasks.Add(1)
 		waitCounted = true
-		// Rendered to the user, so it names the directory rather than its path
-		// (see localDirectoryAssignment.DisplayName). The absolute path stays in
-		// the daemon's own logs, which is where an operator debugging a wedged
-		// lock looks for it.
-		reason := assignment.DisplayName()
-		if holder != "" {
-			// Known rough edge: this clause is English and the client renders it
-			// inside a localized "Waiting for {reason}" label, so a zh/ja/ko user
-			// sees mixed script. Fixing it properly means sending the directory
-			// and the holder as separate fields and localizing the join on the
-			// client — worth doing if this hint grows, not for one parenthetical.
-			reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-		}
+		reason := localDirectoryWaitReason(assignment, holder)
 		taskLog.Info("local_directory: waiting on path mutex", "holder", holder)
 		if waitErr := d.client.MarkTaskWaitingLocalDirectory(ctx, task.ID, reason); waitErr != nil {
 			// Non-fatal: even if the server-side flag fails to update,
@@ -8160,10 +8182,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			release, lockErr := d.localPathLocks.Acquire(waitCtx, localAssignment.RealPath, task.ID, func(holder string) {
 				d.resourceWaitTasks.Add(1)
 				waitCounted = true
-				reason := fmt.Sprintf("local_directory %s", localAssignment.AbsPath)
-				if holder != "" {
-					reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-				}
+				reason := localDirectoryWaitReason(localAssignment, holder)
 				taskLog.Info("local_directory: worktree snapshot waiting for holder",
 					"holder", holder)
 				if waitErr := d.client.MarkTaskWaitingLocalDirectory(waitCtx, task.ID, reason); waitErr != nil {
@@ -8513,9 +8532,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// Unlike its two lifecycle siblings this one is long-lived, and its failure
 	// is not the run's: an agent works perfectly well in a worktree whose dev
 	// server never came up, so a failed preview is recorded as `error` rather
-	// than trading the deliverable for a convenience. Started in a goroutine
-	// because the probe waits up to 90 s for a first compile, and the agent has
-	// no reason to.
+	// than trading the deliverable for a convenience. The probe runs in the
+	// background because it waits up to 90 s for a first compile, and the agent
+	// has no reason to; the registration does not, so the deferred stop below
+	// always finds the preview.
 	if runScript := localAssignment.RunScript(); len(runScript) > 0 {
 		// A copy: agentEnv keeps being written below (PATH, CODEX_HOME, …) and
 		// the goroutine reads it concurrently.
@@ -8523,7 +8543,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		for k, v := range agentEnv {
 			previewEnv[k] = v
 		}
-		go d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
+		d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
 		defer d.stopRunPreview(task.ID, taskLog)
 	}
 	if task.AutopilotRunID != "" {
@@ -10353,8 +10373,16 @@ func isBlockedEnvKey(key string) bool {
 	if strings.HasPrefix(upper, "MULTICA_") {
 		return true
 	}
+	// Git's environment config is how the approval gate (K05) installs its
+	// pre-push hook for every git call of the run (gateEnvironment). A custom
+	// value, even for an unrelated key, would replace or outrank that
+	// core.hooksPath and leave pushes ungated.
+	if strings.HasPrefix(upper, "GIT_CONFIG_KEY_") || strings.HasPrefix(upper, "GIT_CONFIG_VALUE_") {
+		return true
+	}
 	switch upper {
-	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS":
+	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS",
+		"GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS":
 		return true
 	}
 	return false

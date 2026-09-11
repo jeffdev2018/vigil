@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 )
@@ -48,5 +50,25 @@ func TestParseFlexDuration_Invalid(t *testing.T) {
 		if _, err := parseFlexDuration(in); err == nil {
 			t.Errorf("parseFlexDuration(%q) expected error, got nil", in)
 		}
+	}
+}
+
+// A panic in a heartbeat-action or WS-dispatched handler used to crash the
+// daemon process and every task it was running. goRecover logs it instead.
+func TestGoRecoverLogsPanicInsteadOfCrashing(t *testing.T) {
+	t.Parallel()
+	var logs lockedBuffer
+	d := &Daemon{logger: slog.New(slog.NewTextHandler(&logs, nil))}
+	d.goRecover("boom handler", func() { panic("boom") })
+
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(logs.String(), "boom handler") {
+		if time.Now().After(deadline) {
+			t.Fatalf("panic was not logged; logs = %q", logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(logs.String(), "boom") {
+		t.Fatalf("log does not carry the panic value: %q", logs.String())
 	}
 }

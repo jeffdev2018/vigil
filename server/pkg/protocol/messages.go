@@ -499,6 +499,17 @@ type ChatSessionUpdatedPayload struct {
 type DaemonHeartbeatRequestPayload struct {
 	RuntimeID           string `json:"runtime_id"`
 	SupportsBatchImport bool   `json:"supports_batch_import,omitempty"`
+	// DirtyCheckouts (K18) carries the files a human changed in the daemon's
+	// local checkouts, like the HTTP body's field. Deliberately not omitempty:
+	// an empty list clears the previous report, while an absent/null value
+	// (older daemons) leaves the stored report alone.
+	DirtyCheckouts []DaemonDirtyCheckout `json:"dirty_checkouts"`
+}
+
+// DaemonDirtyCheckout is one checkout entry of DaemonHeartbeatRequestPayload.
+type DaemonDirtyCheckout struct {
+	Root  string   `json:"root"`
+	Paths []string `json:"paths"`
 }
 
 // DaemonHeartbeatAckPayload is the server's reply to DaemonHeartbeatRequestPayload.
