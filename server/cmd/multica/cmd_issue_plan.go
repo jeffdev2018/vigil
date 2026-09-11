@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -183,7 +185,7 @@ func readAllStdin() ([]byte, error) {
 		n, err := os.Stdin.Read(buf)
 		b.Write(buf[:n])
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err
