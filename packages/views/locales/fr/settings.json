@@ -65,6 +65,11 @@
     "named_actors": "{{count}} nommés",
     "needs_approval": "approbation requise",
     "disabled": "désactivée",
+    "actor_type": {
+      "member": "Membre",
+      "agent": "Agent",
+      "squad": "Escouade"
+    },
     "editor": {
       "create_title": "Nouvelle règle de transition",
       "edit_title": "Modifier la règle de transition",
@@ -696,7 +701,8 @@
     "types_label": "S'applique à",
     "types_all": "Tous les types de tickets",
     "types_hint": "Laissez vide pour appliquer partout, y compris aux tickets sans type.",
-    "types_count": "{{count}} types",
+    "types_count_one": "{{count}} type",
+    "types_count_other": "{{count}} types",
     "types_failed": "Impossible d'enregistrer la portée."
   },
   "labels": {
@@ -941,6 +947,9 @@
     "rules_activate": "Activer",
     "rules_disable": "Désactiver",
     "rules_remove": "Supprimer la règle",
+    "rules_status_draft": "Brouillon",
+    "rules_status_active": "Active",
+    "rules_status_disabled": "Désactivée",
     "rules_dry_run_clean": "Simulation : rien ne serait bloqué aujourd'hui ({{count}} vérifiés).",
     "rules_dry_run_violations": "Simulation : {{count}} sur {{checked}} seraient bloqués aujourd'hui.",
     "rules_failed": "La règle n'a pas pu être enregistrée",
@@ -2047,6 +2056,7 @@
     }
   },
   "audit": {
+    "title": "Journal d'audit",
     "description": "Chaque action significative dans ce workspace, de la plus récente à la plus ancienne : décisions posées et répondues, plans approuvés, changements de statut, preuves, rollbacks d'agent, règles de propriété, briefings, paramètres. Les entrées ne sont jamais modifiées ni supprimées.",
     "actor_type": "Acteur",
     "any_actor": "Tout acteur",

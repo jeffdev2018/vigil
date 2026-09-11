@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
 import { useT } from "../../i18n";
+import { useStatusLabel } from "../../issues/utils/status-label";
 import { SettingsTab } from "./settings-layout";
 
 // Transition rules (F28). A rule says who may move an issue INTO a status
@@ -67,6 +68,39 @@ function toDraft(rule?: IssueTransitionRule): RuleDraft {
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+// Roles and actor types are two server enums that share the word "member"
+// (the member ROLE vs. the human ACTOR type), so a rule granting both reads
+// "member, member" unless the labels are deduplicated after translation.
+function useGrantLabels() {
+  const { t: tMembers } = useT("members");
+  const { t } = useT("settings");
+  const roleLabel = (role: string): string => {
+    switch (role) {
+      case "owner":
+        return tMembers(($) => $.role.owner);
+      case "admin":
+        return tMembers(($) => $.role.admin);
+      case "member":
+        return tMembers(($) => $.role.member);
+      default:
+        return role;
+    }
+  };
+  const actorTypeLabel = (type: string): string => {
+    switch (type) {
+      case "member":
+        return t(($) => $.transitions.actor_type.member);
+      case "agent":
+        return t(($) => $.transitions.actor_type.agent);
+      case "squad":
+        return t(($) => $.transitions.actor_type.squad);
+      default:
+        return type;
+    }
+  };
+  return { roleLabel, actorTypeLabel };
 }
 
 export function TransitionsTab() {
@@ -146,16 +180,18 @@ function RuleRow({
   onDelete: () => void;
 }) {
   const { t } = useT("settings");
+  const wsId = useWorkspaceId();
+  const statusLabel = useStatusLabel(wsId);
+  const { roleLabel, actorTypeLabel } = useGrantLabels();
   const grants = [
-    ...rule.allowed_roles,
-    ...rule.allow_actor_types,
+    ...new Set([...rule.allowed_roles.map(roleLabel), ...rule.allow_actor_types.map(actorTypeLabel)]),
     ...(rule.actors.length > 0 ? [t(($) => $.transitions.named_actors, { count: rule.actors.length })] : []),
   ];
   return (
     <div className="flex items-center gap-3 border-b border-surface-border px-4 py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
         <div className="truncate text-body font-medium">
-          {(rule.from_category || t(($) => $.transitions.any_origin)) + " → " + rule.to_category}
+          {(rule.from_category ? statusLabel(rule.from_category) : t(($) => $.transitions.any_origin)) + " → " + statusLabel(rule.to_category)}
         </div>
         <div className="truncate text-caption text-muted-foreground">
           {grants.length > 0
@@ -183,6 +219,8 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
   const save = useSaveIssueTransitionRule(wsId);
+  const statusLabel = useStatusLabel(wsId);
+  const { roleLabel, actorTypeLabel } = useGrantLabels();
   const [local, setLocal] = useState<RuleDraft | null>(draft);
 
   // Re-seed when a different rule is opened. Keeping the draft in state is what
@@ -233,7 +271,7 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
               >
                 <option value="">{t(($) => $.transitions.any_origin)}</option>
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{statusLabel(c)}</option>
                 ))}
               </select>
             </div>
@@ -246,7 +284,7 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
                 onChange={(e) => setLocal({ ...local, to_category: e.target.value })}
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{statusLabel(c)}</option>
                 ))}
               </select>
             </div>
@@ -255,12 +293,14 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
           <ToggleRow
             label={t(($) => $.transitions.editor.roles)}
             options={ROLES}
+            labelOf={roleLabel}
             selected={local.allowed_roles}
             onToggle={(v) => setLocal({ ...local, allowed_roles: toggle(local.allowed_roles, v) })}
           />
           <ToggleRow
             label={t(($) => $.transitions.editor.actor_types)}
             options={ACTOR_TYPES}
+            labelOf={actorTypeLabel}
             selected={local.allow_actor_types}
             onToggle={(v) => setLocal({ ...local, allow_actor_types: toggle(local.allow_actor_types, v) })}
           />
@@ -276,6 +316,7 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
             <ToggleRow
               label={t(($) => $.transitions.editor.approver_roles)}
               options={ROLES}
+              labelOf={roleLabel}
               selected={local.approver_roles}
               onToggle={(v) => setLocal({ ...local, approver_roles: toggle(local.approver_roles, v) })}
             />
@@ -300,11 +341,13 @@ function RuleEditorDialog({ draft, onClose }: { draft: RuleDraft | null; onClose
 function ToggleRow({
   label,
   options,
+  labelOf,
   selected,
   onToggle,
 }: {
   label: string;
   options: readonly string[];
+  labelOf: (value: string) => string;
   selected: string[];
   onToggle: (value: string) => void;
 }) {
@@ -326,7 +369,7 @@ function ToggleRow({
                   : "border-surface-border text-muted-foreground hover:bg-accent"
               }`}
             >
-              {option}
+              {labelOf(option)}
             </button>
           );
         })}

@@ -662,7 +662,7 @@
     "types_label": "適用先",
     "types_all": "すべての作業アイテムタイプ",
     "types_hint": "空のままにすると、タイプなしの課題も含めてすべてに適用されます。",
-    "types_count": "{{count}} 件のタイプ",
+    "types_count_other": "{{count}} 件のタイプ",
     "types_failed": "適用範囲を保存できませんでした。"
   },
   "labels": {
@@ -907,6 +907,9 @@
     "rules_activate": "有効化",
     "rules_disable": "無効化",
     "rules_remove": "ルールを削除",
+    "rules_status_draft": "下書き",
+    "rules_status_active": "有効",
+    "rules_status_disabled": "無効",
     "rules_dry_run_clean": "ドライラン：今日ブロックされるものはありません（{{count}} 件確認）。",
     "rules_dry_run_violations": "ドライラン：{{checked}} 件中 {{count}} 件が今日ブロックされます。",
     "rules_failed": "ルールを保存できませんでした",
@@ -1791,6 +1794,11 @@
     "named_actors": "指定 {{count}} 件",
     "needs_approval": "承認が必要",
     "disabled": "無効",
+    "actor_type": {
+      "member": "メンバー",
+      "agent": "エージェント",
+      "squad": "スクワッド"
+    },
     "editor": {
       "create_title": "新しい遷移ルール",
       "edit_title": "遷移ルールを編集",
@@ -2056,6 +2064,7 @@
     }
   },
   "audit": {
+    "title": "監査ログ",
     "description": "このワークスペースの重要な操作を新しい順に記録します：判断の依頼と回答、プランの承認、ステータス変更、証拠、エージェントのロールバック、担当ルール、ブリーフィング、設定。エントリは編集も削除もされません。",
     "actor_type": "実行者",
     "any_actor": "すべて",

@@ -665,7 +665,8 @@
     "types_label": "Applies to",
     "types_all": "All work item types",
     "types_hint": "Leave empty to apply everywhere, including untyped issues.",
-    "types_count": "{{count}} types",
+    "types_count_one": "{{count}} type",
+    "types_count_other": "{{count}} types",
     "types_failed": "Could not save the type scope."
   },
   "labels": {
@@ -910,6 +911,9 @@
     "rules_activate": "Activate",
     "rules_disable": "Disable",
     "rules_remove": "Delete rule",
+    "rules_status_draft": "Draft",
+    "rules_status_active": "Active",
+    "rules_status_disabled": "Disabled",
     "rules_dry_run_clean": "Dry-run: nothing would be blocked today ({{count}} checked).",
     "rules_dry_run_violations": "Dry-run: {{count}} of {{checked}} would be blocked today.",
     "rules_failed": "The rule could not be saved",
@@ -1799,6 +1803,11 @@
     "named_actors": "{{count}} named",
     "needs_approval": "needs approval",
     "disabled": "disabled",
+    "actor_type": {
+      "member": "Member",
+      "agent": "Agent",
+      "squad": "Squad"
+    },
     "editor": {
       "create_title": "New transition rule",
       "edit_title": "Edit transition rule",
@@ -2064,6 +2073,7 @@
     }
   },
   "audit": {
+    "title": "Audit log",
     "description": "Every significant action in this workspace, newest first: decisions asked and answered, plans approved, status changes, proofs, agent rollbacks, ownership rules, briefings, settings. Entries are never edited or deleted.",
     "actor_type": "Actor",
     "any_actor": "Any actor",
