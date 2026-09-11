@@ -478,7 +478,15 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 		// task. Inserting both rows through qtx makes the unique-index winner
 		// deterministic: any observer that can discover the committed issue also
 		// sees the inert deferred task and must merge into it.
-		assignedTask, err = s.TaskService.createDeferredChannelIssueTaskWithQueries(ctx, qtx, issue, opts.AssignedAgentRunFireAt)
+		assignedTask, err = s.TaskService.createDeferredChannelIssueTaskInTx(ctx, tx, issue, opts.AssignedAgentRunFireAt)
+		var budgetErr *BudgetExceededError
+		if errors.As(err, &budgetErr) {
+			// Same outcome as an ordinary assignment whose enqueue the budget
+			// refuses: the issue exists, the run does not.
+			slog.Warn("deferred channel issue task refused: budget exceeded",
+				"issue_id", util.UUIDToString(issue.ID), "policy_id", util.UUIDToString(budgetErr.PolicyID))
+			assignedTask, err = db.AgentTaskQueue{}, nil
+		}
 		if err != nil {
 			return IssueCreateResult{}, fmt.Errorf("create deferred channel issue task: %w", err)
 		}

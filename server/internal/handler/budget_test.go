@@ -152,3 +152,31 @@ func TestReportTaskUsageAfterCancelChargesBudget(t *testing.T) {
 		t.Fatalf("after cancel + late usage spent=%d reserved=%d, want 3000000 / 0", spent, reserved)
 	}
 }
+
+// A direct chat send under an exhausted enforced cap is refused with the
+// structured budget conflict, like every other admission path.
+func TestSendChatMessageRefusedByExhaustedBudget(t *testing.T) {
+	dbfx.Exec(t, `DELETE FROM budget_policy WHERE workspace_id = $1`, testWorkspaceID)
+	policyID := dbfx.Insert(t, "budget_policy", testutil.Cols{
+		"workspace_id": testWorkspaceID, "scope_type": "workspace",
+		"limit_usd_ticks": int64(1), "period": "daily", "action": "enforce",
+		"created_by": testUserID,
+	})
+	dbfx.Cleanup(t, `DELETE FROM budget_period WHERE policy_id = $1`, policyID)
+	dbfx.Cleanup(t, `DELETE FROM budget_reservation WHERE policy_id = $1`, policyID)
+
+	agentID := createHandlerTestAgent(t, "ChatBudgetAgent", []byte("[]"))
+	sessionID := createHandlerTestChatSession(t, agentID)
+	req := newRequest(http.MethodPost, "/api/chat-sessions/"+sessionID+"/messages", map[string]any{"content": "spend more"})
+	req = withChatTestWorkspaceCtx(t, withURLParam(req, "sessionId", sessionID))
+	var body struct {
+		ReasonCode string `json:"reason_code"`
+	}
+	testutil.Call(t, testHandler.SendChatMessage, req).Want(http.StatusConflict).JSON(&body)
+	if body.ReasonCode != string(ReasonBudgetExceeded) {
+		t.Fatalf("reason_code = %q, want %q", body.ReasonCode, ReasonBudgetExceeded)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM agent_task_queue WHERE chat_session_id = $1`, sessionID); n != 0 {
+		t.Fatalf("refused send left %d tasks", n)
+	}
+}

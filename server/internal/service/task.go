@@ -1296,14 +1296,18 @@ func (s *TaskService) EnqueueDeferredChannelIssueTask(ctx context.Context, issue
 	return task, nil
 }
 
-// createDeferredChannelIssueTaskWithQueries inserts the inert media-gated task
-// through the caller's query handle. IssueService passes its transaction-bound
-// Queries so the issue and task become visible atomically. Composio is
-// intentionally absent from the transaction-scoped service: the task cannot be
-// claimed while deferred, so the optional external overlay is hydrated after
-// commit without holding database locks across a network call.
-func (s *TaskService) createDeferredChannelIssueTaskWithQueries(ctx context.Context, q *db.Queries, issue db.Issue, fireAt time.Time) (db.AgentTaskQueue, error) {
-	txService := &TaskService{Queries: q}
+// createDeferredChannelIssueTaskInTx inserts the inert media-gated task inside
+// the caller's transaction. IssueService passes its issue transaction so the
+// issue and task become visible atomically. Composio is intentionally absent
+// from the transaction-scoped service: the task cannot be claimed while
+// deferred, so the optional external overlay is hydrated after commit without
+// holding database locks across a network call.
+//
+// The transaction doubles as the budget admission's TxStarter, so the
+// reservation and the task share a savepoint: a refused budget rolls back only
+// that savepoint and leaves the caller's transaction usable.
+func (s *TaskService) createDeferredChannelIssueTaskInTx(ctx context.Context, tx pgx.Tx, issue db.Issue, fireAt time.Time) (db.AgentTaskQueue, error) {
+	txService := &TaskService{Queries: s.Queries.WithTx(tx), TxStarter: tx, Budget: s.Budget}
 	return txService.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{}, pgtype.Timestamptz{Time: fireAt, Valid: true})
 }
 
@@ -2193,6 +2197,18 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	if err != nil || locked.ID != contextID {
 		return nil, ErrSourceContextRetryUnavailable
 	}
+	// Budget admission: a manual retry is a new run and pays like one.
+	childID := dbid.NewV7()
+	budgetChanged := false
+	if s.Budget != nil {
+		projectID, _ := util.ParseUUID(quickCreate.ProjectID)
+		budgetChanged, err = s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+			WorkspaceID: workspaceID, ProjectID: projectID, AgentID: agent.ID,
+		}, childID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	child, err := qtx.CreateManualQuickCreateRetryTask(ctx, db.CreateManualQuickCreateRetryTaskParams{
 		ActorUserID:          requesterID,
 		RuntimeID:            stamp.RuntimeID,
@@ -2200,7 +2216,7 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 		RuntimeConnectedApps: overlay.ConnectedApps,
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
-		NewTaskID:            dbid.NewV7(),
+		NewTaskID:            childID,
 		SourceTaskID:         sourceTaskID,
 	})
 	if err != nil {
@@ -2213,6 +2229,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit source context manual retry: %w", err)
+	}
+	if budgetChanged {
+		s.Budget.NotifyBudgetChange(ctx, workspaceID)
 	}
 	s.broadcastTaskEvent(ctx, protocol.EventTaskQueued, child)
 	s.NotifyTaskEnqueued(ctx, child)
@@ -2780,6 +2799,7 @@ func (s *TaskService) SendDirectChatMessage(
 	attrSource, _, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 
 	var out DirectChatSendResult
+	budgetChanged := false
 	if err := s.runInTx(ctx, func(qtx *db.Queries) error {
 		// Serialise this send against a concurrent runtime rebind of the same
 		// session (MUL-5163). The lock must be taken first and the agent re-read
@@ -2826,8 +2846,20 @@ func (s *TaskService) SendDirectChatMessage(
 		if stamp.RuntimeID.Valid {
 			directRuntimeID = stamp.RuntimeID
 		}
+		// Budget admission in the transaction that creates the task, like
+		// every other enqueue path: an exhausted enforced cap refuses the send.
+		taskID := dbid.NewV7()
+		if s.Budget != nil {
+			reserved, err := s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+				WorkspaceID: session.WorkspaceID, AgentID: session.AgentID,
+			}, taskID)
+			if err != nil {
+				return err
+			}
+			budgetChanged = reserved
+		}
 		task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
-			ID:                   dbid.NewV7(),
+			ID:                   taskID,
 			AgentID:              session.AgentID,
 			RuntimeID:            directRuntimeID,
 			Priority:             2, // medium priority for chat; matches EnqueueChatTask
@@ -2953,6 +2985,9 @@ func (s *TaskService) SendDirectChatMessage(
 		return nil, err
 	}
 
+	if budgetChanged {
+		s.Budget.NotifyBudgetChange(ctx, session.WorkspaceID)
+	}
 	slog.Info("direct chat task enqueued",
 		"task_id", util.UUIDToString(out.Task.ID),
 		"chat_session_id", util.UUIDToString(session.ID),
