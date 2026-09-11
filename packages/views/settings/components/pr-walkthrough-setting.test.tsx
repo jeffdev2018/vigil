@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   settings: { enabled: false, agent_id: "" } as PrWalkthroughSettings,
   agents: [{ id: "agent-1", name: "Reviewer" }],
   save: vi.fn(),
+  fail: false,
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -21,7 +22,13 @@ vi.mock("@multica/core/workspace/queries", () => ({
 }));
 vi.mock("@multica/core/pr-walkthrough", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/pr-walkthrough")>()),
-  prWalkthroughSettingsOptions: () => ({ queryKey: ["wt-settings"], queryFn: async () => state.settings }),
+  prWalkthroughSettingsOptions: () => ({
+    queryKey: ["wt-settings"],
+    queryFn: async () => {
+      if (state.fail) throw new Error("network down");
+      return state.settings;
+    },
+  }),
   useSavePrWalkthroughSettings: () => ({ mutate: state.save, isPending: false }),
 }));
 
@@ -39,6 +46,7 @@ function render(canEdit = true) {
 beforeEach(() => {
   state.settings = { enabled: false, agent_id: "" };
   state.save.mockReset();
+  state.fail = false;
 });
 
 describe("PrWalkthroughSetting", () => {
@@ -71,5 +79,20 @@ describe("PrWalkthroughSetting", () => {
     render(false);
     expect(await screen.findByLabelText("Walkthrough agent")).toBeDisabled();
     expect(screen.getByLabelText("Generate walkthroughs")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  // P3 audit finding: a failed fetch fell back to the safe "off" default
+  // with no indication anything had gone wrong, and left the controls
+  // editable — a save while the real remote state is unknown could clobber
+  // whatever it actually was.
+  it("blocks editing and shows a retry-able error when the fetch fails", async () => {
+    state.fail = true;
+    render();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load pull request walkthrough settings",
+    );
+    expect(screen.getByLabelText("Generate walkthroughs")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByLabelText("Walkthrough agent")).toBeDisabled();
   });
 });

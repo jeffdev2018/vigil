@@ -601,6 +601,7 @@
       "upload": "パッケージをアップロード",
       "published": "{{name}} {{version}} を公開しました",
       "empty": "このワークスペースではまだ何も公開されていません。",
+      "load_error": "公開済みのパッケージを読み込めませんでした。",
       "delete": "公開したプラグインを削除",
       "deleted": "公開したプラグインを削除しました",
       "installed_version": "使用中",
@@ -750,6 +751,8 @@
     "title": "インボックス通知",
     "description": "どのイベントがインボックス通知を生成するかを制御します。ミュートしたイベントタイプは静かにフィルタされますが、課題を直接開けば引き続き確認できます。",
     "toast_failed": "通知設定を更新できませんでした",
+    "load_error": "通知設定を読み込めませんでした。",
+    "retry": "再試行",
     "groups": {
       "assignments": {
         "label": "担当の割り当て",
@@ -1079,6 +1082,7 @@
     "pr_walkthrough_agent_description": "差分を読むエージェント。ウォークスルーを有効にする前に指定が必要です。",
     "pr_walkthrough_pick_agent": "エージェントを選択",
     "pr_walkthrough_failed": "プルリクエストのウォークスルー設定を保存できませんでした",
+    "pr_walkthrough_load_error": "PR ウォークスルー設定を読み込めませんでした。デフォルトを表示しています。",
     "drift_failed": "逸脱ポリシーを保存できませんでした",
     "postmortem_cost_section": "高コスト実行のポストモーテム",
     "postmortem_cost_enabled": "高コストの実行にポストモーテムを作成",
@@ -1108,6 +1112,7 @@
     "pipelines_move_down": "ステージ {{n}} を下へ",
     "pipelines_remove_stage": "ステージ {{n}} を削除",
     "pipelines_failed": "パイプラインを保存できませんでした",
+    "pipelines_load_error": "パイプラインを読み込めませんでした。",
     "briefing_channels_label": "チャネルにも送信",
     "briefing_channels_description": "毎朝ダイジェストを投稿する Slack チャンネルまたは Telegram チャット ID（ワークスペースに接続済みのアプリ経由）。LLM があれば要約付き、なくても構造化版を送信。",
     "briefing_channel_type": "チャネル種別 {{n}}",

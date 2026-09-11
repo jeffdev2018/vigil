@@ -603,6 +603,7 @@
       "upload": "Upload package",
       "published": "Published {{name}} {{version}}",
       "empty": "Nothing has been published in this workspace yet.",
+      "load_error": "Published packages couldn't be loaded.",
       "delete": "Delete published Plugin",
       "deleted": "Published Plugin deleted",
       "installed_version": "In use",
@@ -754,6 +755,8 @@
     "title": "Inbox Notifications",
     "description": "Control which events generate inbox notifications. Muted event types are silently filtered — you can still see them by visiting the issue directly.",
     "toast_failed": "Failed to update notification settings",
+    "load_error": "Could not load notification settings.",
+    "retry": "Retry",
     "groups": {
       "assignments": {
         "label": "Assignments",
@@ -1083,6 +1086,7 @@
     "pr_walkthrough_agent_description": "The agent that reads the diff. Required before walkthroughs can be switched on.",
     "pr_walkthrough_pick_agent": "Pick an agent",
     "pr_walkthrough_failed": "The pull request walkthrough settings could not be saved",
+    "pr_walkthrough_load_error": "Couldn't load pull request walkthrough settings. Showing defaults.",
     "drift_failed": "Failed to save the drift policy",
     "postmortem_cost_section": "Costly-run postmortems",
     "postmortem_cost_enabled": "Draft a postmortem for expensive runs",
@@ -1112,6 +1116,7 @@
     "pipelines_move_down": "Move stage {{n}} down",
     "pipelines_remove_stage": "Remove stage {{n}}",
     "pipelines_failed": "Failed to save the pipeline",
+    "pipelines_load_error": "Could not load pipelines.",
     "briefing_channels_label": "Also send to channels",
     "briefing_channels_description": "Slack channel or Telegram chat ids the digest is posted to each morning, through the workspace's connected app. Narrated by the LLM when one is configured; structured either way.",
     "briefing_channel_type": "Channel type {{n}}",

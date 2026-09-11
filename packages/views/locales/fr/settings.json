@@ -641,6 +641,7 @@
       "upload": "Télécharger le package",
       "published": "{{name}} {{version}} publié",
       "empty": "Rien n'a encore été publié dans ce workspace.",
+      "load_error": "Impossible de charger les paquets publiés.",
       "delete": "Supprimer le plugin publié",
       "deleted": "Plugin publié supprimé",
       "installed_version": "En cours d'utilisation",
@@ -792,6 +793,8 @@
     "title": "Notifications de la boîte de réception",
     "description": "Contrôlez les événements qui génèrent des notifications. Les types d'événements désactivés sont filtrés silencieusement — vous pouvez toujours les voir en consultant l'issue directement.",
     "toast_failed": "Échec de la mise à jour des paramètres de notification",
+    "load_error": "Impossible de charger les paramètres de notification.",
+    "retry": "Réessayer",
     "groups": {
       "assignments": {
         "label": "Assignations",
@@ -1121,6 +1124,7 @@
     "pr_walkthrough_agent_description": "L'agent qui lit le diff. Obligatoire avant d'activer les parcours.",
     "pr_walkthrough_pick_agent": "Choisir un agent",
     "pr_walkthrough_failed": "Les réglages du parcours de pull request n'ont pas pu être enregistrés",
+    "pr_walkthrough_load_error": "Impossible de charger les paramètres de récap de PR. Les valeurs par défaut sont affichées.",
     "drift_failed": "Échec de l'enregistrement de la politique de dérive",
     "postmortem_cost_section": "Postmortems des runs coûteux",
     "postmortem_cost_enabled": "Rédiger un postmortem pour les runs coûteux",
@@ -1150,6 +1154,7 @@
     "pipelines_move_down": "Descendre l'étape {{n}}",
     "pipelines_remove_stage": "Supprimer l'étape {{n}}",
     "pipelines_failed": "Échec de l'enregistrement du pipeline",
+    "pipelines_load_error": "Impossible de charger les pipelines.",
     "briefing_channels_label": "Envoyer également vers des channels",
     "briefing_channels_description": "IDs de channels Slack ou de chats Telegram où le résumé est publié chaque matin via l'application connectée du workspace. Narré par le LLM si configuré, sinon structuré.",
     "briefing_channel_type": "Type de channel {{n}}",
