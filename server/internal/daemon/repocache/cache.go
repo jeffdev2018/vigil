@@ -2030,7 +2030,11 @@ func repoNameFromURL(url string) string {
 	}
 
 	name := strings.TrimSpace(url)
-	if name == "" {
+	// The caller joins this straight onto a WorkDir (filepath.Join); "." or
+	// ".." would resolve to that directory itself or its parent instead of a
+	// repo-named subdirectory — a path-traversal shape from a remote URL like
+	// "https://host/..", not just an empty/malformed one.
+	if name == "" || name == "." || name == ".." {
 		return "repo"
 	}
 	return name
