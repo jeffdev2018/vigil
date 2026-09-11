@@ -235,7 +235,10 @@ func (h *Handler) UpdatePipeline(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if req.Stages != nil {
-		if n, _ := h.Queries.CountOpenPipelineRunsForPipeline(r.Context(), p.ID); n > 0 {
+		if n, err := h.Queries.CountOpenPipelineRunsForPipeline(r.Context(), p.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to check open pipeline runs")
+			return
+		} else if n > 0 {
 			writeErrorCode(w, http.StatusConflict, ErrCodePipelineRunOpen, "issues are still moving through this pipeline; finish or cancel their runs before changing its stages")
 			return
 		}
@@ -269,7 +272,10 @@ func (h *Handler) DeletePipeline(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if n, _ := h.Queries.CountOpenPipelineRunsForPipeline(r.Context(), p.ID); n > 0 {
+	if n, err := h.Queries.CountOpenPipelineRunsForPipeline(r.Context(), p.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check open pipeline runs")
+		return
+	} else if n > 0 {
 		writeErrorCode(w, http.StatusConflict, ErrCodePipelineRunOpen, "issues are still moving through this pipeline")
 		return
 	}
