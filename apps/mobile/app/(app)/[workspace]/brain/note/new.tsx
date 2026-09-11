@@ -60,8 +60,13 @@ export default function NewNoteSheet() {
   }, [content, create, pinned, submitting, tagsRaw, title, valid]);
 
   return (
-    <View className="flex-1">
-      <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
+    <ScrollView
+      className="flex-1"
+      contentContainerClassName="pb-8"
+      stickyHeaderIndices={[0]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View className="flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
         <Text className="text-base font-semibold text-foreground">
           New note
         </Text>
@@ -81,11 +86,7 @@ export default function NewNoteSheet() {
         </Pressable>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="gap-4 px-4 pb-8 pt-2"
-        keyboardShouldPersistTaps="handled"
-      >
+      <View className="gap-4 px-4 pt-2">
         <View className="gap-1">
           <Text className="text-xs text-muted-foreground">Title</Text>
           <TextField
@@ -143,7 +144,7 @@ export default function NewNoteSheet() {
             </Text>
           ) : null}
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
