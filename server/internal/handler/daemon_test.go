@@ -4657,3 +4657,21 @@ func TestHandleDaemonWSHeartbeat_StoresDirtyCheckouts(t *testing.T) {
 		t.Fatalf("dirty paths after an empty report = %v, want cleared", got)
 	}
 }
+
+// TestCancelTask_MalformedTaskID_Returns400 covers the audit finding that
+// CancelTask passed the raw taskId path param straight into parseUUID
+// (util.MustParseUUID), which panics on a non-UUID string; chi's global
+// Recoverer middleware turned that into a 500 instead of the documented 400
+// every other raw-path-param UUID in this file (ListTaskMessagesByUser,
+// BatchIssueGCCheck, GetIssueGCCheck) already returns via
+// parseUUIDOrBadRequest.
+func TestCancelTask_MalformedTaskID_Returns400(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	issueID := dbfx.Issue(t, "cancel task malformed id "+t.Name())
+
+	req := newRequest("POST", "/api/issues/"+issueID+"/tasks/not-a-uuid/cancel", nil)
+	req = withURLParams(req, "id", issueID, "taskId", "not-a-uuid")
+	testutil.Call(t, testHandler.CancelTask, req).Want(http.StatusBadRequest)
+}

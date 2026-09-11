@@ -5694,8 +5694,11 @@ func (h *Handler) CancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	taskID := chi.URLParam(r, "taskId")
-	existing, err := h.Queries.GetAgentTask(r.Context(), parseUUID(taskID))
+	taskID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "taskId"), "taskId")
+	if !ok {
+		return
+	}
+	existing, err := h.Queries.GetAgentTask(r.Context(), taskID)
 	if err != nil || uuidToString(existing.IssueID) != uuidToString(issue.ID) {
 		writeError(w, http.StatusNotFound, "task not found")
 		return
@@ -5703,12 +5706,12 @@ func (h *Handler) CancelTask(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.TaskService.CancelTaskByUser(r.Context(), existing.ID)
 	if err != nil {
-		slog.Warn("cancel task failed", "task_id", taskID, "error", err)
+		slog.Warn("cancel task failed", "task_id", uuidToString(taskID), "error", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	slog.Info("task cancelled by user", "task_id", taskID, "issue_id", uuidToString(task.IssueID))
+	slog.Info("task cancelled by user", "task_id", uuidToString(taskID), "issue_id", uuidToString(task.IssueID))
 	resp := taskToResponse(*task, uuidToString(issue.WorkspaceID))
 	// Keep this issue-scoped surface consistent with the list endpoints so a
 	// cancelled row keeps its resolved "on behalf of" name in the UI.
