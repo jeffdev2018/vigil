@@ -1274,8 +1274,12 @@ function workspaceHeader(
  * asserts something about is normalized here, so a drifted declaration reads
  * as "not declared" rather than as a region the policy might match.
  */
-function withParsedCompliance(runtime: AgentRuntime, endpoint: string): AgentRuntime {
-  if (runtime?.compliance == null) return runtime;
+function withParsedCompliance(raw: unknown, endpoint: string): AgentRuntime {
+  const runtime = parseWithFallback<AgentRuntime | null>(raw, AgentRuntimeSchema, null, { endpoint });
+  if (!runtime) {
+    throw new Error(`${endpoint} returned a malformed runtime`);
+  }
+  if (runtime.compliance == null) return runtime;
   return {
     ...runtime,
     compliance: parseWithFallback(runtime.compliance, RuntimeComplianceSchema, null, { endpoint }),
@@ -5020,7 +5024,7 @@ export class ApiClient {
     runtimeId: string,
     declaration: import("../residency/schemas").RuntimeCompliance,
   ): Promise<AgentRuntime> {
-    const raw = await this.fetch<AgentRuntime>(`/api/runtimes/${runtimeId}/compliance`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/compliance`, {
       method: "PUT",
       body: JSON.stringify(declaration),
     });
@@ -5028,7 +5032,7 @@ export class ApiClient {
   }
 
   async deleteRuntimeCompliance(runtimeId: string): Promise<AgentRuntime> {
-    const raw = await this.fetch<AgentRuntime>(`/api/runtimes/${runtimeId}/compliance`, { method: "DELETE" });
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/compliance`, { method: "DELETE" });
     return withParsedCompliance(raw, "DELETE /api/runtimes/:id/compliance");
   }
 

@@ -174,7 +174,7 @@ function getActiveFilterCount(
     delta(state.projectFilters, baseline?.project) > 0 ||
     (state.includeNoProject && !(baseline?.includeNoProject ?? false));
   if (projectDelta) count++;
-  if ((state.goalFilters ?? []).length > 0) count++;
+  if (delta(state.goalFilters ?? [], baseline?.goal) > 0) count++;
   if (delta(state.cycleFilters ?? [], baseline?.cycle) > 0) count++;
   if (delta(state.typeFilters ?? [], baseline?.type) > 0) count++;
   if (delta(state.labelFilters, baseline?.label) > 0) count++;

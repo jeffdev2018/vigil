@@ -592,6 +592,11 @@ export function SaveViewDialog({
         creatorFilters: state.creatorFilters,
         projectFilters: state.projectFilters,
         includeNoProject: state.includeNoProject,
+        // Goals (JEF-395) and cycles (F29): `baselineFromQuery` already read
+        // both keys, but nothing wrote them, so a saved view could never fix
+        // a goal or a cycle.
+        goalFilters: state.goalFilters,
+        cycleFilters: state.cycleFilters,
         // Work item types (F30). A view saved before this key parses to [] —
         // `baselineFromQuery` is tolerant of an absent dimension by design.
         typeFilters: state.typeFilters,

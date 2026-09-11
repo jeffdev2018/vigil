@@ -551,6 +551,9 @@ export function AgentListToolbar({
                       variant="outline"
                       size="sm"
                       className="h-8 w-8 gap-1 px-0 text-muted-foreground md:w-auto md:px-2.5"
+                      // Below `md` only the direction icon is visible, which
+                      // leaves the trigger without an accessible name.
+                      aria-label={t(($) => $.toolbar.display)}
                     >
                       {sortDirection === "asc" ? (
                         <ArrowUp className="size-3.5" />
