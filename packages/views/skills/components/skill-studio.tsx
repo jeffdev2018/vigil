@@ -11,6 +11,13 @@ import { useSkillStudioStore, saveStudioInput, useRunSkillTest, skillStudioResul
 import type { Skill } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { useT } from "../../i18n";
 
@@ -41,11 +48,11 @@ export function SkillStudio({ skill, dirty }: { skill: Skill; dirty: boolean }) 
     {dirty && <p role="status" className="rounded-lg bg-warning/10 p-3 text-caption text-warning">{t($ => $.studio.dirty)}</p>}
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <div className="space-y-4 rounded-xl border p-4">
-        <label className="block space-y-1 text-caption">{t($ => $.studio.saved)}<select className="h-9 w-full rounded-md border bg-background px-2 text-body" value={inputId} onChange={e => { const item = notebook?.inputs.find(i => i.id === e.target.value); setInputId(e.target.value); setInputName(item?.name ?? ""); setInput(item?.text ?? ""); }}><option value="">{t($ => $.studio.new_input)}</option>{notebook?.inputs.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
+        <label className="block space-y-1 text-caption">{t($ => $.studio.saved)}<Select items={[{ value: "", label: t($ => $.studio.new_input) }, ...(notebook?.inputs.map(i => ({ value: i.id, label: i.name })) ?? [])]} value={inputId} onValueChange={value => { if (value === null) return; const item = notebook?.inputs.find(i => i.id === value); setInputId(value); setInputName(item?.name ?? ""); setInput(item?.text ?? ""); }}><SelectTrigger className="w-full" aria-label={t($ => $.studio.saved)}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="">{t($ => $.studio.new_input)}</SelectItem>{notebook?.inputs.map(i => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}</SelectContent></Select></label>
         <label className="block space-y-1 text-caption">{t($ => $.studio.name)}<Input value={inputName} onChange={e => setInputName(e.target.value)} placeholder={t($ => $.studio.name_placeholder)} /></label>
         <label className="block space-y-1 text-caption">{t($ => $.studio.input)}<Textarea rows={9} value={input} onChange={e => setInput(e.target.value)} placeholder={t($ => $.studio.input_placeholder)} /></label>
         <div className="flex items-center gap-2"><Button size="sm" variant="outline" className="gap-2" disabled={!input.trim()} onClick={saveInput}><Save className="size-3.5" />{t($ => $.studio.save)}</Button><span className="text-caption text-muted-foreground">{t($ => $.studio.local)}</span></div>
-        <label className="block space-y-1 text-caption">{t($ => $.studio.agent)}<select className="h-9 w-full rounded-md border bg-background px-2 text-body" value={agentId} onChange={e => setAgentId(e.target.value)}><option value="">{t($ => $.studio.choose_agent)}</option>{agents.filter(a => a.runtime_id && !a.archived_at).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        <label className="block space-y-1 text-caption">{t($ => $.studio.agent)}<Select items={[{ value: "", label: t($ => $.studio.choose_agent) }, ...agents.filter(a => a.runtime_id && !a.archived_at).map(a => ({ value: a.id, label: a.name }))]} value={agentId} onValueChange={value => value !== null && setAgentId(value)}><SelectTrigger className="w-full" aria-label={t($ => $.studio.agent)}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="">{t($ => $.studio.choose_agent)}</SelectItem>{agents.filter(a => a.runtime_id && !a.archived_at).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></label>
         <p className="text-caption text-muted-foreground">{t($ => $.studio.permissions)}</p>
         <Button className="w-full gap-2" disabled={!ready} onClick={start}><Play className="size-4" />{run.isPending ? t($ => $.studio.starting) : t($ => $.studio.run)}</Button>
         {run.error && <p role="alert" className="text-caption text-destructive">{run.error.message}</p>}

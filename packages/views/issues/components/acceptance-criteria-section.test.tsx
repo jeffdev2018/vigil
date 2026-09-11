@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AcceptanceCriterion } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -46,6 +47,9 @@ beforeEach(() => {
   state.prove.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("AcceptanceCriteriaSection", () => {
   it("offers only an add affordance without criteria, then adds one on Enter", async () => {
     renderSection();
@@ -69,7 +73,9 @@ describe("AcceptanceCriteriaSection", () => {
     state.criteria = [missing];
     renderSection();
     fireEvent.click(await screen.findByText("Attach a proof"));
-    fireEvent.change(screen.getByLabelText("Proof type"), { target: { value: "url" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Proof type" }));
+    await user.click(await screen.findByRole("option", { name: "Link" }));
     fireEvent.change(screen.getByLabelText("Test command, path or URL"), { target: { value: "https://ci/1" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.prove).toHaveBeenCalledWith(

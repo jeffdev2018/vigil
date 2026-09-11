@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ProjectMemberRole } from "@multica/core/access";
 import { renderWithI18n } from "../../test/i18n";
 
@@ -41,14 +42,18 @@ beforeEach(() => {
   state.set.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectMembersSection", () => {
-  it("never offers a role above the ceiling", () => {
+  it("never offers a role above the ceiling", async () => {
     state.role = "admin";
     state.members = [member({})];
     render();
-    const select = screen.getByRole("combobox", { name: "Project role" });
-    const values = within(select).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(["__inherit", "viewer", "contributor"]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual(["Inherit (Contributor)", "Viewer", "Contributor"]);
     expect(screen.getByRole("option", { name: "Inherit (Contributor)" })).toBeInTheDocument();
   });
 
@@ -66,14 +71,17 @@ describe("ProjectMembersSection", () => {
     expect(screen.getByText(/Only workspace owners, admins and project admins/)).toBeInTheDocument();
   });
 
-  it("sets an override and clears it back to inherited", () => {
+  it("sets an override and clears it back to inherited", async () => {
     // The current user is a project admin through their own row.
     state.members = [member({ subject_id: "user-1", name: "Me", ceiling: "admin", effective_role: "admin" }), member({})];
     render();
+    const user = userEvent.setup();
     const selects = screen.getAllByRole("combobox", { name: "Project role" });
-    fireEvent.change(selects[1]!, { target: { value: "viewer" } });
+    await user.click(selects[1]!);
+    await user.click(await screen.findByRole("option", { name: "Viewer" }));
     expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "user-2", role: "viewer" }, expect.anything());
-    fireEvent.change(selects[1]!, { target: { value: "__inherit" } });
+    await user.click(screen.getAllByRole("combobox", { name: "Project role" })[1]!);
+    await user.click(await screen.findByRole("option", { name: "Inherit (Contributor)" }));
     expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "user-2", role: null }, expect.anything());
   });
 

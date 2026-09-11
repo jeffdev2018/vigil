@@ -17,6 +17,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Virtuoso } from "react-virtuoso";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import type { Issue, IssueStatusCategory, Project } from "@multica/core/types";
 import { useViewStore } from "@multica/core/issues/stores/view-store-context";
 import { StatusHeading } from "./status-heading";
@@ -554,20 +555,17 @@ function StatusAccordionItem({
         }`}
       >
         <div className="pl-3 flex items-center">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={allSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected && !allSelected;
-            }}
-            onChange={() => {
+            indeterminate={someSelected && !allSelected}
+            onCheckedChange={() => {
               if (allSelected) {
                 deselect(issueIds);
               } else {
                 select(issueIds);
               }
             }}
-            className="cursor-pointer accent-primary"
+            className="cursor-pointer"
           />
         </div>
         <Accordion.Trigger className="group/trigger flex flex-1 items-center gap-2 px-2 h-full text-left outline-none cursor-pointer">

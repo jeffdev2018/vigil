@@ -4,6 +4,7 @@ import { memo, type Ref } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { AppLink } from "../../navigation";
 import type { Issue, Project,
   IssueProperty,
@@ -104,12 +105,11 @@ function ListRowContent({
             priority={issue.priority}
             className={selected ? "hidden" : "group-hover/row:hidden"}
           />
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={() => toggle(issue.id)}
-            className={`absolute inset-0 cursor-pointer accent-primary ${
-              selected ? "" : "hidden group-hover/row:block"
+            onCheckedChange={() => toggle(issue.id)}
+            className={`absolute inset-0 cursor-pointer ${
+              selected ? "" : "hidden group-hover/row:flex"
             }`}
           />
         </div>

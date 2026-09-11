@@ -7,6 +7,13 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { projectDecisionsOptions, type DecisionAuthorFilter } from "@multica/core/projects/decisions";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { AppLink } from "../../navigation";
 import { RecordDecisionDialog } from "./record-decision-dialog";
 import { useT, useTimeAgo } from "../../i18n";
@@ -34,16 +41,24 @@ export function ProjectDecisionsSection({ projectId }: { projectId: string }) {
         <Lightbulb className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">{t(($) => $.decisions.section)}</span>
         <span className="flex-1" />
-        <select
-          aria-label={t(($) => $.decisions.author_filter)}
-          className="h-7 rounded-md border bg-background px-2"
+        <Select
+          items={[
+            { value: "", label: t(($) => $.decisions.author_any) },
+            { value: "agent", label: t(($) => $.decisions.author_agent) },
+            { value: "member", label: t(($) => $.decisions.author_member) },
+          ]}
           value={author}
-          onChange={(e) => setAuthor(e.target.value as DecisionAuthorFilter)}
+          onValueChange={(value) => value !== null && setAuthor(value as DecisionAuthorFilter)}
         >
-          <option value="">{t(($) => $.decisions.author_any)}</option>
-          <option value="agent">{t(($) => $.decisions.author_agent)}</option>
-          <option value="member">{t(($) => $.decisions.author_member)}</option>
-        </select>
+          <SelectTrigger size="sm" aria-label={t(($) => $.decisions.author_filter)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.decisions.author_any)}</SelectItem>
+            <SelectItem value="agent">{t(($) => $.decisions.author_agent)}</SelectItem>
+            <SelectItem value="member">{t(($) => $.decisions.author_member)}</SelectItem>
+          </SelectContent>
+        </Select>
         <Button
           type="button"
           size="sm"

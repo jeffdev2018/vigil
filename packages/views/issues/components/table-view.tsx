@@ -54,6 +54,7 @@ import {
 import { toast } from "sonner";
 import { DataTable } from "@multica/ui/components/ui/data-table";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import {
   DropdownMenu,
@@ -309,26 +310,18 @@ function SelectAllCheckbox({
   label: string;
 }) {
   const selection = useIssueSurfaceSelection();
-  const ref = useRef<HTMLInputElement>(null);
   const selectedCount = issueIds.filter((id) => selection.selectedIds.has(id)).length;
   const checked = issueIds.length > 0 && selectedCount === issueIds.length;
 
-  useEffect(() => {
-    if (ref.current) {
-      ref.current.indeterminate = selectedCount > 0 && !checked;
-    }
-  }, [checked, selectedCount]);
-
   return (
-    <input
-      ref={ref}
-      type="checkbox"
+    <Checkbox
       aria-label={label}
       checked={checked}
-      onChange={() =>
+      indeterminate={selectedCount > 0 && !checked}
+      onCheckedChange={() =>
         checked ? selection.deselect(issueIds) : selection.select(issueIds)
       }
-      className="size-3.5 cursor-pointer accent-primary"
+      className="cursor-pointer"
     />
   );
 }
@@ -343,8 +336,7 @@ function IssueCheckbox({
   onToggle: (shiftKey: boolean) => void;
 }) {
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       aria-label={label}
       checked={checked}
       onClick={(event) => {
@@ -352,8 +344,7 @@ function IssueCheckbox({
         onToggle(event.shiftKey);
       }}
       onAuxClick={stopRowNavigation}
-      onChange={() => undefined}
-      className="size-3.5 cursor-pointer accent-primary"
+      className="cursor-pointer"
     />
   );
 }

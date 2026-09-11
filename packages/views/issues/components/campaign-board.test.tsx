@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CampaignShard, RefactorCampaign } from "@multica/core/issues/campaign";
 import { renderWithI18n } from "../../test/i18n";
@@ -40,19 +41,28 @@ beforeEach(() => {
   state.skip.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("CampaignBoard", () => {
   it("launches a campaign with a target branch, a leader and assigned shards", async () => {
     render();
     fireEvent.click(await screen.findByText("Start a refactoring campaign"));
     fireEvent.change(screen.getByLabelText("Campaign name"), { target: { value: "API rename" } });
     fireEvent.change(screen.getByLabelText("Target branch"), { target: { value: "develop" } });
-    fireEvent.change(screen.getByLabelText("Leader agent"), { target: { value: "lead" } });
+    await pickOption("Leader agent", "Lead");
     fireEvent.change(screen.getByLabelText("Shard 1"), { target: { value: "Rename in server/" } });
-    fireEvent.change(screen.getByLabelText("Assignee of shard 1"), { target: { value: "a" } });
+    await pickOption("Assignee of shard 1", "Alpha");
     fireEvent.click(screen.getByRole("button", { name: "Add a shard" }));
     fireEvent.change(screen.getByLabelText("Shard 2"), { target: { value: "Rename in packages/" } });
     fireEvent.change(screen.getByLabelText("Branch of shard 2"), { target: { value: "feat/pkg" } });
-    fireEvent.change(screen.getByLabelText("Assignee of shard 2"), { target: { value: "b" } });
+    await pickOption("Assignee of shard 2", "Beta");
     fireEvent.click(screen.getByRole("button", { name: "Launch campaign" }));
     expect(state.create).toHaveBeenCalledWith({ name: "API rename", target_branch: "develop", leader_agent_id: "lead", shards: [{ description: "Rename in server/", assignee_id: "a" }, { description: "Rename in packages/", assignee_id: "b", branch_name: "feat/pkg" }] }, expect.anything());
   });

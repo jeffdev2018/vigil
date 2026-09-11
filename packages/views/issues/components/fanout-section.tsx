@@ -10,6 +10,13 @@ import { agentListOptions } from "@multica/core/workspace/queries";
 import { fanoutProgress, issueFanoutOptions, useStartFanout } from "@multica/core/issues/fanout";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
@@ -72,17 +79,41 @@ export function FanoutSection({ issueId, canManage = true }: { issueId: string; 
       {canManage && !pending && agents.length > 0 && (
         open ? (
           <form data-testid="fanout-form" className="flex flex-col gap-1.5 rounded-md border border-border p-2" onSubmit={(e) => { e.preventDefault(); if (valid) start.mutate({ leader_agent_id: leader, sub_tasks: rows.map((r) => ({ description: r.description.trim(), assignee_id: r.assignee_id })) }, { onError: fail, onSuccess: () => { setOpen(false); setRows([{ description: "", assignee_id: "" }]); } }); }}>
-            <select aria-label={t(($) => $.fanout.leader)} className="w-64 rounded-md border border-input bg-transparent px-2 py-1" value={leader} onChange={(e) => setLeader(e.target.value)}>
-              <option value="">{t(($) => $.fanout.leader)}</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <Select
+              items={[
+                { value: "", label: t(($) => $.fanout.leader) },
+                ...agents.map((a) => ({ value: a.id, label: a.name })),
+              ]}
+              value={leader}
+              onValueChange={(value) => value !== null && setLeader(value)}
+            >
+              <SelectTrigger size="sm" className="w-64" aria-label={t(($) => $.fanout.leader)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.fanout.leader)}</SelectItem>
+                {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             {rows.map((r, i) => (
               <div key={i} className="flex gap-1">
                 <Input aria-label={t(($) => $.fanout.sub_task, { n: i + 1 })} placeholder={t(($) => $.fanout.sub_task_placeholder)} value={r.description} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, description: e.target.value } : x)))} />
-                <select aria-label={t(($) => $.fanout.assignee, { n: i + 1 })} className="rounded-md border border-input bg-transparent px-2 py-1" value={r.assignee_id} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: e.target.value } : x)))}>
-                  <option value="">{t(($) => $.fanout.pick_agent)}</option>
-                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.fanout.pick_agent) },
+                    ...agents.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                  value={r.assignee_id}
+                  onValueChange={(value) => value !== null && setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: value } : x)))}
+                >
+                  <SelectTrigger size="sm" aria-label={t(($) => $.fanout.assignee, { n: i + 1 })}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.fanout.pick_agent)}</SelectItem>
+                    {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <button type="button" aria-label={t(($) => $.fanout.remove, { n: i + 1 })} className="text-muted-foreground hover:text-destructive" onClick={() => setRows(rows.filter((_, n) => n !== i))}>×</button>
               </div>
             ))}

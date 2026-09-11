@@ -8,7 +8,15 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { projectReviewConfigOptions, useSaveProjectReviewConfig } from "@multica/core/projects/review-config";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { useT } from "../../i18n";
 
@@ -103,12 +111,24 @@ export function ProjectReviewSection({ projectId, canEdit = true }: { projectId:
           <div className="mt-3 flex flex-wrap items-center gap-2 px-2">
             <label className="flex items-center gap-2">
               <span className="text-muted-foreground">{t(($) => $.review.reviewer)}</span>
-              <select aria-label={t(($) => $.review.reviewer)} className="h-8 rounded-md border bg-background px-2" value={reviewer} disabled={disabled} onChange={(e) => setReviewer(e.target.value)}>
-                <option value="">{t(($) => $.review.reviewer_auto)}</option>
-                {reviewerAgents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.review.reviewer_auto) },
+                  ...reviewerAgents.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                value={reviewer}
+                onValueChange={(value) => value !== null && setReviewer(value)}
+              >
+                <SelectTrigger size="sm" aria-label={t(($) => $.review.reviewer)} disabled={disabled}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.review.reviewer_auto)}</SelectItem>
+                  {reviewerAgents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label className="flex items-center gap-2">
               <span className="text-muted-foreground">{t(($) => $.review.max_cycles)}</span>
@@ -116,7 +136,7 @@ export function ProjectReviewSection({ projectId, canEdit = true }: { projectId:
             </label>
           </div>
           <label className="mt-2 flex items-center gap-2 px-2">
-            <input type="checkbox" aria-label={t(($) => $.review.gate)} checked={gate} disabled={disabled} onChange={(e) => setGate(e.target.checked)} />
+            <Checkbox checked={gate} disabled={disabled} onCheckedChange={(checked) => setGate(checked === true)} />
             <span>{t(($) => $.review.gate)}</span>
           </label>
           <p className="mt-1 px-2 text-muted-foreground">{t(($) => $.review.gate_description)}</p>

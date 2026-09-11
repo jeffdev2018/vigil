@@ -9,6 +9,7 @@ import type { BrainCapture } from "@multica/core/types";
 import { noteSearchOptions } from "@multica/core/brain/queries";
 import { useOrganizeCapture } from "@multica/core/brain/mutations";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import {
@@ -236,11 +237,9 @@ export function OrganizeDialog({
 
           {action === "note" ? (
             <label className="flex items-center gap-1.5 text-caption text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={pinned}
-                onChange={(e) => setPinned(e.target.checked)}
-                className="size-3.5 accent-primary"
+                onCheckedChange={(checked) => setPinned(checked === true)}
               />
               {t(($) => $.organize.pinned)}
             </label>

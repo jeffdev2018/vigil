@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { BlastRadiusRule } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -41,12 +42,17 @@ beforeEach(() => {
   state.removed = [];
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectBlastRadiusSection", () => {
   it("says no rule means inherited permissions and adds a rule", async () => {
     render();
     expect(await screen.findByTestId("blast-radius-empty")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Path pattern"), { target: { value: "apps/mobile/**" } });
-    fireEvent.change(screen.getByLabelText("Autonomy"), { target: { value: "autonomous" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Autonomy" }));
+    await user.click(await screen.findByRole("option", { name: "Autonomous" }));
     fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
     expect(state.created[0]).toEqual({ path_pattern: "apps/mobile/**", autonomy_level: "autonomous" });
   });

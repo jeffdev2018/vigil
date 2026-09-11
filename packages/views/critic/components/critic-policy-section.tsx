@@ -15,6 +15,13 @@ import {
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { useT } from "../../i18n";
 
@@ -86,19 +93,29 @@ export function CriticPolicySection({
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
             <Label htmlFor="critic-agent">{t(($) => $.section.critic)}</Label>
-            <select
-              id="critic-agent"
-              data-testid="critic-agent"
-              className="h-8 rounded-md border border-input bg-background px-2 text-caption"
+            <Select
+              items={[
+                { value: "", label: t(($) => $.section.critic_placeholder) },
+                ...candidates.map((a) => ({ value: a.id, label: a.name })),
+              ]}
               value={draft.critic_agent_id ?? ""}
-              disabled={!canManage}
-              onChange={(e) => patch({ critic_agent_id: e.target.value })}
+              onValueChange={(value) => value !== null && patch({ critic_agent_id: value })}
             >
-              <option value="">{t(($) => $.section.critic_placeholder)}</option>
-              {candidates.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="critic-agent"
+                data-testid="critic-agent"
+                size="sm"
+                disabled={!canManage}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.section.critic_placeholder)}</SelectItem>
+                {candidates.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2">

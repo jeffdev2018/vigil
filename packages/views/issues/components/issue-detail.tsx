@@ -845,15 +845,14 @@ function SubIssueRow({
               )}
             />
           )}
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={() => toggleSelected(child.id)}
+            onCheckedChange={() => toggleSelected(child.id)}
             aria-label={t(($) => $.detail.select_sub_issue_aria, {
               identifier: child.identifier,
             })}
             className={cn(
-              "absolute inset-0 cursor-pointer accent-primary transition-opacity",
+              "absolute inset-0 cursor-pointer transition-opacity",
               selected
                 ? "opacity-100"
                 : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
@@ -3465,16 +3464,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                   {/* issue.id, not the route param — the endpoint takes a
                       UUID and the route may carry a human-readable id. */}
                   <SubIssuesAgentWorkingChip parentIssueId={issue.id} />
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={allChildrenSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someChildrenSelected && !allChildrenSelected;
-                    }}
-                    onChange={handleToggleSelectAllChildren}
+                    indeterminate={someChildrenSelected && !allChildrenSelected}
+                    onCheckedChange={handleToggleSelectAllChildren}
                     aria-label={t(($) => $.detail.select_all_sub_issues_aria)}
                     className={cn(
-                      "ml-1 cursor-pointer accent-primary transition-opacity",
+                      "ml-1 cursor-pointer transition-opacity",
                       someChildrenSelected
                         ? "opacity-100"
                         : "opacity-0 group-hover/sub-issues:opacity-100 focus-visible:opacity-100",

@@ -7,6 +7,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { issueMirrorsOptions, isMirrorOpen, useSetMirrorTypeSynced } from "@multica/core/mirrors";
 import { Badge } from "@multica/ui/components/ui/badge";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 
@@ -70,14 +71,12 @@ export function IssueMirrorsSection({ issueId }: { issueId: string }) {
               <span className="font-mono text-muted-foreground">{m.identifier}</span>
               <Badge variant={isMirrorOpen(m) ? "outline" : "secondary"}>{m.status}</Badge>
               <label className="flex items-center gap-1 text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="size-3.5"
+                <Checkbox
                   checked={m.type_synced}
                   disabled={setSynced.isPending}
-                  onChange={(e) =>
+                  onCheckedChange={(checked) =>
                     setSynced.mutate(
-                      { mirrorId: m.id, value: e.target.checked },
+                      { mirrorId: m.id, value: checked === true },
                       {
                         onError: (err) =>
                           toast.error(

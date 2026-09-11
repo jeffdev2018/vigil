@@ -20,6 +20,13 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 interface Row {
@@ -94,28 +101,42 @@ export function RunGroupStartDialog({
         >
           {rows.map((row, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <select
-                aria-label={t(($) => $.race.attempt_agent, { index: i + 1 })}
-                className="min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 py-1"
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.race.pick_agent) },
+                  ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
                 value={row.agentId}
-                onChange={(e) => setRow(i, { agentId: e.target.value })}
+                onValueChange={(value) => value !== null && setRow(i, { agentId: value })}
               >
-                <option value="">{t(($) => $.race.pick_agent)}</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-              </select>
-              <select
-                aria-label={t(($) => $.race.attempt_runtime, { index: i + 1 })}
-                className="min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 py-1"
+                <SelectTrigger className="min-w-0 flex-1" aria-label={t(($) => $.race.attempt_agent, { index: i + 1 })}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.race.pick_agent)}</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.race.default_runtime) },
+                  ...runtimes.map((runtime) => ({ value: runtime.id, label: runtimeDisplayLabel(runtime) })),
+                ]}
                 value={row.runtimeId}
-                onChange={(e) => setRow(i, { runtimeId: e.target.value })}
+                onValueChange={(value) => value !== null && setRow(i, { runtimeId: value })}
               >
-                <option value="">{t(($) => $.race.default_runtime)}</option>
-                {runtimes.map((runtime) => (
-                  <option key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</option>
-                ))}
-              </select>
+                <SelectTrigger className="min-w-0 flex-1" aria-label={t(($) => $.race.attempt_runtime, { index: i + 1 })}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.race.default_runtime)}</SelectItem>
+                  {runtimes.map((runtime) => (
+                    <SelectItem key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 aria-label={t(($) => $.race.attempt_model, { index: i + 1 })}
                 className="h-8 flex-1"

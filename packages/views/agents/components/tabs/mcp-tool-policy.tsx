@@ -18,13 +18,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@multica/ui/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT, useTimeAgo } from "../../../i18n";
 
 const POLICY_DEFAULTS = ["by_risk", "ask", "never"] as const;
 const TOOL_CLASSES: McpToolClass[] = ["act_alone", "ask", "never"];
-
-const SELECT_CLASS =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-caption";
 
 const RISK_BADGE: Record<McpToolRisk, "outline" | "secondary" | "destructive"> = {
   read: "outline",
@@ -128,26 +132,38 @@ export function McpToolPolicy({
         <p className="text-caption leading-5 text-muted-foreground">
           {t(($) => $.tab_body.mcp_config.policy.help)}
         </p>
-        <label className="flex items-center gap-2 text-caption">
+        <div className="flex items-center gap-2 text-caption">
           {t(($) => $.tab_body.mcp_config.policy.default_label)}
-          <select
-            className={SELECT_CLASS}
+          <Select
+            items={POLICY_DEFAULTS.map((value) => ({
+              value,
+              label: t(($) => $.tab_body.mcp_config.policy[`default_${value}`]),
+            }))}
             value={policy.default ?? "by_risk"}
-            disabled={!canEdit}
-            onChange={(event) =>
+            onValueChange={(value) =>
+              value &&
               setDraft({
                 ...policy,
-                default: event.target.value as McpToolPolicyValue["default"],
+                default: value as McpToolPolicyValue["default"],
               })
             }
           >
-            {POLICY_DEFAULTS.map((value) => (
-              <option key={value} value={value}>
-                {t(($) => $.tab_body.mcp_config.policy[`default_${value}`])}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger
+              size="sm"
+              disabled={!canEdit}
+              aria-label={t(($) => $.tab_body.mcp_config.policy.default_label)}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POLICY_DEFAULTS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(($) => $.tab_body.mcp_config.policy[`default_${value}`])}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {tools.length === 0 ? (
           <p className="text-caption text-muted-foreground">
@@ -198,24 +214,36 @@ export function McpToolPolicy({
                       </td>
                       <td className="py-1.5 pr-3">{classLabel(effective)}</td>
                       <td className="py-1.5 pr-3">
-                        <select
-                          aria-label={t(($) => $.tab_body.mcp_config.policy.class_aria, {
-                            name: tool.name,
-                          })}
-                          className={SELECT_CLASS}
+                        <Select
+                          items={[
+                            { value: "", label: t(($) => $.tab_body.mcp_config.policy.class_inherit) },
+                            ...TOOL_CLASSES.map((value) => ({ value, label: classLabel(value) })),
+                          ]}
                           value={policy.tools?.[tool.name] ?? ""}
-                          disabled={!canEdit}
-                          onChange={(event) => setToolClass(tool.name, event.target.value)}
+                          onValueChange={(value) =>
+                            value !== null && setToolClass(tool.name, value)
+                          }
                         >
-                          <option value="">
-                            {t(($) => $.tab_body.mcp_config.policy.class_inherit)}
-                          </option>
-                          {TOOL_CLASSES.map((value) => (
-                            <option key={value} value={value}>
-                              {classLabel(value)}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger
+                            size="sm"
+                            disabled={!canEdit}
+                            aria-label={t(($) => $.tab_body.mcp_config.policy.class_aria, {
+                              name: tool.name,
+                            })}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">
+                              {t(($) => $.tab_body.mcp_config.policy.class_inherit)}
+                            </SelectItem>
+                            {TOOL_CLASSES.map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {classLabel(value)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="py-1.5 text-muted-foreground">
                         {tool.last_used_at ? timeAgo(tool.last_used_at) : "—"}

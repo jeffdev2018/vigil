@@ -84,8 +84,8 @@ describe("IssueMirrorsSection", () => {
   it("toggles the per-mirror types-synced marker", async () => {
     state.data = { mirrors: [mirror()], mirror_of: null };
     render();
-    const box = (await screen.findAllByRole("checkbox"))[0] as HTMLInputElement;
-    expect(box.checked).toBe(false);
+    const box = (await screen.findAllByRole("checkbox"))[0]!;
+    expect(box).not.toBeChecked();
     fireEvent.click(box);
     expect(state.setSynced).toHaveBeenCalledWith(
       { mirrorId: "m1", value: true },
