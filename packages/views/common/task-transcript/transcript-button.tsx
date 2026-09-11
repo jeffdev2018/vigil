@@ -35,7 +35,15 @@ interface TranscriptButtonProps {
   items?: TimelineItem[];
   isLive?: boolean;
   className?: string;
-  title?: string;
+  /**
+   * Required even when `renderButton` is false: the button (and its
+   * tooltip/aria-label) is the ONLY carrier of this text, and a default
+   * here would inevitably be a hardcoded, un-translated string — every
+   * caller must supply its own localized copy. See
+   * packages/views/issues/components/execution-log-section.tsx for the
+   * canonical `t($ => $.execution_log.transcript_tooltip)` pattern.
+   */
+  title: string;
   renderButton?: boolean;
   open?: boolean;
   /**
@@ -76,7 +84,7 @@ export function TranscriptButton({
   items: providedItems,
   isLive = false,
   className,
-  title = "View transcript",
+  title,
   renderButton = true,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,

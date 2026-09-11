@@ -119,6 +119,7 @@ describe("TranscriptButton", () => {
         task={{ ...baseTask, status: "completed" }}
         agentName="Codex"
         items={items}
+        title="View transcript"
       />,
     );
 
@@ -143,7 +144,7 @@ describe("TranscriptButton", () => {
     qc.setQueryData(chatKeys.taskMessages(LIVE_TASK_ID), [msg(1, "Bash")]);
     listTaskMessages.mockResolvedValue([msg(1, "Bash")]);
 
-    renderWith(qc, <TranscriptButton task={baseTask} agentName="Codex" isLive />);
+    renderWith(qc, <TranscriptButton task={baseTask} agentName="Codex" isLive title="View transcript" />);
 
     fireEvent.click(screen.getByRole("button", { name: "View transcript" }));
     await waitFor(() =>
@@ -171,7 +172,7 @@ describe("TranscriptButton", () => {
     ]);
     listTaskMessages.mockResolvedValue([msg(1, "Bash"), msg(2, "Read")]);
 
-    renderWith(qc, <TranscriptButton task={baseTask} agentName="Codex" isLive />);
+    renderWith(qc, <TranscriptButton task={baseTask} agentName="Codex" isLive title="View transcript" />);
 
     fireEvent.click(screen.getByRole("button", { name: "View transcript" }));
 
@@ -190,6 +191,7 @@ describe("TranscriptButton", () => {
       <TranscriptButton
         task={{ ...baseTask, status: "completed", completed_at: "2026-05-15T10:00:10.000Z" }}
         agentName="Codex"
+        title="View transcript"
       />,
     );
 
@@ -218,7 +220,7 @@ describe("TranscriptButton", () => {
 
     const { rerender } = renderWith(
       qc,
-      <TranscriptButton task={baseTask} agentName="Codex" isLive />,
+      <TranscriptButton task={baseTask} agentName="Codex" isLive title="View transcript" />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "View transcript" }));
@@ -234,6 +236,7 @@ describe("TranscriptButton", () => {
           task={{ ...baseTask, status: "completed", completed_at: "2026-05-15T10:00:10.000Z" }}
           agentName="Codex"
           isLive={false}
+          title="View transcript"
         />
       </QueryClientProvider>,
     );

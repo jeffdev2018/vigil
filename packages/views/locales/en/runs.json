@@ -43,7 +43,8 @@
     "silent_tooltip": "No activity reported for {{duration}}",
     "blocked_on": "Blocked on",
     "cancel_aria": "Cancel this run",
-    "cancel_tooltip": "Cancel"
+    "cancel_tooltip": "Cancel",
+    "transcript_tooltip": "View transcript"
   },
   "cancel_dialog": {
     "title_one": "Cancel this run?",
