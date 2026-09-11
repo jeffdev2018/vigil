@@ -84,9 +84,12 @@ export function LinearTab() {
   );
 
   async function handleConnect() {
-    if (!agentId) return;
+    // Reconnecting a broken installation reuses its bound agent: the picker
+    // that sets agentId only renders while disconnected.
+    const target = agentId || installation?.agent_id;
+    if (!target) return;
     try {
-      const url = await startOAuth.mutateAsync({ agentId, redirect: "/settings/integrations" });
+      const url = await startOAuth.mutateAsync({ agentId: target, redirect: "/settings/integrations" });
       if (!url) {
         toast.error(t(($) => $.linear.toast_connect_failed));
         return;
