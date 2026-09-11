@@ -38,7 +38,7 @@ func (h *Handler) PutWorkflowPolicySettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req service.WorkflowPolicy
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
