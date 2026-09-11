@@ -935,6 +935,12 @@ func (h *Handler) applyEpicTickets(
 		for _, c := range fresh {
 			if err := h.Queries.DeleteIssue(ctx, db.DeleteIssueParams{ID: c.ID, WorkspaceID: c.WorkspaceID}); err != nil {
 				slog.Warn("epic: rollback delete failed", "issue_id", uuidToString(c.ID), "error", err)
+				// The compensating delete itself failed, so this issue is
+				// orphaned: created by a call that was refused, with no
+				// further automatic cleanup. Record it so an operator can
+				// find and remove it manually instead of it going unnoticed.
+				h.audit(ctx, c.WorkspaceID, actorType, actorID, AuditEpicStepFailed, "issue", c.ID,
+					map[string]any{"reason": "rollback_delete_failed", "error": err.Error()}, nil)
 			}
 		}
 	}
