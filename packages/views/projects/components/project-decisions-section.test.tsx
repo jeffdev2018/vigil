@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DecisionRecord } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -54,6 +55,9 @@ beforeEach(() => {
   state.authors = [];
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectDecisionsSection", () => {
   it("says the project has no decision yet", async () => {
     renderSection();
@@ -75,7 +79,9 @@ describe("ProjectDecisionsSection", () => {
     expect(rows[0]?.textContent).toContain("Keep the table denormalized");
     expect(rows[0]?.textContent).toContain("message #4");
     expect(screen.getAllByRole("link", { name: "JEFF-7" })[0]?.getAttribute("href")).toBe("/ws/issues/i1");
-    fireEvent.change(screen.getByLabelText("Author"), { target: { value: "member" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Author" }));
+    await user.click(await screen.findByRole("option", { name: "Member" }));
     expect(await screen.findAllByTestId("decision-record")).toHaveLength(1);
     expect(state.authors.at(-1)).toBe("member");
   });
