@@ -20,6 +20,7 @@
  *      `task_failed` which already bake the count into their phrase.
  */
 import { View } from "react-native";
+import type { TextStyle } from "react-native";
 import Svg, { Line, Rect } from "react-native-svg";
 import type { IssuePriority, TimelineEntry } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
@@ -33,6 +34,10 @@ import { useIssueStatuses } from "@/lib/use-issue-statuses";
 import type { IssueStatusCatalog } from "@/lib/issue-status";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { THEME } from "@/lib/theme";
+
+// `className="tabular-nums"` is a silent no-op on RN — see
+// components/chat/status-pill.tsx for the reference explanation.
+const TABULAR_NUMS: TextStyle = { fontVariant: ["tabular-nums"] };
 
 function CalendarGlyph({
   size = 14,
@@ -153,7 +158,10 @@ export function ActivityRow({ entry }: { entry: TimelineEntry }) {
       </Text>
       {showCoalesceBadge ? (
         <View className="bg-muted rounded px-1.5 py-0.5 shrink-0">
-          <Text className="text-xs font-medium text-muted-foreground tabular-nums">
+          <Text
+            className="text-xs font-medium text-muted-foreground"
+            style={TABULAR_NUMS}
+          >
             ×{entry.coalesced_count}
           </Text>
         </View>

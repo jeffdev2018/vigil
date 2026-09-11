@@ -18,6 +18,7 @@
  */
 import { useEffect, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
+import type { TextStyle } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,6 +48,12 @@ import { apiErrorMessage } from "@/lib/issue-goal-display";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+
+// `className="tabular-nums"` compiles to `font-variant-numeric`, which
+// react-native-css-interop's property allow-list drops silently — see
+// components/chat/status-pill.tsx for the reference explanation.
+// `fontVariant` via style is the working equivalent.
+const TABULAR_NUMS: TextStyle = { fontVariant: ["tabular-nums"] };
 
 export function ApprovalAskCard({
   approval,
@@ -182,9 +189,10 @@ export function ApprovalAskCard({
             />
             <Text
               className={cn(
-                "text-xs tabular-nums",
+                "text-xs",
                 expired ? "text-destructive" : "text-muted-foreground",
               )}
+              style={TABULAR_NUMS}
             >
               {expired ? "Expired" : `${countdown} left`}
             </Text>
@@ -203,7 +211,10 @@ export function ApprovalAskCard({
               <Ionicons name="chevron-forward" size={12} color={mutedFg} />
               <Text className="text-xs text-muted-foreground">What it would do</Text>
               {gate.requiredApprovals > 1 ? (
-                <Text className="text-xs tabular-nums text-muted-foreground">
+                <Text
+                  className="text-xs text-muted-foreground"
+                  style={TABULAR_NUMS}
+                >
                   · {gate.approvals}/{gate.requiredApprovals} approvals
                 </Text>
               ) : null}
