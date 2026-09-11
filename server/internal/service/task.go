@@ -2002,6 +2002,11 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 	if !agent.RuntimeID.Valid {
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
 	}
+	// Validated routing (JEF-275), as on the issue and mention enqueues: a
+	// deleted or foreign runtime would queue work nothing here can claim.
+	if fatal := FatalRoutingProblem(s.ValidateRouting(ctx, agent, workspaceID)); fatal != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
+	}
 
 	payload := QuickCreateContext{
 		Type:        QuickCreateContextType,
@@ -2183,6 +2188,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	if canInvoke != nil && !canInvoke(agent) {
 		return nil, ErrRerunInvokeNotAllowed
+	}
+	if fatal := FatalRoutingProblem(s.ValidateRouting(ctx, agent, workspaceID)); fatal != nil {
+		return nil, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
 	}
 	if err := CheckIssueCreateCapacity(ctx, s.Queries, s.Entitlements, workspaceID); err != nil {
 		return nil, fmt.Errorf("preflight quick-create issue capacity: %w", err)

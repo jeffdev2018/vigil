@@ -24,32 +24,41 @@ func (b budgetFixture) exhaustBudget(t *testing.T) {
 	b.dbfx.Exec(t, `UPDATE budget_policy SET limit_usd_ticks = 1 WHERE id = $1`, b.policyID)
 }
 
-func TestBudgetRefusesManualQuickCreateRetry(t *testing.T) {
-	b := newBudgetFixture(t)
-	ctx := context.Background()
-	sourceIssueID := b.dbfx.Issue(t, "branch point")
+// seedFailedSourceContextQuickCreate inserts a failed issue-less quick-create
+// holding a pending source context, the shape RetrySourceContextQuickCreate
+// retries.
+func seedFailedSourceContextQuickCreate(t *testing.T, fx routingTestFixture, dbfx *testutil.Fixture) string {
+	t.Helper()
+	sourceIssueID := dbfx.Issue(t, "branch point")
 	contextID := dbid.NewV7()
 	payload, err := json.Marshal(QuickCreateContext{
-		Type: QuickCreateContextType, Prompt: "retry this", RequesterID: b.user,
-		WorkspaceID: b.workspace, SourceContextID: util.UUIDToString(contextID),
+		Type: QuickCreateContextType, Prompt: "retry this", RequesterID: fx.user,
+		WorkspaceID: fx.workspace, SourceContextID: util.UUIDToString(contextID),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	parentID := b.dbfx.Task(t, b.agentID, testutil.Cols{
-		"runtime_id": b.runtimeA, "status": "failed", "context": payload,
-		"originator_user_id": b.user, "accountable_user_id": b.user,
+	parentID := dbfx.Task(t, fx.agentID, testutil.Cols{
+		"runtime_id": fx.runtimeA, "status": "failed", "context": payload,
+		"originator_user_id": fx.user, "accountable_user_id": fx.user,
 	})
-	b.dbfx.Exec(t, `INSERT INTO issue_source_context (
+	dbfx.Exec(t, `INSERT INTO issue_source_context (
 			id, workspace_id, origin_task_id, source_issue_id, anchor_comment_id,
 			captured_by_user_id, snapshot_version, snapshot, capture_digest, state
 		) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 1, '{}'::jsonb, 'digest', 'pending')`,
-		contextID, b.workspace, parentID, sourceIssueID, b.user)
-	b.dbfx.Cleanup(t, `DELETE FROM issue_source_context WHERE id = $1`, contextID)
-	b.dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE rerun_of_task_id = $1`, parentID)
+		contextID, fx.workspace, parentID, sourceIssueID, fx.user)
+	dbfx.Cleanup(t, `DELETE FROM issue_source_context WHERE id = $1`, contextID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE rerun_of_task_id = $1`, parentID)
+	return parentID
+}
+
+func TestBudgetRefusesManualQuickCreateRetry(t *testing.T) {
+	b := newBudgetFixture(t)
+	ctx := context.Background()
+	parentID := seedFailedSourceContextQuickCreate(t, b.routingTestFixture, b.dbfx)
 	b.exhaustBudget(t)
 
-	_, err = b.svc.RetrySourceContextQuickCreate(ctx, util.MustParseUUID(b.workspace), util.MustParseUUID(b.user),
+	_, err := b.svc.RetrySourceContextQuickCreate(ctx, util.MustParseUUID(b.workspace), util.MustParseUUID(b.user),
 		util.MustParseUUID(parentID), func(db.Agent) bool { return true })
 	var exceeded *BudgetExceededError
 	if !errors.As(err, &exceeded) {
