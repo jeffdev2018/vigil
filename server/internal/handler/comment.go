@@ -3792,6 +3792,17 @@ func (h *Handler) loadCommentForActor(w http.ResponseWriter, r *http.Request) (d
 		writeError(w, http.StatusNotFound, "comment not found")
 		return db.Comment{}, "", "", "", false
 	}
+	// Project roles (K60): resolving/unresolving is a write, same as posting a
+	// comment (CreateComment). A viewer downgraded on this project must not be
+	// able to change a thread's resolution state.
+	issue, err := h.Queries.GetIssue(r.Context(), comment.IssueID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "comment not found")
+		return db.Comment{}, "", "", "", false
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return db.Comment{}, "", "", "", false
+	}
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
 	return comment, workspaceID, actorType, actorID, true
 }

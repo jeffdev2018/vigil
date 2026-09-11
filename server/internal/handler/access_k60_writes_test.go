@@ -137,6 +137,37 @@ func TestProjectWriteGatesRefuseAViewer(t *testing.T) {
 	}
 }
 
+// TestCommentResolveGatesRefuseAViewer: Resolve/UnresolveComment share
+// loadCommentForActor, which only checked workspace membership — a viewer
+// override on the comment's project could resolve/unresolve any thread there
+// even though CreateComment already refuses them the same write.
+func TestCommentResolveGatesRefuseAViewer(t *testing.T) {
+	fx := newK60WriteFixture(t)
+	issue := dbfx.Issue(t, "k60 comment resolve issue "+uuid.NewString()[:8], testutil.Cols{"project_id": fx.project})
+	comment := dbfx.Comment(t, issue, "k60 comment resolve gate")
+
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{"Comment.ResolveComment", testHandler.ResolveComment},
+		{"Comment.UnresolveComment", testHandler.UnresolveComment},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodPost, "/x", nil), "commentId", comment)
+			res := testutil.Call(t, c.handler, req)
+			if res.Code != http.StatusForbidden {
+				t.Fatalf("%s: viewer got %d, want 403: %s", c.name, res.Code, res.Body.String())
+			}
+			writerReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodPost, "/x", nil), "commentId", comment)
+			if res := testutil.Call(t, c.handler, writerReq); res.Code == http.StatusForbidden {
+				t.Fatalf("%s: writer (contributor) got 403, the project-role gate must not block them: %s", c.name, res.Body.String())
+			}
+		})
+	}
+}
+
 // TestBatchUpdateIssuesRefusesAViewersProject: the batch endpoint refuses the
 // one item in a project the caller cannot write, reporting it in `refused`
 // rather than either silently applying it or aborting the whole batch.
