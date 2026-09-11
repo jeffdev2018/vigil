@@ -2061,12 +2061,10 @@ function StepInspector({
     });
   }, [call, message, showCopied]);
 
-  const title =
-    call
-      ? call.tool || t(($) => $.transcript.kind_tool)
-      : step.kind === "thinking"
-        ? t(($) => $.transcript.kind_thinking)
-        : t(($) => $.transcript.kind_error);
+  // Same label as the row: every message kind, not just thinking vs error.
+  const title = call
+    ? call.tool || t(($) => $.transcript.kind_tool)
+    : messageStepLabel(message!, t);
 
   return (
     <aside className="flex w-[26rem] shrink-0 flex-col border-l bg-muted/25">
