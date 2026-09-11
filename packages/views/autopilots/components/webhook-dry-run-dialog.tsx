@@ -199,9 +199,9 @@ function DryRunVerdict({ result }: { result: WebhookTriggerDryRunResult }) {
       className={cn(
         "space-y-2 rounded-md border px-3 py-2.5",
         unreadable
-          ? "border-amber-500/30 bg-amber-500/5"
+          ? "border-warning/30 bg-warning/5"
           : result.would_run
-            ? "border-emerald-500/30 bg-emerald-500/5"
+            ? "border-success/30 bg-success/5"
             : "bg-muted/40",
       )}
     >
@@ -210,9 +210,9 @@ function DryRunVerdict({ result }: { result: WebhookTriggerDryRunResult }) {
           className={cn(
             "h-4 w-4 shrink-0",
             unreadable
-              ? "text-amber-500"
+              ? "text-warning"
               : result.would_run
-                ? "text-emerald-500"
+                ? "text-success"
                 : "text-muted-foreground",
           )}
         />

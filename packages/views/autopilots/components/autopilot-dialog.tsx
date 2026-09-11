@@ -731,7 +731,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
           <div className="flex items-center gap-1.5 text-caption text-muted-foreground min-w-0">
             {!showScheduleEmptyState && (
               <>
-                <Zap className="size-3.5 text-amber-500 shrink-0" />
+                <Zap className="size-3.5 text-warning shrink-0" />
                 <span className="truncate">{t(($) => $.dialog.auto_run_hint)}</span>
               </>
             )}
@@ -1202,7 +1202,7 @@ function WebhookCreatedPanel({
             <WebhookUrlField url={url} size="md" />
           </div>
 
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-caption text-amber-700 dark:text-amber-400 leading-relaxed">
+          <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-caption text-warning leading-relaxed">
             {t(($) => $.dialog.webhook_created_warning)}
           </div>
         </div>
