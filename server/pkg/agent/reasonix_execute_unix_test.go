@@ -381,3 +381,33 @@ done
 		t.Fatalf("temporary state home was not cleaned up: %q, stat err=%v", stateHome, err)
 	}
 }
+
+// One ACP line can carry a whole message; reasonix used to read stdout with a
+// hand-rolled 10 MiB scanner, the bound every other backend already left
+// behind (GH#4520), so an 11 MiB event killed a healthy session.
+func TestReasonixBackendReadsLinesPastOldTenMiBCap(t *testing.T) {
+	t.Parallel()
+	bigChunk := `printf '{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"reasonix-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"'
+      dd if=/dev/zero bs=1048576 count=11 2>/dev/null | tr '\000' x
+      printf '"}}}}\n'
+      printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}\n' "$id"`
+	script := strings.Replace(fakeReasonixACPScript(), `printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn"}}\n' "$id"`, bigChunk, 1)
+	fakePath := filepath.Join(t.TempDir(), "reasonix")
+	writeTestExecutable(t, fakePath, []byte(script))
+	backend, err := New("reasonix", Config{ExecutablePath: fakePath, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("New(reasonix): %v", err)
+	}
+	session, err := backend.Execute(context.Background(), "finish", ExecOptions{Timeout: 20 * time.Second})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	go func() {
+		for range session.Messages {
+		}
+	}()
+	result := <-session.Result
+	if result.Status != "completed" {
+		t.Fatalf("status = %q, error = %q; want completed", result.Status, result.Error)
+	}
+}
