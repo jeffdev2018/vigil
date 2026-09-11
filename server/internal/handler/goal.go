@@ -790,9 +790,19 @@ func (h *Handler) ProposeIssueGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, d := range pending {
-		if d.Response == nil && strings.Contains(string(d.Options), `"`+attachOption+`"`) {
-			writeError(w, http.StatusConflict, "this attachment is already awaiting a decision")
-			return
+		if d.Response != nil {
+			continue
+		}
+		var opts []DecisionOption
+		if err := json.Unmarshal(d.Options, &opts); err != nil {
+			slog.Warn("goal proposal: unmarshal pending decision options failed", "decision_id", uuidToString(d.ID), "error", err)
+			continue
+		}
+		for _, o := range opts {
+			if o.ID == attachOption {
+				writeError(w, http.StatusConflict, "this attachment is already awaiting a decision")
+				return
+			}
 		}
 	}
 	question := fmt.Sprintf("Goal · attach this issue to \"%s\"?\n\n%s\n\nSuccess measure: %s", goal.Title, reason, nonEmpty(goal.SuccessMeasure, "not set"))
