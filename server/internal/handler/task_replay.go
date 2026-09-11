@@ -35,9 +35,13 @@ const (
 	AuditRunSealed            = "run.sealed"
 	AuditRunResumedFromReplay = "run.resumed_from_replay"
 	AuditRunSandboxDegraded   = "run.sandbox_degraded"
-	AuditRunStarted           = "run.started"
-	AuditRunReplayedSafe      = "run.replayed_safe"
-	replayPageMax             = 500
+	// AuditRunSandboxPolicyApplied (JEF-256) records the merged workspace <
+	// project < issue sandbox policy a claim was confined with, whenever any
+	// layer tightened the run beyond the defaults.
+	AuditRunSandboxPolicyApplied = "run.sandbox_policy_applied"
+	AuditRunStarted              = "run.started"
+	AuditRunReplayedSafe         = "run.replayed_safe"
+	replayPageMax                = 500
 )
 
 // Data classes a replay event can carry. Confidential means the server

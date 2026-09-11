@@ -223,6 +223,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "无法保存规则"
   },
+  "sandbox_policy": {
+    "section": "沙箱策略",
+    "description": "限制此项目中智能体的运行:可访问的网络主机,以及是否允许读取敏感文件。工作区、项目与议题的策略相互叠加,取最严格者生效。",
+    "capability_hint": "白名单与无网络模式需要支持容器的运行时:在不具备该能力的运行时上,运行将被拒绝并故障转移(失败即关闭)。",
+    "network": "网络访问",
+    "mode": {
+      "unrestricted": "不受限",
+      "allowlist": "白名单",
+      "none": "无网络"
+    },
+    "hint": {
+      "unrestricted": "运行可访问任意主机。",
+      "allowlist": "仅可访问列出的主机与平台默认主机。",
+      "none": "除平台所需外,没有任何网络出站。"
+    },
+    "hosts_label": "允许的主机",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "每行一个主机。平台默认主机始终可访问。",
+    "block_sensitive": "阻止敏感文件",
+    "block_sensitive_help": "智能体不得读取 .env 文件(尽力而为)。",
+    "effective": "此项目的生效值:{{mode}}",
+    "effective_blocked": "敏感文件已阻止",
+    "effective_inherited": "继承自工作区默认值",
+    "empty": "无项目策略:应用工作区默认值。",
+    "save": "保存策略",
+    "saving": "保存中...",
+    "reset": "重置为工作区默认值",
+    "toast_saved": "沙箱策略已保存",
+    "toast_reset": "沙箱策略已重置为工作区默认值",
+    "failed": "无法保存沙箱策略",
+    "load_failed": "无法加载沙箱策略"
+  },
   "members": {
     "section": "成员与角色",
     "description": "这里的角色只做限制：成员或智能体在此项目中获得的权限不会超过其工作区角色。",

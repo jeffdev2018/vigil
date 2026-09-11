@@ -3140,4 +3140,8 @@ type SandboxSpec struct {
 	Mode         string   `json:"mode"`
 	Image        string   `json:"image,omitempty"`
 	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// BlockSensitiveFiles (JEF-256) is the merged sandbox policy's .env read
+	// block; the daemon enforces it per provider as a best effort on top of
+	// whatever network confinement Mode asks for.
+	BlockSensitiveFiles bool `json:"block_sensitive_files,omitempty"`
 }

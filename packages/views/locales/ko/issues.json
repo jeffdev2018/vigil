@@ -1203,6 +1203,39 @@
       "expired": "만료됨"
     }
   },
+  "sandbox_override": {
+    "section": "샌드박스 재정의",
+    "description": "이 이슈의 에이전트 실행을 워크스페이스 및 프로젝트 정책보다 더 제한합니다. 셋 중 가장 제한적인 정책이 적용되며 fail-closed로 강제됩니다.",
+    "capability_hint": "허용 목록 및 네트워크 차단 모드는 컨테이너 지원 런타임이 필요합니다. 해당 기능이 없는 런타임에서의 실행은 거부되고 장애 조치됩니다 (fail-closed).",
+    "none": "재정의 없음 — 프로젝트 정책을 상속합니다",
+    "edit": "재정의 편집",
+    "dialog_title": "샌드박스 재정의",
+    "network": "네트워크 접근",
+    "mode": {
+      "unrestricted": "제한 없음",
+      "allowlist": "허용 목록",
+      "none": "네트워크 없음"
+    },
+    "hint": {
+      "unrestricted": "모든 호스트에 접근할 수 있습니다.",
+      "allowlist": "나열된 호스트와 플랫폼 기본 호스트만 접근할 수 있습니다.",
+      "none": "플랫폼에 필요한 것 외에는 네트워크 송신이 없습니다."
+    },
+    "hosts_label": "허용된 호스트",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "한 줄에 하나의 호스트. 플랫폼 기본 호스트는 항상 접근 가능합니다.",
+    "block_sensitive": "민감한 파일 차단",
+    "block_sensitive_help": "에이전트는 .env 파일을 읽어서는 안 됩니다 (최선 노력).",
+    "effective": "이 이슈의 유효 값: {{mode}}",
+    "effective_blocked": "민감한 파일 차단됨",
+    "save": "재정의 저장",
+    "saving": "저장 중...",
+    "remove": "재정의 제거",
+    "toast_saved": "샌드박스 재정의가 저장되었습니다",
+    "toast_removed": "샌드박스 재정의가 제거되었습니다 — 프로젝트 정책이 적용됩니다",
+    "failed": "샌드박스 재정의를 저장할 수 없습니다",
+    "load_failed": "샌드박스 재정의를 불러올 수 없습니다"
+  },
   "decisions": {
     "section": "결정",
     "recommended": "권장",

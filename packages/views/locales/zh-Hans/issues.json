@@ -1203,6 +1203,39 @@
       "expired": "已过期"
     }
   },
+  "sandbox_override": {
+    "section": "沙箱覆盖",
+    "description": "在工作区与项目策略之外,进一步限制此议题的智能体运行。三者取最严格者生效,并以失败即关闭的方式强制。",
+    "capability_hint": "白名单与无网络模式需要支持容器的运行时:在不具备该能力的运行时上,运行将被拒绝并故障转移(失败即关闭)。",
+    "none": "无覆盖 — 继承项目策略",
+    "edit": "编辑覆盖",
+    "dialog_title": "沙箱覆盖",
+    "network": "网络访问",
+    "mode": {
+      "unrestricted": "不受限",
+      "allowlist": "白名单",
+      "none": "无网络"
+    },
+    "hint": {
+      "unrestricted": "运行可访问任意主机。",
+      "allowlist": "仅可访问列出的主机与平台默认主机。",
+      "none": "除平台所需外,没有任何网络出站。"
+    },
+    "hosts_label": "允许的主机",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "每行一个主机。平台默认主机始终可访问。",
+    "block_sensitive": "阻止敏感文件",
+    "block_sensitive_help": "智能体不得读取 .env 文件(尽力而为)。",
+    "effective": "此议题的生效值:{{mode}}",
+    "effective_blocked": "敏感文件已阻止",
+    "save": "保存覆盖",
+    "saving": "保存中...",
+    "remove": "移除覆盖",
+    "toast_saved": "沙箱覆盖已保存",
+    "toast_removed": "沙箱覆盖已移除 — 应用项目策略",
+    "failed": "无法保存沙箱覆盖",
+    "load_failed": "无法加载沙箱覆盖"
+  },
   "decisions": {
     "section": "决策",
     "recommended": "推荐",

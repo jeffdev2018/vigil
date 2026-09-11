@@ -34,6 +34,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/redact"
+	"github.com/multica-ai/multica/server/pkg/sandboxpolicy"
 	"github.com/multica-ai/multica/server/pkg/skillbundle"
 	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
@@ -2440,6 +2441,10 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// to a server too old to have answered the question (MUL-5811).
 	resp.LeaderRoleResolved = true
 	resp.Sandbox = claimSandboxSpec(runtime)
+	// claimIssue is the issue this task belongs to, captured when the
+	// issue-bound branch below loads it; the JEF-256 sandbox policy merge at
+	// the end of the builder reads the project and issue layers from it.
+	var claimIssue *db.Issue
 	// Eval Lab (K24): a replay writes throwaway work, so it is confined
 	// whatever the runtime asks for. Looked up once per claim and reused for
 	// the version pin below.
@@ -2815,6 +2820,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ThreadName = issue.Title
 		issueNumber = issue.Number
+		claimIssue = &issue
 		repoIndexQuery = repoIndexClaimQuery(issue.Title, issue.Description.String)
 		if !task.ChatSessionID.Valid {
 			brief, err := h.deliveryCriteriaBrief(r.Context(), issue)
@@ -3746,6 +3752,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			})
 		}
 	}
+
+	// Sandbox policies (JEF-256): the workspace < project < issue chain is
+	// resolved here, at claim time like data residency, and folded into the
+	// confinement this claim already carries — never stamped at enqueue.
+	h.applyClaimSandboxPolicy(r.Context(), task, claimIssue, runtime, parseUUID(runtimeWorkspaceID), &resp)
 
 	// Last gate before dispatch: refuse to hand a worktree-mode local_directory
 	// task to a daemon that cannot implement the mode.
@@ -6369,6 +6380,97 @@ func claimSandboxSpec(rt db.AgentRuntime) *SandboxSpec {
 		return nil
 	}
 	return &SandboxSpec{Mode: mode, Image: rt.SandboxImage, AllowedHosts: sandboxHosts(rt.SandboxAllowedHosts)}
+}
+
+// sandboxModeRank orders the K10 modes so a policy can escalate the claim's
+// confinement without ever de-escalating it.
+func sandboxModeRank(mode string) int {
+	switch mode {
+	case "sandbox":
+		return 1
+	case "container":
+		return 2
+	default:
+		return 0
+	}
+}
+
+// applyClaimSandboxPolicy (JEF-256) resolves the workspace < project < issue
+// sandbox policy chain against the confinement the claim already carries and
+// tightens it, most-restrictive wins:
+//
+//   - network "none" or "allowlist" escalates the spec to container (a proxy
+//     allowlist needs the confinement boundary to hold; the daemon's existing
+//     sandboxRefused path stays the fail-closed answer when the machine
+//     cannot provide one);
+//   - "none" drops the allowlist entirely, so the daemon adds only its own
+//     defaults (provider APIs and the Multica server);
+//   - "allowlist" intersects the runtime's hosts with the merged policy's;
+//   - block_sensitive_files rides the spec for the daemon to enforce per
+//     provider.
+//
+// A policy read that fails degrades to the layer being absent — the same
+// fail-open-on-read rule data residency (K46) follows — because a transient
+// lookup failure must not stop every claim in the workspace. Whenever any
+// layer tightened the run, the merged result is audited.
+func (h *Handler) applyClaimSandboxPolicy(ctx context.Context, task *db.AgentTaskQueue, issue *db.Issue, runtime db.AgentRuntime, wsID pgtype.UUID, resp *AgentTaskResponse) {
+	if issue != nil {
+		wsID = issue.WorkspaceID
+	}
+	if !wsID.Valid {
+		return
+	}
+	wsLayer := h.workspaceSandboxLayer(ctx, wsID)
+	var projectLayer, issueLayer *sandboxpolicy.Policy
+	if issue != nil {
+		if layer := h.projectSandboxLayer(ctx, issue.ProjectID); layer != nil {
+			projectLayer = layer
+		}
+		issueLayer = sandboxpolicy.FromMetadata(issue.Metadata)
+	}
+	contributed := false
+	for _, layer := range []*sandboxpolicy.Policy{wsLayer, projectLayer, issueLayer} {
+		if layer != nil && !layer.IsDefault() {
+			contributed = true
+			break
+		}
+	}
+	if !contributed {
+		return
+	}
+	merged := sandboxpolicy.Merge(wsLayer, projectLayer, issueLayer)
+	spec := resp.Sandbox
+	if spec == nil {
+		spec = &SandboxSpec{Mode: nonEmptySandboxMode(runtime.SandboxMode), Image: runtime.SandboxImage, AllowedHosts: sandboxHosts(runtime.SandboxAllowedHosts)}
+		resp.Sandbox = spec
+	}
+	switch merged.NetworkMode {
+	case sandboxpolicy.NetworkNone, sandboxpolicy.NetworkAllowlist:
+		if sandboxModeRank(spec.Mode) < sandboxModeRank("container") {
+			spec.Mode = "container"
+		}
+	}
+	switch merged.NetworkMode {
+	case sandboxpolicy.NetworkNone:
+		spec.AllowedHosts = nil
+	case sandboxpolicy.NetworkAllowlist:
+		spec.AllowedHosts = sandboxpolicy.IntersectHosts(spec.AllowedHosts, merged.AllowedHosts)
+	}
+	spec.BlockSensitiveFiles = merged.BlockSensitiveFiles
+	details := map[string]any{
+		"network_mode":          merged.NetworkMode,
+		"allowed_hosts":         merged.AllowedHosts,
+		"block_sensitive_files": merged.BlockSensitiveFiles,
+		"sandbox_mode":          spec.Mode,
+		"runtime_id":            uuidToString(runtime.ID),
+	}
+	if issue != nil {
+		details["issue_id"] = uuidToString(issue.ID)
+		if issue.ProjectID.Valid {
+			details["project_id"] = uuidToString(issue.ProjectID)
+		}
+	}
+	h.audit(ctx, wsID, "system", "", AuditRunSandboxPolicyApplied, "task", task.ID, details, nil)
 }
 
 // recordSandboxOutcome keeps the last effective mode on the runtime and

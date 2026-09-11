@@ -109,6 +109,9 @@ import type {
   DecisionRecord,
   BlastRadiusRule,
   BlastRadiusPreview,
+  SandboxPolicy,
+  ProjectSandboxPolicyResponse,
+  IssueSandboxOverrideResponse,
   BusinessRule,
   BusinessRuleDryRun,
   WeeklyRetro,
@@ -990,6 +993,8 @@ import {
   EMPTY_WORKSPACE,
   EMPTY_WORKSPACES,
   BlastRadiusRuleEnvelopeSchema,
+  ProjectSandboxPolicyResponseSchema,
+  IssueSandboxOverrideResponseSchema,
   // JEF-321 batch C
   MemberWithUserSchema,
   MemberWithUserListSchema,
@@ -4770,6 +4775,53 @@ export class ApiClient {
   async previewBlastRadius(projectId: string, path: string): Promise<BlastRadiusPreview> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-preview?path=${encodeURIComponent(path)}`);
     return parseWithFallback(raw, BlastRadiusPreviewSchema, { path, level: "inherit" }, { endpoint: "GET /api/projects/:id/blast-radius-preview" });
+  }
+
+  // Sandbox policies (JEF-256). The reads fail closed on a malformed body:
+  // silently falling back to a permissive-looking policy would misrepresent
+  // what the daemon enforces.
+  async getProjectSandboxPolicy(projectId: string): Promise<ProjectSandboxPolicyResponse> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/sandbox-policy`);
+    const parsed = parseWithFallback<ProjectSandboxPolicyResponse | null>(raw, ProjectSandboxPolicyResponseSchema, null, {
+      endpoint: "GET /api/projects/:id/sandbox-policy",
+    });
+    if (!parsed) throw new Error("GET /api/projects/:id/sandbox-policy returned a malformed policy");
+    return parsed;
+  }
+
+  async putProjectSandboxPolicy(projectId: string, policy: SandboxPolicy): Promise<ProjectSandboxPolicyResponse> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/sandbox-policy`, { method: "PUT", body: JSON.stringify(policy) });
+    const parsed = parseWithFallback<ProjectSandboxPolicyResponse | null>(raw, ProjectSandboxPolicyResponseSchema, null, {
+      endpoint: "PUT /api/projects/:id/sandbox-policy",
+    });
+    if (!parsed) throw new Error("PUT /api/projects/:id/sandbox-policy returned a malformed policy");
+    return parsed;
+  }
+
+  async deleteProjectSandboxPolicy(projectId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/sandbox-policy`, { method: "DELETE" });
+  }
+
+  async getIssueSandboxOverride(issueId: string): Promise<IssueSandboxOverrideResponse> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/sandbox-override`);
+    const parsed = parseWithFallback<IssueSandboxOverrideResponse | null>(raw, IssueSandboxOverrideResponseSchema, null, {
+      endpoint: "GET /api/issues/:id/sandbox-override",
+    });
+    if (!parsed) throw new Error("GET /api/issues/:id/sandbox-override returned a malformed override");
+    return parsed;
+  }
+
+  async putIssueSandboxOverride(issueId: string, policy: SandboxPolicy): Promise<IssueSandboxOverrideResponse> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/sandbox-override`, { method: "PUT", body: JSON.stringify(policy) });
+    const parsed = parseWithFallback<IssueSandboxOverrideResponse | null>(raw, IssueSandboxOverrideResponseSchema, null, {
+      endpoint: "PUT /api/issues/:id/sandbox-override",
+    });
+    if (!parsed) throw new Error("PUT /api/issues/:id/sandbox-override returned a malformed override");
+    return parsed;
+  }
+
+  async deleteIssueSandboxOverride(issueId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/sandbox-override`, { method: "DELETE" });
   }
 
   // Decision memory (K29).

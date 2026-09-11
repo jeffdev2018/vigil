@@ -2071,3 +2071,28 @@ func TestWorktreeReplayConflictBlock(t *testing.T) {
 		}
 	})
 }
+
+// block_sensitive_files (JEF-256): the advisory note rides every prompt kind
+// and every provider, because on providers without a CLI read deny it IS the
+// enforcement.
+func TestBuildPromptBlockSensitiveFilesNote(t *testing.T) {
+	withBlock := Task{IssueID: "i-1", Sandbox: &SandboxSpec{Mode: "container", BlockSensitiveFiles: true}}
+	for _, provider := range []string{"claude", "codex", "hermes"} {
+		out := BuildPrompt(withBlock, provider)
+		if !strings.Contains(out, "## Sensitive files blocked") || !strings.Contains(out, "do not read") {
+			t.Errorf("%s prompt missing the sensitive-files note\n--- output ---\n%s", provider, out)
+		}
+	}
+	without := BuildPrompt(Task{IssueID: "i-1"}, "claude")
+	if strings.Contains(without, "## Sensitive files blocked") {
+		t.Error("no policy, no note")
+	}
+	flagOff := BuildPrompt(Task{IssueID: "i-1", Sandbox: &SandboxSpec{Mode: "container"}}, "claude")
+	if strings.Contains(flagOff, "## Sensitive files blocked") {
+		t.Error("flag off, no note")
+	}
+	chat := BuildPrompt(Task{ChatSessionID: "sess-1", ChatMessage: "hi", Sandbox: &SandboxSpec{BlockSensitiveFiles: true}}, "codex")
+	if !strings.Contains(chat, "## Sensitive files blocked") {
+		t.Error("chat prompts carry the note too")
+	}
+}

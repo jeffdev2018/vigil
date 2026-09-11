@@ -1240,6 +1240,39 @@
       "expired": "expired"
     }
   },
+  "sandbox_override": {
+    "section": "Sandbox override",
+    "description": "Restrict agent runs for this issue beyond the workspace and project policies. The most restrictive of the three wins, enforced fail-closed.",
+    "capability_hint": "Allowlist and no-network modes need a container-capable runtime: runs on runtimes without that capability are refused and fail over (fail-closed).",
+    "none": "No override — inherits the project policy",
+    "edit": "Edit override",
+    "dialog_title": "Sandbox override",
+    "network": "Network access",
+    "mode": {
+      "unrestricted": "Unrestricted",
+      "allowlist": "Allowlist",
+      "none": "No network"
+    },
+    "hint": {
+      "unrestricted": "Runs may reach any host.",
+      "allowlist": "Only the listed hosts and the platform defaults are reachable.",
+      "none": "No network egress beyond what the platform needs."
+    },
+    "hosts_label": "Allowed hosts",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "One host per line. The platform defaults stay reachable.",
+    "block_sensitive": "Block sensitive files",
+    "block_sensitive_help": "Agents must not read .env files (best effort).",
+    "effective": "Effective for this issue: {{mode}}",
+    "effective_blocked": "sensitive files blocked",
+    "save": "Save override",
+    "saving": "Saving...",
+    "remove": "Remove override",
+    "toast_saved": "Sandbox override saved",
+    "toast_removed": "Sandbox override removed — the project policy applies",
+    "failed": "The sandbox override could not be saved",
+    "load_failed": "The sandbox override could not be loaded"
+  },
   "decisions": {
     "section": "Decisions",
     "recommended": "recommended",

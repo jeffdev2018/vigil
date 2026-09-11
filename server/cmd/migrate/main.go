@@ -494,6 +494,7 @@ var concurrentIndexCleanups = map[string]string{
 	"912_issue_recurrence_series_index":                         "idx_issue_recurrence_series",
 	"909_run_branch_action_request_pending":                     "idx_run_branch_action_request_pending",
 	"895_agent_task_pending_thread_unique":                      "idx_one_pending_task_per_issue_agent_thread",
+	"916_project_sandbox_policy_pkey_index":                     "project_sandbox_policy_pkey_uidx",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

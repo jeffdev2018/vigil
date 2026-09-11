@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 )
 
 // Approval gates (K05), daemon side. Three interception points feed the
@@ -243,17 +245,31 @@ func gateParamPaths(params json.RawMessage) []string {
 // appends the flags the provider can enforce (Claude deny rules, Codex
 // read-only sandbox). It mutates the agent payload once so every later
 // reader — env layering, launch args, the MCP gate — sees the same run.
-func applyPermissionProfile(agent *AgentData, provider string, log *slog.Logger) {
-	if agent == nil || agent.PermissionProfile == nil {
+//
+// blockSensitiveFiles (JEF-256) is the task's merged sandbox policy asking for
+// the .env read block. It applies with or without a permission profile: a nil
+// profile means a zero one, whose only deny rules are the sandbox's own.
+func applyPermissionProfile(agent *AgentData, provider string, blockSensitiveFiles bool, log *slog.Logger) {
+	if agent == nil {
 		return
 	}
 	p := agent.PermissionProfile
+	if p == nil {
+		if !blockSensitiveFiles {
+			return
+		}
+		zero := permissionprofile.Profile{}
+		if extra := zero.ProviderArgsForSandbox(provider, true); len(extra) > 0 {
+			agent.CustomArgs = append(append([]string{}, agent.CustomArgs...), extra...)
+		}
+		return
+	}
 	var hidden []string
 	agent.CustomEnv, hidden = p.FilterSecrets(agent.CustomEnv)
 	if len(hidden) > 0 && log != nil {
 		log.Info("permission profile: secrets withheld from this run", "profile", p.Name, "keys", hidden)
 	}
-	if extra := p.ProviderArgs(provider); len(extra) > 0 {
+	if extra := p.ProviderArgsForSandbox(provider, blockSensitiveFiles); len(extra) > 0 {
 		agent.CustomArgs = append(append([]string{}, agent.CustomArgs...), extra...)
 	}
 }
