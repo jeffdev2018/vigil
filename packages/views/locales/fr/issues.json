@@ -2006,6 +2006,7 @@
       "description": "Aucun nouveau ticket ne sera créé. Ceux déjà créés restent.",
       "keep": "La garder",
       "confirm": "Arrêter la récurrence"
-    }
+    },
+    "badge": "Récurrente"
   }
 }

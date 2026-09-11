@@ -1411,7 +1411,7 @@ const listIssues = `-- name: ListIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision, i.goal_id, i.cycle_id, i.issue_type
+       i.revision, i.goal_id, i.cycle_id, i.issue_type, i.recurrence_id
 FROM issue i
 WHERE i.workspace_id = $1
   AND ($4::text IS NULL OR i.status = $4)
@@ -1525,6 +1525,7 @@ type ListIssuesRow struct {
 	GoalID         pgtype.UUID        `json:"goal_id"`
 	CycleID        pgtype.UUID        `json:"cycle_id"`
 	IssueType      pgtype.Text        `json:"issue_type"`
+	RecurrenceID   pgtype.UUID        `json:"recurrence_id"`
 }
 
 // involves_user_id widens the assignee filter to surface issues where the user
@@ -1586,6 +1587,7 @@ func (q *Queries) ListIssues(ctx context.Context, arg ListIssuesParams) ([]ListI
 			&i.GoalID,
 			&i.CycleID,
 			&i.IssueType,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1601,7 +1603,7 @@ const listOpenIssues = `-- name: ListOpenIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision, i.goal_id, i.cycle_id, i.issue_type
+       i.revision, i.goal_id, i.cycle_id, i.issue_type, i.recurrence_id
 FROM issue i
 WHERE i.workspace_id = $1
   -- Negate only known terminal keys so an unknown legacy key remains visible.
@@ -1761,6 +1763,7 @@ type ListOpenIssuesRow struct {
 	GoalID         pgtype.UUID        `json:"goal_id"`
 	CycleID        pgtype.UUID        `json:"cycle_id"`
 	IssueType      pgtype.Text        `json:"issue_type"`
+	RecurrenceID   pgtype.UUID        `json:"recurrence_id"`
 }
 
 // See ListIssues for the semantics of involves_user_id (mirrors the 4-branch
@@ -1816,6 +1819,7 @@ func (q *Queries) ListOpenIssues(ctx context.Context, arg ListOpenIssuesParams) 
 			&i.GoalID,
 			&i.CycleID,
 			&i.IssueType,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}

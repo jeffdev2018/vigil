@@ -95,7 +95,11 @@ type IssueResponse struct {
 	// absent means "this endpoint did not resolve it", never "no origin".
 	OriginType *string `json:"origin_type,omitempty"`
 	OriginID   *string `json:"origin_id,omitempty"`
-	Position   float64 `json:"position"`
+	// RecurrenceID names the series the issue belongs to (source or
+	// occurrence); null when it happens once. Present on list rows too so a
+	// board can badge recurring work.
+	RecurrenceID *string `json:"recurrence_id"`
+	Position     float64 `json:"position"`
 	// Stage groups sub-issues under the same parent into ordered barrier
 	// groups (null = unstaged). See issue_child_done.go for how a closed
 	// stage gates the child-done -> parent wake.
@@ -346,6 +350,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
@@ -390,6 +395,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
@@ -464,6 +470,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
@@ -1617,7 +1624,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision, i.goal_id, i.cycle_id, i.issue_type
+	   i.revision, i.goal_id, i.cycle_id, i.issue_type, i.recurrence_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1661,6 +1668,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.GoalID,
 			&row.CycleID,
 			&row.IssueType,
+			&row.RecurrenceID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")

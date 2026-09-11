@@ -247,6 +247,8 @@ export interface Issue {
    */
   origin_type?: string | null;
   origin_id?: string | null;
+  /** The recurrence series the issue belongs to; null when it happens once. */
+  recurrence_id?: string | null;
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
 }
