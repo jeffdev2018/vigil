@@ -403,7 +403,13 @@ func (h *Handler) modelKeyFailover(ctx context.Context, task db.AgentTaskQueue, 
 		}
 	}
 	next, _ := h.Queries.ListActiveModelKeys(ctx, db.ListActiveModelKeysParams{WorkspaceID: key.WorkspaceID, Provider: key.Provider, ProjectID: projectID})
-	vendor, _ := modelkey.VendorByID(key.Provider)
+	vendor, ok := modelkey.VendorByID(key.Provider)
+	if !ok {
+		// The stored provider id fell out of the vendor catalog (catalog can
+		// change independently of stored rows) — fall back to the raw
+		// provider string so the alert body isn't left with an empty label.
+		vendor.Label = key.Provider
+	}
 	body := fmt.Sprintf("Run %s failed with %s. The key %s (%s) was retired.", uuidToString(task.ID), reason, key.KeyHint, key.Label)
 	if len(next) > 0 {
 		body += fmt.Sprintf(" The run retries once on %s (%s).", next[0].KeyHint, next[0].Label)

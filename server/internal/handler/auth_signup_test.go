@@ -103,8 +103,10 @@ func TestEmailCodeAllowlistErrors(t *testing.T) {
 			if got["error"] != ErrEmailNotAllowed.Error() {
 				t.Fatalf("expected an actionable allowlist error, got %v", got)
 			}
-			if _, hasCode := got["code"]; hasCode {
-				t.Fatal("email-code errors must retain their existing response shape")
+			// The stable code is additive: older clients keep reading `error`,
+			// localized clients translate by `code`.
+			if code, hasCode := got["code"]; hasCode && code != authCodeEmailNotAllowed {
+				t.Fatalf("allowlist rejection code = %v, want %q", code, authCodeEmailNotAllowed)
 			}
 			if len(resp.Result().Cookies()) != 0 {
 				t.Fatal("rejected signup must not establish an authenticated session")

@@ -81,6 +81,19 @@ WHERE workspace_id = sqlc.arg('workspace_id')
 ORDER BY starts_at ASC, id ASC
 LIMIT 1000;
 
+-- name: ListCalendarEventsCreatedByInWindow :many
+-- SQL-side counterpart to ListCalendarEventsInWindow, filtered to one
+-- creator instead of the whole workspace — used by ServeCalendarFeed so a
+-- member's own-created events don't require fetching and Go-side filtering
+-- every event in the workspace's window.
+SELECT * FROM calendar_event
+WHERE workspace_id = sqlc.arg('workspace_id')
+  AND created_by_type = sqlc.arg('created_by_type') AND created_by_id = sqlc.arg('created_by_id')
+  AND starts_at < sqlc.arg('until')::timestamptz AND ends_at > sqlc.arg('since')::timestamptz
+  AND (sqlc.arg('include_cancelled')::boolean OR status <> 'cancelled')
+ORDER BY starts_at ASC, id ASC
+LIMIT 1000;
+
 -- name: ListCalendarEventsForParticipantInWindow :many
 SELECT e.* FROM calendar_event e
 JOIN calendar_event_participant p ON p.event_id = e.id

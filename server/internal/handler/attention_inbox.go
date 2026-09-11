@@ -187,7 +187,9 @@ func (h *Handler) decisionAsk(ctx context.Context, issue db.Issue, decision db.I
 		Question:   decision.Question,
 	}
 	if !decision.PlanVersion.Valid && !decision.InterviewGroupID.Valid {
-		_ = json.Unmarshal(decision.Options, &ask.Options)
+		if err := json.Unmarshal(decision.Options, &ask.Options); err != nil {
+			slog.Warn("failed to unmarshal decision options", "decision_id", uuidToString(decision.ID), "error", err)
+		}
 	}
 	return ask
 }

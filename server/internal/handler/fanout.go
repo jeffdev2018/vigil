@@ -73,7 +73,10 @@ func (h *Handler) fanoutToResponse(ctx context.Context, b db.FanoutBatch) Fanout
 		ExpectedCount: b.ExpectedCount, CompletedCount: b.CompletedCount, FailedCount: b.FailedCount, SynthesisTaskID: uuidToPtr(b.SynthesisTaskID),
 		Members: []FanoutMemberResponse{}, CreatedAt: timestampToString(b.CreatedAt), CompletedAt: timestampToPtr(b.CompletedAt),
 	}
-	rows, _ := h.Queries.ListFanoutBatchMembers(ctx, b.ID)
+	rows, err := h.Queries.ListFanoutBatchMembers(ctx, b.ID)
+	if err != nil {
+		slog.Warn("fanout: list batch members failed", "batch_id", uuidToString(b.ID), "error", err)
+	}
 	for _, m := range rows {
 		out.Members = append(out.Members, FanoutMemberResponse{
 			ID: uuidToString(m.ID), ChildIssueID: uuidToString(m.ChildIssueID), TaskID: uuidToString(m.TaskID), TaskStatus: m.TaskStatus, AssigneeAgentID: uuidToString(m.AssigneeAgentID),
@@ -285,7 +288,9 @@ func (h *Handler) updateFanoutBarrier(ctx context.Context, task db.AgentTaskQueu
 		return
 	}
 	if counts.Completed+counts.Failed < batch.ExpectedCount {
-		_ = h.Queries.UpdateFanoutCounts(ctx, db.UpdateFanoutCountsParams{ID: batch.ID, CompletedCount: counts.Completed, FailedCount: counts.Failed})
+		if err := h.Queries.UpdateFanoutCounts(ctx, db.UpdateFanoutCountsParams{ID: batch.ID, CompletedCount: counts.Completed, FailedCount: counts.Failed}); err != nil {
+			slog.Warn("fanout: update counts failed", "batch_id", uuidToString(batch.ID), "error", err)
+		}
 		h.publishFanoutProgress(ctx, batch)
 		return
 	}

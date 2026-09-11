@@ -429,3 +429,24 @@ func TestImportAutopilotMergeStrategyUpdatesExistingRow(t *testing.T) {
 		t.Fatalf("description after merge = %q, want %q", desc, "v2")
 	}
 }
+
+// TestValidateTransferBundleNormalizesRejectStatusKeyCasing guards a real
+// bug: validateTransferBundle compared a transition rule's raw, unnormalized
+// reject_status_key against statusKeys, whose entries are always lower-cased
+// (via statusKeyOf / issuestatus.Canonical). A bundle authored with
+// "reject_status_key": "Blocked" was falsely rejected even though "blocked"
+// is a valid built-in status. Pure function, no DB.
+func TestValidateTransferBundleNormalizesRejectStatusKeyCasing(t *testing.T) {
+	b := &transferBundle{
+		Manifest: transferManifest{FormatVersion: transferFormatVersion, Name: "casing test"},
+		TransitionRules: []transferTransition{
+			{ToCategory: "done", RejectStatusKey: "Blocked", Enabled: true},
+		},
+	}
+	problems := validateTransferBundle(b)
+	for _, p := range problems {
+		if strings.Contains(p, "reject_status_key") {
+			t.Fatalf("validateTransferBundle falsely rejected a differently-cased built-in reject_status_key: %v", problems)
+		}
+	}
+}

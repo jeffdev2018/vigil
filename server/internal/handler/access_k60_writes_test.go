@@ -137,6 +137,37 @@ func TestProjectWriteGatesRefuseAViewer(t *testing.T) {
 	}
 }
 
+// TestCommentResolveGatesRefuseAViewer: Resolve/UnresolveComment share
+// loadCommentForActor, which only checked workspace membership — a viewer
+// override on the comment's project could resolve/unresolve any thread there
+// even though CreateComment already refuses them the same write.
+func TestCommentResolveGatesRefuseAViewer(t *testing.T) {
+	fx := newK60WriteFixture(t)
+	issue := dbfx.Issue(t, "k60 comment resolve issue "+uuid.NewString()[:8], testutil.Cols{"project_id": fx.project})
+	comment := dbfx.Comment(t, issue, "k60 comment resolve gate")
+
+	cases := []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{"Comment.ResolveComment", testHandler.ResolveComment},
+		{"Comment.UnresolveComment", testHandler.UnresolveComment},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodPost, "/x", nil), "commentId", comment)
+			res := testutil.Call(t, c.handler, req)
+			if res.Code != http.StatusForbidden {
+				t.Fatalf("%s: viewer got %d, want 403: %s", c.name, res.Code, res.Body.String())
+			}
+			writerReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodPost, "/x", nil), "commentId", comment)
+			if res := testutil.Call(t, c.handler, writerReq); res.Code == http.StatusForbidden {
+				t.Fatalf("%s: writer (contributor) got 403, the project-role gate must not block them: %s", c.name, res.Body.String())
+			}
+		})
+	}
+}
+
 // TestBatchUpdateIssuesRefusesAViewersProject: the batch endpoint refuses the
 // one item in a project the caller cannot write, reporting it in `refused`
 // rather than either silently applying it or aborting the whole batch.
@@ -400,4 +431,79 @@ func TestProjectMemoryRequiresProjectAdminEvenForAWorkspaceAdmin(t *testing.T) {
 
 	req := withURLParam(newRequest(http.MethodPut, "/api/projects/"+project+"/memory", map[string]any{"rules": []string{"r"}}), "id", project)
 	testutil.Call(t, testHandler.UpdateProjectMemory, req).Want(http.StatusForbidden)
+}
+
+// TestLabelAttachDetachGatesRefuseAViewer: AttachLabel/DetachLabel loaded the
+// issue via loadIssueForUser but never called requireProjectWrite, so a
+// viewer override on the issue's project could still attach/detach labels.
+func TestLabelAttachDetachGatesRefuseAViewer(t *testing.T) {
+	fx := newK60WriteFixture(t)
+	issue := dbfx.Issue(t, "k60 label gate issue "+uuid.NewString()[:8], testutil.Cols{"project_id": fx.project})
+
+	var created LabelResponse
+	testutil.Call(t, testHandler.CreateLabel, newRequest(http.MethodPost, "/api/labels", map[string]any{
+		"name": "k60-label-" + uuid.NewString()[:8], "color": "#ef4444",
+	})).Want(http.StatusCreated).JSON(&created)
+
+	attachReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodPost, "/x", map[string]any{"label_id": created.ID}), "id", issue)
+	testutil.Call(t, testHandler.AttachLabel, attachReq).Want(http.StatusForbidden)
+	writerAttachReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodPost, "/x", map[string]any{"label_id": created.ID}), "id", issue)
+	if res := testutil.Call(t, testHandler.AttachLabel, writerAttachReq); res.Code == http.StatusForbidden {
+		t.Fatalf("AttachLabel: writer (contributor) got 403: %s", res.Body.String())
+	}
+
+	detachReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodDelete, "/x", nil), "id", issue, "labelId", created.ID)
+	testutil.Call(t, testHandler.DetachLabel, detachReq).Want(http.StatusForbidden)
+	writerDetachReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodDelete, "/x", nil), "id", issue, "labelId", created.ID)
+	if res := testutil.Call(t, testHandler.DetachLabel, writerDetachReq); res.Code == http.StatusForbidden {
+		t.Fatalf("DetachLabel: writer (contributor) got 403: %s", res.Body.String())
+	}
+}
+
+// TestIssueReactionGatesRefuseAViewer: Add/RemoveIssueReaction shared the same
+// loadIssueForUser-only gap as labels — a viewer override could react on an
+// issue in a project it cannot otherwise write to.
+func TestIssueReactionGatesRefuseAViewer(t *testing.T) {
+	fx := newK60WriteFixture(t)
+	issue := dbfx.Issue(t, "k60 reaction gate issue "+uuid.NewString()[:8], testutil.Cols{"project_id": fx.project})
+
+	addReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodPost, "/x", map[string]any{"emoji": "👍"}), "id", issue)
+	testutil.Call(t, testHandler.AddIssueReaction, addReq).Want(http.StatusForbidden)
+	writerAddReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodPost, "/x", map[string]any{"emoji": "👍"}), "id", issue)
+	if res := testutil.Call(t, testHandler.AddIssueReaction, writerAddReq); res.Code == http.StatusForbidden {
+		t.Fatalf("AddIssueReaction: writer (contributor) got 403: %s", res.Body.String())
+	}
+
+	removeReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodDelete, "/x", map[string]any{"emoji": "👍"}), "id", issue)
+	testutil.Call(t, testHandler.RemoveIssueReaction, removeReq).Want(http.StatusForbidden)
+	writerRemoveReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodDelete, "/x", map[string]any{"emoji": "👍"}), "id", issue)
+	if res := testutil.Call(t, testHandler.RemoveIssueReaction, writerRemoveReq); res.Code == http.StatusForbidden {
+		t.Fatalf("RemoveIssueReaction: writer (contributor) got 403: %s", res.Body.String())
+	}
+}
+
+// TestFollowupGatesRefuseAViewer: Create/CancelIssueFollowup schedule and
+// cancel real agent work on the issue, so they are writes like the others —
+// a viewer override must not be able to trigger or cancel them. Listing
+// follow-ups stays ungated: it is a read.
+func TestFollowupGatesRefuseAViewer(t *testing.T) {
+	fx := newK60WriteFixture(t)
+	issue := dbfx.Issue(t, "k60 followup gate issue "+uuid.NewString()[:8], testutil.Cols{"project_id": fx.project})
+	agent := dbfx.Agent(t, "k60 followup agent "+uuid.NewString()[:6], handlerTestRuntimeID(t))
+
+	createReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodPost, "/x", map[string]any{"when": "+90", "agent_id": agent}), "id", issue)
+	testutil.Call(t, testHandler.CreateIssueFollowup, createReq).Want(http.StatusForbidden)
+
+	var created struct {
+		Followup FollowupResponse `json:"followup"`
+	}
+	writerCreateReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodPost, "/x", map[string]any{"when": "+90", "agent_id": agent}), "id", issue)
+	testutil.Call(t, testHandler.CreateIssueFollowup, writerCreateReq).Want(http.StatusCreated).JSON(&created)
+
+	cancelReq := testutil.WithURLParams(newRequestAs(fx.viewer, http.MethodDelete, "/x", nil), "id", issue, "followupId", created.Followup.ID)
+	testutil.Call(t, testHandler.CancelIssueFollowup, cancelReq).Want(http.StatusForbidden)
+	writerCancelReq := testutil.WithURLParams(newRequestAs(fx.writer, http.MethodDelete, "/x", nil), "id", issue, "followupId", created.Followup.ID)
+	if res := testutil.Call(t, testHandler.CancelIssueFollowup, writerCancelReq); res.Code == http.StatusForbidden {
+		t.Fatalf("CancelIssueFollowup: writer (contributor) got 403: %s", res.Body.String())
+	}
 }

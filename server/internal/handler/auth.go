@@ -185,11 +185,20 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 // event fires on that edge, covering both the verification-code and Google
 // OAuth entry points.
 func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.User, isNew bool, err error) {
+	existing, lookupErr := h.Queries.GetUserByEmail(ctx, email)
+	return h.findOrCreateUserFromLookup(ctx, email, existing, lookupErr)
+}
+
+// findOrCreateUserFromLookup is findOrCreateUser's core, taking an
+// already-performed GetUserByEmail lookup (user, err) so a caller that
+// already queried the user for another check (e.g. the SSO-enforcement
+// lookup in VerifyCode/GoogleLogin) doesn't pay for a second round trip.
+func (h *Handler) findOrCreateUserFromLookup(ctx context.Context, email string, existing db.User, lookupErr error) (user db.User, isNew bool, err error) {
 	if auth.IsTemporarilyDisabledUserEmail(email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
 	}
 
-	user, err = h.Queries.GetUserByEmail(ctx, email)
+	user, err = existing, lookupErr
 	isNew = isNotFound(err)
 	if err != nil && !isNew {
 		return db.User{}, false, err
@@ -396,9 +405,31 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 
 	isDevCode := isDevVerificationCode(code)
 	if !isDevCode && subtle.ConstantTimeCompare([]byte(code), []byte(dbCode.Code)) != 1 {
-		_ = h.Queries.IncrementVerificationCodeAttempts(r.Context(), dbCode.ID)
+		// A failed write here means this wrong-guess attempt doesn't count
+		// toward the brute-force cap enforced by GetLatestVerificationCode's
+		// `attempts < 5` — log so a spike in such failures is diagnosable.
+		if err := h.Queries.IncrementVerificationCodeAttempts(r.Context(), dbCode.ID); err != nil {
+			slog.Warn("verify code: increment attempts failed", "code_id", uuidToString(dbCode.ID), "error", err)
+		}
 		writeErrorCode(w, http.StatusBadRequest, authCodeInvalid, "invalid or expired code")
 		return
+	}
+
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains. Check this
+	// before consuming the code so a policy rejection never burns a
+	// one-time code the user could otherwise still use once SSO is
+	// resolved (or on a non-enforced workspace).
+	existingUser, lookupErr := h.Queries.GetUserByEmail(r.Context(), email)
+	{
+		var uid pgtype.UUID
+		if lookupErr == nil {
+			uid = existingUser.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
 	}
 
 	if err := h.Queries.MarkVerificationCodeUsed(r.Context(), dbCode.ID); err != nil {
@@ -406,19 +437,8 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSO enforcement (K60): a workspace that enforces its identity provider
-	// closes this door for its members and its email domains.
-	{
-		var uid pgtype.UUID
-		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
-			uid = existing.ID
-		}
-		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
-			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
-			return
-		}
-	}
-	user, isNew, err := h.findOrCreateUser(r.Context(), email)
+	// Reuse the SSO check's lookup instead of re-querying GetUserByEmail.
+	user, isNew, err := h.findOrCreateUserFromLookup(r.Context(), email, existingUser, lookupErr)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
 			writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
@@ -699,17 +719,19 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// SSO enforcement (K60): a workspace that enforces its identity provider
 	// closes this door for its members and its email domains.
+	existingUser, lookupErr := h.Queries.GetUserByEmail(r.Context(), email)
 	{
 		var uid pgtype.UUID
-		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
-			uid = existing.ID
+		if lookupErr == nil {
+			uid = existingUser.ID
 		}
 		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
 			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
 			return
 		}
 	}
-	user, isNew, err := h.findOrCreateUser(r.Context(), email)
+	// Reuse the SSO check's lookup instead of re-querying GetUserByEmail.
+	user, isNew, err := h.findOrCreateUserFromLookup(r.Context(), email, existingUser, lookupErr)
 	if err != nil {
 		if writeGoogleLoginActionableError(w, err) {
 			return

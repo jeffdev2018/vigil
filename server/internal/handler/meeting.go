@@ -719,11 +719,15 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 			fmt.Fprintf(&body, "**Owner:** %s\n\n", owner)
 		}
 		fmt.Fprintf(&body, "> %s\n\n_From meeting: %s_", evidence, m.Title)
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"meeting_id": util.UUIDToString(m.ID),
 			"owner":      strings.TrimSpace(a.Owner),
 			"evidence":   evidence,
 		})
+		if err != nil {
+			slog.Warn("capture meeting actions: marshal payload failed", "meeting_id", util.UUIDToString(m.ID), "error", err)
+			continue
+		}
 		item, source, err := triage.Capture(ctx, h.Queries, triage.CaptureParams{
 			WorkspaceID:     workspaceID,
 			SourceKind:      triage.SourceMeeting,

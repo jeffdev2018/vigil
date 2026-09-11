@@ -185,7 +185,11 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Steps = normalized
-	steps, _ := json.Marshal(req.Steps)
+	steps, err := json.Marshal(req.Steps)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode steps")
+		return
+	}
 
 	workspaceID := uuidToString(issue.WorkspaceID)
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
@@ -306,7 +310,11 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 			// Unknown severity stays in the findings as data; it counts nowhere.
 		}
 	}
-	findings, _ := json.Marshal(req.Findings)
+	findings, err := json.Marshal(req.Findings)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode findings")
+		return
+	}
 
 	ctx := r.Context()
 	existing, err := h.Queries.GetPlanVerificationByTask(ctx, runID)

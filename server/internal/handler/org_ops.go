@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -590,5 +589,3 @@ func (h *Handler) seedProjectOrg(ctx context.Context, wsID, projectID pgtype.UUI
 		slog.Warn("org: project template seed failed", "error", err)
 	}
 }
-
-var _ = util.ParseUUID

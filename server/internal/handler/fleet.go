@@ -220,7 +220,12 @@ type FleetCostRow struct {
 	CostUSDTicks int64  `json:"cost_usd_ticks"`
 	InputTokens  int64  `json:"input_tokens"`
 	OutputTokens int64  `json:"output_tokens"`
-	TaskCount    int32  `json:"task_count"`
+	// TaskCount inherits ListDashboardUsageByAgent's documented over-count:
+	// it sums across hourly usage buckets, so a task spanning hours is
+	// counted once per bucket. The cost/token fields above are authoritative;
+	// this one is not exact and should not be presented as such (including
+	// by downstream consumers like the fleet skill).
+	TaskCount int32 `json:"task_count"`
 }
 
 // GetFleetCost handles GET /api/fleet/cost: per-agent cost over the window
@@ -240,9 +245,7 @@ func (h *Handler) GetFleetCost(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if since.IsZero() {
-		since = time.Now().Add(-30 * 24 * time.Hour)
-	}
+	since = fleetSinceOrDefault(since)
 	agentFilter, ok := fleetAgentFilter(w, r)
 	if !ok {
 		return

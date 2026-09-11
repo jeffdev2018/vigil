@@ -94,7 +94,12 @@ func (h *Handler) PutDataResidencyPolicy(w http.ResponseWriter, r *http.Request)
 	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
 	// whole settings blob lost the writes of any concurrent settings PUT on
 	// a different key.
-	raw, _ := json.Marshal(map[string]any{"data_residency_policy": policy})
+	raw, err := json.Marshal(map[string]any{"data_residency_policy": policy})
+	if err != nil {
+		slog.Warn("data residency: marshal policy failed", "workspace_id", uuidToString(wsUUID), "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to save the data residency policy")
+		return
+	}
 	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the data residency policy")
 		return

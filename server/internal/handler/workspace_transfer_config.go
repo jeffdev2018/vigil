@@ -281,7 +281,7 @@ func validateTransferBundle(b *transferBundle) []string {
 				add("transition_rules[%d]: actor type %q must be member or agent", i, a)
 			}
 		}
-		if t.RejectStatusKey != "" && !statusKeys[t.RejectStatusKey] {
+		if t.RejectStatusKey != "" && !statusKeys[strings.ToLower(strings.TrimSpace(t.RejectStatusKey))] {
 			add("transition_rules[%d]: reject_status_key %q is not a status of the bundle or a built-in", i, t.RejectStatusKey)
 		}
 		if t.Project != "" && !projectTitles[t.Project] {
@@ -658,7 +658,7 @@ func (h *Handler) applyTransferViewsAndOwnership(ctx context.Context, q *db.Quer
 		}
 		reject := pgtype.Text{}
 		if t.RejectStatusKey != "" {
-			reject = pgtype.Text{String: t.RejectStatusKey, Valid: true}
+			reject = pgtype.Text{String: strings.ToLower(strings.TrimSpace(t.RejectStatusKey)), Valid: true}
 		}
 		row, err := q.CreateIssueTransitionRule(ctx, db.CreateIssueTransitionRuleParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, ProjectID: projectID, FromCategory: pgtype.Text{String: t.FromCategory, Valid: t.FromCategory != ""}, ToCategory: t.ToCategory, AllowedRoles: nonNilStrings(t.AllowedRoles), AllowActorTypes: nonNilStrings(t.AllowActorTypes), RequiresApproval: t.RequiresApproval, ApproverRoles: nonNilStrings(t.ApproverRoles), RejectStatusKey: reject, Enabled: t.Enabled, CreatedBy: importer})
 		if err != nil {

@@ -33,7 +33,7 @@ ON CONFLICT (workspace_id, installation_id) DO UPDATE SET
     updated_at = now()
 RETURNING *;
 
--- name: DeleteGitHubInstallation :exec
+-- name: DeleteGitHubInstallation :execrows
 DELETE FROM github_installation WHERE id = $1 AND workspace_id = $2;
 
 -- name: DeleteGitHubInstallationByInstallationID :many

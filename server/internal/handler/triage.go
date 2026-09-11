@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -155,6 +157,8 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 	// counted separately and taken out of it rather than double-counted.
 	if pending >= snoozed {
 		pending -= snoozed
+	} else {
+		slog.Warn("triage stats: snoozed count exceeds pending, skipping subtraction", "workspace_id", workspaceID, "pending", pending, "snoozed", snoozed)
 	}
 
 	age, err := h.Queries.OldestRealPendingTriageAgeSeconds(ctx, workspaceID)
@@ -611,7 +615,10 @@ func (h *Handler) DismissTriageItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {

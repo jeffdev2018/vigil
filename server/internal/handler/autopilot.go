@@ -339,11 +339,15 @@ func webhookPathForToken(token string) string {
 func runToResponse(r db.AutopilotRun, lane string) AutopilotRunResponse {
 	var payload any
 	if r.TriggerPayload != nil {
-		json.Unmarshal(r.TriggerPayload, &payload)
+		if err := json.Unmarshal(r.TriggerPayload, &payload); err != nil {
+			slog.Warn("autopilot run: unmarshal trigger payload failed", "run_id", uuidToString(r.ID), "error", err)
+		}
 	}
 	var result any
 	if r.Result != nil {
-		json.Unmarshal(r.Result, &result)
+		if err := json.Unmarshal(r.Result, &result); err != nil {
+			slog.Warn("autopilot run: unmarshal result failed", "run_id", uuidToString(r.ID), "error", err)
+		}
 	}
 	return AutopilotRunResponse{
 		ID:             uuidToString(r.ID),

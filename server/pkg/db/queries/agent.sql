@@ -44,6 +44,12 @@ ORDER BY created_at ASC;
 SELECT * FROM agent
 WHERE id = $1;
 
+-- name: GetAgentsByIDs :many
+-- Batch lookup, mirroring GetUsersByIDs. Used to render a roster of several
+-- agents (e.g. a squad briefing) without one GetAgent round trip per member.
+SELECT * FROM agent
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetAgentForUpdate :one
 -- Serializes read-modify-write updates to disabled_runtime_skills so two
 -- concurrent per-skill toggles cannot overwrite each other.

@@ -447,6 +447,7 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	authorID := pgtype.UUID{}
 	if err := authorID.Scan(actorID); err != nil {
+		slog.Warn("failed to scan decision record author id", "actor_id", actorID, "error", err)
 		authorID = pgtype.UUID{}
 	}
 	out := make([]DecisionRecordResponse, 0, len(req.Decisions))

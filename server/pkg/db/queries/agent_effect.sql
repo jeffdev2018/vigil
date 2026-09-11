@@ -54,6 +54,12 @@ ORDER BY created_at DESC, id DESC;
 -- name: GetAgentEffect :one
 SELECT * FROM agent_effect WHERE id = $1 AND workspace_id = $2;
 
+-- name: ListAgentEffectsByIDs :many
+-- Batch variant of GetAgentEffect for undoEffects' final refetch, which
+-- otherwise issues one GetAgentEffect per touched row.
+SELECT * FROM agent_effect
+WHERE workspace_id = $1 AND id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: MarkAgentEffectReversed :one
 UPDATE agent_effect
 SET reversed_at = now(), reversed_by_type = $3, reversed_by_id = $4, reverse_error = NULL

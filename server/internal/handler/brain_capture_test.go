@@ -170,6 +170,12 @@ func TestBrainCaptureLifecycle(t *testing.T) {
 		testutil.WithURLParams(noteRequest(http.MethodDelete, "/api/brain/captures/"+todo.ID, workspaceID, nil), "id", todo.ID)).Want(http.StatusNoContent)
 	testutil.Call(t, noteWorkspaceHandler(testHandler.GetBrainCapture),
 		testutil.WithURLParams(noteRequest(http.MethodGet, "/api/brain/captures/"+todo.ID, workspaceID, nil), "id", todo.ID)).Want(http.StatusNotFound)
+	// A delete must audit under its own event type, not "brain.organized" —
+	// otherwise a dashboard filtering by event type miscounts deletes as
+	// organize actions (audit trail regression guard).
+	if n := dbfx.Count(t, `SELECT count(*) FROM audit_log_entry WHERE action = $1 AND entity_id = $2 AND details->>'action' = 'delete'`, AuditBrainDeleted, todo.ID); n != 1 {
+		t.Errorf("delete audit rows with AuditBrainDeleted = %d, want 1", n)
+	}
 }
 
 // An iOS voice memo (.m4a, declared audio/mp4) sniffs as video/mp4; it must

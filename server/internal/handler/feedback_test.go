@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestCreateFeedbackHappyPath(t *testing.T) {
@@ -230,4 +231,65 @@ func clearFeedbackForTestUser(t *testing.T) {
 	t.Cleanup(func() {
 		testPool.Exec(context.Background(), `DELETE FROM feedback WHERE user_id = $1`, parseUUID(testUserID))
 	})
+}
+
+// TestCreateFeedbackClearsWorkspaceIDForNonMember is the regression test for
+// the missing membership check: CreateFeedback used to store any
+// caller-supplied workspace_id verbatim (parseUUIDOrBadRequest validates the
+// shape, not membership), letting a caller mis-tag feedback to a workspace
+// they don't belong to. It now clears workspace_id (rather than rejecting
+// the submission) when the caller isn't a member of that workspace.
+func TestCreateFeedbackClearsWorkspaceIDForNonMember(t *testing.T) {
+	clearFeedbackForTestUser(t)
+
+	otherWorkspaceID := dbfx.Workspace(t, "feedback-foreign-ws", "feedback-foreign-ws-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	req := newRequest("POST", "/api/feedback", CreateFeedbackRequest{
+		Message:     "I should not be able to tag this to a workspace I'm not in",
+		WorkspaceID: &otherWorkspaceID,
+	})
+	w := httptest.NewRecorder()
+	testHandler.CreateFeedback(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp FeedbackResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	var storedWorkspaceID *string
+	if err := testPool.QueryRow(context.Background(), `SELECT workspace_id::text FROM feedback WHERE id = $1`, parseUUID(resp.ID)).Scan(&storedWorkspaceID); err != nil {
+		t.Fatalf("read stored feedback: %v", err)
+	}
+	if storedWorkspaceID != nil {
+		t.Fatalf("expected workspace_id to be cleared for a non-member workspace, got %v", *storedWorkspaceID)
+	}
+}
+
+// TestCreateFeedbackKeepsWorkspaceIDForMember is the happy-path counterpart:
+// a caller who IS a member of the supplied workspace still gets it stored.
+func TestCreateFeedbackKeepsWorkspaceIDForMember(t *testing.T) {
+	clearFeedbackForTestUser(t)
+
+	req := newRequest("POST", "/api/feedback", CreateFeedbackRequest{
+		Message:     "Tag this to my own workspace",
+		WorkspaceID: &testWorkspaceID,
+	})
+	w := httptest.NewRecorder()
+	testHandler.CreateFeedback(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp FeedbackResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	var storedWorkspaceID *string
+	if err := testPool.QueryRow(context.Background(), `SELECT workspace_id::text FROM feedback WHERE id = $1`, parseUUID(resp.ID)).Scan(&storedWorkspaceID); err != nil {
+		t.Fatalf("read stored feedback: %v", err)
+	}
+	if storedWorkspaceID == nil || *storedWorkspaceID != testWorkspaceID {
+		t.Fatalf("expected workspace_id %s to be kept, got %v", testWorkspaceID, storedWorkspaceID)
+	}
 }

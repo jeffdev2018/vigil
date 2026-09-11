@@ -46,6 +46,14 @@ const (
 	maxAgentConversationStarterLength = 4000
 )
 
+// maxCreateAgentSkillIDs bounds CreateAgent's skill_ids: the request does one
+// GetSkillInWorkspace per id to validate, then one AddAgentSkill per id
+// inside the create transaction — 2N sequential round trips, part of them
+// holding a transaction open. parseUUIDSliceOrBadRequest itself has no upper
+// bound (it's shared by ~19 unrelated call sites with their own size
+// expectations), so the cap lives here instead.
+const maxCreateAgentSkillIDs = 100
+
 // validAgentStatuses mirrors the agent.status CHECK constraint
 // (migrations/001_init.up.sql). UpdateAgent must reject anything outside it
 // before writing, or an invalid value reaches Postgres as a 500 with a raw
@@ -173,7 +181,9 @@ const runtimeConfigGatewayTokenMask = "***"
 func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 	var rc any
 	if a.RuntimeConfig != nil {
-		json.Unmarshal(a.RuntimeConfig, &rc)
+		if err := json.Unmarshal(a.RuntimeConfig, &rc); err != nil {
+			slog.Warn("failed to unmarshal agent runtime_config", "agent_id", uuidToString(a.ID), "error", err)
+		}
 	}
 	if rc == nil {
 		rc = map[string]any{}
@@ -964,7 +974,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	_ = json.Unmarshal(t.Context, &cancellation)
 	var result any
 	if t.Result != nil {
-		json.Unmarshal(t.Result, &result)
+		if err := json.Unmarshal(t.Result, &result); err != nil {
+			slog.Warn("failed to unmarshal agent task result", "task_id", uuidToString(t.ID), "error", err)
+		}
 	}
 	failureReason := ""
 	if t.FailureReason.Valid {
@@ -1718,6 +1730,10 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		allowlist = nil
 	}
 
+	if len(req.SkillIDs) > maxCreateAgentSkillIDs {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d skill_ids per request", maxCreateAgentSkillIDs))
+		return
+	}
 	skillUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SkillIDs, "skill_ids")
 	if !ok {
 		return
@@ -2474,9 +2490,25 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Invocation targets (MUL-3963): replace wholesale when the owner touched
 	// permission. Done after the row update so a permission_mode flip and its
-	// targets land together.
+	// targets land together. The delete-then-insert-loop runs inside its own
+	// transaction so a DB error mid-loop can't leave the agent's invocation
+	// targets partially cleared with no rollback.
 	if replacePermissionTargets {
-		if err := h.replaceInvocationTargets(r.Context(), updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+		tx, err := h.TxStarter.Begin(r.Context())
+		if err != nil {
+			slog.Warn("update agent: begin invocation targets transaction failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update invocation targets")
+			return
+		}
+		func() {
+			defer tx.Rollback(r.Context())
+			qtx := h.Queries.WithTx(tx)
+			if err = replaceInvocationTargetsWithQueries(r.Context(), qtx, updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+				return
+			}
+			err = tx.Commit(r.Context())
+		}()
+		if err != nil {
 			slog.Warn("update agent: persist invocation targets failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 			writeError(w, http.StatusInternalServerError, "failed to update invocation targets: "+err.Error())
 			return
@@ -2808,7 +2840,7 @@ func (h *Handler) CancelAgentTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelled, err := h.TaskService.CancelTasksForAgent(r.Context(), parseUUID(id))
+	cancelled, err := h.TaskService.CancelTasksForAgent(r.Context(), agent.ID)
 	if err != nil {
 		slog.Warn("cancel agent tasks failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 		writeError(w, http.StatusInternalServerError, "failed to cancel tasks")

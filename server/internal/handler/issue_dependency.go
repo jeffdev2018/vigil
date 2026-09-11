@@ -100,7 +100,7 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 		TargetIssueID string `json:"target_issue_id"`
 		Type          string `json:"type"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -313,7 +313,7 @@ func (h *Handler) ListIssueDependenciesBulk(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req BulkIssueDependenciesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

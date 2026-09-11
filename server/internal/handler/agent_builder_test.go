@@ -16,6 +16,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 func TestCreateAgentBuilderSessionCreatesIsolatedHiddenBuilder(t *testing.T) {
@@ -1393,5 +1394,41 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("unrelated waiter did not finish after its blocker released")
+	}
+}
+
+// TestCreateAgentRejectsTooManySkillIDs is the regression test for the
+// missing skill_ids cap: CreateAgent used to run one GetSkillInWorkspace per
+// id (validation loop) then one AddAgentSkill per id inside the open
+// create transaction, with parseUUIDSliceOrBadRequest enforcing no upper
+// bound — an arbitrarily large skill_ids array drove 2N sequential round
+// trips, part of them holding a transaction open. It now rejects a
+// skill_ids array over maxCreateAgentSkillIDs before doing any of that
+// work.
+func TestCreateAgentRejectsTooManySkillIDs(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	tooMany := make([]string, maxCreateAgentSkillIDs+1)
+	for i := range tooMany {
+		tooMany[i] = uuidToString(dbid.NewV7())
+	}
+
+	w := httptest.NewRecorder()
+	testHandler.CreateAgent(w, newRequest(http.MethodPost, "/api/agents", map[string]any{
+		"name":       "Too Many Skills Agent",
+		"runtime_id": testRuntimeID,
+		"skill_ids":  tooMany,
+	}))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("CreateAgent with %d skill_ids: expected 400, got %d: %s", len(tooMany), w.Code, w.Body.String())
+	}
+
+	var count int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM agent WHERE workspace_id = $1 AND name = 'Too Many Skills Agent'`, testWorkspaceID).Scan(&count); err != nil {
+		t.Fatalf("count agents: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("agent was created despite the oversized skill_ids array")
 	}
 }

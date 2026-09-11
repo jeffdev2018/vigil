@@ -110,3 +110,34 @@ func TestOrgTeamCatalogImport(t *testing.T) {
 		t.Fatal("import granted execution or excess trust")
 	}
 }
+
+// TestOrgTeamBundleSurvivesAFourthRole guards a real crash: orgTeamBundle
+// used to index a hardcoded 3-element []string{"lead","delivery","review"}
+// by the loop position over team.Roles with no bounds check. Every catalog
+// entry today has exactly 3 roles so it never panicked in production, but a
+// future catalog edit adding a 4th role would have. No DB needed — this is a
+// pure function over an in-memory template.
+func TestOrgTeamBundleSurvivesAFourthRole(t *testing.T) {
+	team := orgTeamTemplate{
+		ID:          "quartet",
+		Name:        "Quartet team",
+		Description: "four roles",
+		Roles:       []string{"Lead", "Delivery", "Review", "Extra"},
+		Procedure:   "do the work",
+	}
+	bundle := orgTeamBundle(team) // must not panic (index out of range)
+	var definition OrgDefinition
+	if err := json.Unmarshal(bundle.Org[0].Definition, &definition); err != nil {
+		t.Fatal(err)
+	}
+	if len(definition.Units) != 1 || len(definition.Units[0].Roles) != 4 {
+		t.Fatalf("expected 4 roles, got %+v", definition.Units[0].Roles)
+	}
+	ids := make([]string, len(definition.Units[0].Roles))
+	for i, r := range definition.Units[0].Roles {
+		ids[i] = r.ID
+	}
+	if ids[0] != "lead" || ids[1] != "delivery" || ids[2] != "review" || ids[3] == "" {
+		t.Fatalf("role ids = %v, want the first three named and a non-empty fallback for the fourth", ids)
+	}
+}

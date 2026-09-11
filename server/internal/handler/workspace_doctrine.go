@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -76,7 +77,14 @@ func doctrineSettingsOf(settings []byte) DoctrineSettings {
 	var s struct {
 		Doctrine *DoctrineSettings `json:"doctrine"`
 	}
-	if len(settings) == 0 || json.Unmarshal(settings, &s) != nil || s.Doctrine == nil {
+	if len(settings) == 0 {
+		return DoctrineSettings{}
+	}
+	if err := json.Unmarshal(settings, &s); err != nil {
+		slog.Warn("doctrine settings: unmarshal workspace settings failed", "error", err)
+		return DoctrineSettings{}
+	}
+	if s.Doctrine == nil {
 		return DoctrineSettings{}
 	}
 	return *s.Doctrine
