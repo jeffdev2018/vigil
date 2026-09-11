@@ -401,13 +401,11 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Queries.MarkVerificationCodeUsed(r.Context(), dbCode.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to verify code")
-		return
-	}
-
 	// SSO enforcement (K60): a workspace that enforces its identity provider
-	// closes this door for its members and its email domains.
+	// closes this door for its members and its email domains. Check this
+	// before consuming the code so a policy rejection never burns a
+	// one-time code the user could otherwise still use once SSO is
+	// resolved (or on a non-enforced workspace).
 	{
 		var uid pgtype.UUID
 		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
@@ -418,6 +416,12 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	if err := h.Queries.MarkVerificationCodeUsed(r.Context(), dbCode.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to verify code")
+		return
+	}
+
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {

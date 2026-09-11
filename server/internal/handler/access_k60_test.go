@@ -352,6 +352,13 @@ func TestSSOEnforcementAndOIDCLogin(t *testing.T) {
 	if !strings.Contains(res.Body.String(), "sso_required") {
 		t.Fatalf("code login refused with the workspace to use: %s", res.Body.String())
 	}
+	// The SSO policy check runs before the code is consumed: a valid code
+	// refused only because of workspace policy must stay usable.
+	var used bool
+	dbfx.QueryRow(t, `SELECT used FROM verification_code WHERE email = $1`, email).Scan(&used)
+	if used {
+		t.Fatal("a code rejected only by SSO enforcement must not be marked used")
+	}
 	// The OIDC flow signs the user in and provisions the membership.
 	var start struct {
 		AuthorizationURL string `json:"authorization_url"`
