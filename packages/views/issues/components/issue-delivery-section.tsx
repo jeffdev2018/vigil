@@ -10,6 +10,9 @@ import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Label } from "@multica/ui/components/ui/label";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
+import { goalBlockerLabelKey, goalOutcomeLabelKey } from "@multica/core/issues/goal-loop";
+import { parseRunResult } from "@multica/core/issues/run-result";
+import { ReadonlyContent } from "../../editor";
 import { useT } from "../../i18n";
 import { collectUnmappedModels, formatUsd, summarizeTaskUsageAcross } from "../../runtimes/utils";
 import { IssueUsageDialog } from "./issue-usage-dialog";
@@ -332,12 +335,37 @@ export function IssueDeliverySection({
   </section>;
 }
 
+// The run's reported result, for a human reviewer: the output rendered as
+// Markdown, the pull request and the goal verdict under translated labels.
+// Working directories, session ids and the judge's signature are machine
+// state (parseRunResult never returns them); the remaining raw fields fold
+// into "Technical details" instead of leading the review.
 function DeliveryResult({ result }: { result: unknown }) {
   const { t } = useT("issues");
-  if (result == null) return <p className="text-caption text-muted-foreground">{t(($) => $.delivery.result_unavailable)}</p>;
-  const summary = typeof result === "object" && "summary" in result ? result.summary : result;
-  const text = typeof summary === "string" ? summary : JSON.stringify(result, null, 2);
-  return <p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-body">{text}</p>;
+  const view = parseRunResult(result);
+  if (!view) return <p className="text-caption text-muted-foreground">{t(($) => $.delivery.result_unavailable)}</p>;
+  const goal = view.goal;
+  return <div className="min-w-0 space-y-2">
+    {view.output && <div className="max-h-64 overflow-auto"><ReadonlyContent content={view.output} /></div>}
+    {(view.prUrl || goal) && <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-caption">
+      {view.prUrl && <><dt className="text-muted-foreground">{t(($) => $.delivery.result_pr)}</dt>
+        <dd className="min-w-0 break-all"><a href={view.prUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">{view.prUrl}</a></dd></>}
+      {goal?.outcome && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.section)}</dt>
+        <dd className="min-w-0">{t(($) => $.goal_loop.outcomes[goalOutcomeLabelKey(goal.outcome) as "stopped_unknown"])}</dd></>}
+      {goal?.blocker && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.blocker)}</dt>
+        <dd className="min-w-0">{t(($) => $.goal_loop.blockers[goalBlockerLabelKey(goal.blocker ?? "") as "other"])}</dd></>}
+      {goal?.reason && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.reason)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.reason}</dd></>}
+      {goal && goal.evidence.length > 0 && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.evidence)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.evidence.join("\n")}</dd></>}
+      {goal?.nextStep && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.next_step)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.nextStep}</dd></>}
+    </dl>}
+    {view.technical && <details className="text-caption">
+      <summary className="cursor-pointer text-muted-foreground">{t(($) => $.delivery.technical_details)}</summary>
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(view.technical, null, 2)}</pre>
+    </details>}
+  </div>;
 }
 
 function DeliveryUsageAtReview({ review }: { review: DeliveryReview }) {
