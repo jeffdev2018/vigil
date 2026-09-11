@@ -227,8 +227,6 @@ export type LandingDict = {
       updates: string;
       unsubscribe: string;
       submitConsent: string;
-      privacyLinkLabel: string;
-      privacyLinkHref: string;
     };
     success: { title: string; message: string; cta: string };
     errors: {

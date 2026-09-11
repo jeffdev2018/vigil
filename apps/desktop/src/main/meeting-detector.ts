@@ -53,7 +53,7 @@ let micOwners: MicOwner[] = [];
 let selfCapture = false;
 let helperRestarts = 0;
 let helper: ChildProcess | null = null;
-let stopping = false;
+let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let detectionEnabled = true;
 let timer: ReturnType<typeof setInterval> | null = null;
 let stopPoller: (() => void) | null = null;
@@ -91,10 +91,12 @@ function spawnHelper(helperPath: string): void {
     console.error("[meeting-detect] mic-monitor error:", err);
   });
   child.on("exit", (code) => {
+    // A helper that stopDetection killed, or that a newer helper replaced,
+    // is no longer ours: leave the current state and the restart budget alone.
+    if (helper !== child) return;
     helper = null;
     micInUse = false;
     micOwners = [];
-    if (stopping) return;
     if (helperRestarts >= HELPER_MAX_RESTARTS) {
       console.error(
         "[meeting-detect] mic-monitor kept exiting — ambient detection disabled",
@@ -106,7 +108,10 @@ function spawnHelper(helperPath: string): void {
     console.warn(
       `[meeting-detect] mic-monitor exited (code ${code}); restart ${helperRestarts}/${HELPER_MAX_RESTARTS} in ${delay / 1000}s`,
     );
-    setTimeout(() => spawnHelper(helperPath), delay);
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      spawnHelper(helperPath);
+    }, delay);
   });
 }
 
@@ -116,7 +121,6 @@ function spawnHelper(helperPath: string): void {
  */
 function startDetection(getWindow: () => BrowserWindow | null): void {
   if (timer) return;
-  stopping = false;
   helperRestarts = 0;
   state = INITIAL_DETECTOR_STATE;
 
@@ -173,19 +177,24 @@ function startDetection(getWindow: () => BrowserWindow | null): void {
 }
 
 /**
- * Stop watching: kill the helper or poller and release the tick. `stopping`
- * also tells the helper's exit handler not to restart it.
+ * Stop watching: kill the helper or poller, cancel a pending helper restart and
+ * release the tick. Clearing `helper` before the kill tells its exit handler
+ * not to restart it.
  */
 function stopDetection(): void {
-  stopping = true;
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
   if (timer) {
     clearInterval(timer);
     timer = null;
   }
   stopPoller?.();
   stopPoller = null;
-  helper?.kill();
+  const current = helper;
   helper = null;
+  current?.kill();
   micInUse = false;
   micOwners = [];
 }

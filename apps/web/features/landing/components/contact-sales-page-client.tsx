@@ -567,15 +567,7 @@ function ConsentBlock({
         disabled={busy}
         label={dict.consent.updates}
       />
-      <p>
-        {dict.consent.unsubscribe}{" "}
-        <Link
-          href={dict.consent.privacyLinkHref}
-          className="text-[#0a0d12] underline decoration-[#0a0d12]/30 underline-offset-2 hover:decoration-[#0a0d12]/60"
-        >
-          {dict.consent.privacyLinkLabel}
-        </Link>
-      </p>
+      <p>{dict.consent.unsubscribe}</p>
       <p>{dict.consent.submitConsent}</p>
     </div>
   );

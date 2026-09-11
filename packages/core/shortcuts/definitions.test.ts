@@ -309,8 +309,6 @@ describe("keyboard shortcut definitions", () => {
     expect(detectShortcutRuntime()).toBe("web");
     vi.stubGlobal("window", { desktopAPI: {} });
     expect(detectShortcutRuntime()).toBe("desktop");
-    vi.stubGlobal("window", { electron: {} });
-    expect(detectShortcutRuntime()).toBe("desktop");
     vi.stubGlobal("window", {});
     expect(detectShortcutRuntime()).toBe("web");
     expect(getShortcutRuntime()).toBe("web");

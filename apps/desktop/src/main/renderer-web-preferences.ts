@@ -24,9 +24,7 @@ export function createRendererWebPreferences(
     // `electron` module (contextBridge, ipcRenderer — including sendSync) and
     // the polyfilled `process` (platform, argv). It therefore must remain a
     // single CJS bundle, because the sandboxed preload `require` can only load
-    // `electron` plus a couple of node builtins — see electron.vite.config.ts,
-    // which bundles @electron-toolkit/preload into the output instead of
-    // leaving it external.
+    // `electron` plus a couple of node builtins — see electron.vite.config.ts.
     sandbox: true,
     // Still intentionally off. Restoring webSecurity requires migrating the
     // renderer off the opaque file:// origin onto a privileged custom protocol
