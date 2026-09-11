@@ -175,3 +175,18 @@ export function formatRunDuration(ms: number): string {
 export function formatRunSilence(ms: number): string {
   return formatFromSeconds(ms / 1000, "0s");
 }
+
+// Runs whose event log the replay screen can show.
+const REPLAYABLE_STATUSES: ReadonlySet<Run["status"]> = new Set(["running", "completed", "failed", "cancelled"]);
+
+/**
+ * What tapping a run row opens. A run with an event log opens its replay. On
+ * the fleet screen a run with nothing to replay yet (queued, deferred,
+ * dispatched, paused) opens its issue — the web Runs page links every row to
+ * its issue (packages/views/runs/components/runs-page.tsx). Inside an issue's
+ * own runs sheet that would reopen the issue the user is on, so it stays inert.
+ */
+export function runRowTapTarget(status: Run["status"], opts: { inFleet: boolean }): "replay" | "issue" | null {
+  if (REPLAYABLE_STATUSES.has(status)) return "replay";
+  return opts.inFleet ? "issue" : null;
+}
