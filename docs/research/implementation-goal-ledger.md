@@ -225,6 +225,8 @@ Cette tranche ferme le manque d'identité de décision signalé après le filtre
 
 ### 6 septembre — première comparaison indépendante de mémoire, hors ligne
 
+> Correction du 11 septembre (audit) : les commandes `multica agent memory evaluate`, `adopt --reviewed` et `restore` décrites ci-dessous n'existent pas dans ce dépôt, et le mode d'emploi `docs/development/memory-evaluation.md` non plus. Seule la comparaison connectée, lancée par le daemon (`handleMemoryEvaluation` → `RunMemoryRuntime`), a été portée.
+
 `multica agent memory evaluate` fige une mémoire en attente, les mémoires actives et les fixtures d’une suite humaine. Chaque cas est exécuté successivement sans puis avec la candidate ; un conteneur neuf vérifie le résultat avec des tests non montés chez l’exécutant. Le moteur exige des cas de replay et de validation distincts et ne démarre aucun agent fournisseur. Les sorties, délais, empreintes et versions sont conservés dans un répertoire local privé. Les erreurs techniques et régressions empêchent l’adoption ; un gain est requis dans chaque groupe, avec tous les contrôles candidats réussis.
 
 `agent memory adopt --reviewed` relit le contexte courant et utilise l’API humaine existante avec la révision attendue. `agent memory restore` restaure une version antérieure. Le rapport est local et non signé ; il n’est pas une attestation serveur. Les modifications concurrentes d’autres mémoires après la lecture préalable ne sont pas verrouillées atomiquement. Le coût et les interventions humaines restent inconnus, car non instrumentés par ce runner hors ligne.
