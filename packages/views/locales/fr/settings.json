@@ -362,7 +362,9 @@
       "zoom_in": "Zoom avant",
       "zoom_out": "Zoom arrière",
       "reset_zoom": "Réinitialiser le zoom",
-      "close_dialog": "Fermer la boîte de dialogue ou le menu"
+      "close_dialog": "Fermer la boîte de dialogue ou le menu",
+      "open_link_new_tab": "Ouvrir un lien dans un nouvel onglet",
+      "click_word": "Clic"
     }
   },
   "chat": {
