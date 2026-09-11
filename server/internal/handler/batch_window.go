@@ -6,6 +6,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"log/slog"
 )
 
 // Off-peak batch lane (K45). The workspace declares one window during which
@@ -61,7 +62,13 @@ func (h *Handler) PutBatchWindow(w http.ResponseWriter, r *http.Request) {
 	}
 	settings := map[string]any{}
 	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
+		if err := json.Unmarshal(ws.Settings, &settings); err != nil {
+			// Writing over a blob we could not read would erase every other
+			// workspace setting; refuse instead.
+			slog.Error("batch window: workspace settings unreadable", "workspace_id", uuidToString(wsUUID), "error", err)
+			writeError(w, http.StatusInternalServerError, "workspace settings are unreadable")
+			return
+		}
 	}
 	settings["batch_window"] = window
 	raw, _ := json.Marshal(settings)

@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"log/slog"
 )
 
 // Issue router (K27): the decision behind an issue's latest run, and the
@@ -90,7 +91,13 @@ func (h *Handler) PutRoutingSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	settings := map[string]any{}
 	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
+		if err := json.Unmarshal(ws.Settings, &settings); err != nil {
+			// Writing over a blob we could not read would erase every other
+			// workspace setting; refuse instead.
+			slog.Error("routing settings: workspace settings unreadable", "workspace_id", uuidToString(ws.ID), "error", err)
+			writeError(w, http.StatusInternalServerError, "workspace settings are unreadable")
+			return
+		}
 	}
 	next := service.Routing{Enabled: req.Enabled, Pools: pools, EscalationFailures: req.EscalationFailures}
 	settings["routing"] = next

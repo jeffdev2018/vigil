@@ -2622,12 +2622,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
 				r.Get("/", h.GetIssueWatchdog)
-				r.Put("/", h.SetIssueWatchdog)
-				r.Delete("/", h.DeleteIssueWatchdog)
+				// Oversight is configured by people: the agent under watch must
+				// not be able to loosen or remove its own watchdog.
+				r.With(handler.RequireHumanActor).Put("/", h.SetIssueWatchdog)
+				r.With(handler.RequireHumanActor).Delete("/", h.DeleteIssueWatchdog)
 				r.Get("/verdicts", h.ListIssueWatchdogVerdicts)
 				r.Post("/scan", h.ScanIssueWatchdogNow)
 			})
-			r.Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
+			r.With(handler.RequireHumanActor).Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
 			// Goals with ancestry (K74).
 			r.Route("/api/goals", func(r chi.Router) {
 				r.Get("/", h.ListGoals)

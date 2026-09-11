@@ -332,7 +332,14 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to capture")
 		return
 	}
-	_ = h.Queries.AttachAttachmentToCapture(r.Context(), db.AttachAttachmentToCaptureParams{ID: att.ID, WorkspaceID: wsUUID, CaptureID: capture.ID})
+	if err := h.Queries.AttachAttachmentToCapture(r.Context(), db.AttachAttachmentToCaptureParams{ID: att.ID, WorkspaceID: wsUUID, CaptureID: capture.ID}); err != nil {
+		// Without the link the capture would sit in the inbox with no file
+		// behind it: drop it so the client can retry the upload cleanly.
+		slog.Error("brain capture: link attachment failed", "capture_id", uuidToString(capture.ID), "error", err)
+		_, _ = h.Queries.DeleteBrainCapture(r.Context(), db.DeleteBrainCaptureParams{ID: capture.ID, WorkspaceID: wsUUID})
+		writeError(w, http.StatusInternalServerError, "failed to store the capture")
+		return
+	}
 	h.afterBrainCapture(r.Context(), capture, actorType, uuidToString(actorID))
 	if transcription == "pending" {
 		h.transcribeBrainCaptureAsync(capture, header.Filename, contentType, data, actorType, uuidToString(actorID))
@@ -345,7 +352,7 @@ func (h *Handler) UploadBrainCapture(w http.ResponseWriter, r *http.Request) {
 // transcribeBrainCaptureAsync turns a voice memo into text, then asks for
 // the suggestion the text now allows.
 func (h *Handler) transcribeBrainCaptureAsync(c db.BrainCapture, filename, contentType string, audio []byte, actorType, actorID string) {
-	go func() {
+	goBackground("brain capture transcription", func() {
 		ctx := context.Background()
 		res, err := h.STT.TranscribePlain(ctx, filename, contentType, strings.NewReader(string(audio)))
 		status, text := "done", strings.TrimSpace(res.Text)
@@ -366,7 +373,7 @@ func (h *Handler) transcribeBrainCaptureAsync(c db.BrainCapture, filename, conte
 		if status == "done" {
 			h.suggestBrainCaptureAsync(updated)
 		}
-	}()
+	})
 }
 
 // GET /api/brain/captures?status=raw|organized|discarded|all&limit=
@@ -574,7 +581,7 @@ func (h *Handler) suggestBrainCaptureAsync(c db.BrainCapture) {
 	if h.LLM == nil || !h.LLM.Enabled() {
 		return
 	}
-	go func() {
+	goBackground("brain capture suggestion", func() {
 		ctx := context.Background()
 		s, ok, err := h.suggestBrainCapture(ctx, c)
 		if !ok || err != nil {
@@ -589,7 +596,7 @@ func (h *Handler) suggestBrainCaptureAsync(c db.BrainCapture) {
 			return
 		}
 		h.publishBrainCapture(updated, "system", "", "suggested")
-	}()
+	})
 }
 
 // POST /api/brain/captures/{id}/suggest — a fresh suggestion, on demand.

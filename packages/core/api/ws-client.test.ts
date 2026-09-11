@@ -129,6 +129,30 @@ describe("WSClient", () => {
     );
   });
 
+  it("keeps dispatching when one handler throws", () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const ws = new WSClient("ws://example.test/ws", { logger });
+    const broken = vi.fn(() => {
+      throw new TypeError("member is undefined");
+    });
+    const next = vi.fn();
+    const any = vi.fn();
+    ws.on("member:added", broken);
+    ws.on("member:added", next);
+    ws.onAny(any);
+    ws.connect();
+
+    expect(() => {
+      FakeWebSocket.lastInstance!.onmessage?.({
+        data: JSON.stringify({ type: "member:added", payload: { member_id: "m1" } }),
+      });
+    }).not.toThrow();
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(any).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith("ws: handler failed", "member:added", expect.any(TypeError));
+  });
+
   it("drops frames without a string type without throwing, and keeps dispatching", () => {
     // Regression for MUL-3418: a frame whose parsed JSON lacks a string `type`
     // (an out-of-protocol frame, or a bare JSON primitive) used to throw an

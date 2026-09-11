@@ -17,8 +17,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
+	"log/slog"
 )
 
 const (
@@ -354,12 +356,20 @@ func (h *Handler) applyAutopilotForDecision(ctx context.Context, decision db.Iss
 	switch {
 	case strings.HasPrefix(optionID, autopilotActivateOption):
 		activate = true
-		apID = parseUUID(strings.TrimPrefix(optionID, autopilotActivateOption))
+		optionID = strings.TrimPrefix(optionID, autopilotActivateOption)
 	case strings.HasPrefix(optionID, autopilotDiscardOption):
-		apID = parseUUID(strings.TrimPrefix(optionID, autopilotDiscardOption))
+		optionID = strings.TrimPrefix(optionID, autopilotDiscardOption)
 	default:
 		return false
 	}
+	// The option id comes from the client's answer, not from our own rows:
+	// a malformed one is not an autopilot option, never a panic.
+	parsed, err := util.ParseUUID(optionID)
+	if err != nil {
+		slog.Warn("autopilot decision: malformed option id", "option_id", optionID)
+		return false
+	}
+	apID = parsed
 	ap, err := h.Queries.GetAutopilotInWorkspace(ctx, db.GetAutopilotInWorkspaceParams{ID: apID, WorkspaceID: decision.WorkspaceID})
 	if err != nil {
 		return true

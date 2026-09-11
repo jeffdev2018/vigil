@@ -3464,7 +3464,7 @@ export const AutopilotRunSchema = z.object({
 }).loose();
 
 export const AutopilotQuotaUsageSchema = z.object({
-  action: z.enum(["off", "observe", "enforce"]).default("off"),
+  action: z.enum(["off", "observe", "enforce"]).catch("off"),
   used: z.number().nullable().default(null),
   reserved: z.number().nullable().default(null),
   total: z.number().nullable().default(null),

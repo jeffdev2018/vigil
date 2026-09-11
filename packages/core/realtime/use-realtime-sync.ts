@@ -1734,9 +1734,9 @@ export function useRealtimeSync(
     });
 
     const unsubMemberAdded = ws.on("member:added", (p) => {
-      const { member, workspace_name } = p as MemberAddedPayload;
+      const { member, workspace_name } = p as Partial<MemberAddedPayload>;
       const myUserId = authStore.getState().user?.id;
-      if (member.user_id === myUserId) {
+      if (member?.user_id === myUserId) {
         qc.invalidateQueries({ queryKey: workspaceKeys.list() });
         qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
         onToast?.(
