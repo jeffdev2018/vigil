@@ -7,6 +7,9 @@ import {
   groupRunsBySection,
   isRunSilent,
   runSection,
+  runCostKnown,
+  costTodayLabel,
+  runSummaryText,
 } from "./runs-display";
 import type { Run, RunBlocker } from "@/data/schemas";
 
@@ -119,5 +122,29 @@ describe("formatRunDuration / formatRunSilence", () => {
 describe("formatRunCost", () => {
   it("is the shared 1e-10-tick USD formatter", () => {
     expect(formatRunCost(100_000_000)).toBe("$0.01");
+  });
+});
+
+// Audit UX (sept. 2026): "Cost today $0.0000" right after a real run, and a
+// finished run's summary showing raw mention markdown.
+describe("run cost honesty", () => {
+  it("trusts cost_known, and on an older backend only a positive amount", () => {
+    expect(runCostKnown({ cost_known: true, cost_usd_ticks: 0 })).toBe(true);
+    expect(runCostKnown({ cost_known: false, cost_usd_ticks: 5 })).toBe(false);
+    expect(runCostKnown({ cost_usd_ticks: 0 })).toBe(false);
+    expect(runCostKnown({ cost_usd_ticks: 5 })).toBe(true);
+  });
+
+  it("names the runs the day's cost leaves out", () => {
+    expect(costTodayLabel({ cost_since_usd_ticks: 50_000_000, cost_unknown_since: 0 })).toBe("$0.0050");
+    expect(costTodayLabel({ cost_since_usd_ticks: 0, cost_unknown_since: 2 })).toBe("$0.0000 + 2 unknown");
+  });
+});
+
+describe("runSummaryText", () => {
+  it("renders a mention as its label, not as markdown", () => {
+    expect(runSummaryText({ kind: "comment", trigger_summary: "[@Analyste Concurrentiel](mention://agent/dcb1090f-0000) compare prices" }))
+      .toBe("@Analyste Concurrentiel compare prices");
+    expect(runSummaryText({ kind: "chat", trigger_summary: "  " })).toBe("Chat task");
   });
 });

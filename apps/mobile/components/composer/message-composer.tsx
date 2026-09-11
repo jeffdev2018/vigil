@@ -126,6 +126,11 @@ interface Props {
   disabled?: boolean;
   disabledReason?: string;
 
+  /** Optional notice rendered above the input while composing, from the
+   *  content a send would post (mentions serialized). Comment uses it to say
+   *  which agents a send starts before the user sends. */
+  renderNotice?: (content: string) => ReactNode;
+
   /** When true the composer renders flush at the bottom of its parent
    *  WITHOUT the KeyboardStickyView keyboard-aware lift + safe-area
    *  inset. Chat's parent owns its own KeyboardAvoidingView and
@@ -144,6 +149,13 @@ function makeLocalId(): string {
  *  outgoing content; mobile can't position mentions inline because the
  *  TextInput is plain. Acceptable semantic difference vs web/desktop's
  *  rich editor (web supports anywhere-in-text). */
+/** The outgoing content: mention links first, then the typed text. */
+function composeContent(text: string, chips: MentionChip[]): string {
+  const mentionMd = serializeMentions(chips);
+  const trimmed = text.trim();
+  return mentionMd ? (trimmed ? `${mentionMd} ${trimmed}` : mentionMd) : trimmed;
+}
+
 function serializeMentions(chips: MentionChip[]): string {
   return chips
     .map((m) => {
@@ -175,6 +187,7 @@ export function MessageComposer({
   toolbarExtras,
   disabled = false,
   disabledReason,
+  renderNotice,
   manageKeyboard = true,
 }: Props) {
   const { colorScheme } = useColorScheme();
@@ -253,13 +266,7 @@ export function MessageComposer({
     const mentionsSnap = mentions;
     const attachmentsSnap = attachments;
 
-    const mentionMd = serializeMentions(mentionsSnap);
-    const trimmed = textSnap.trim();
-    const content = mentionMd
-      ? trimmed
-        ? `${mentionMd} ${trimmed}`
-        : mentionMd
-      : trimmed;
+    const content = composeContent(textSnap, mentionsSnap);
 
     const activeIds = attachmentsSnap
       .filter((a) => a.status === "completed")
@@ -521,6 +528,8 @@ export function MessageComposer({
           ) : null}
         </View>
       )}
+
+      {renderNotice ? renderNotice(composeContent(text, mentions)) : null}
 
       <View
         className="rounded-3xl border border-border bg-secondary"

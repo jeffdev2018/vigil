@@ -27,7 +27,7 @@ import { useCancelTask } from "@/data/mutations/issues";
 import type { RunBlocker } from "@/data/schemas";
 import { useActorLookup } from "@/data/use-actor-name";
 import { useWorkspaceStore } from "@/data/workspace-store";
-import { blockerLabel, formatRunCost } from "@/lib/runs-display";
+import { blockerLabel, formatRunCost, runSummaryText } from "@/lib/runs-display";
 import { runFailureBadgeLabel } from "@/lib/run-failure-badge";
 import { timeAgo } from "@/lib/time-ago";
 
@@ -98,7 +98,8 @@ export function RunRow({
       params: { workspace: wsSlug, id: issueId, taskId: task.id },
     });
   };
-  const summary = task.trigger_summary?.trim() || fallbackSummary(task);
+  // Mention markdown renders as its label ("@Analyst"), never as raw link syntax.
+  const summary = runSummaryText(task);
   // Past tasks use completed_at when present (server fills it for terminal
   // statuses); active tasks fall back to created_at so the user sees how
   // long it's been waiting.
@@ -227,22 +228,6 @@ function CancelButton({
       <Text className="text-xs font-medium text-foreground">Cancel</Text>
     </Pressable>
   );
-}
-
-function fallbackSummary(task: AgentTask): string {
-  switch (task.kind) {
-    case "comment":
-      return "Comment task";
-    case "autopilot":
-      return "Autopilot run";
-    case "chat":
-      return "Chat task";
-    case "quick_create":
-      return "Quick create";
-    case "direct":
-    default:
-      return "Task";
-  }
 }
 
 const STATUS_LABEL: Record<AgentTask["status"], string> = {

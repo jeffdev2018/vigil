@@ -1070,6 +1070,7 @@ export const RunReplaySchema = z.looseObject({
     agent_id: z.string().default(""),
     agent_name: z.string().default(""),
     status: z.string().default(""),
+    failure_reason: z.string().catch("").default(""),
     trust_mode: z.string().default(""),
     effect_mode: z.string().default(""),
     model: z.string().default(""),
@@ -1334,6 +1335,8 @@ export const RunSchema = AgentTaskSchema.and(
     agent_name: z.string().catch(""),
     issue: RunIssueRefSchema.nullable().catch(null),
     cost_usd_ticks: z.number().catch(0),
+    // Mirrors packages/core/runs/fleet-schemas.ts: false = cost unknown.
+    cost_known: z.boolean().optional().catch(undefined),
     duration_ms: z.number().catch(0),
     silence_ms: z.number().catch(0),
     blocked_on: RunBlockerSchema.nullable().catch(null),
@@ -1350,6 +1353,7 @@ export const RunsSummarySchema = z.object({
   failed_since: z.number().catch(0),
   cancelled_since: z.number().catch(0),
   cost_since_usd_ticks: z.number().catch(0),
+  cost_unknown_since: z.number().catch(0).default(0),
   since: z.string().catch(""),
   run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
 }).loose();
@@ -1364,6 +1368,7 @@ export const EMPTY_RUNS_SUMMARY: RunsSummary = {
   failed_since: 0,
   cancelled_since: 0,
   cost_since_usd_ticks: 0,
+  cost_unknown_since: 0,
   since: "",
   run_halt: EMPTY_RUN_HALT,
 };

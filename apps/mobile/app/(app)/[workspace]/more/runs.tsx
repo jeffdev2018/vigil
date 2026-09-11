@@ -34,7 +34,7 @@ import { useRunsRealtime } from "@/data/realtime/use-runs-realtime";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { EMPTY_RUNS_SUMMARY, type RunsSummary } from "@/data/schemas";
-import { formatRunCost, isRunSilent } from "@/lib/runs-display";
+import { costTodayLabel, isRunSilent, runCostKnown } from "@/lib/runs-display";
 import { timeAgo } from "@/lib/time-ago";
 
 const FILTERS: { state: RunsFilterState; label: string }[] = [
@@ -229,7 +229,7 @@ export default function RunsPage() {
               issueId={item.issue?.id ?? item.issue_id}
               agentName={item.agent_name}
               issueRef={item.issue}
-              costUsdTicks={item.cost_usd_ticks}
+              costUsdTicks={runCostKnown(item) ? item.cost_usd_ticks : undefined}
               blockedOn={item.blocked_on}
               silent={isRunSilent(item)}
               onPressBlocker={
@@ -295,7 +295,7 @@ function SummaryStrip({
         <Stat label="Running" value={summary.running} />
         <Stat label="Blocked" value={summary.blocked} />
         <Stat label="Finished today" value={finishedToday} />
-        <Stat label="Cost today" value={formatRunCost(summary.cost_since_usd_ticks)} />
+        <Stat label="Cost today" value={costTodayLabel(summary)} />
       </View>
       {canManage ? (
         <Pressable

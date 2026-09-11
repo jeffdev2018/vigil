@@ -22,10 +22,46 @@ import {
   isRunSettled,
   runStateOf,
 } from "@multica/core/agents/run-state";
-import type { Run, RunBlocker } from "@/data/schemas";
+import type { AgentTask } from "@multica/core/types";
+import type { Run, RunBlocker, RunsSummary } from "@/data/schemas";
 import { formatPostmortemCost } from "./postmortem-display";
+import { stripMarkdown } from "./strip-markdown";
 
 export const formatRunCost = formatPostmortemCost;
+
+/**
+ * Mirrors packages/core/runs/fleet-schemas.ts `runCostKnown`: the server now
+ * prices usage like budget settlement and sends `cost_known`; an older one
+ * sums only provider-reported ticks, where only a positive amount is a figure.
+ */
+export function runCostKnown(run: { cost_known?: boolean; cost_usd_ticks: number }): boolean {
+  return run.cost_known === true || (run.cost_known === undefined && run.cost_usd_ticks > 0);
+}
+
+/** "Cost today", naming the started runs the figure cannot price. */
+export function costTodayLabel(summary: Pick<RunsSummary, "cost_since_usd_ticks" | "cost_unknown_since">): string {
+  const cost = formatRunCost(summary.cost_since_usd_ticks);
+  return summary.cost_unknown_since > 0 ? `${cost} + ${summary.cost_unknown_since} unknown` : cost;
+}
+
+/** A run row's summary line: the trigger text with mention markdown rendered
+ *  as its label, else a kind-based fallback. */
+export function runSummaryText(task: Pick<AgentTask, "kind" | "trigger_summary">): string {
+  const summary = stripMarkdown(task.trigger_summary ?? "").replace(/\s+/g, " ").trim();
+  if (summary) return summary;
+  switch (task.kind) {
+    case "comment":
+      return "Comment task";
+    case "autopilot":
+      return "Autopilot run";
+    case "chat":
+      return "Chat task";
+    case "quick_create":
+      return "Quick create";
+    default:
+      return "Task";
+  }
+}
 
 export type RunSection = "queued" | "running" | "blocked" | "finished";
 
