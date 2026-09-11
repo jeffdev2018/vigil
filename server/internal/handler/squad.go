@@ -529,7 +529,10 @@ func (h *Handler) DeleteSquad(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := requestUserID(r)
-	userUUID, _ := parseUUIDOrBadRequest(w, userID, "user_id")
+	userUUID, ok := parseUUIDOrBadRequest(w, userID, "user_id")
+	if !ok {
+		return
+	}
 
 	if _, err := h.Queries.ArchiveSquad(r.Context(), db.ArchiveSquadParams{
 		ID:         squad.ID,

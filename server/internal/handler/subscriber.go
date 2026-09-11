@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -74,7 +75,10 @@ func (h *Handler) SubscribeToIssue(w http.ResponseWriter, r *http.Request) {
 		UserType *string `json:"user_type"`
 	}
 	if r.Body != nil {
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
 	}
 	if req.UserID != nil && *req.UserID != "" {
 		targetUserID = *req.UserID
@@ -152,7 +156,10 @@ func (h *Handler) unsubscribeFromIssue(w http.ResponseWriter, r *http.Request, s
 		UserType *string `json:"user_type"`
 	}
 	if r.Body != nil {
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
 	}
 	if req.UserID != nil && *req.UserID != "" {
 		targetUserID = *req.UserID
