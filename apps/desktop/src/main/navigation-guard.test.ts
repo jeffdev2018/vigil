@@ -73,15 +73,19 @@ describe("describeBlockedNavigation", () => {
 });
 
 describe("installNavigationGuard", () => {
-  let listener: (event: { preventDefault(): void }, url: string) => void;
+  let listeners: Map<
+    "will-navigate" | "will-redirect",
+    (event: { preventDefault(): void }, url: string) => void
+  >;
   let window: NavigationGuardWindow;
 
   beforeEach(() => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
+    listeners = new Map();
     window = {
       webContents: {
-        on: (_event, fn) => {
-          listener = fn;
+        on: (event, fn) => {
+          listeners.set(event, fn);
           return window;
         },
       },
@@ -89,10 +93,16 @@ describe("installNavigationGuard", () => {
     installNavigationGuard(window, PROD_RENDERER);
   });
 
-  function navigate(url: string): boolean {
+  function fire(event: "will-navigate" | "will-redirect", url: string): boolean {
     const preventDefault = vi.fn();
+    const listener = listeners.get(event);
+    if (!listener) throw new Error(`${event} listener was not registered`);
     listener({ preventDefault }, url);
     return preventDefault.mock.calls.length > 0;
+  }
+
+  function navigate(url: string): boolean {
+    return fire("will-navigate", url);
   }
 
   it("allows a navigation to the renderer document itself", () => {
@@ -105,5 +115,22 @@ describe("installNavigationGuard", () => {
 
   it("blocks a navigation to an arbitrary local file", () => {
     expect(navigate("file:///Users/me/Desktop/shot.png")).toBe(true);
+  });
+
+  // will-redirect is a separate Electron event (a server redirect on an
+  // already-in-flight navigation) that was previously left completely
+  // unguarded — only will-navigate was intercepted.
+  describe("will-redirect", () => {
+    it("registers its own listener, not just will-navigate", () => {
+      expect(listeners.has("will-redirect")).toBe(true);
+    });
+
+    it("allows a redirect to the renderer document itself", () => {
+      expect(fire("will-redirect", PROD_RENDERER)).toBe(false);
+    });
+
+    it("blocks a redirect to a foreign origin", () => {
+      expect(fire("will-redirect", "https://evil.example/")).toBe(true);
+    });
   });
 });
