@@ -489,6 +489,7 @@ func (h *Handler) notifyPipeline(ctx context.Context, issue db.Issue, title, sev
 			IssueID: issue.ID, Title: title, Body: pgtype.Text{String: issue.Title, Valid: true}, ActorType: pgtype.Text{String: "system", Valid: true}, Details: details,
 		})
 		if err != nil {
+			slog.Warn("pipeline: notify recipient failed", "run_id", uuidToString(run.ID), "recipient_id", uuidToString(rcpt.ID), "error", err)
 			continue
 		}
 		h.publish(protocol.EventInboxNew, uuidToString(issue.WorkspaceID), "system", "", map[string]any{"item": inboxToResponse(item)})

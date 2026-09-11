@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -53,6 +54,7 @@ func followupResponse(id, issueID, agentID pgtype.UUID, agentName string, fireAt
 func (h *Handler) followupSettings(ctx context.Context, wsID pgtype.UUID) service.FollowupSettings {
 	ws, err := h.Queries.GetWorkspace(ctx, wsID)
 	if err != nil {
+		slog.Warn("followup settings: get workspace failed", "workspace_id", uuidToString(wsID), "error", err)
 		return service.FollowupSettingsFrom(nil)
 	}
 	return service.FollowupSettingsFrom(ws.Settings)
@@ -212,6 +214,7 @@ func (h *Handler) agendaFollowups(ctx context.Context, wsID pgtype.UUID, prefix 
 	out := []AgendaFollowup{}
 	rows, err := h.Queries.ListWorkspaceFollowupsBetween(ctx, db.ListWorkspaceFollowupsBetweenParams{WorkspaceID: wsID, Since: pgtype.Timestamptz{Time: from, Valid: true}, Until: pgtype.Timestamptz{Time: to, Valid: true}})
 	if err != nil {
+		slog.Warn("agenda followups: list failed", "workspace_id", uuidToString(wsID), "error", err)
 		return out
 	}
 	for _, row := range rows {

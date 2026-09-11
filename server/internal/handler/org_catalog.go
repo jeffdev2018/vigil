@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -78,7 +79,9 @@ func (h *Handler) DownloadOrgTeamTemplate(w http.ResponseWriter, r *http.Request
 		}
 		w.Header().Set("Content-Type", "application/zip")
 		w.Header().Set("Content-Disposition", `attachment; filename="`+team.ID+`.zip"`)
-		w.Write(data)
+		if _, err := w.Write(data); err != nil {
+			slog.Warn("download org team template: write response failed", "template_id", team.ID, "error", err)
+		}
 		return
 	}
 	writeError(w, http.StatusNotFound, "team template not found")
