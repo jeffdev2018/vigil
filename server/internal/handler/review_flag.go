@@ -216,7 +216,13 @@ func (h *Handler) CreateIssueReviewFlag(w http.ResponseWriter, r *http.Request) 
 			params.TaskID = task.ID
 			// The cap is per task, not per issue: a second run on the same
 			// issue gets its own hundred, and one run cannot bury the review.
-			if n, err := h.Queries.CountReviewFlagsForTask(r.Context(), task.ID); err == nil && n >= reviewFlagsPerTaskCap {
+			n, err := h.Queries.CountReviewFlagsForTask(r.Context(), task.ID)
+			if err != nil {
+				slog.Warn("review flag: count for task failed", "task_id", uuidToString(task.ID), "error", err)
+				writeError(w, http.StatusInternalServerError, "failed to check review flag count")
+				return
+			}
+			if n >= reviewFlagsPerTaskCap {
 				writeErrorCode(w, http.StatusUnprocessableEntity, "too_many_flags",
 					"this run has already recorded the maximum number of review flags")
 				return
