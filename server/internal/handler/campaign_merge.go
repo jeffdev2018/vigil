@@ -52,7 +52,11 @@ func (m builtinMerger) MergeIssuePullRequest(ctx context.Context, issue db.Issue
 			}
 			client := m.h.PRRefresh.Client()
 			if client == nil || !client.Enabled() {
-				return false, false, "", errors.New("github app not configured")
+				// The GitHub App is disabled/unconfigured for this tracked PR,
+				// but another platform's PR (VCS loop below) may still be
+				// mergeable, so keep looking instead of failing the whole
+				// merge attempt on this one stale row.
+				continue
 			}
 			out, err := client.MergePullRequest(ctx, pr.InstallationID, pr.RepoOwner, pr.RepoName, int(pr.PrNumber))
 			return out.Merged, out.Conflict, out.Detail, err
