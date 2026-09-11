@@ -33,7 +33,11 @@ func installTwenty(t *testing.T, publicURL string, members ...twentytest.Member)
 		t.Fatal(err)
 	}
 	prev := testHandler.Twenty
-	testHandler.Twenty = twenty.NewService(testHandler.Queries, box, publicURL)
+	svc := twenty.NewService(testHandler.Queries, box, publicURL)
+	// The fake instance listens on loopback, which the production client
+	// refuses; the guard is tested in internal/integrations/twenty.
+	svc.HTTP = &http.Client{}
+	testHandler.Twenty = svc
 	cleanupTriageSourceKind(t, triage.SourceTwenty, testWorkspaceID)
 	dbfx.Cleanup(t, `DELETE FROM workspace_twenty_connection WHERE workspace_id = $1`, testWorkspaceID)
 	dbfx.Cleanup(t, `DELETE FROM audit_log_entry WHERE workspace_id = $1 AND action LIKE 'twenty.%'`, testWorkspaceID)
