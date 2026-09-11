@@ -709,6 +709,26 @@ export const PinnedItemSchema: z.ZodType<PinnedItem> = z.object({
 export const PinListSchema = z.array(PinnedItemSchema).default([]);
 export const EMPTY_PIN_LIST: PinnedItem[] = [];
 
+// `details` values are strings from the upstream notification listeners,
+// but newer server paths (goal-loop questions, confidence reviews) send
+// numbers and nested objects. Coerce instead of rejecting: a rejected row
+// used to fail the whole `z.array` and render the inbox empty.
+const InboxDetailsSchema = z
+  .record(z.string(), z.unknown())
+  .nullable()
+  .catch(null)
+  .default(null)
+  .transform((details): Record<string, string> | null =>
+    details
+      ? Object.fromEntries(
+          Object.entries(details).map(([key, value]) => [
+            key,
+            typeof value === "string" ? value : (JSON.stringify(value) ?? ""),
+          ]),
+        )
+      : null,
+  );
+
 const InboxItemSchema: z.ZodType<InboxItem> = z.object({
   id: z.string(),
   workspace_id: z.string().default(""),
@@ -741,10 +761,21 @@ const InboxItemSchema: z.ZodType<InboxItem> = z.object({
   read: z.boolean().default(false),
   archived: z.boolean().default(false),
   created_at: z.string().default(""),
-  details: z.record(z.string(), z.string()).nullable().default(null),
+  details: InboxDetailsSchema,
 }).loose();
 
-export const InboxListSchema = z.array(InboxItemSchema).default([]);
+// One malformed row must not blank the whole inbox: parse row by row and
+// drop only the rows that cannot be read (web's schema is per-row tolerant
+// the same way through `z.unknown()` details).
+export const InboxListSchema = z
+  .array(z.unknown())
+  .default([])
+  .transform((rows) =>
+    rows.flatMap((row) => {
+      const parsed = InboxItemSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  );
 export const EMPTY_INBOX_LIST: InboxItem[] = [];
 
 export const MemberWithUserSchema: z.ZodType<MemberWithUser> = z.object({

@@ -9,17 +9,14 @@ import { InboxListSchema } from "./schemas";
  * this client REACTS to a given payload. They cannot fail when the Go server
  * starts sending something new — nothing here executes server code.
  *
- * The matching server-side guarantee is structural rather than a test: every
- * `details` map in server/cmd/server/notification_listeners.go is typed
- * `map[string]string`, so a non-string value is a compile error there.
- *
- * Why both halves exist: during MUL-5483 a new inbox type was added and the
- * mobile label map was updated so `tsc` passed — but a NUMBER went into
- * `details.child_count`, and `details` is `z.record(z.string(), z.string())`.
- * Because the endpoint parses an ARRAY, one bad row fails the whole parse and
- * `listInbox` falls back to `EMPTY_INBOX_LIST`: the entire mobile inbox
- * renders empty, not just that row. The blast radius is what these tests
- * document; the compile-time type is what prevents it.
+ * The upstream notification listeners type every `details` map as
+ * `map[string]string`, but newer server paths (goal-loop questions,
+ * confidence reviews) marshal numbers and nested objects into it. During
+ * MUL-5483 a NUMBER in `details.child_count` failed the strict
+ * `z.record(z.string(), z.string())`, and because the endpoint parsed an
+ * ARRAY, one bad row failed the whole parse and `listInbox` fell back to
+ * `EMPTY_INBOX_LIST`: the entire mobile inbox rendered empty. The schema now
+ * coerces non-string values and parses row by row; these tests pin that.
  */
 describe("inbox list schema", () => {
   it("parses a row shaped like the documented server payload", () => {
@@ -48,35 +45,47 @@ describe("inbox list schema", () => {
     expect(parsed.success && parsed.data[0]?.details?.to).toBe("in_review");
   });
 
-  it("rejects a numeric details value", () => {
-    const badRow = {
-      id: "inbox-2",
-      recipient_type: "member",
-      type: "status_changed",
-      details: { child_count: 3 },
-    };
+  it("coerces non-string details values instead of rejecting the row", () => {
+    // Goal-loop questions carry a nested `question` object and confidence
+    // reviews carry numbers; before this, one such row blanked the inbox.
+    const rows = [
+      {
+        id: "inbox-2",
+        recipient_type: "member",
+        type: "confidence_review",
+        details: { child_count: 3 },
+      },
+      {
+        id: "inbox-2b",
+        recipient_type: "member",
+        type: "goal_question",
+        details: { goal_id: "g1", question: { prompt: "Which DB?", options: ["a", "b"] } },
+      },
+    ];
 
-    expect(InboxListSchema.safeParse([badRow]).success).toBe(false);
+    const parsed = InboxListSchema.safeParse(rows);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data[0]?.details?.child_count).toBe("3");
+    expect(parsed.success && parsed.data[1]?.details?.goal_id).toBe("g1");
+    expect(parsed.success && parsed.data[1]?.details?.question).toBe(
+      JSON.stringify({ prompt: "Which DB?", options: ["a", "b"] }),
+    );
   });
 
-  it("keeps one malformed row from emptying the entire list observable", () => {
-    // Documents the blast radius that made this a P1 rather than a cosmetic bug:
-    // the schema is an array, so a single bad row invalidates every good one.
+  it("drops a malformed row without emptying the list", () => {
+    // The blast radius that made this a P1: the schema is an array, so a
+    // single unreadable row used to invalidate every good one.
     const good = {
       id: "inbox-3",
       recipient_type: "member",
       type: "status_changed",
       details: { from: "todo", to: "in_review" },
     };
-    const bad = {
-      id: "inbox-4",
-      recipient_type: "member",
-      type: "status_changed",
-      details: { child_count: 3 },
-    };
+    const bad = { recipient_type: "member", type: "status_changed" }; // no id
 
-    expect(InboxListSchema.safeParse([good]).success).toBe(true);
-    expect(InboxListSchema.safeParse([good, bad]).success).toBe(false);
+    const parsed = InboxListSchema.safeParse([good, bad]);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.map((r) => r.id)).toEqual(["inbox-3"]);
   });
 
   it("renders an unknown server type instead of dropping the row", () => {
