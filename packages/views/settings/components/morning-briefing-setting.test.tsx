@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Workspace } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -32,7 +33,9 @@ describe("MorningBriefingSetting channels", () => {
     );
     expect((screen.getByLabelText("Chat id 1") as HTMLInputElement).value).toBe("C0123");
     fireEvent.click(screen.getByRole("button", { name: "Add a channel" }));
-    fireEvent.change(screen.getByLabelText("Channel type 2"), { target: { value: "telegram" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Channel type 2" }));
+    await user.click(await screen.findByRole("option", { name: "telegram" }));
     fireEvent.change(screen.getByLabelText("Chat id 2"), { target: { value: "-1001" } });
     fireEvent.blur(screen.getByLabelText("Chat id 2"));
     await waitFor(() => expect(state.update).toHaveBeenCalled());

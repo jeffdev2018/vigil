@@ -9,6 +9,9 @@ import { workspaceKeys } from "@multica/core/workspace/queries";
 import type { Workspace } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
@@ -131,9 +134,22 @@ export function MorningBriefingSetting({ workspace, canEdit }: { workspace: Work
           <div data-testid="briefing-channels" className="flex flex-col gap-1.5">
             {channels.map((c, i) => (
               <div key={i} className="flex items-center gap-1">
-                <select aria-label={t(($) => $.workspace.briefing_channel_type, { n: i + 1 })} className="rounded-md border border-input bg-transparent px-2 py-1" value={c.type} disabled={!canEdit || saving} onChange={(e) => commitChannels(channels.map((x, n) => (n === i ? { ...x, type: e.target.value } : x)))}>
-                  {BRIEFING_CHANNEL_TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
-                </select>
+                <Select
+                  items={BRIEFING_CHANNEL_TYPES.map((ty) => ({ value: ty, label: ty }))}
+                  value={c.type}
+                  onValueChange={(value) => value && commitChannels(channels.map((x, n) => (n === i ? { ...x, type: value } : x)))}
+                >
+                  <SelectTrigger
+                    aria-label={t(($) => $.workspace.briefing_channel_type, { n: i + 1 })}
+                    size="sm"
+                    disabled={!canEdit || saving}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BRIEFING_CHANNEL_TYPES.map((ty) => <SelectItem key={ty} value={ty}>{ty}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 {/* eslint-disable-next-line no-restricted-syntax -- a platform chat id is a technical value, not copy */}
                 <Input aria-label={t(($) => $.workspace.briefing_channel_chat, { n: i + 1 })} placeholder="C0123ABC / -1001234" className="w-44" value={c.chat_id} disabled={!canEdit || saving} onChange={(e) => setChannels(channels.map((x, n) => (n === i ? { ...x, chat_id: e.target.value } : x)))} onBlur={() => commitChannels(channels)} />
                 <button type="button" aria-label={t(($) => $.workspace.briefing_channel_remove, { n: i + 1 })} className="text-muted-foreground hover:text-destructive" disabled={!canEdit || saving} onClick={() => commitChannels(channels.filter((_, n) => n !== i))}>×</button>
