@@ -37,6 +37,7 @@ import {
 } from "@multica/core/brain/mutations";
 import { Button } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -201,11 +202,9 @@ export function BrainPage() {
               ))}
             </div>
             <label className="ml-auto flex shrink-0 items-center gap-1.5 text-caption text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={archived}
-                onChange={(e) => setArchived(e.target.checked)}
-                className="size-3.5 accent-primary"
+                onCheckedChange={(checked) => setArchived(checked === true)}
               />
               {t(($) => $.filter.show_archived)}
             </label>
