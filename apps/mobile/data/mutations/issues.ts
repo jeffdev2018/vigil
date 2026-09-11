@@ -734,9 +734,9 @@ export function useCreateCommentSubIssue(anchorCommentId: string) {
  *
  * Both are flat `Issue[]` caches. We use `setQueriesData` with the
  * `myAll(wsId)` prefix to filter the issue out of every `myList` key in one
- * pass, snapshot the previous data for rollback, and remove the detail /
- * timeline / tasks caches on settle so a stale return-trip can't surface
- * 404-y data.
+ * pass, once the server confirms the delete (no optimistic removal — see
+ * root CLAUDE.md "State Rules"), and remove the detail / timeline / tasks
+ * caches on settle so a stale return-trip can't surface 404-y data.
  *
  * The WS `issue:deleted` event is already handled in `use-issue-realtime.ts`
  * (callers like the detail screen pass `() => router.back()`), so the other
@@ -748,36 +748,17 @@ export function useDeleteIssue() {
 
   return useMutation({
     mutationFn: (id: string) => api.deleteIssue(id),
-    onMutate: async (id) => {
-      const listKey = issueKeys.list(wsId);
-      const myAllKey = issueKeys.myAll(wsId);
-      await Promise.all([
-        qc.cancelQueries({ queryKey: listKey }),
-        qc.cancelQueries({ queryKey: myAllKey }),
-      ]);
-
-      // Snapshot every matching cache (flat list + each my-issues scope×filter)
-      // so we can roll back per-key on error.
-      const prevList = qc.getQueryData<Issue[]>(listKey);
-      const prevMy = qc.getQueriesData<Issue[]>({ queryKey: myAllKey });
-
-      qc.setQueryData<Issue[]>(listKey, (old) =>
+    // No optimistic removal: delete is a confirm/cleanup flow (root
+    // CLAUDE.md "State Rules" — await the server, never optimistically
+    // remove an entity). Both caches are patched only once the server
+    // confirms the delete.
+    onSuccess: (_data, id) => {
+      qc.setQueryData<Issue[]>(issueKeys.list(wsId), (old) =>
         old ? old.filter((i) => i.id !== id) : old,
       );
-      qc.setQueriesData<Issue[]>({ queryKey: myAllKey }, (old) =>
+      qc.setQueriesData<Issue[]>({ queryKey: issueKeys.myAll(wsId) }, (old) =>
         old ? old.filter((i) => i.id !== id) : old,
       );
-
-      return { prevList, prevMy, listKey, myAllKey };
-    },
-    onError: (_err, _id, ctx) => {
-      if (!ctx) return;
-      if (ctx.prevList !== undefined) {
-        qc.setQueryData(ctx.listKey, ctx.prevList);
-      }
-      for (const [key, value] of ctx.prevMy) {
-        qc.setQueryData(key, value);
-      }
     },
     onSettled: (_data, _err, id) => {
       qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
