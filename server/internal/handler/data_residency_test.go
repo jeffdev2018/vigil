@@ -236,3 +236,41 @@ func TestResidencyRoutesAroundANonCompliantPoolMember(t *testing.T) {
 		t.Fatalf("the task must move to the compliant pool member, got %s", uuidToString(task.RuntimeID))
 	}
 }
+
+type recordingTaskWakeup struct{ runtimeIDs []string }
+
+func (r *recordingTaskWakeup) NotifyTaskAvailable(runtimeID, _ string) {
+	r.runtimeIDs = append(r.runtimeIDs, runtimeID)
+}
+
+// A claim refused because the policy tightened after the enqueue puts the task
+// back in the queue, but must not wake the runtime that was just refused: the
+// daemon would claim the same task again at once, be refused again, and spin
+// until the policy changes.
+func TestResidencyClaimRefusalDoesNotWakeTheRefusedRuntime(t *testing.T) {
+	rememberSettings(t)
+	runtimeID := handlerTestRuntimeID(t)
+	agent := dbfx.Agent(t, "residency claim agent "+uuid.NewString()[:8], runtimeID)
+	issue := dbfx.Issue(t, "residency claim "+uuid.NewString()[:8], testutil.Cols{"assignee_type": "agent", "assignee_id": agent})
+	task := dbfx.Task(t, agent, testutil.Cols{"runtime_id": runtimeID, "issue_id": issue})
+	setResidencyPolicyForTest(t, `{"region_allowlist":[],"banned_providers":[],"require_on_prem":true}`)
+
+	wakeup := &recordingTaskWakeup{}
+	previous := testHandler.TaskService.Wakeup
+	testHandler.TaskService.Wakeup = wakeup
+	t.Cleanup(func() { testHandler.TaskService.Wakeup = previous })
+
+	req := newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+runtimeID+"/tasks/claim", nil, testWorkspaceID, "residency-claim-daemon")
+	testutil.Call(t, testHandler.ClaimTaskByRuntime, withURLParam(req, "runtimeId", runtimeID)).Want(http.StatusConflict)
+
+	var status string
+	dbfx.QueryRow(t, `SELECT status FROM agent_task_queue WHERE id = $1`, task).Scan(&status)
+	if status != "queued" {
+		t.Fatalf("refused task status = %q, want queued", status)
+	}
+	for _, id := range wakeup.runtimeIDs {
+		if id == runtimeID {
+			t.Fatalf("the refused runtime %s was woken to claim the same task again", runtimeID)
+		}
+	}
+}

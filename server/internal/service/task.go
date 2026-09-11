@@ -4402,6 +4402,19 @@ func (s *TaskService) FinalizeTaskClaim(
 // SQL CAS includes dispatched_at so a late handler cannot roll back a newer
 // reclaim. This is not a fresh enqueue: do not duplicate queued analytics.
 func (s *TaskService) RequeueTaskAfterClaimFailure(ctx context.Context, task db.AgentTaskQueue) (*db.AgentTaskQueue, error) {
+	return s.requeueTaskAfterClaim(ctx, task, true)
+}
+
+// RequeueTaskAfterClaimRefusal releases a claim refused for a reason that
+// cannot change before the runtime's next regular poll (a data residency
+// policy the runtime fails). The empty-claim version is still bumped so the
+// task stays visible, but the refused runtime is not woken: it would claim
+// the same task again at once and spin on the refusal.
+func (s *TaskService) RequeueTaskAfterClaimRefusal(ctx context.Context, task db.AgentTaskQueue) (*db.AgentTaskQueue, error) {
+	return s.requeueTaskAfterClaim(ctx, task, false)
+}
+
+func (s *TaskService) requeueTaskAfterClaim(ctx context.Context, task db.AgentTaskQueue, wake bool) (*db.AgentTaskQueue, error) {
 	requeued, err := s.Queries.RequeueAgentTaskAfterClaimFailure(ctx, db.RequeueAgentTaskAfterClaimFailureParams{
 		TaskID:       task.ID,
 		RuntimeID:    task.RuntimeID,
@@ -4413,7 +4426,11 @@ func (s *TaskService) RequeueTaskAfterClaimFailure(ctx context.Context, task db.
 	s.forgetTaskReclaim(requeued)
 	s.ReconcileAgentStatus(ctx, requeued.AgentID)
 	s.broadcastTaskEvent(ctx, protocol.EventTaskQueued, requeued)
-	s.notifyTaskAvailable(requeued)
+	if wake {
+		s.notifyTaskAvailable(requeued)
+	} else if requeued.RuntimeID.Valid {
+		s.EmptyClaim.Bump(context.Background(), util.UUIDToString(requeued.RuntimeID))
+	}
 	slog.Info("task requeued after claim finalization failure",
 		"task_id", util.UUIDToString(requeued.ID),
 		"runtime_id", util.UUIDToString(requeued.RuntimeID),

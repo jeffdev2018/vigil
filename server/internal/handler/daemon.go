@@ -2434,7 +2434,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if allowed, reason := h.TaskService.RuntimeAllowedForClaim(r.Context(), parseUUID(runtimeWorkspaceID), runtime); !allowed {
 		slog.Warn("daemon claim: refused, the data residency policy rejects this runtime",
 			"task_id", uuidToString(task.ID), "runtime_id", runtimeID, "reason", reason)
-		if _, requeueErr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), *task); requeueErr != nil {
+		if _, requeueErr := h.TaskService.RequeueTaskAfterClaimRefusal(r.Context(), *task); requeueErr != nil {
 			slog.Error("daemon claim: requeue after a residency refusal failed; stale reclaim will recover it",
 				"task_id", uuidToString(task.ID), "error", requeueErr)
 		}
