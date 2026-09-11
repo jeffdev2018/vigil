@@ -475,6 +475,25 @@ func (q *Queries) SetPlanVerificationState(ctx context.Context, arg SetPlanVerif
 	return err
 }
 
+const setPlanVerificationTaskID = `-- name: SetPlanVerificationTaskID :exec
+UPDATE plan_verification SET task_id = $2 WHERE id = $1
+`
+
+type SetPlanVerificationTaskIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	TaskID pgtype.UUID `json:"task_id"`
+}
+
+// MaybeEnqueuePlanVerification records the row BEFORE enqueuing the
+// verification run, with task_id set to the placeholder value $2
+// (source_task_id) so PlanVerificationExistsForSource closes the re-fire
+// window immediately. This swaps the placeholder for the real verification
+// task_id once EnqueueTaskForIssueWithHandoff has actually succeeded.
+func (q *Queries) SetPlanVerificationTaskID(ctx context.Context, arg SetPlanVerificationTaskIDParams) error {
+	_, err := q.db.Exec(ctx, setPlanVerificationTaskID, arg.ID, arg.TaskID)
+	return err
+}
+
 const supersedeOtherIssuePlans = `-- name: SupersedeOtherIssuePlans :exec
 UPDATE issue_plan
 SET superseded_at = now()

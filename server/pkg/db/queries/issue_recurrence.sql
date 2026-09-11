@@ -37,6 +37,15 @@ SET last_occurrence_id = $2, occurrence_count = occurrence_count + 1, next_run_a
 WHERE id = $1
 RETURNING *;
 
+-- name: AdvanceIssueRecurrenceNextRunOnly :exec
+-- Moves next_run_at forward BEFORE the occurrence is created. Spawn calls
+-- this first (schedule mode only) so a transient failure anywhere after it
+-- (occurrence create, link, or the closing AdvanceIssueRecurrence call)
+-- costs at most one skipped occurrence instead of a duplicate one: without
+-- it, ListDueIssueRecurrences would keep matching the same past-due rule on
+-- every tick until the closing call finally succeeds.
+UPDATE issue_recurrence SET next_run_at = sqlc.narg('next_run_at'), updated_at = now() WHERE id = $1;
+
 -- name: ListDueIssueRecurrences :many
 SELECT * FROM issue_recurrence
 WHERE enabled AND mode = 'schedule' AND next_run_at IS NOT NULL AND next_run_at <= $1
