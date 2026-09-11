@@ -305,13 +305,28 @@ func (d *Daemon) runWSHeartbeatSender(ctx context.Context, runtimeIDs []string, 
 }
 
 func (d *Daemon) sendWSHeartbeats(ctx context.Context, runtimeIDs []string, writes chan<- *wsOutbound) {
+	if len(runtimeIDs) == 0 {
+		return
+	}
+	// K18: a healthy WS keeps the HTTP tick skipped, so this is the transport
+	// that must refresh the human-edit report. The checkouts are daemon-wide,
+	// so one collection serves every runtime of the batch. Always non-nil: an
+	// empty list is what clears a previous report server-side.
+	// ponytail: one metadata UPDATE per runtime per beat, like the HTTP body;
+	// send only on change plus a refresh inside HumanEditWindowSeconds if that
+	// write shows up in DB load.
+	collected := d.collectDirtyCheckouts(ctx)
+	dirty := make([]protocol.DaemonDirtyCheckout, 0, len(collected))
+	for _, c := range collected {
+		dirty = append(dirty, protocol.DaemonDirtyCheckout(c))
+	}
 	for _, rid := range runtimeIDs {
 		if ctx.Err() != nil {
 			return
 		}
 		frame, err := json.Marshal(protocol.Message{
 			Type:    protocol.EventDaemonHeartbeat,
-			Payload: marshalRaw(protocol.DaemonHeartbeatRequestPayload{RuntimeID: rid, SupportsBatchImport: true}),
+			Payload: marshalRaw(protocol.DaemonHeartbeatRequestPayload{RuntimeID: rid, SupportsBatchImport: true, DirtyCheckouts: dirty}),
 		})
 		if err != nil {
 			d.logger.Debug("ws heartbeat marshal failed", "error", err, "runtime_id", rid)

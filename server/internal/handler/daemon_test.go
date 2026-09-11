@@ -915,7 +915,7 @@ func TestHandleDaemonWSHeartbeat_RuntimeGoneReturnsAckNotError(t *testing.T) {
 				missingRuntime: daemonws.NewRuntimeLease(testWorkspaceID, "online", time.Now().Add(-2*runtimeHeartbeatDBFlushInterval), true),
 			},
 		},
-		missingRuntime, false)
+		protocol.DaemonHeartbeatRequestPayload{RuntimeID: missingRuntime})
 	if err != nil {
 		t.Fatalf("HandleDaemonWSHeartbeat: unexpected error %v", err)
 	}
@@ -959,7 +959,7 @@ func TestHandleDaemonWSHeartbeat_AllowsAnyAuthorizedWorkspace(t *testing.T) {
 				runtimeID: daemonws.NewRuntimeLease(workspaceID, "online", time.Now(), true),
 			},
 		},
-		runtimeID, false)
+		protocol.DaemonHeartbeatRequestPayload{RuntimeID: runtimeID})
 	if err != nil {
 		t.Fatalf("HandleDaemonWSHeartbeat: unexpected error %v", err)
 	}
@@ -4615,5 +4615,45 @@ func TestDaemonRegister_RecordsProbedCliAuthState(t *testing.T) {
 		if meta := register(t, unknown); meta["cli_auth"] != nil {
 			t.Errorf("cli_auth for %q = %#v, want no record at all", unknown, meta["cli_auth"])
 		}
+	}
+}
+
+// K18: a daemon on a healthy WebSocket never sends the HTTP heartbeat, so the
+// WS frame must store the human-edit report too. An absent field (older
+// daemon) keeps the stored report; an explicit empty list clears it.
+func TestHandleDaemonWSHeartbeat_StoresDirtyCheckouts(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	runtimeID := dbfx.Runtime(t, "WS Dirty Checkouts Runtime", testutil.Cols{"workspace_id": testWorkspaceID})
+	identity := daemonws.ClientIdentity{
+		WorkspaceID: testWorkspaceID,
+		RuntimeLeases: map[string]*daemonws.RuntimeLease{
+			runtimeID: daemonws.NewRuntimeLease(testWorkspaceID, "online", time.Now(), true),
+		},
+	}
+	beat := func(payload protocol.DaemonHeartbeatRequestPayload) []string {
+		t.Helper()
+		payload.RuntimeID = runtimeID
+		if _, err := testHandler.HandleDaemonWSHeartbeat(ctx, identity, payload); err != nil {
+			t.Fatalf("HandleDaemonWSHeartbeat: %v", err)
+		}
+		var metadata []byte
+		if err := testPool.QueryRow(ctx, `SELECT metadata FROM agent_runtime WHERE id = $1`, runtimeID).Scan(&metadata); err != nil {
+			t.Fatal(err)
+		}
+		paths, _ := recentDirtyPaths(metadata, time.Now())
+		return paths
+	}
+
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{DirtyCheckouts: []protocol.DaemonDirtyCheckout{{Root: "/home/u/repo", Paths: []string{"src/human.go"}}}}); len(got) != 1 || got[0] != "src/human.go" {
+		t.Fatalf("dirty paths after WS report = %v, want [src/human.go]", got)
+	}
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{}); len(got) != 1 {
+		t.Fatalf("dirty paths after a beat without the field = %v, want the previous report kept", got)
+	}
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{DirtyCheckouts: []protocol.DaemonDirtyCheckout{}}); len(got) != 0 {
+		t.Fatalf("dirty paths after an empty report = %v, want cleared", got)
 	}
 }

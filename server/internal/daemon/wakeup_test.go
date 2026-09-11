@@ -8,6 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -702,5 +705,58 @@ func TestReadTaskWakeupMessagesRunHaltChangedTriggersReconcile(t *testing.T) {
 		t.Fatalf("readTaskWakeupMessages returned before the halt frame: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("run_halt_changed frame did not trigger a reconcile broadcast")
+	}
+}
+
+// The WS heartbeat is the nominal transport on a healthy connection and the
+// HTTP tick is skipped while it is acked, so it must carry the same K18 report
+// or the server's human-edit window lapses for good.
+func TestSendWSHeartbeatsCarriesDirtyCheckouts(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	run := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	run("init", "-q")
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "a.go")
+	run("commit", "-q", "-m", "init")
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	decode := func(d *Daemon) protocol.DaemonHeartbeatRequestPayload {
+		t.Helper()
+		writes := make(chan *wsOutbound, 1)
+		d.sendWSHeartbeats(context.Background(), []string{"rt-1"}, writes)
+		var msg protocol.Message
+		if err := json.Unmarshal((<-writes).data, &msg); err != nil {
+			t.Fatal(err)
+		}
+		var payload protocol.DaemonHeartbeatRequestPayload
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+
+	d := &Daemon{logger: slog.New(slog.NewTextHandler(testNopWriter{}, nil))}
+	d.rememberCheckout(root)
+	got := decode(d)
+	if len(got.DirtyCheckouts) != 1 || got.DirtyCheckouts[0].Root != root || len(got.DirtyCheckouts[0].Paths) != 1 || got.DirtyCheckouts[0].Paths[0] != "a.go" {
+		t.Fatalf("ws heartbeat dirty_checkouts = %+v, want a.go in %s", got.DirtyCheckouts, root)
+	}
+
+	// A daemon with nothing dirty still sends an explicit empty list so the
+	// server clears a previous report instead of keeping it until it expires.
+	clean := decode(&Daemon{logger: d.logger})
+	if clean.DirtyCheckouts == nil {
+		t.Fatal("ws heartbeat dirty_checkouts = nil, want an explicit empty list")
 	}
 }
