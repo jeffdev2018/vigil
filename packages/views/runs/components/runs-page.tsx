@@ -563,10 +563,14 @@ function RunRow({
         </span>
 
         <ActorAvatar actorType="agent" actorId={run.agent_id} name={run.agent_name} size="xs" enableHoverCard />
-        <span className="w-32 shrink-0 truncate text-caption">{run.agent_name}</span>
+        <span title={run.agent_name} className="w-32 shrink-0 truncate text-caption">{run.agent_name}</span>
 
         {run.issue && issueHref ? (
-          <AppLink href={issueHref} className="min-w-0 flex-1 truncate text-caption text-info hover:underline">
+          <AppLink
+            href={issueHref}
+            title={`${run.issue.identifier} · ${run.issue.title}`}
+            className="min-w-0 flex-1 truncate text-caption text-info hover:underline"
+          >
             {run.issue.identifier} · {run.issue.title}
           </AppLink>
         ) : (

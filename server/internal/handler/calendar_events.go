@@ -1050,7 +1050,12 @@ func (h *Handler) ServeCalendarFeed(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to build the feed")
 		return
 	}
-	all, _ := h.Queries.ListCalendarEventsInWindow(r.Context(), db.ListCalendarEventsInWindowParams{WorkspaceID: row.WorkspaceID, Since: tsz(now.Add(-31 * 24 * time.Hour)), Until: tsz(now.Add(366 * 24 * time.Hour)), IncludeCancelled: true})
+	all, err := h.Queries.ListCalendarEventsInWindow(r.Context(), db.ListCalendarEventsInWindowParams{WorkspaceID: row.WorkspaceID, Since: tsz(now.Add(-31 * 24 * time.Hour)), Until: tsz(now.Add(366 * 24 * time.Hour)), IncludeCancelled: true})
+	if err != nil {
+		slog.Error("calendar feed: list events failed", "workspace_id", uuidToString(row.WorkspaceID), "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to build the feed")
+		return
+	}
 	seen := map[string]bool{}
 	var events []icalendar.OutboundEvent
 	add := func(e db.CalendarEvent) {

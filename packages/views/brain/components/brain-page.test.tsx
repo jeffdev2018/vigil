@@ -158,6 +158,16 @@ describe("BrainPage", () => {
     await waitFor(() => expect(document.querySelector("code")?.textContent).toBe("v0.x.x"));
   });
 
+  it("offers to create the first note from the empty state", async () => {
+    data.response = { items: [], tags: [] };
+    await renderNotes();
+    expect(await screen.findByText("No notes yet")).toBeTruthy();
+    const buttons = screen.getAllByRole("button", { name: "New note" });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    expect(screen.getByLabelText("Title")).toBeTruthy();
+  });
+
   it("creates a note from the header action", async () => {
     await renderNotes();
     fireEvent.click(await screen.findByRole("button", { name: "New note" }));

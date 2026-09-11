@@ -39,10 +39,10 @@ import {
   type BenchmarkRun,
   type EvalRun,
   type EvalRunCaseStatus,
-  type EvalRunStatus,
   type EvalSuite,
 } from "@multica/core/eval";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -61,12 +61,7 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * benchmarks bugfix routing, not routing.
  */
 
-const RUN_STATUSES: EvalRunStatus[] = ["running", "completed", "failed"];
 const CASE_STATUSES: EvalRunCaseStatus[] = ["pending", "passed", "failed", "infra_failed"];
-
-function isRunStatus(value: string): value is EvalRunStatus {
-  return (RUN_STATUSES as string[]).includes(value);
-}
 
 function isCaseStatus(value: string): value is EvalRunCaseStatus {
   return (CASE_STATUSES as string[]).includes(value);
@@ -200,9 +195,11 @@ export function EvalLabTab() {
               </Button>
             </div>
           ) : cases.length === 0 ? (
+            // The Suites card above already says how to get a first case; this
+            // section explains what will appear here instead of repeating it.
             <div className="py-4 text-center" data-testid="eval-cases-empty">
-              <p className="text-body font-medium">{t(($) => $.eval_lab.cases_empty_title)}</p>
-              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.cases_empty_hint)}</p>
+              <p className="text-body font-medium">{t(($) => $.eval_lab.new_suite_waiting_title)}</p>
+              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.new_suite_waiting_hint)}</p>
             </div>
           ) : (
             <form className="space-y-3" onSubmit={handleCreate} data-testid="eval-suite-form">
@@ -332,15 +329,14 @@ export function EvalLabTab() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function EvalRunStatusBadge({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = isRunStatus(status);
-  const variant = !known || status === "failed" ? "destructive" : status === "completed" ? "secondary" : "outline";
-  return (
-    <Badge variant={variant} data-testid="eval-run-status" data-status={status}>
-      {known ? t(($) => $.eval_lab.status[status]) : t(($) => $.eval_lab.status_unknown)}
-    </Badge>
-  );
+  const config: StatusBadgeConfig = {
+    running: { tone: "warning", label: t(($) => $.eval_lab.status.running) },
+    completed: { tone: "success", label: t(($) => $.eval_lab.status.completed) },
+    failed: { tone: "destructive", label: t(($) => $.eval_lab.status.failed) },
+  };
+  return <StatusBadge status={status} config={config} data-testid="eval-run-status" />;
 }
 
 function Score({ score }: { score: number | null }) {
@@ -530,7 +526,7 @@ function RunRow({
         <TableCell className="font-mono">
           {t(($) => $.eval_lab.version_label, { number: run.agent_version_number })}
         </TableCell>
-        <TableCell><StatusBadge status={run.status} /></TableCell>
+        <TableCell><EvalRunStatusBadge status={run.status} /></TableCell>
         <TableCell><Score score={run.score} /></TableCell>
         <TableCell className="text-muted-foreground">
           {run.started_at ? timeAgo(run.started_at) : "—"}
@@ -821,7 +817,7 @@ function BenchmarkRow({ run, timeAgo }: { run: BenchmarkRun; timeAgo: (date: str
       <TableCell className="font-mono">
         {t(($) => $.eval_lab.version_label, { number: run.agent_version_number })}
       </TableCell>
-      <TableCell><StatusBadge status={run.status} /></TableCell>
+      <TableCell><EvalRunStatusBadge status={run.status} /></TableCell>
       <TableCell><Score score={run.score} /></TableCell>
       <TableCell>
         {perClass.length === 0 ? (

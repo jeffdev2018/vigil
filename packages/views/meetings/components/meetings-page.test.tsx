@@ -163,6 +163,12 @@ describe("MeetingsPage", () => {
     data.meetings.meetings = [];
     renderPage();
     expect(await screen.findByText("No meetings yet")).toBeTruthy();
+    // The empty state repeats the header action so the first recording is
+    // one click away from the explanation.
+    const buttons = screen.getAllByRole("button", { name: /record a meeting/i });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    expect(data.store.open).toHaveBeenCalled();
   });
 
   it("shows a quiet banner and disables recording when the server has no STT", async () => {

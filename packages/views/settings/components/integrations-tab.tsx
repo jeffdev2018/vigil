@@ -21,9 +21,9 @@ import { telegramInstallationsOptions } from "@multica/core/telegram";
 import { vcsConnectionsOptions } from "@multica/core/vcs";
 import { useConfigStore, useFeatureEnabled } from "@multica/core/config";
 import { COMPOSIO_MCP_APPS_FLAG } from "@multica/core/feature-flags";
-import { cn } from "@multica/ui/lib/utils";
 import { AppLink, useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { LarkTab } from "./lark-tab";
 import { LinearTab } from "./linear-tab";
 import { TwentyTab } from "./twenty-tab";
@@ -334,27 +334,22 @@ export function IntegrationsTab() {
   );
 }
 
+/** Which of the four connection states this integration is currently in. */
+function connectionStatus(state: ConnectionState): "connected" | "not_connected" | "loading" | "error" {
+  if (state.isError) return "error";
+  if (state.isPending) return "loading";
+  return state.data === true ? "connected" : "not_connected";
+}
+
 function ConnectionBadge({ state }: { state: ConnectionState }) {
   const { t } = useT("settings");
-  const connected = !state.isError && !state.isPending && state.data === true;
-  const label = state.isError
-    ? t(($) => $.integrations.status_unknown)
-    : state.isPending
-      ? t(($) => $.integrations.status_loading)
-      : connected
-        ? t(($) => $.integrations.status_connected)
-        : t(($) => $.integrations.status_not_connected);
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-caption",
-        connected ? "text-success" : "text-muted-foreground",
-      )}
-    >
-      {connected && (
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
-      )}
-      {label}
-    </span>
-  );
+  // Only "connected" is a positive signal; loading/error/not-connected all
+  // read the same as "nothing to report yet", so they share the muted tone.
+  const config: StatusBadgeConfig = {
+    connected: { tone: "success", label: t(($) => $.integrations.status_connected) },
+    not_connected: { tone: "muted", label: t(($) => $.integrations.status_not_connected) },
+    loading: { tone: "muted", label: t(($) => $.integrations.status_loading) },
+    error: { tone: "muted", label: t(($) => $.integrations.status_unknown) },
+  };
+  return <StatusBadge status={connectionStatus(state)} config={config} />;
 }

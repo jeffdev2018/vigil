@@ -200,6 +200,8 @@ describe("ChatThreadList agent identity", () => {
     const name = screen.getByText(longName);
     expect(name.className).toContain("max-w-[40%]");
     expect(name.className).toContain("truncate");
+    // Bounded means truncated: the full name stays reachable as a tooltip.
+    expect(name.getAttribute("title")).toBe(longName);
     expect(screen.getByText("Latest project update")).toBeInTheDocument();
   });
 

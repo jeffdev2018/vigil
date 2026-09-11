@@ -58,7 +58,7 @@ func Write(name string, events []OutboundEvent) string {
 			line("LOCATION:" + escape(e.Location))
 		}
 		if e.URL != "" {
-			line("URL:" + e.URL)
+			line("URL:" + escape(e.URL))
 		}
 		if e.Status != "" {
 			line("STATUS:" + e.Status)
