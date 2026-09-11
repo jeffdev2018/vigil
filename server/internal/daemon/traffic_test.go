@@ -44,3 +44,21 @@ func TestCollectDirtyCheckouts(t *testing.T) {
 		t.Fatalf("dirty checkout = %+v, want only the tracked change", got)
 	}
 }
+
+// A checkout removed from disk (a cleaned-up worktree) is forgotten instead
+// of being probed with git on every heartbeat for the life of the daemon.
+func TestCollectDirtyCheckoutsForgetsRemovedCheckouts(t *testing.T) {
+	t.Parallel()
+	var d Daemon
+	gone := filepath.Join(t.TempDir(), "removed-worktree")
+	kept := t.TempDir() // exists, not a repo: may become one, so it stays known
+	d.rememberCheckout(gone)
+	d.rememberCheckout(kept)
+	d.collectDirtyCheckouts(context.Background())
+	if _, ok := d.durableCheckouts.Load(gone); ok {
+		t.Fatal("a checkout that no longer exists is still remembered")
+	}
+	if _, ok := d.durableCheckouts.Load(kept); !ok {
+		t.Fatal("an existing checkout was forgotten")
+	}
+}
