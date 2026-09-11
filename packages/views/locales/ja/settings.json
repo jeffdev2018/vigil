@@ -1657,7 +1657,12 @@
       "up_to_date": "最新バージョンを使用しています。",
       "downloading": "v{{version}} をバックグラウンドでダウンロード中です。インストールの準備が整うとお知らせします。",
       "check_now": "今すぐ確認",
-      "checking": "確認中…"
+      "checking": "確認中…",
+      "notification_ready_title": "アップデートの準備ができました",
+      "notification_ready_body": "v{{version}} は次回起動時に適用されます。",
+      "see_changelog": "変更履歴を見る",
+      "restart_now": "今すぐ再起動",
+      "dismiss": "閉じる"
     },
     "daemon": {
       "title": "デーモン",

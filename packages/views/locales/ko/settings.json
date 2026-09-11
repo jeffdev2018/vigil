@@ -1395,7 +1395,12 @@
       "up_to_date": "최신 버전입니다.",
       "downloading": "v{{version}}을(를) 백그라운드에서 다운로드 중입니다. 설치 준비가 끝나면 알림을 드립니다.",
       "check_now": "지금 확인",
-      "checking": "확인 중..."
+      "checking": "확인 중...",
+      "notification_ready_title": "업데이트 준비 완료",
+      "notification_ready_body": "v{{version}}은(는) 다음 실행 시 적용됩니다.",
+      "see_changelog": "변경 내역 보기",
+      "restart_now": "지금 다시 시작",
+      "dismiss": "닫기"
     },
     "daemon": {
       "title": "데몬",
