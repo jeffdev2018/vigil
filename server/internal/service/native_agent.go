@@ -899,6 +899,12 @@ func (s *NativeAgentService) recordNativeUsage(ctx context.Context, taskID pgtyp
 		CacheReadTokens: usage.cacheRead,
 	}); err != nil {
 		slog.Warn("native run: usage write failed", "task_id", util.UUIDToString(taskID), "error", err)
+		return
+	}
+	// The usage lands after the run's terminal write, so its budget
+	// reservation was already settled without it.
+	if s.Tasks != nil {
+		s.Tasks.SettleBudgetAfterUsageReport(ctx, taskID)
 	}
 }
 

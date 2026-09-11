@@ -134,9 +134,10 @@ func (s *BudgetService) ReserveTaskInTx(ctx context.Context, q *db.Queries, scop
 			return false, fmt.Errorf("lock budget period: %w", err)
 		}
 		key := taskID.String()
-		if _, err := q.GetBudgetReservationByKey(ctx, db.GetBudgetReservationByKeyParams{
-			PolicyID: policy.ID, PeriodStart: periodArgs.PeriodStart,
-			PeriodEnd: periodArgs.PeriodEnd, IdempotencyKey: key,
+		// Keyed on the task alone: a task still queued across a period
+		// boundary keeps the reservation that admitted it.
+		if _, err := q.GetActiveBudgetReservationForTask(ctx, db.GetActiveBudgetReservationForTaskParams{
+			PolicyID: policy.ID, TaskID: taskID,
 		}); err == nil {
 			continue
 		} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -220,42 +221,59 @@ func (s *BudgetService) estimateTaskTicks(ctx context.Context, q *db.Queries, ag
 	return estimate, nil
 }
 
-// SettleTaskInTx consumes a completed run at actual cost or releases it.
-func (s *BudgetService) SettleTaskInTx(ctx context.Context, q *db.Queries, taskID pgtype.UUID, consume bool) (bool, error) {
-	reservations, err := q.ListReservedBudgetReservationsByTask(ctx, taskID)
+// SettleTaskInTx settles a task's reservations at the cost its usage reports.
+//
+// terminal=true is the run's end: a reservation still held is consumed at that
+// cost — a failed or cancelled run burned real tokens too — and released only
+// when nothing was spent and the run did not complete. terminal=false is a
+// usage report: held reservations are left to the terminal settlement, which
+// will read the usage committed by then.
+//
+// Either way a reservation already finalized is re-priced when the usage
+// changed since (a daemon reporting after a server-side cancel, a native run
+// recording after its terminal write): only the difference moves the spend,
+// so settling twice charges once. Reservations are locked before the usage is
+// read, which serializes a settlement against a concurrent late report.
+func (s *BudgetService) SettleTaskInTx(ctx context.Context, q *db.Queries, taskID pgtype.UUID, terminal, completed bool) (bool, error) {
+	reservations, err := q.LockBudgetReservationsByTask(ctx, taskID)
 	if err != nil {
-		return false, fmt.Errorf("list task budget reservations: %w", err)
+		return false, fmt.Errorf("lock task budget reservations: %w", err)
 	}
 	if len(reservations) == 0 {
 		return false, nil
 	}
+	rows, err := q.ListTaskUsageForBudget(ctx, taskID)
+	if err != nil {
+		return false, fmt.Errorf("load task usage for budget settlement: %w", err)
+	}
 	actual := int64(0)
-	if consume {
-		rows, err := q.ListTaskUsageForBudget(ctx, taskID)
-		if err != nil {
-			return false, fmt.Errorf("load task usage for budget settlement: %w", err)
+	for _, row := range rows {
+		var authoritative *int64
+		if row.CostUsdTicks.Valid {
+			value := row.CostUsdTicks.Int64
+			authoritative = &value
 		}
-		for _, row := range rows {
-			var authoritative *int64
-			if row.CostUsdTicks.Valid {
-				value := row.CostUsdTicks.Int64
-				authoritative = &value
-			}
-			actual += pricing.EstimateTicks(pricing.Usage{
-				Provider: row.Provider, Model: row.Model,
-				InputTokens: row.InputTokens, OutputTokens: row.OutputTokens,
-				CacheReadTokens: row.CacheReadTokens, CacheWriteTokens: row.CacheWriteTokens,
-				CostUSDTicks: authoritative,
-			})
-		}
+		actual += pricing.EstimateTicks(pricing.Usage{
+			Provider: row.Provider, Model: row.Model,
+			InputTokens: row.InputTokens, OutputTokens: row.OutputTokens,
+			CacheReadTokens: row.CacheReadTokens, CacheWriteTokens: row.CacheWriteTokens,
+			CostUSDTicks: authoritative,
+		})
 	}
 	changed := false
 	for _, reservation := range reservations {
-		if consume {
+		switch {
+		case reservation.State != "reserved":
+			_, err = q.RechargeBudgetReservation(ctx, db.RechargeBudgetReservationParams{
+				ReservationID: reservation.ID, ActualUsdTicks: actual,
+			})
+		case !terminal:
+			continue
+		case completed || actual > 0:
 			_, err = q.ConsumeBudgetReservation(ctx, db.ConsumeBudgetReservationParams{
 				ActualUsdTicks: actual, ReservationID: reservation.ID,
 			})
-		} else {
+		default:
 			_, err = q.ReleaseBudgetReservation(ctx, reservation.ID)
 		}
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -328,7 +346,8 @@ func (s *BudgetService) publishUpdated(workspaceID pgtype.UUID) {
 	})
 }
 
-// ReconcileReservations releases orphan/failed work and consumes completed work.
+// ReconcileReservations settles reservations whose task ended (or vanished)
+// without a settlement, at the cost the task's usage reports.
 func (s *BudgetService) ReconcileReservations(ctx context.Context, createdBefore time.Time, limit int32) (int, error) {
 	if limit <= 0 {
 		return 0, nil
@@ -341,13 +360,13 @@ func (s *BudgetService) ReconcileReservations(ctx context.Context, createdBefore
 	}
 	settled := 0
 	for _, reservation := range reservations {
-		consume := false
+		completed := false
 		if task, err := s.Queries.GetAgentTask(ctx, reservation.TaskID); err == nil {
-			consume = task.Status == "completed"
+			completed = task.Status == "completed"
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return settled, err
 		}
-		changed, err := s.settleOne(ctx, reservation.TaskID, consume)
+		changed, err := s.settleOne(ctx, reservation.TaskID, true, completed)
 		if err != nil {
 			return settled, err
 		}
@@ -358,13 +377,13 @@ func (s *BudgetService) ReconcileReservations(ctx context.Context, createdBefore
 	return settled, nil
 }
 
-func (s *BudgetService) settleOne(ctx context.Context, taskID pgtype.UUID, consume bool) (bool, error) {
+func (s *BudgetService) settleOne(ctx context.Context, taskID pgtype.UUID, terminal, completed bool) (bool, error) {
 	tx, err := s.TxStarter.Begin(ctx)
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback(ctx)
-	changed, err := s.SettleTaskInTx(ctx, s.Queries.WithTx(tx), taskID, consume)
+	changed, err := s.SettleTaskInTx(ctx, s.Queries.WithTx(tx), taskID, terminal, completed)
 	if err != nil {
 		return false, err
 	}

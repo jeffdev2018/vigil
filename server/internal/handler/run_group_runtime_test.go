@@ -156,3 +156,32 @@ func TestRunGroupAttemptMetrics(t *testing.T) {
 		t.Fatalf("running attempt metrics = cost %d / duration %d, want 0/0 until it completes", got.CostUsdTicks, got.DurationSeconds)
 	}
 }
+
+// The same pin through the real daemon claim: the service pre-filter and the
+// handler's delivery recheck must both honour runtime_pinned for an agent in
+// fixed routing. claimOnce above bypasses both, which is how the pinned
+// attempt stayed queued forever (service) and would then have been failed as
+// "agent runtime changed" (handler) without anyone noticing.
+func TestRunGroupRuntimePinnedAttemptDeliveredByDaemonClaim(t *testing.T) {
+	pinned := handlerTestRuntimeID(t)
+	bound := dbfx.Runtime(t, "claim-pin-bound-runtime")
+	agent := dbfx.Agent(t, "race-daemon-claim agent", bound)
+	issue := dbfx.Issue(t, "pinned daemon claim", testutil.Cols{"assignee_type": "agent", "assignee_id": agent})
+	task := dbfx.Task(t, agent, testutil.Cols{"runtime_id": pinned, "issue_id": issue, "runtime_pinned": true})
+
+	req := newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+pinned+"/tasks/claim", nil, testWorkspaceID, "pin-claim-daemon")
+	var claim struct {
+		Task *struct {
+			ID string `json:"id"`
+		} `json:"task"`
+	}
+	testutil.Call(t, testHandler.ClaimTaskByRuntime, testutil.WithURLParams(req, "runtimeId", pinned)).Want(http.StatusOK).JSON(&claim)
+	if claim.Task == nil || claim.Task.ID != task {
+		t.Fatalf("claim = %+v, want the pinned task %s delivered", claim.Task, task)
+	}
+	var status string
+	dbfx.QueryRow(t, `SELECT status FROM agent_task_queue WHERE id = $1`, task).Scan(&status)
+	if status != "dispatched" {
+		t.Fatalf("pinned task status = %q, want dispatched", status)
+	}
+}

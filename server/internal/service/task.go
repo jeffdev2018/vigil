@@ -1005,14 +1005,21 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 	// window where a compromised process could keep authenticating
 	// against the API until the 24h expiry. Failure is non-fatal — the
 	// expiry / FK cascade are the durable guards. MUL-2600.
-	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: "run_cancelled", Valid: true}}); err != nil {
-		slog.Warn("cancel task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "error", err)
+	s.revokeTaskCredentials(ctx, task, "run_cancelled")
+	s.fireTaskCancelled(ctx, task)
+}
+
+// revokeTaskCredentials revokes the run-scoped secrets and mat_ task tokens of
+// a run that reached a terminal status without the daemon's complete/fail
+// handler, which revokes them itself (with an audit entry). Failure is
+// non-fatal: the expiry is the durable guard.
+func (s *TaskService) revokeTaskCredentials(ctx context.Context, task db.AgentTaskQueue, reason string) {
+	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: reason, Valid: true}}); err != nil {
+		slog.Warn("terminal task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "reason", reason, "error", err)
 	}
 	if err := s.Queries.DeleteTaskTokensByTask(ctx, task.ID); err != nil {
-		slog.Warn("cancel task: failed to revoke task tokens",
-			"task_id", util.UUIDToString(task.ID), "error", err)
+		slog.Warn("terminal task: failed to revoke task tokens", "task_id", util.UUIDToString(task.ID), "reason", reason, "error", err)
 	}
-	s.fireTaskCancelled(ctx, task)
 }
 
 // fireTaskCancelled runs the handler-owned terminal cleanup for one cancelled
@@ -1296,14 +1303,18 @@ func (s *TaskService) EnqueueDeferredChannelIssueTask(ctx context.Context, issue
 	return task, nil
 }
 
-// createDeferredChannelIssueTaskWithQueries inserts the inert media-gated task
-// through the caller's query handle. IssueService passes its transaction-bound
-// Queries so the issue and task become visible atomically. Composio is
-// intentionally absent from the transaction-scoped service: the task cannot be
-// claimed while deferred, so the optional external overlay is hydrated after
-// commit without holding database locks across a network call.
-func (s *TaskService) createDeferredChannelIssueTaskWithQueries(ctx context.Context, q *db.Queries, issue db.Issue, fireAt time.Time) (db.AgentTaskQueue, error) {
-	txService := &TaskService{Queries: q}
+// createDeferredChannelIssueTaskInTx inserts the inert media-gated task inside
+// the caller's transaction. IssueService passes its issue transaction so the
+// issue and task become visible atomically. Composio is intentionally absent
+// from the transaction-scoped service: the task cannot be claimed while
+// deferred, so the optional external overlay is hydrated after commit without
+// holding database locks across a network call.
+//
+// The transaction doubles as the budget admission's TxStarter, so the
+// reservation and the task share a savepoint: a refused budget rolls back only
+// that savepoint and leaves the caller's transaction usable.
+func (s *TaskService) createDeferredChannelIssueTaskInTx(ctx context.Context, tx pgx.Tx, issue db.Issue, fireAt time.Time) (db.AgentTaskQueue, error) {
+	txService := &TaskService{Queries: s.Queries.WithTx(tx), TxStarter: tx, Budget: s.Budget}
 	return txService.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{}, pgtype.Timestamptz{Time: fireAt, Valid: true})
 }
 
@@ -1377,17 +1388,16 @@ func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.
 // children (JEF-257) collide with the pending slot of the PAUSED TASK's
 // agent, which is not necessarily the issue's current assignee.
 func (s *TaskService) mergeHandoffIntoPendingTaskForAgent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, handoffNote string) (db.AgentTaskQueue, error) {
-	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
-		IssueID: issue.ID,
-		AgentID: agentID,
+	merged, err := s.Queries.AppendHandoffNoteToPendingTask(ctx, db.AppendHandoffNoteToPendingTaskParams{
+		IssueID:     issue.ID,
+		AgentID:     agentID,
+		HandoffNote: handoffNote,
 	})
-	if err != nil {
-		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The slot is held by a run that was already dispatched (or it
+		// finished meanwhile): there is no waiting run to carry the note.
+		return db.AgentTaskQueue{}, fmt.Errorf("handoff note not merged, the pending run already started: %w", ErrDuplicatePendingTask)
 	}
-	merged, err := s.Queries.AppendTaskHandoffNote(ctx, db.AppendTaskHandoffNoteParams{
-		ID:          pending.ID,
-		HandoffNote: pgtype.Text{String: handoffNote, Valid: true},
-	})
 	if err != nil {
 		return db.AgentTaskQueue{}, fmt.Errorf("append handoff note: %w", err)
 	}
@@ -1992,6 +2002,11 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 	if !agent.RuntimeID.Valid {
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
 	}
+	// Validated routing (JEF-275), as on the issue and mention enqueues: a
+	// deleted or foreign runtime would queue work nothing here can claim.
+	if fatal := FatalRoutingProblem(s.ValidateRouting(ctx, agent, workspaceID)); fatal != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
+	}
 
 	payload := QuickCreateContext{
 		Type:        QuickCreateContextType,
@@ -2174,6 +2189,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	if canInvoke != nil && !canInvoke(agent) {
 		return nil, ErrRerunInvokeNotAllowed
 	}
+	if fatal := FatalRoutingProblem(s.ValidateRouting(ctx, agent, workspaceID)); fatal != nil {
+		return nil, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
+	}
 	if err := CheckIssueCreateCapacity(ctx, s.Queries, s.Entitlements, workspaceID); err != nil {
 		return nil, fmt.Errorf("preflight quick-create issue capacity: %w", err)
 	}
@@ -2194,6 +2212,18 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	if err != nil || locked.ID != contextID {
 		return nil, ErrSourceContextRetryUnavailable
 	}
+	// Budget admission: a manual retry is a new run and pays like one.
+	childID := dbid.NewV7()
+	budgetChanged := false
+	if s.Budget != nil {
+		projectID, _ := util.ParseUUID(quickCreate.ProjectID)
+		budgetChanged, err = s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+			WorkspaceID: workspaceID, ProjectID: projectID, AgentID: agent.ID,
+		}, childID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	child, err := qtx.CreateManualQuickCreateRetryTask(ctx, db.CreateManualQuickCreateRetryTaskParams{
 		ActorUserID:          requesterID,
 		RuntimeID:            stamp.RuntimeID,
@@ -2201,7 +2231,7 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 		RuntimeConnectedApps: overlay.ConnectedApps,
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
-		NewTaskID:            dbid.NewV7(),
+		NewTaskID:            childID,
 		SourceTaskID:         sourceTaskID,
 	})
 	if err != nil {
@@ -2214,6 +2244,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit source context manual retry: %w", err)
+	}
+	if budgetChanged {
+		s.Budget.NotifyBudgetChange(ctx, workspaceID)
 	}
 	s.broadcastTaskEvent(ctx, protocol.EventTaskQueued, child)
 	s.NotifyTaskEnqueued(ctx, child)
@@ -2781,6 +2814,7 @@ func (s *TaskService) SendDirectChatMessage(
 	attrSource, _, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 
 	var out DirectChatSendResult
+	budgetChanged := false
 	if err := s.runInTx(ctx, func(qtx *db.Queries) error {
 		// Serialise this send against a concurrent runtime rebind of the same
 		// session (MUL-5163). The lock must be taken first and the agent re-read
@@ -2827,8 +2861,20 @@ func (s *TaskService) SendDirectChatMessage(
 		if stamp.RuntimeID.Valid {
 			directRuntimeID = stamp.RuntimeID
 		}
+		// Budget admission in the transaction that creates the task, like
+		// every other enqueue path: an exhausted enforced cap refuses the send.
+		taskID := dbid.NewV7()
+		if s.Budget != nil {
+			reserved, err := s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+				WorkspaceID: session.WorkspaceID, AgentID: session.AgentID,
+			}, taskID)
+			if err != nil {
+				return err
+			}
+			budgetChanged = reserved
+		}
 		task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
-			ID:                   dbid.NewV7(),
+			ID:                   taskID,
 			AgentID:              session.AgentID,
 			RuntimeID:            directRuntimeID,
 			Priority:             2, // medium priority for chat; matches EnqueueChatTask
@@ -2954,6 +3000,9 @@ func (s *TaskService) SendDirectChatMessage(
 		return nil, err
 	}
 
+	if budgetChanged {
+		s.Budget.NotifyBudgetChange(ctx, session.WorkspaceID)
+	}
 	slog.Info("direct chat task enqueued",
 		"task_id", util.UUIDToString(out.Task.ID),
 		"chat_session_id", util.UUIDToString(session.ID),
@@ -3917,14 +3966,16 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 //
 // taskPinsRuntime reports whether a queued candidate carries a runtime the
 // agent is not bound to BY DESIGN — a benchmark replay (JEF-276) pinned to
-// the candidate it measures, or a pool failover (K28) that moved the task to
-// another runtime the owner listed. This is only the cheap Go pre-filter: the
-// SQL fence checks pool membership per row and the claim handler rechecks the
-// freshly loaded agent, so a wrong value here can never dispatch a task the
-// SQL would refuse. A confidence-cascade hop (JEF-272) no longer needs a pin:
-// only an auto-routed agent cascades, and auto routing already passes.
+// the candidate it measures, a runtime-pinned row (JEF-234 run-group attempt,
+// resume child) stamped with an explicit runtime, or a pool failover (K28)
+// that moved the task to another runtime the owner listed. This is only the
+// cheap Go pre-filter: the SQL fence checks pool membership per row and the
+// claim handler rechecks the freshly loaded agent, so a wrong value here can
+// never dispatch a task the SQL would refuse. A confidence-cascade hop
+// (JEF-272) and a cascade workflow start (JEF-273) need no pin: only an
+// auto-routed agent cascades, and auto routing already passes.
 func taskPinsRuntime(candidate db.AgentTaskQueue) bool {
-	return candidate.LegRole == LegRoleBenchmark || len(candidate.FailoverHistory) > 0
+	return candidate.RuntimePinned || candidate.LegRole == LegRoleBenchmark || len(candidate.FailoverHistory) > 0
 }
 
 // runtimePinned says the candidate that led here carries a runtime the agent
@@ -4366,6 +4417,19 @@ func (s *TaskService) FinalizeTaskClaim(
 // SQL CAS includes dispatched_at so a late handler cannot roll back a newer
 // reclaim. This is not a fresh enqueue: do not duplicate queued analytics.
 func (s *TaskService) RequeueTaskAfterClaimFailure(ctx context.Context, task db.AgentTaskQueue) (*db.AgentTaskQueue, error) {
+	return s.requeueTaskAfterClaim(ctx, task, true)
+}
+
+// RequeueTaskAfterClaimRefusal releases a claim refused for a reason that
+// cannot change before the runtime's next regular poll (a data residency
+// policy the runtime fails). The empty-claim version is still bumped so the
+// task stays visible, but the refused runtime is not woken: it would claim
+// the same task again at once and spin on the refusal.
+func (s *TaskService) RequeueTaskAfterClaimRefusal(ctx context.Context, task db.AgentTaskQueue) (*db.AgentTaskQueue, error) {
+	return s.requeueTaskAfterClaim(ctx, task, false)
+}
+
+func (s *TaskService) requeueTaskAfterClaim(ctx context.Context, task db.AgentTaskQueue, wake bool) (*db.AgentTaskQueue, error) {
 	requeued, err := s.Queries.RequeueAgentTaskAfterClaimFailure(ctx, db.RequeueAgentTaskAfterClaimFailureParams{
 		TaskID:       task.ID,
 		RuntimeID:    task.RuntimeID,
@@ -4377,7 +4441,11 @@ func (s *TaskService) RequeueTaskAfterClaimFailure(ctx context.Context, task db.
 	s.forgetTaskReclaim(requeued)
 	s.ReconcileAgentStatus(ctx, requeued.AgentID)
 	s.broadcastTaskEvent(ctx, protocol.EventTaskQueued, requeued)
-	s.notifyTaskAvailable(requeued)
+	if wake {
+		s.notifyTaskAvailable(requeued)
+	} else if requeued.RuntimeID.Valid {
+		s.EmptyClaim.Bump(context.Background(), util.UUIDToString(requeued.RuntimeID))
+	}
 	slog.Info("task requeued after claim finalization failure",
 		"task_id", util.UUIDToString(requeued.ID),
 		"runtime_id", util.UUIDToString(requeued.RuntimeID),
@@ -5325,7 +5393,7 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 	var failover FailoverTarget
 	var checkpointAttempts pgtype.Int4
 	if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr == nil {
-		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK {
+		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK && failoverRetryAllowed(parent) {
 			failover = target
 			wantRetry = true
 			retryFireAt = pgtype.Timestamptz{}
@@ -5343,7 +5411,10 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 		}
 		// BYOK (K48): a vendor authentication or quota failure retires the
 		// key and retries once on the next one, bypassing the reason gate.
-		if !wantRetry && s.ModelKeyFailover != nil && s.ModelKeyFailover(ctx, parent, failureReason) {
+		// Only a run this failure can still settle retires a key: a late /fail
+		// on a cancelled run changes nothing below.
+		if !wantRetry && s.ModelKeyFailover != nil && taskStillActive(parent) &&
+			s.ModelKeyFailover(ctx, parent, failureReason) && failoverRetryAllowed(parent) {
 			wantRetry = true
 			retryFireAt = pgtype.Timestamptz{}
 			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
@@ -5854,6 +5925,25 @@ func retryEligible(failureReason string, t db.AgentTaskQueue) bool {
 		t.Attempt < retryAttemptCeiling(failureReason, t.MaxAttempts) &&
 		!t.AutopilotRunID.Valid &&
 		(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t))
+}
+
+// failoverRetryAllowed is what a failover retry (runtime pool K28, model key
+// K48) keeps of retryEligible: it replaces the reason gate and the attempt
+// budget, never the task shapes the retry machinery refuses — an autopilot
+// run, whose scheduler owns what follows a failure, a plain quick-create — nor
+// an explicit max_attempts<=1 opt-out.
+func failoverRetryAllowed(t db.AgentTaskQueue) bool {
+	return t.MaxAttempts > 1 && !t.AutopilotRunID.Valid &&
+		(t.IssueID.Valid || t.ChatSessionID.Valid || isSourceContextQuickCreateTask(t))
+}
+
+// taskStillActive mirrors the statuses FailAgentTask settles.
+func taskStillActive(t db.AgentTaskQueue) bool {
+	switch t.Status {
+	case "dispatched", "running", "waiting_local_directory":
+		return true
+	}
+	return false
 }
 
 func isSourceContextQuickCreateTask(task db.AgentTaskQueue) bool {
@@ -6543,6 +6633,7 @@ func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTas
 			failureReason = t.FailureReason.String
 		}
 		s.captureTaskFailed(ctx, t)
+		s.revokeTaskCredentials(ctx, t, "run_finished")
 
 		workspaceID := ""
 		if t.IssueID.Valid {
@@ -7852,26 +7943,36 @@ func (s *TaskService) broadcastTaskEvent(ctx context.Context, eventType string, 
 }
 
 func (s *TaskService) settleBudgetAfterTerminal(ctx context.Context, eventType string, task db.AgentTaskQueue) {
+	switch eventType {
+	case protocol.EventTaskCompleted, protocol.EventTaskCancelled, protocol.EventTaskFailed:
+		s.settleTaskBudget(ctx, task.ID, true, eventType == protocol.EventTaskCompleted)
+	}
+}
+
+// SettleBudgetAfterUsageReport charges usage that reached task_usage after
+// the run's reservations were settled. Every writer of task_usage calls it
+// once its rows are committed; while the run is still live it changes nothing.
+func (s *TaskService) SettleBudgetAfterUsageReport(ctx context.Context, taskID pgtype.UUID) {
+	s.settleTaskBudget(ctx, taskID, false, false)
+}
+
+func (s *TaskService) settleTaskBudget(ctx context.Context, taskID pgtype.UUID, terminal, completed bool) {
 	if s.Budget == nil {
 		return
 	}
-	consume := false
-	switch eventType {
-	case protocol.EventTaskCompleted:
-		consume = true
-	case protocol.EventTaskCancelled, protocol.EventTaskFailed:
-	default:
-		return
-	}
-	changed, err := s.Budget.settleOne(ctx, task.ID, consume)
+	changed, err := s.Budget.settleOne(ctx, taskID, terminal, completed)
 	if err != nil {
-		slog.Warn("budget settlement deferred to reconciliation", "task_id", util.UUIDToString(task.ID), "error", err)
+		if terminal {
+			slog.Warn("budget settlement deferred to reconciliation", "task_id", util.UUIDToString(taskID), "error", err)
+		} else {
+			slog.Warn("budget settlement of late usage failed", "task_id", util.UUIDToString(taskID), "error", err)
+		}
 		return
 	}
 	if !changed {
 		return
 	}
-	if scope, err := s.Queries.GetTaskBudgetScope(ctx, task.ID); err == nil {
+	if scope, err := s.Queries.GetTaskBudgetScope(ctx, taskID); err == nil {
 		s.Budget.NotifyBudgetChange(ctx, scope.WorkspaceID)
 	}
 }
@@ -8605,9 +8706,13 @@ func agentToMap(a db.Agent) map[string]any {
 	}
 }
 
+// excerpt keeps at most n bytes of s without splitting a UTF-8 sequence.
 func excerpt(s string, n int) string {
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n]
 }

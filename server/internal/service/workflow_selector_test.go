@@ -276,13 +276,27 @@ func TestEnqueueTaskWorkflowEffects(t *testing.T) {
 	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeA, TaskClassGeneral, WorkflowCascade, 20, 19, 10)
 	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeB, TaskClassGeneral, WorkflowCascade, 20, 19, 50)
 
-	task := enqueue(t, "Cascade run")
+	// A fixed-routing agent may not leave its binding: the claim fence would
+	// refuse a task stamped with runtime B and it would sit queued forever.
+	// The cascade has nowhere to start, so it degrades to single on A — the
+	// same guard the escalation hop applies (run_escalation.go).
+	task := enqueue(t, "Cascade run bound")
+	if got := TaskWorkflow(task.Context); got != WorkflowSingle {
+		t.Errorf("fixed agent stamped workflow = %q, want single", got)
+	}
+	if util.UUIDToString(task.RuntimeID) != fx.runtimeA {
+		t.Errorf("fixed agent task runtime = %s, want bound runtime %s", util.UUIDToString(task.RuntimeID), fx.runtimeA)
+	}
+
+	dbfx.Exec(t, `UPDATE agent SET runtime_routing = 'auto' WHERE id = $1`, fx.agentID)
+	task = enqueue(t, "Cascade run")
 	if got := TaskWorkflow(task.Context); got != WorkflowCascade {
 		t.Errorf("stamped workflow = %q, want cascade", got)
 	}
 	if util.UUIDToString(task.RuntimeID) != fx.runtimeB {
 		t.Errorf("task runtime = %s, want cheap cascade runtime %s", util.UUIDToString(task.RuntimeID), fx.runtimeB)
 	}
+	dbfx.Exec(t, `UPDATE agent SET runtime_routing = 'fixed' WHERE id = $1`, fx.agentID)
 
 	// Critique: best Wilson by far, reviewer available → force_review stamp.
 	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeA, TaskClassDocs, WorkflowSingle, 20, 10, 10)
@@ -302,5 +316,38 @@ func TestEnqueueTaskWorkflowEffects(t *testing.T) {
 	}
 	if rawContext["force_review"] != true {
 		t.Errorf("context force_review = %v, want JSON true", rawContext["force_review"])
+	}
+}
+
+// The cascade start obeys data residency (K46) like every other routing
+// stage: a cheaper runtime the policy rejects is not a place to start.
+func TestEnqueueCascadeStartSkipsRuntimeTheResidencyPolicyRejects(t *testing.T) {
+	fx := newRoutingTestFixture(t)
+	dbfx := testutil.New(fx.pool, fx.workspace, fx.user)
+	setWorkflowPolicy(t, dbfx, fx.workspace, WorkflowPolicyModeAuto)
+	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeA, TaskClassGeneral, WorkflowSingle, 20, 19, 10000)
+	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeA, TaskClassGeneral, WorkflowCascade, 20, 19, 100)
+	// B is the cheapest proven runtime, and the policy bans its provider.
+	seedWorkflowRuns(t, dbfx, fx.agentID, fx.runtimeB, TaskClassGeneral, WorkflowCascade, 20, 19, 5)
+	dbfx.Exec(t, `UPDATE agent_runtime SET provider = 'claude' WHERE id = $1`, fx.runtimeB)
+	setResidencyPolicy(t, dbfx, fx.workspace, `{"banned_providers":["claude"],"region_allowlist":[],"require_on_prem":false}`)
+
+	issueID := dbfx.Issue(t, "Cascade under residency", testutil.Cols{"assignee_type": "agent", "assignee_id": fx.agentID})
+	svc := &TaskService{Queries: db.New(fx.pool), TxStarter: fx.pool, Bus: events.New(), RoutingRand: rand.New(rand.NewSource(1))}
+	task, err := svc.EnqueueTaskForIssue(context.Background(), db.Issue{
+		ID:           util.MustParseUUID(issueID),
+		Title:        "Cascade under residency",
+		AssigneeID:   util.MustParseUUID(fx.agentID),
+		Priority:     "medium",
+		CreatorType:  "member",
+		CreatorID:    util.MustParseUUID(fx.user),
+		WorkspaceID:  util.MustParseUUID(fx.workspace),
+		AssigneeType: pgtype.Text{String: "agent", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("EnqueueTaskForIssue: %v", err)
+	}
+	if util.UUIDToString(task.RuntimeID) == fx.runtimeB {
+		t.Fatalf("cascade started on runtime %s, which the residency policy rejects", fx.runtimeB)
 	}
 }
