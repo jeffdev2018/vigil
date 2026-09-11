@@ -173,6 +173,7 @@ export function CommentCard({
             issueId={issueId}
             issueIdentifier={issueIdentifier}
             onPressChange={handlePressChange}
+            hasReplies={replies.length > 0}
           />
           {replies.map((reply) => (
             <View key={reply.id} className="border-t border-border/60 pt-3">
@@ -381,11 +382,15 @@ function CommentBody({
   issueId,
   issueIdentifier,
   onPressChange,
+  hasReplies = false,
 }: {
   entry: TimelineEntry;
   issueId: string;
   issueIdentifier: string | undefined;
   onPressChange?: (entryId: string, pressed: boolean) => void;
+  /** True when `entry` is a root with at least one reply — see
+   *  useCommentLongPress for why this changes the delete confirmation copy. */
+  hasReplies?: boolean;
 }) {
   // When this comment is the active selection target, drop the long-press
   // wrapper AND make the markdown selectable — so the next long-press
@@ -477,7 +482,12 @@ function CommentBody({
   // + handles + Copy/Look Up callout. The outer bubble shell carries a
   // translucent primary-tint background as the mode cue (no Done pill).
   // Exit: scroll the timeline, leave the issue, or long-press another body.
-  const longPress = useCommentLongPress(entry, issueId, issueIdentifier);
+  const longPress = useCommentLongPress(
+    entry,
+    issueId,
+    issueIdentifier,
+    hasReplies,
+  );
 
   useEffect(() => {
     if (isSelecting) return;
