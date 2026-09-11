@@ -33,9 +33,13 @@ vi.mock("../navigation/context", () => ({
   useOptionalNavigation: () => ({ push: mockNavigatePush }),
 }));
 
-vi.mock("@multica/core/api", () => ({
-  api: { redeemLarkBindingToken: mockRedeemToken },
-}));
+vi.mock("@multica/core/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@multica/core/api")>();
+  return {
+    ...actual,
+    api: { redeemLarkBindingToken: mockRedeemToken },
+  };
+});
 
 import { LarkBindPage } from "./bind-page";
 
@@ -112,6 +116,28 @@ describe("LarkBindPage", () => {
     expect(url).toContain("?next=");
     expect(url).not.toContain("?redirect=");
     expect(url).toContain(encodeURIComponent("mytoken"));
+  });
+
+  // P3 audit finding: redemptionFailureReason used to match on substrings of
+  // err.message, so a real 403 whose message happens to contain "invalid"
+  // as prose (not the substring-matched intent) misclassified as expired
+  // instead of not_member. Now branches on the ApiError's actual status.
+  it("classifies by the ApiError status, not by substrings of its message", async () => {
+    const { ApiError } = await import("@multica/core/api");
+    mockAuthState.isLoading = false;
+    mockAuthState.user = { id: "u1", email: "u@example.com" };
+    mockRedeemToken.mockRejectedValue(
+      new ApiError(
+        "invalid workspace member: not part of this workspace",
+        403,
+        "Forbidden",
+      ),
+    );
+    renderPage("tok123");
+
+    expect(
+      await screen.findByText(/isn't a member of this workspace/i),
+    ).toBeInTheDocument();
   });
 
   it("shows missing token error when token is null", () => {
