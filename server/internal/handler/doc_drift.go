@@ -209,7 +209,7 @@ func (h *Handler) PutDocDriftSettings(w http.ResponseWriter, r *http.Request) {
 	req.LastChecked = previous.LastChecked
 	req.ScanTasks = previous.ScanTasks
 
-	if err := h.saveDocDriftSettings(r.Context(), wsUUID, ws.Settings, req); err != nil {
+	if err := h.saveDocDriftSettings(r.Context(), wsUUID, req); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the agent context drift settings")
 		return
 	}
@@ -221,19 +221,16 @@ func (h *Handler) PutDocDriftSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// saveDocDriftSettings writes the block back into the workspace settings blob,
-// preserving every other key.
-func (h *Handler) saveDocDriftSettings(ctx context.Context, wsID pgtype.UUID, current []byte, cfg service.DocDriftSettings) error {
-	settings := map[string]any{}
-	if len(current) > 0 {
-		_ = json.Unmarshal(current, &settings)
-	}
-	settings["doc_drift"] = cfg
-	raw, err := json.Marshal(settings)
+// saveDocDriftSettings writes the block back into the workspace settings blob.
+// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+// whole settings blob lost the writes of any concurrent settings PUT on a
+// different key (data_residency, drift, ...).
+func (h *Handler) saveDocDriftSettings(ctx context.Context, wsID pgtype.UUID, cfg service.DocDriftSettings) error {
+	raw, err := json.Marshal(map[string]any{"doc_drift": cfg})
 	if err != nil {
 		return err
 	}
-	_, err = h.Queries.UpdateWorkspace(ctx, db.UpdateWorkspaceParams{ID: wsID, Settings: raw})
+	_, err = h.Queries.MergeWorkspaceSettings(ctx, db.MergeWorkspaceSettingsParams{ID: wsID, Settings: raw})
 	return err
 }
 
@@ -405,7 +402,7 @@ func (h *Handler) startDocDriftScan(ctx context.Context, wsID pgtype.UUID, setti
 	}
 	cfg.LastChecked[repo] = commit
 	cfg.ScanTasks[repo] = uuidToString(task.ID)
-	if err := h.saveDocDriftSettings(ctx, wsID, settings, cfg); err != nil {
+	if err := h.saveDocDriftSettings(ctx, wsID, cfg); err != nil {
 		slog.Warn("doc drift: stamp last_checked failed", "workspace_id", uuidToString(wsID), "repo", repo, "error", err)
 	}
 	actorType := "system"
@@ -580,7 +577,7 @@ func (h *Handler) clearDocDriftScanTask(ctx context.Context, wsID pgtype.UUID, r
 	}
 	cfg := service.DocDriftFromSettings(ws.Settings)
 	delete(cfg.ScanTasks, repo)
-	if err := h.saveDocDriftSettings(ctx, wsID, ws.Settings, cfg); err != nil {
+	if err := h.saveDocDriftSettings(ctx, wsID, cfg); err != nil {
 		slog.Warn("doc drift: clear scan pointer failed", "workspace_id", uuidToString(wsID), "repo", repo, "error", err)
 	}
 }

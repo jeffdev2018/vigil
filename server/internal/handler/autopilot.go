@@ -975,7 +975,13 @@ func (h *Handler) CreateAutopilot(w http.ResponseWriter, r *http.Request) {
 	}
 	subs, err := h.Queries.ListAutopilotSubscribers(r.Context(), autopilot.ID)
 	if err != nil {
-		subs = nil
+		// Fail closed, same rationale as ListAutopilots: Subscribers is
+		// documented as always non-nil and authoritative, so degrading to
+		// an empty slice here would be indistinguishable from "no
+		// subscribers configured" even though the insert just committed.
+		slog.Warn("autopilot: subscribers reload after create failed", "error", err, "autopilot_id", uuidToString(autopilot.ID))
+		writeError(w, http.StatusInternalServerError, "autopilot created but failed to load its subscribers")
+		return
 	}
 
 	resp := autopilotToResponse(autopilot, subs)
@@ -1304,7 +1310,10 @@ func (h *Handler) UpdateAutopilot(w http.ResponseWriter, r *http.Request) {
 
 	subs, err := h.Queries.ListAutopilotSubscribers(r.Context(), autopilot.ID)
 	if err != nil {
-		subs = nil
+		// Fail closed, same rationale as CreateAutopilot/ListAutopilots.
+		slog.Warn("autopilot: subscribers reload after update failed", "error", err, "autopilot_id", uuidToString(autopilot.ID))
+		writeError(w, http.StatusInternalServerError, "autopilot updated but failed to load its subscribers")
+		return
 	}
 	resp := autopilotToResponse(autopilot, subs)
 	h.publish(protocol.EventAutopilotUpdated, workspaceID, "member", userID, map[string]any{"autopilot": resp})

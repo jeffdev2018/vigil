@@ -240,10 +240,14 @@ export function StepWorkspace({
         // create back. Say so and continue instead of stranding the user on a
         // step whose workspace is already there.
         onSuccess: (workspace) => {
-          if (workspace.template_error) {
+          // template_error and pack_error are reported separately (a create
+          // request can supply both template_run_id and pack_id) — surface
+          // whichever failed rather than only the template outcome.
+          const seedError = workspace.template_error ?? workspace.pack_error;
+          if (seedError) {
             toast.error(
               t(($) => $.step_workspace.pack_seed_failed, {
-                reason: workspace.template_error,
+                reason: seedError,
               }),
             );
           }

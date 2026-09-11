@@ -87,18 +87,15 @@ func (h *Handler) PutDataResidencyPolicy(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, dataResidencyRangeMessage())
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["data_residency_policy"] = policy
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, _ := json.Marshal(map[string]any{"data_residency_policy": policy})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the data residency policy")
 		return
 	}

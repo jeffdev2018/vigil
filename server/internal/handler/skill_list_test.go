@@ -261,3 +261,49 @@ func insertHandlerTestSkill(t *testing.T, namePrefix, content string) string {
 	})
 	return id
 }
+
+// TestListAgentSkills_IncludesStatus guards the fix for the audit finding
+// that GET /api/agents/{id}/skills dropped the skill's `status` (draft vs
+// published) because ListAgentSkillSummaries never selected s.status,
+// unlike the workspace-wide ListSkills. draft/published badges in the
+// agent skills UI silently disappeared for this endpoint only.
+func TestListAgentSkills_IncludesStatus(t *testing.T) {
+	agentID := createHandlerTestAgent(t, "Handler Skill Status Test", nil)
+	skillID := insertHandlerTestSkill(t, "agent-skill-status", "content")
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO agent_skill (agent_id, skill_id) VALUES ($1, $2)`,
+		agentID, skillID,
+	); err != nil {
+		t.Fatalf("attach skill to agent: %v", err)
+	}
+	var wantStatus string
+	if err := testPool.QueryRow(context.Background(), `SELECT status FROM skill WHERE id = $1`, skillID).Scan(&wantStatus); err != nil {
+		t.Fatalf("read skill status: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := newRequest("GET", "/api/agents/"+agentID+"/skills", nil)
+	req = withURLParam(req, "id", agentID)
+	testHandler.ListAgentSkills(w, req)
+	if w.Code != 200 {
+		t.Fatalf("ListAgentSkills: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var rows []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("ListAgentSkills: failed to decode body: %v", err)
+	}
+	var found bool
+	for _, row := range rows {
+		if row["id"] != skillID {
+			continue
+		}
+		found = true
+		if got, _ := row["status"].(string); got != wantStatus {
+			t.Fatalf("ListAgentSkills: status = %q, want %q (regression: status dropped from the response)", got, wantStatus)
+		}
+	}
+	if !found {
+		t.Fatalf("ListAgentSkills: inserted skill %s not in response", skillID)
+	}
+}

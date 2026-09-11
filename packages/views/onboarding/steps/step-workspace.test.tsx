@@ -48,6 +48,11 @@ vi.mock("@multica/core/workspace/mutations", () => ({
   useCreateWorkspace: () => ({ mutate: mockCreateMutate, isPending: false }),
 }));
 
+const mockToastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: { error: mockToastError, success: vi.fn() },
+}));
+
 vi.mock("@multica/core/api", () => ({
   api: { getBaseUrl: () => "http://127.0.0.1:8080" },
 }));
@@ -459,5 +464,47 @@ describe("StepWorkspace — pack picker", () => {
 
     expect(mockCreateMutate.mock.calls[0]![0]).not.toHaveProperty("pack_id");
     mockPacks.catalogue = { packs: [], domains: [] };
+  });
+
+  // Guards the fix for the audit finding that CreateWorkspace shared one
+  // pair of response fields (template/template_error) between the template
+  // seed and the pack seed: a request supplying both could have the pack's
+  // error silently clobber the template's, or vice versa. The server now
+  // reports pack_error separately (server/internal/handler/workspace.go),
+  // and the UI must surface it the same way it already surfaces
+  // template_error, not silently drop it.
+  it("surfaces pack_error the same way as template_error", () => {
+    mockCreateMutate.mockClear();
+    mockToastError.mockClear();
+    const onCreated = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <I18nProvider locale="en" resources={TEST_RESOURCES}>
+          <StepWorkspace existing={null} onCreated={onCreated} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate).toHaveBeenCalledTimes(1);
+    const options = mockCreateMutate.mock.calls[0]![1] as {
+      onSuccess: (workspace: Workspace) => void;
+    };
+    const workspace = {
+      id: "ws1",
+      name: "Acme Inc",
+      slug: "acme-inc",
+      pack_error: "seed failed: no such pack",
+    } as unknown as Workspace;
+    options.onSuccess(workspace);
+
+    expect(mockToastError).toHaveBeenCalledTimes(1);
+    expect(mockToastError.mock.calls[0]![0]).toContain("seed failed: no such pack");
+    // The workspace is real either way: onCreated still runs.
+    expect(onCreated).toHaveBeenCalledWith(workspace);
   });
 });

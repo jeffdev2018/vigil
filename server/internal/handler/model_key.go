@@ -236,6 +236,15 @@ func (h *Handler) createModelKey(ctx context.Context, wsUUID pgtype.UUID, userID
 	}
 	row, err := h.Queries.CreateModelKey(ctx, db.CreateModelKeyParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Scope: req.Scope, ScopeID: scopeID, Provider: vendor.ID, Label: truncate(strings.TrimSpace(req.Label), 100), KeyEncrypted: sealed, KeyHint: modelkey.Hint(key), Priority: req.Priority, CreatedBy: parseUUID(userID)})
 	if err != nil {
+		// The read-then-write check above is racy: two concurrent creates for
+		// the same workspace+provider+scope+scope_id can both pass it before
+		// either commits. idx_workspace_model_key_active_unique (migration
+		// 918) is the actual guarantee; a violation here means the race was
+		// hit, not a real server error, so report it the same way the
+		// pre-check does.
+		if isUniqueViolation(err) {
+			return db.WorkspaceModelKey{}, modelKeyConflict{vendor: vendor.Label}
+		}
 		return db.WorkspaceModelKey{}, err
 	}
 	h.audit(ctx, wsUUID, "member", userID, AuditModelKeyCreated, "workspace_model_key", row.ID, map[string]any{"scope": row.Scope, "scope_id": uuidToPtr(row.ScopeID), "provider": row.Provider, "label": row.Label, "hint": row.KeyHint, "rotation": req.Replace}, nil)

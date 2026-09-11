@@ -394,7 +394,9 @@ func TestProjectMemoryRequiresProjectAdminEvenForAWorkspaceAdmin(t *testing.T) {
 		newRequest(http.MethodPut, "/x", map[string]any{"role": "viewer"}),
 		"id", project, "subjectType", "member", "subjectId", memberID,
 	)).Want(http.StatusOK)
-	t.Cleanup(func() { testPool.Exec(context.Background(), `DELETE FROM project_member_role WHERE project_id = $1`, project) })
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM project_member_role WHERE project_id = $1`, project)
+	})
 
 	req := withURLParam(newRequest(http.MethodPut, "/api/projects/"+project+"/memory", map[string]any{"rules": []string{"r"}}), "id", project)
 	testutil.Call(t, testHandler.UpdateProjectMemory, req).Want(http.StatusForbidden)

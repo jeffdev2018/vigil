@@ -239,7 +239,7 @@ func (q *Queries) ListAgentSkillNamesByAgentIDs(ctx context.Context, agentIds []
 }
 
 const listAgentSkillSummaries = `-- name: ListAgentSkillSummaries :many
-SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at, ask.enabled
+SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.status, s.created_by, s.created_at, s.updated_at, ask.enabled
 FROM skill s
 JOIN agent_skill ask ON ask.skill_id = s.id
 WHERE ask.agent_id = $1
@@ -252,6 +252,7 @@ type ListAgentSkillSummariesRow struct {
 	Name        string             `json:"name"`
 	Description string             `json:"description"`
 	Config      []byte             `json:"config"`
+	Status      string             `json:"status"`
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
@@ -275,6 +276,7 @@ func (q *Queries) ListAgentSkillSummaries(ctx context.Context, agentID pgtype.UU
 			&i.Name,
 			&i.Description,
 			&i.Config,
+			&i.Status,
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,

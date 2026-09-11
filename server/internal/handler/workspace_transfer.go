@@ -481,12 +481,27 @@ func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts
 	for _, a := range agents {
 		agentNames[uuidToString(a.ID)] = a.Name
 	}
+	// Squads are not themselves part of the transfer bundle (unlike agents),
+	// so this map only serves the export side: a squad-assigned autopilot's
+	// AssigneeAgent would otherwise serialize as "" (agentNames has no entry
+	// for a squad id), silently losing which squad it named even though
+	// AssigneeType correctly says "squad".
+	squadNames := map[string]string{}
+	if squads, err := h.Queries.ListSquads(ctx, ws.ID); err == nil {
+		for _, s := range squads {
+			squadNames[uuidToString(s.ID)] = s.Name
+		}
+	}
 	autopilots, err := h.Queries.ListAutopilotsForExport(ctx, ws.ID)
 	if err != nil {
 		return nil, fmt.Errorf("autopilots: %w", err)
 	}
 	for _, a := range autopilots {
-		ta := transferAutopilot{Title: a.Title, Description: a.Description.String, AssigneeType: a.AssigneeType, AssigneeAgent: agentNames[uuidToString(a.AssigneeID)], ExecutionMode: a.ExecutionMode, IssueTitleTemplate: a.IssueTitleTemplate.String, Project: projectTitles[uuidToString(a.ProjectID)], Triggers: []transferTrigger{}}
+		assigneeName := agentNames[uuidToString(a.AssigneeID)]
+		if a.AssigneeType == "squad" {
+			assigneeName = squadNames[uuidToString(a.AssigneeID)]
+		}
+		ta := transferAutopilot{Title: a.Title, Description: a.Description.String, AssigneeType: a.AssigneeType, AssigneeAgent: assigneeName, ExecutionMode: a.ExecutionMode, IssueTitleTemplate: a.IssueTitleTemplate.String, Project: projectTitles[uuidToString(a.ProjectID)], Triggers: []transferTrigger{}}
 		if triggers, err := h.Queries.ListAutopilotTriggers(ctx, a.ID); err == nil {
 			for _, t := range triggers {
 				had := t.WebhookToken.Valid && t.WebhookToken.String != "" || t.SigningSecret.Valid && t.SigningSecret.String != ""
@@ -1203,24 +1218,60 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 	}
 
 	// Autopilots: paused under the importer's authority; triggers disabled, secrets to regenerate.
+	// resolveAutopilotAssignee is only called for an autopilot actually being
+	// merged or created, so a skipped duplicate never emits a spurious
+	// "assignee not found" warning for a row nothing is about to touch.
+	// autopilot.assignee_type only accepts 'agent' or 'squad' (migration 096)
+	// — there is no "member" value to fall back to — so an unresolvable
+	// assignee (missing agent, or a squad, which the bundle never carries)
+	// means this one autopilot cannot be imported; it is skipped with a
+	// warning rather than crashing the whole import on the NOT NULL/CHECK
+	// constraint.
+	resolveAutopilotAssignee := func(a transferAutopilot) (string, pgtype.UUID, bool) {
+		if a.AssigneeType == "squad" {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("autopilot %q: squad assignee %q is not transferred; not imported", a.Title, a.AssigneeAgent))
+			return "", pgtype.UUID{}, false
+		}
+		assigneeID, ok := agentIDs[a.AssigneeAgent]
+		if !ok || !assigneeID.Valid {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("autopilot %q: assignee agent %q not found; not imported", a.Title, a.AssigneeAgent))
+			return "", pgtype.UUID{}, false
+		}
+		return "agent", assigneeID, true
+	}
 	for _, a := range b.Autopilots {
 		if existing, err := q.GetAutopilotByTitleForImport(ctx, db.GetAutopilotByTitleForImportParams{WorkspaceID: wsUUID, Title: a.Title}); err == nil {
-			if strategy != transferStrategyRename {
+			switch strategy {
+			case transferStrategyMerge:
+				assigneeType, assigneeID, ok := resolveAutopilotAssignee(a)
+				if !ok {
+					continue
+				}
+				if err := q.MergeImportedAutopilot(ctx, db.MergeImportedAutopilotParams{
+					ID: existing.ID, WorkspaceID: wsUUID,
+					Description:        pgtype.Text{String: a.Description, Valid: a.Description != ""},
+					ExecutionMode:      nonEmpty(a.ExecutionMode, existing.ExecutionMode),
+					IssueTitleTemplate: pgtype.Text{String: a.IssueTitleTemplate, Valid: a.IssueTitleTemplate != ""},
+					AssigneeType:       assigneeType, AssigneeID: assigneeID,
+				}); err != nil {
+					return fmt.Errorf("merge autopilot %q: %w", a.Title, err)
+				}
+				report.merged("autopilots", a.Title, existing.ID)
+				continue
+			case transferStrategyRename:
+				// fall through to create-with-renamed-title below.
+			default:
 				skip("autopilot", a.Title, uuidToString(existing.ID))
 				continue
 			}
 		}
+		assigneeType, assigneeID, ok := resolveAutopilotAssignee(a)
+		if !ok {
+			continue
+		}
 		title := a.Title
 		if _, err := q.GetAutopilotByTitleForImport(ctx, db.GetAutopilotByTitleForImportParams{WorkspaceID: wsUUID, Title: title}); err == nil {
 			title += transferRenameSuffix
-		}
-		assigneeType, assigneeID := a.AssigneeType, agentIDs[a.AssigneeAgent]
-		if assigneeType == "agent" && !assigneeID.Valid {
-			report.Warnings = append(report.Warnings, fmt.Sprintf("autopilot %q: assignee agent %q not found; assigned to you", a.Title, a.AssigneeAgent))
-			assigneeType, assigneeID = "member", importer
-		}
-		if assigneeType == "" || assigneeType == "member" {
-			assigneeType, assigneeID = "member", importer
 		}
 		row, err := q.CreateAutopilot(ctx, db.CreateAutopilotParams{WorkspaceID: wsUUID, Title: title, AssigneeType: assigneeType, AssigneeID: assigneeID, Status: "paused", ExecutionMode: nonEmpty(a.ExecutionMode, "create_issue"), CreatedByType: "member", CreatedByID: importer, Description: pgtype.Text{String: a.Description, Valid: a.Description != ""}, IssueTitleTemplate: pgtype.Text{String: a.IssueTitleTemplate, Valid: a.IssueTitleTemplate != ""}, ProjectID: projectIDs[a.Project]})
 		if err != nil {

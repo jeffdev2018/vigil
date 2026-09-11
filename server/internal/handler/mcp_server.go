@@ -743,16 +743,11 @@ func (h *Handler) PutMCPServerSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "workspace unavailable")
 		return
 	}
-	var settings map[string]any
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	if settings == nil {
-		settings = map[string]any{}
-	}
-	settings["mcp_server"] = req
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: ws.ID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, _ := json.Marshal(map[string]any{"mcp_server": req})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: ws.ID, Settings: raw}); err != nil {
 		slog.Warn("mcp server: settings write failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to save the settings")
 		return

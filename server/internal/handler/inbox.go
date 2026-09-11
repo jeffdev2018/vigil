@@ -230,12 +230,14 @@ func (h *Handler) ArchiveInboxItem(w http.ResponseWriter, r *http.Request) {
 
 	// Archive all sibling inbox items for the same issue (issue-level archive)
 	if item.IssueID.Valid {
-		h.Queries.ArchiveInboxByIssue(r.Context(), db.ArchiveInboxByIssueParams{
+		if _, err := h.Queries.ArchiveInboxByIssue(r.Context(), db.ArchiveInboxByIssueParams{
 			WorkspaceID:   item.WorkspaceID,
 			RecipientType: item.RecipientType,
 			RecipientID:   item.RecipientID,
 			IssueID:       item.IssueID,
-		})
+		}); err != nil {
+			slog.Warn("inbox: archive siblings failed", "error", err, "issue_id", uuidToString(item.IssueID), "item_id", uuidToString(item.ID))
+		}
 	}
 
 	userID := requestUserID(r)
@@ -272,12 +274,14 @@ func (h *Handler) UnarchiveInboxItem(w http.ResponseWriter, r *http.Request) {
 
 	// Restore all sibling inbox items for the same issue (issue-level restore).
 	if item.IssueID.Valid {
-		h.Queries.UnarchiveInboxByIssue(r.Context(), db.UnarchiveInboxByIssueParams{
+		if _, err := h.Queries.UnarchiveInboxByIssue(r.Context(), db.UnarchiveInboxByIssueParams{
 			WorkspaceID:   item.WorkspaceID,
 			RecipientType: item.RecipientType,
 			RecipientID:   item.RecipientID,
 			IssueID:       item.IssueID,
-		})
+		}); err != nil {
+			slog.Warn("inbox: unarchive siblings failed", "error", err, "issue_id", uuidToString(item.IssueID), "item_id", uuidToString(item.ID))
+		}
 	}
 
 	userID := requestUserID(r)

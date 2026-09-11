@@ -46,6 +46,14 @@ const (
 	maxAgentConversationStarterLength = 4000
 )
 
+// validAgentStatuses mirrors the agent.status CHECK constraint
+// (migrations/001_init.up.sql). UpdateAgent must reject anything outside it
+// before writing, or an invalid value reaches Postgres as a 500 with a raw
+// constraint-violation message instead of a clean 400.
+var validAgentStatuses = map[string]bool{
+	"idle": true, "working": true, "blocked": true, "error": true, "offline": true,
+}
+
 type AgentConversationStarter struct {
 	Label  string `json:"label"`
 	Prompt string `json:"prompt"`
@@ -1796,7 +1804,11 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	if runtime.Status == "online" {
 		h.TaskService.ReconcileAgentStatus(r.Context(), created.ID)
-		created, _ = h.Queries.GetAgent(r.Context(), created.ID)
+		if refreshed, err := h.Queries.GetAgent(r.Context(), created.ID); err == nil {
+			created = refreshed
+		} else {
+			slog.Warn("agent: post-reconcile reload failed", "error", err, "agent_id", uuidToString(created.ID))
+		}
 	}
 
 	resp := h.agentToResponse(created)
@@ -2222,6 +2234,10 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if req.Status != nil {
+		if !validAgentStatuses[*req.Status] {
+			writeError(w, http.StatusBadRequest, "status must be one of: idle, working, blocked, error, offline")
+			return
+		}
 		params.Status = pgtype.Text{String: *req.Status, Valid: true}
 	}
 	if req.MaxConcurrentTasks != nil {

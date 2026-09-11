@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -386,8 +387,15 @@ func (h *Handler) validateCalendarInput(w http.ResponseWriter, r *http.Request, 
 	return v, true
 }
 
-func (h *Handler) writeCalendarParticipants(ctx context.Context, wsUUID, eventID pgtype.UUID, parts []calendarParticipantInput, keepResponses map[string]string) {
-	_ = h.Queries.DeleteCalendarEventParticipants(ctx, eventID)
+// writeCalendarParticipants replaces an event's participant list (delete then
+// recreate). q must run in the same transaction as any surrounding write to
+// the event itself so a delete that succeeds but a later failure never
+// leaves a caller-visible intermediate state; on a delete failure it aborts
+// immediately instead of recreating on top of whatever remains.
+func (h *Handler) writeCalendarParticipants(ctx context.Context, q *db.Queries, wsUUID, eventID pgtype.UUID, parts []calendarParticipantInput, keepResponses map[string]string) error {
+	if err := q.DeleteCalendarEventParticipants(ctx, eventID); err != nil {
+		return fmt.Errorf("delete existing participants: %w", err)
+	}
 	for _, p := range parts {
 		id, _ := decisionUUID(p.ID)
 		required := true
@@ -398,10 +406,11 @@ func (h *Handler) writeCalendarParticipants(ctx context.Context, wsUUID, eventID
 		if prev, ok := keepResponses[p.Type+":"+uuidToString(id)]; ok {
 			response = prev
 		}
-		if _, err := h.Queries.AddCalendarEventParticipant(ctx, db.AddCalendarEventParticipantParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, EventID: eventID, ParticipantType: p.Type, ParticipantID: id, Response: response, Required: required}); err != nil {
+		if _, err := q.AddCalendarEventParticipant(ctx, db.AddCalendarEventParticipantParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, EventID: eventID, ParticipantType: p.Type, ParticipantID: id, Response: response, Required: required}); err != nil {
 			slog.Warn("calendar: add participant failed", "event_id", uuidToString(eventID), "error", err)
 		}
 	}
+	return nil
 }
 
 // CreateCalendarEvent: POST /api/calendar/events. A member schedules; an
@@ -448,7 +457,9 @@ func (h *Handler) CreateCalendarEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create the event")
 		return
 	}
-	h.writeCalendarParticipants(ctx, wsUUID, e.ID, v.participants, nil)
+	if err := h.writeCalendarParticipants(ctx, h.Queries, wsUUID, e.ID, v.participants, nil); err != nil {
+		slog.Warn("calendar: write participants failed", "event_id", uuidToString(e.ID), "error", err)
+	}
 	if status == CalendarStatusProposed {
 		if err := h.fileCalendarProposal(ctx, e, v, actorID); err != nil {
 			slog.Warn("calendar: proposal card failed", append(logger.RequestAttrs(r), "error", err)...)
@@ -555,19 +566,40 @@ func (h *Handler) UpdateCalendarEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	e, err := h.Queries.UpdateCalendarEvent(ctx, db.UpdateCalendarEventParams{ID: id, WorkspaceID: wsUUID, Title: v.title, Description: v.description, StartsAt: tsz(v.starts), EndsAt: tsz(v.ends), AllDay: v.allDay, Timezone: v.timezone, Location: v.location, IssueID: v.issueID, ProjectID: v.projectID})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update the event")
-		return
-	}
+	keep := map[string]string{}
 	if in.Participants != nil {
-		keep := map[string]string{}
 		if parts, err := h.Queries.ListCalendarEventParticipants(ctx, []pgtype.UUID{id}); err == nil {
 			for _, p := range parts {
 				keep[p.ParticipantType+":"+uuidToString(p.ParticipantID)] = p.Response
 			}
 		}
-		h.writeCalendarParticipants(ctx, wsUUID, id, v.participants, keep)
+	}
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update the event")
+		return
+	}
+	defer tx.Rollback(ctx)
+	qtx := h.Queries.WithTx(tx)
+	e, err := qtx.UpdateCalendarEvent(ctx, db.UpdateCalendarEventParams{ID: id, WorkspaceID: wsUUID, Title: v.title, Description: v.description, StartsAt: tsz(v.starts), EndsAt: tsz(v.ends), AllDay: v.allDay, Timezone: v.timezone, Location: v.location, IssueID: v.issueID, ProjectID: v.projectID})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update the event")
+		return
+	}
+	if in.Participants != nil {
+		// Delete-then-recreate the participant list in the same transaction
+		// as the event update, so a mid-replacement failure rolls back
+		// instead of leaving a stale participant (e.g. one who was removed)
+		// still able to see the event.
+		if err := h.writeCalendarParticipants(ctx, qtx, wsUUID, id, v.participants, keep); err != nil {
+			slog.Warn("calendar: replace participants failed", "event_id", uuidToString(id), "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to update participants")
+			return
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update the event")
+		return
 	}
 	moved := !prev.StartsAt.Time.Equal(e.StartsAt.Time) || !prev.EndsAt.Time.Equal(e.EndsAt.Time)
 	if moved && e.Status == CalendarStatusScheduled {

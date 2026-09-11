@@ -277,12 +277,21 @@ func (h *Handler) ImportGoogleCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "google calendar: "+err.Error())
 		return
 	}
+	rows, err := h.Queries.ListCalendarEventsInWindow(r.Context(), db.ListCalendarEventsInWindowParams{WorkspaceID: wsUUID, Since: tsz(from.Add(-24 * time.Hour)), Until: tsz(to.Add(24 * time.Hour)), IncludeCancelled: true})
+	if err != nil {
+		// Without the existing rows every already-imported Google event would
+		// look new below, duplicating the whole window's events (the exact
+		// bug the "keyed by external id" contract on this endpoint exists to
+		// avoid) instead of updating them in place. Abort rather than import
+		// half-blind.
+		slog.Warn("calendar google import: listing existing events failed", "error", err, "workspace_id", uuidToString(wsUUID))
+		writeError(w, http.StatusInternalServerError, "failed to check existing calendar events")
+		return
+	}
 	existing := map[string]db.CalendarEvent{}
-	if rows, err := h.Queries.ListCalendarEventsInWindow(r.Context(), db.ListCalendarEventsInWindowParams{WorkspaceID: wsUUID, Since: tsz(from.Add(-24 * time.Hour)), Until: tsz(to.Add(24 * time.Hour)), IncludeCancelled: true}); err == nil {
-		for _, e := range rows {
-			if e.Source == "google" && e.ExternalID != "" {
-				existing[e.ExternalID] = e
-			}
+	for _, e := range rows {
+		if e.Source == "google" && e.ExternalID != "" {
+			existing[e.ExternalID] = e
 		}
 	}
 	// Batched instead of one UPDATE/INSERT per Google event (up to

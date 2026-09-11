@@ -198,6 +198,7 @@ func (h *Handler) groupReactions(r *http.Request, commentIDs []pgtype.UUID) map[
 	}
 	reactions, err := h.Queries.ListReactionsByCommentIDs(r.Context(), commentIDs)
 	if err != nil {
+		slog.Warn("group reactions failed", "error", err, "comment_count", len(commentIDs))
 		return nil
 	}
 	grouped := make(map[string][]ReactionResponse, len(commentIDs))

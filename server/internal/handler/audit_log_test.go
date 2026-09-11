@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -139,5 +140,46 @@ func TestAuditLogRecordsActionsFiltersPaginatesAndExports(t *testing.T) {
 	}
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE workspace_id = $1`, ws); n != 0 {
 		t.Fatalf("rows after purge = %d", n)
+	}
+}
+
+// TestExportAuditLogSignalsTruncationOnMidStreamFailure covers the audit
+// finding that a mid-export auditPage failure only hit slog.Warn: the 200
+// status and headers are already on the wire by the time pagination starts,
+// so the response silently looked like a complete, well-formed export (a
+// closing "]" for JSON, nothing extra for CSV) with rows missing. An
+// ACCESS EXCLUSIVE lock on audit_log_entry, held from before the call and
+// combined with a short request context deadline, forces the same kind of
+// failure auditPage would see in production (a query that cannot complete)
+// on the very first page — same code path as a later page failing.
+func TestExportAuditLogSignalsTruncationOnMidStreamFailure(t *testing.T) {
+	ctx := context.Background()
+	lockConn, err := testPool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire lock connection: %v", err)
+	}
+	defer lockConn.Release()
+	lockTx, err := lockConn.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin lock tx: %v", err)
+	}
+	defer lockTx.Rollback(ctx)
+	if _, err := lockTx.Exec(ctx, `LOCK TABLE audit_log_entry IN ACCESS EXCLUSIVE MODE`); err != nil {
+		t.Fatalf("lock audit_log_entry: %v", err)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
+	req := testutil.WithHeaders(newRequest(http.MethodGet, "/api/audit-log/export?format=json", nil), "X-Workspace-ID", testWorkspaceID)
+	req = req.WithContext(reqCtx)
+	resp := testutil.Call(t, inboxWorkspaceHandler(testHandler.ExportAuditLog), req).Want(http.StatusOK)
+
+	body := resp.Body.String()
+	if !strings.Contains(body, `"_export_truncated":true`) {
+		t.Fatalf("export body must carry a truncation sentinel when a page fails mid-stream, got: %s", body)
+	}
+	var decoded []map[string]any
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		t.Fatalf("truncated export must still be valid JSON: %v\nbody: %s", err, body)
 	}
 }

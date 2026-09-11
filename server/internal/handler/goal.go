@@ -188,6 +188,8 @@ func (h *Handler) goalResponses(ctx context.Context, wsID pgtype.UUID, tree goal
 		for _, l := range rows {
 			links[uuidToString(l.GoalID)] = append(links[uuidToString(l.GoalID)], uuidToString(l.ProjectID))
 		}
+	} else {
+		slog.Warn("goals: project links failed", "error", err)
 	}
 	out := make([]GoalResponse, 0, len(goals))
 	for _, g := range goals {
@@ -413,20 +415,26 @@ func (h *Handler) CreateGoal(w http.ResponseWriter, r *http.Request) {
 	}
 	h.indexWhy(r.Context(), wsUUID, whySourceGoal, goal.ID, pgtype.UUID{}, goalWhyContent(goal))
 	h.audit(r.Context(), wsUUID, "member", userID, "goal.created", "goal", goal.ID, map[string]any{"title": goal.Title, "status": goal.Status}, nil)
-	writeJSON(w, http.StatusCreated, h.singleGoalResponse(r.Context(), wsUUID, goal.ID))
+	resp, err := h.singleGoalResponse(r.Context(), wsUUID, goal.ID)
+	if err != nil {
+		slog.Warn("goal: reload after create failed", "error", err, "goal_id", uuidToString(goal.ID))
+		writeError(w, http.StatusInternalServerError, "goal created but failed to load it")
+		return
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
-func (h *Handler) singleGoalResponse(ctx context.Context, wsUUID, goalID pgtype.UUID) GoalResponse {
+func (h *Handler) singleGoalResponse(ctx context.Context, wsUUID, goalID pgtype.UUID) (GoalResponse, error) {
 	tree, goals, err := h.loadGoalTree(ctx, wsUUID)
 	if err != nil {
-		return GoalResponse{ID: uuidToString(goalID)}
+		return GoalResponse{}, err
 	}
 	for _, g := range h.goalResponses(ctx, wsUUID, tree, goals) {
 		if g.ID == uuidToString(goalID) {
-			return g
+			return g, nil
 		}
 	}
-	return GoalResponse{ID: uuidToString(goalID)}
+	return GoalResponse{ID: uuidToString(goalID)}, nil
 }
 
 // PUT /api/goals/{id}
@@ -475,7 +483,13 @@ func (h *Handler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
 	}
 	h.indexWhy(r.Context(), wsUUID, whySourceGoal, goal.ID, pgtype.UUID{}, goalWhyContent(goal))
 	h.audit(r.Context(), wsUUID, "member", userID, "goal.updated", "goal", goal.ID, map[string]any{"title": goal.Title, "status": goal.Status, "owner_id": uuidToPtr(goal.OwnerID)}, nil)
-	writeJSON(w, http.StatusOK, h.singleGoalResponse(r.Context(), wsUUID, goal.ID))
+	resp, err := h.singleGoalResponse(r.Context(), wsUUID, goal.ID)
+	if err != nil {
+		slog.Warn("goal: reload after update failed", "error", err, "goal_id", uuidToString(goal.ID))
+		writeError(w, http.StatusInternalServerError, "goal updated but failed to load it")
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // DELETE /api/goals/{id} (owner/admin): refused while sub-goals remain;
@@ -498,7 +512,13 @@ func (h *Handler) DeleteGoal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "goal not found")
 		return
 	}
-	if n, err := h.Queries.CountChildGoals(r.Context(), db.CountChildGoalsParams{ParentGoalID: goal.ID, WorkspaceID: wsUUID}); err != nil || n > 0 {
+	n, err := h.Queries.CountChildGoals(r.Context(), db.CountChildGoalsParams{ParentGoalID: goal.ID, WorkspaceID: wsUUID})
+	if err != nil {
+		slog.Warn("goal: sub-goal check failed", "error", err, "goal_id", uuidToString(goal.ID))
+		writeError(w, http.StatusInternalServerError, "failed to check sub-goals")
+		return
+	}
+	if n > 0 {
 		writeError(w, http.StatusBadRequest, "move or delete the sub-goals first")
 		return
 	}
@@ -763,12 +783,16 @@ func (h *Handler) ProposeIssueGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	attachOption := goalProposalOptionPrefix + uuidToString(goal.ID)
-	if pending, err := h.Queries.ListIssueDecisions(r.Context(), db.ListIssueDecisionsParams{IssueID: issue.ID, WorkspaceID: wsUUID}); err == nil {
-		for _, d := range pending {
-			if d.Response == nil && strings.Contains(string(d.Options), `"`+attachOption+`"`) {
-				writeError(w, http.StatusConflict, "this attachment is already awaiting a decision")
-				return
-			}
+	pending, err := h.Queries.ListIssueDecisions(r.Context(), db.ListIssueDecisionsParams{IssueID: issue.ID, WorkspaceID: wsUUID})
+	if err != nil {
+		slog.Warn("goal proposal: pending decisions check failed", "error", err, "issue_id", uuidToString(issue.ID))
+		writeError(w, http.StatusInternalServerError, "failed to check pending decisions")
+		return
+	}
+	for _, d := range pending {
+		if d.Response == nil && strings.Contains(string(d.Options), `"`+attachOption+`"`) {
+			writeError(w, http.StatusConflict, "this attachment is already awaiting a decision")
+			return
 		}
 	}
 	question := fmt.Sprintf("Goal · attach this issue to \"%s\"?\n\n%s\n\nSuccess measure: %s", goal.Title, reason, nonEmpty(goal.SuccessMeasure, "not set"))

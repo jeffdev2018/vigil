@@ -98,15 +98,21 @@ type WorkspaceResponse struct {
 	// Template / TemplateError (K76) report the template seed of a workspace just created from one.
 	Template      map[string]any `json:"template,omitempty"`
 	TemplateError string         `json:"template_error,omitempty"`
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Slug          string         `json:"slug"`
-	Description   *string        `json:"description"`
-	Context       *string        `json:"context"`
-	Settings      any            `json:"settings"`
-	Repos         any            `json:"repos"`
-	IssuePrefix   string         `json:"issue_prefix"`
-	AvatarURL     *string        `json:"avatar_url"`
+	// Pack / PackError report a catalogue pack seed, kept separate from
+	// Template/TemplateError: a create request can supply both
+	// template_run_id and pack_id, and the two outcomes must not be able to
+	// silently clobber each other in the response.
+	Pack        map[string]any `json:"pack,omitempty"`
+	PackError   string         `json:"pack_error,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Slug        string         `json:"slug"`
+	Description *string        `json:"description"`
+	Context     *string        `json:"context"`
+	Settings    any            `json:"settings"`
+	Repos       any            `json:"repos"`
+	IssuePrefix string         `json:"issue_prefix"`
+	AvatarURL   *string        `json:"avatar_url"`
 	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
 	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
 	// null disables the trigger, which is every workspace's default.
@@ -371,9 +377,9 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if req.PackID != nil && *req.PackID != "" {
 		if result, err := h.applyWorkspacePack(r.Context(), ws.ID, *req.PackID, userID); err != nil {
 			slog.Warn("workspace pack failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "pack_id", *req.PackID, "error", err)...)
-			resp.TemplateError = err.Error()
+			resp.PackError = err.Error()
 		} else {
-			resp.Template = result
+			resp.Pack = result
 		}
 	}
 	writeJSON(w, http.StatusCreated, resp)

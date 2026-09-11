@@ -591,3 +591,37 @@ func TestListIssueTransitionRequests(t *testing.T) {
 		t.Fatalf("requests = %s, want one pending", raw)
 	}
 }
+
+// TestIssueTransitionDecisionRejectsMalformedBody covers the audit finding
+// that decideIssueTransitionRequest (Approve/RejectIssueTransitionRequest)
+// discarded json.Decode's error with `_ =`, silently dropping a malformed
+// note instead of rejecting the request like every other Decode in this
+// package.
+func TestIssueTransitionDecisionRejectsMalformedBody(t *testing.T) {
+	transitionRule(t, testutil.Cols{
+		"from_category":     "in_progress",
+		"to_category":       "done",
+		"allowed_roles":     testutil.Raw("ARRAY['member']::text[]"),
+		"requires_approval": true,
+	})
+	issueID := dbfx.Issue(t, "F28 malformed decision", testutil.Cols{"status": "in_progress"})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+	})
+
+	var held map[string]any
+	testutil.Call(t, testHandler.UpdateIssue, withURLParam(
+		memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"}), "id", issueID)).
+		Want(http.StatusAccepted).JSON(&held)
+	requestID, _ := held["request_id"].(string)
+
+	approve := newRequest("POST", "/api/issue-transition-requests/"+requestID+"/approve", "not an object")
+	testutil.Call(t, testHandler.ApproveIssueTransitionRequest, withURLParam(approve, "id", requestID)).
+		Want(http.StatusBadRequest)
+
+	// The request must still be pending: a rejected malformed body must not
+	// have silently gone through with an empty note.
+	if got := issueStatus(t, issueID); got != "in_progress" {
+		t.Fatalf("issue status = %q, want in_progress (unchanged): a malformed approval body must not apply the transition", got)
+	}
+}
