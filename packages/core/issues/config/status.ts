@@ -17,15 +17,10 @@ export const STATUS_ORDER: IssueStatusCategory[] = [
   "cancelled",
 ];
 
-export const ALL_STATUSES: IssueStatusCategory[] = [
-  "backlog",
-  "todo",
-  "in_progress",
-  "in_review",
-  "done",
-  "blocked",
-  "cancelled",
-];
+// Same 7 categories as STATUS_ORDER, derived rather than duplicated so a
+// future 8th category cannot be added to one list and silently drift from
+// the other.
+export const ALL_STATUSES: IssueStatusCategory[] = [...STATUS_ORDER];
 
 export const STATUS_CONFIG: Record<
   IssueStatusCategory,
