@@ -232,6 +232,17 @@ describe("Board grouped by project", () => {
     );
   }
 
+  it("scrolls the board horizontally inside its own container, with fixed-width columns", () => {
+    render();
+
+    const scroller = screen.getByTestId("board-scroller");
+    expect(scroller.className).toContain("overflow-x-auto");
+    expect(scroller.className).toContain("min-w-0");
+    const column = screen.getByText("Acme Corp").closest('[style*="width"]');
+    expect(column).not.toBeNull();
+    expect(column!.className).toContain("shrink-0");
+  });
+
   it("offers to add the first issue from inside an empty column", () => {
     const onCreateIssue = vi.fn();
     render({ issues: [], onCreateIssue });
