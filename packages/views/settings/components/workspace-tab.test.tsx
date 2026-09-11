@@ -108,6 +108,7 @@ vi.mock("./triage-auto-setting", () => ({ TriageAutoSetting: () => null }));
 vi.mock("./triage-email-source-setting", () => ({ TriageEmailSourceSetting: () => null }));
 vi.mock("./approval-gates-setting", () => ({ ApprovalGatesSetting: () => null }));
 vi.mock("./run-halt-setting", () => ({ RunHaltSetting: () => null }));
+vi.mock("./branch-cleanup-setting", () => ({ BranchCleanupSetting: () => null }));
 vi.mock("./permission-profiles-setting", () => ({ PermissionProfilesSetting: () => null }));
 vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));
 vi.mock("./issue-routing-setting", () => ({ IssueRoutingSetting: () => null }));

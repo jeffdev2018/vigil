@@ -2926,6 +2926,67 @@ export const RunBranchActionResponseSchema = z.object({
 
 export type RunBranchActionResponse = z.infer<typeof RunBranchActionResponseSchema>;
 
+// Dead run-branch cleanup (JEF-388). What GET /api/runs/dead-branches
+// returns: the workspace's finished-run branches that were never promoted,
+// one entry per branch, grouped by runtime in the UI. `skip_reason` is a
+// server-driven enum, but a client older than a new reason must still render
+// the row, so unknown values degrade to null (reads as "actionable") only
+// when `actionable` disagrees — the boolean is authoritative, the reason is
+// display copy.
+export const DeadBranchSkipReasonSchema = z
+  .enum(["runtime_offline", "capability_missing", "action_pending"])
+  .nullable()
+  .catch(null)
+  .default(null);
+
+export const DeadBranchEntrySchema = z
+  .object({
+    task_id: z.string(),
+    issue_id: z.string().nullable().catch(null).default(null),
+    issue_identifier: z.string().nullable().catch(null).default(null),
+    issue_title: z.string().nullable().catch(null).default(null),
+    branch_name: z.string().catch("").default(""),
+    runtime_id: z.string().catch("").default(""),
+    runtime_name: z.string().catch("").default(""),
+    finished_at: z.string().nullable().catch(null).default(null),
+    actionable: z.boolean().catch(false).default(false),
+    skip_reason: DeadBranchSkipReasonSchema,
+  })
+  .loose();
+
+export type DeadBranchEntry = z.infer<typeof DeadBranchEntrySchema>;
+export type DeadBranchSkipReason = DeadBranchEntry["skip_reason"];
+
+export const DeadBranchPlanSchema = z
+  .object({
+    entries: z.array(DeadBranchEntrySchema).catch([]).default([]),
+  })
+  .loose();
+
+export type DeadBranchPlan = z.infer<typeof DeadBranchPlanSchema>;
+
+// What POST /api/runs/dead-branches/discard returns: how many discards were
+// enqueued daemon-side and which task IDs were skipped (already actioned,
+// runtime went away between plan and confirm). Like the single-run discard,
+// the POST only enqueues — entries flip to skip_reason "action_pending" on
+// the next plan fetch.
+export const DeadBranchDiscardSkippedSchema = z
+  .object({
+    task_id: z.string().catch("").default(""),
+    reason: z.string().catch("").default(""),
+  })
+  .loose();
+
+export const DeadBranchDiscardResponseSchema = z
+  .object({
+    enqueued: z.number().catch(0).default(0),
+    skipped: z.array(DeadBranchDiscardSkippedSchema).catch([]).default([]),
+  })
+  .loose();
+
+export type DeadBranchDiscardResponse = z.infer<typeof DeadBranchDiscardResponseSchema>;
+export type DeadBranchDiscardSkipped = z.infer<typeof DeadBranchDiscardSkippedSchema>;
+
 // Task cancellation (`POST /api/tasks/:id/cancel`) is consumed directly by
 // chat recovery. Its optional message payload must be well-formed before the
 // UI deletes a message from cache or restores text into the input.

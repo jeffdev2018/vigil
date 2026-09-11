@@ -482,6 +482,10 @@ import {
   type RunDiff,
   RunBranchActionResponseSchema,
   type RunBranchActionResponse,
+  DeadBranchPlanSchema,
+  type DeadBranchPlan,
+  DeadBranchDiscardResponseSchema,
+  type DeadBranchDiscardResponse,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
   ChatDraftRestoresResponseSchema,
@@ -6426,6 +6430,42 @@ export class ApiClient {
       RunBranchActionResponseSchema,
       { request_id: "", status: "pending" },
       { endpoint: "POST /api/issues/:id/runs/:taskId/discard" },
+    );
+  }
+
+  /**
+   * Dead run-branch cleanup (JEF-388): the workspace's finished-run branches
+   * that were never promoted, with per-entry actionability (`actionable` /
+   * `skip_reason`) so the UI can grey out what the daemon cannot reach right
+   * now. Workspace comes from the client's X-Workspace-ID header.
+   */
+  async listDeadBranches(): Promise<DeadBranchPlan> {
+    const raw = await this.fetch<unknown>(`/api/runs/dead-branches`);
+    return parseWithFallback<DeadBranchPlan>(
+      raw,
+      DeadBranchPlanSchema,
+      { entries: [] },
+      { endpoint: "GET /api/runs/dead-branches" },
+    );
+  }
+
+  /**
+   * Enqueue a batch discard of dead run branches (max 200 task IDs). The
+   * daemon deletes each worktree + branch asynchronously; the response says
+   * how many were enqueued and which were skipped and why. Entries that were
+   * enqueued come back as skip_reason "action_pending" on the next
+   * listDeadBranches fetch.
+   */
+  async discardDeadBranches(taskIds: string[]): Promise<DeadBranchDiscardResponse> {
+    const raw = await this.fetch<unknown>(`/api/runs/dead-branches/discard`, {
+      method: "POST",
+      body: JSON.stringify({ task_ids: taskIds }),
+    });
+    return parseWithFallback<DeadBranchDiscardResponse>(
+      raw,
+      DeadBranchDiscardResponseSchema,
+      { enqueued: 0, skipped: [] },
+      { endpoint: "POST /api/runs/dead-branches/discard" },
     );
   }
 

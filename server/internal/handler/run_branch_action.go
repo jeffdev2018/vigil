@@ -155,11 +155,6 @@ func (h *Handler) requestRunBranchAction(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	guardCode := ErrCodeRunNotPromotable
-	if action == runBranchActionDiscard {
-		guardCode = ErrCodeRunNotDiscardable
-	}
-
 	task, err := h.Queries.GetAgentTask(r.Context(), taskID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "run not found")
@@ -171,88 +166,125 @@ func (h *Handler) requestRunBranchAction(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusNotFound, "run not found")
 		return
 	}
+
+	row, refusal := h.enqueueRunBranchAction(r.Context(), issue.WorkspaceID, task, action, "member", userID)
+	if refusal != nil {
+		if refusal.code != "" {
+			writeErrorCode(w, refusal.status, refusal.code, refusal.message)
+		} else {
+			writeError(w, refusal.status, refusal.message)
+		}
+		return
+	}
+	writeJSON(w, http.StatusCreated, runBranchActionToResponse(row))
+}
+
+// runBranchActionRefusal is why an enqueue was refused: the HTTP status and
+// stable code the single-task endpoint answers with, plus the human sentence
+// the batch endpoint and the sweep report per skipped run.
+type runBranchActionRefusal struct {
+	status  int
+	code    string
+	message string
+}
+
+// enqueueRunBranchAction is the shared core of the promote/discard endpoints,
+// the dead-branch batch discard and the branch GC sweep (JEF-388): the full
+// guard chain, the request row, the audit entry and the daemon wake-up. The
+// caller has already authorized the caller-side of the request and proven the
+// task belongs to workspaceID.
+func (h *Handler) enqueueRunBranchAction(ctx context.Context, workspaceID pgtype.UUID, task db.AgentTaskQueue, action, actorType, actorID string) (db.RunBranchActionRequest, *runBranchActionRefusal) {
+	guardCode := ErrCodeRunNotPromotable
+	if action == runBranchActionDiscard {
+		guardCode = ErrCodeRunNotDiscardable
+	}
+	refuse := func(code, msg string) (db.RunBranchActionRequest, *runBranchActionRefusal) {
+		return db.RunBranchActionRequest{}, &runBranchActionRefusal{status: http.StatusConflict, code: code, message: msg}
+	}
+	refuseErr := func(msg string) (db.RunBranchActionRequest, *runBranchActionRefusal) {
+		return db.RunBranchActionRequest{}, &runBranchActionRefusal{status: http.StatusInternalServerError, message: msg}
+	}
+
 	switch task.Status {
 	case "completed", "failed", "cancelled":
 	default:
-		writeErrorCode(w, http.StatusConflict, guardCode, "only a finished run can be "+action+"d")
-		return
+		return refuse(guardCode, "only a finished run can be "+action+"d")
 	}
 	branch := strings.TrimSpace(task.BranchName.String)
 	if branch == "" {
-		writeErrorCode(w, http.StatusConflict, guardCode, "this run has no branch to "+action)
-		return
+		return refuse(guardCode, "this run has no branch to "+action)
 	}
 	if task.PromotedAt.Valid || task.DiscardedAt.Valid {
-		writeErrorCode(w, http.StatusConflict, guardCode, "this run's branch was already promoted or discarded")
-		return
+		return refuse(guardCode, "this run's branch was already promoted or discarded")
 	}
 	if !task.RuntimeID.Valid {
-		writeErrorCode(w, http.StatusConflict, guardCode, "this run is not bound to a runtime")
-		return
+		return refuse(guardCode, "this run is not bound to a runtime")
 	}
 
-	runtime, err := h.Queries.GetAgentRuntime(r.Context(), task.RuntimeID)
+	runtime, err := h.Queries.GetAgentRuntime(ctx, task.RuntimeID)
 	if err != nil {
-		writeErrorCode(w, http.StatusConflict, guardCode, "the runtime that produced this run is no longer registered")
-		return
+		return refuse(guardCode, "the runtime that produced this run is no longer registered")
 	}
 	// Fail closed on the capability: a daemon that cannot run branch actions
 	// would claim the request, ignore the field it does not know, and never
 	// report — the user would watch a spinner that can only end in the
 	// stale-claim sweeper.
 	if !runtimeHasCapability(runtime.Metadata, protocol.DaemonCapabilityBranchActionV1) {
-		writeErrorCode(w, http.StatusConflict, guardCode,
+		return refuse(guardCode,
 			"the Multica app on that machine does not support this action. Update it and try again")
-		return
 	}
 
 	// A daemon that died holding a claim would block this run's actions for
 	// good, because the in-flight check below counts 'claimed'. Released here
 	// rather than on a timer: this is the only moment the staleness matters,
 	// and it costs one UPDATE on a table that is normally empty.
-	if _, err := h.Queries.ReleaseStaleRunBranchActionClaims(r.Context(),
+	if _, err := h.Queries.ReleaseStaleRunBranchActionClaims(ctx,
 		pgtype.Interval{Microseconds: runBranchActionClaimTimeout.Microseconds(), Valid: true}); err != nil {
 		slog.Warn("release stale run branch action claims failed", "error", err)
 	}
 
-	if existing, err := h.Queries.GetPendingRunBranchActionForTask(r.Context(), task.ID); err == nil {
-		writeErrorCode(w, http.StatusConflict, ErrCodeRunBranchActionInFlight,
+	if existing, err := h.Queries.GetPendingRunBranchActionForTask(ctx, task.ID); err == nil {
+		return refuse(ErrCodeRunBranchActionInFlight,
 			"a "+existing.Action+" is already in progress for this run")
-		return
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, http.StatusInternalServerError, "could not check for an action already in progress")
-		return
+		return refuseErr("could not check for an action already in progress")
 	}
 
-	row, err := h.Queries.CreateRunBranchActionRequest(r.Context(), db.CreateRunBranchActionRequestParams{
-		WorkspaceID: issue.WorkspaceID,
+	row, err := h.Queries.CreateRunBranchActionRequest(ctx, db.CreateRunBranchActionRequestParams{
+		WorkspaceID: workspaceID,
 		TaskID:      task.ID,
 		RuntimeID:   task.RuntimeID,
 		Action:      action,
 		BranchName:  branch,
-		BaseBranch:  h.runBranchBaseHint(r.Context(), task),
-		CreatedBy:   parseUUID(userID),
+		BaseBranch:  h.runBranchBaseHint(ctx, task),
+		CreatedBy:   parseUUIDOrZero(actorID),
 	})
 	if err != nil {
 		slog.Error("create run branch action request failed", "task_id", uuidToString(task.ID), "action", action, "error", err)
-		writeError(w, http.StatusInternalServerError, "could not request the "+action)
-		return
+		return refuseErr("could not request the " + action)
 	}
 
 	// "member", not "user": the audit table's actor_type CHECK allows only
 	// member / agent / system, and a rejected write would lose the record of
 	// who asked for a destructive action. Written at request time, like F09:
 	// "someone asked to push/delete this branch" is the fact being audited.
-	h.audit(r.Context(), issue.WorkspaceID, "member", userID, AuditRunBranchAction, "task", task.ID, map[string]any{
+	details := map[string]any{
 		"request_id": uuidToString(row.ID),
-		"issue_id":   uuidToString(issue.ID),
 		"action":     action,
 		"branch":     branch,
-	}, nil)
+	}
+	if task.IssueID.Valid {
+		details["issue_id"] = uuidToString(task.IssueID)
+	}
+	h.audit(ctx, workspaceID, actorType, actorID, AuditRunBranchAction, "task", task.ID, details, nil)
 
 	h.requestDaemonPendingWork(uuidToString(task.RuntimeID), protocol.PendingWorkKindBranchAction)
-	h.publishIssueAuxChanged(r, issue, "member", userID)
-	writeJSON(w, http.StatusCreated, runBranchActionToResponse(row))
+	// Repaint the run's promote/discard affordance on every open client. Chat
+	// runs have no issue row to bump; there is nothing showing them anyway.
+	if task.IssueID.Valid {
+		h.publishIssueAuxChangedCtx(ctx, db.Issue{ID: task.IssueID}, actorType, actorID)
+	}
+	return row, nil
 }
 
 // runBranchBaseHint is the base branch the request row records, best-effort:

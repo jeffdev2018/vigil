@@ -830,6 +830,14 @@ func main() {
 		slog.Error("scheduler: register run preview stale sweep job", "error", err)
 		os.Exit(1)
 	}
+	// Dead run-branch GC (JEF-388): workspaces that opted in get the branches
+	// their terminal runs left behind discarded past the TTL, through the
+	// JEF-255 branch-action channel. Inert while every workspace leaves it
+	// disabled.
+	if err := schedulerMgr.Register(scheduler.BranchGCTickJob(pool, h.TickBranchGC)); err != nil {
+		slog.Error("scheduler: register branch gc tick job", "error", err)
+		os.Exit(1)
+	}
 	if err := schedulerMgr.Register(scheduler.CycleSnapshotJob(h.SnapshotCycles)); err != nil {
 		slog.Error("scheduler: failed to register cycle_snapshot job", "error", err)
 		os.Exit(1)
