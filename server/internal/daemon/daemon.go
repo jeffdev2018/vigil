@@ -8529,9 +8529,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// Unlike its two lifecycle siblings this one is long-lived, and its failure
 	// is not the run's: an agent works perfectly well in a worktree whose dev
 	// server never came up, so a failed preview is recorded as `error` rather
-	// than trading the deliverable for a convenience. Started in a goroutine
-	// because the probe waits up to 90 s for a first compile, and the agent has
-	// no reason to.
+	// than trading the deliverable for a convenience. The probe runs in the
+	// background because it waits up to 90 s for a first compile, and the agent
+	// has no reason to; the registration does not, so the deferred stop below
+	// always finds the preview.
 	if runScript := localAssignment.RunScript(); len(runScript) > 0 {
 		// A copy: agentEnv keeps being written below (PATH, CODEX_HOME, …) and
 		// the goroutine reads it concurrently.
@@ -8539,7 +8540,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		for k, v := range agentEnv {
 			previewEnv[k] = v
 		}
-		go d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
+		d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
 		defer d.stopRunPreview(task.ID, taskLog)
 	}
 	if task.AutopilotRunID != "" {
