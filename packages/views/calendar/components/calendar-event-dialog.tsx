@@ -373,7 +373,7 @@ export function CalendarEventDialog({
               {target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              {t(($) => $.form.create_title)}
+              {target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}
             </DialogDescription>
           </DialogHeader>
 
