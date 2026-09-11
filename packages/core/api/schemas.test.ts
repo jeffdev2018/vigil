@@ -64,6 +64,7 @@ import {
   InboxItemListSchema,
   InboxUnreadSummarySchema,
   IssueTriggerPreviewSchema,
+  LabelSchema,
   ListIssuesResponseSchema,
   ListPropertiesResponseSchema,
   MALFORMED_RUNTIME_MODEL_LIST_REQUEST,
@@ -665,6 +666,32 @@ describe("IssuePropertySchema (via ListPropertiesResponseSchema)", () => {
     const { icon: _omit, ...withoutIcon } = baseProperty;
     const parsed = ListPropertiesResponseSchema.parse({ properties: [withoutIcon], total: 1 });
     expect(parsed.properties[0]?.icon).toBe("");
+  });
+});
+
+// LabelChip trusts `label.color` enough to pass it straight into
+// `style={{ backgroundColor: color }}` (packages/views/labels/label-chip.tsx).
+// The server's normalizeColor already pins the write path to
+// `^#?[0-9a-fA-F]{6}$`, but the schema itself accepted any string — this is
+// the defense-in-depth layer the code comment there promised and never had.
+describe("LabelSchema", () => {
+  const baseLabel = {
+    id: "lbl-1",
+    workspace_id: "ws-1",
+    name: "Bug",
+    color: "#ef4444",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("parses a well-formed hex color", () => {
+    const parsed = LabelSchema.parse(baseLabel);
+    expect(parsed.color).toBe("#ef4444");
+  });
+
+  it("falls back to the default gray for a malformed color instead of passing it through", () => {
+    const parsed = LabelSchema.parse({ ...baseLabel, color: "javascript:alert(1)" });
+    expect(parsed.color).toBe("#6b7280");
   });
 });
 
