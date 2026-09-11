@@ -40,10 +40,15 @@ func (e SignupError) Error() string {
 var ErrSignupProhibited = SignupError{Message: "user registration is disabled on this self-hosted instance"}
 var ErrEmailNotAllowed = SignupError{Message: "email address or domain not allowed on this instance"}
 
+// Stable auth failure codes (MUL UX audit): shared across every login entry
+// point (email code, Google, SSO) so the client translates one code set
+// instead of pattern-matching each handler's English sentence.
 const (
-	googleLoginCodeAccountDisabled     = "account_disabled"
-	googleLoginCodeSignupProhibited    = "signup_prohibited"
-	googleLoginCodeEmailNotAllowed     = "email_not_allowed"
+	authCodeAccountDisabled            = "account_disabled"
+	authCodeSignupProhibited           = "signup_prohibited"
+	authCodeEmailNotAllowed            = "email_not_allowed"
+	authCodeInvalid                    = "code_invalid"
+	authCodeRateLimited                = "rate_limited"
 	googleLoginCodeAccountWithoutEmail = "google_account_no_email"
 	googleLoginCodeInvalidOAuthCode    = "oauth_code_invalid"
 	googleLoginCodeInvalidOAuthState   = "oauth_state_invalid"
@@ -300,14 +305,16 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
 	// Signup restrictions. A refused new email gets the same answer as an
 	// existing account — same status, same body, same rate limit — so
 	// send-code cannot be used to enumerate accounts on a closed instance.
-	// No code is mailed for it; verify-code still refuses the signup.
+	// No code is mailed for it; verify-code still refuses the signup. Deliberately
+	// no error code here either: a code would let a client tell "refused" apart
+	// from "sent" and defeat the enumeration guard this comment describes.
 	mailCode := true
 	existingUser, err := h.Queries.GetUserByEmail(r.Context(), email)
 	if err != nil {
@@ -321,14 +328,14 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 			mailCode = false
 		}
 	} else if auth.IsTemporarilyDisabledUser(uuidToString(existingUser.ID), existingUser.Email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
 	// Rate limit: max 1 code per 60 seconds per email
 	latest, err := h.Queries.GetLatestCodeByEmail(r.Context(), email)
 	if err == nil && time.Since(latest.CreatedAt.Time) < 60*time.Second {
-		writeError(w, http.StatusTooManyRequests, "please wait before requesting another code")
+		writeErrorCode(w, http.StatusTooManyRequests, authCodeRateLimited, "please wait before requesting another code")
 		return
 	}
 
@@ -377,20 +384,20 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
 	dbCode, err := h.Queries.GetLatestVerificationCode(r.Context(), email)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid or expired code")
+		writeErrorCode(w, http.StatusBadRequest, authCodeInvalid, "invalid or expired code")
 		return
 	}
 
 	isDevCode := isDevVerificationCode(code)
 	if !isDevCode && subtle.ConstantTimeCompare([]byte(code), []byte(dbCode.Code)) != 1 {
 		_ = h.Queries.IncrementVerificationCodeAttempts(r.Context(), dbCode.ID)
-		writeError(w, http.StatusBadRequest, "invalid or expired code")
+		writeErrorCode(w, http.StatusBadRequest, authCodeInvalid, "invalid or expired code")
 		return
 	}
 
@@ -414,7 +421,15 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
-			writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+			writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+			return
+		}
+		if errors.Is(err, ErrSignupProhibited) {
+			writeErrorCode(w, http.StatusForbidden, authCodeSignupProhibited, ErrSignupProhibited.Error())
+			return
+		}
+		if errors.Is(err, ErrEmailNotAllowed) {
+			writeErrorCode(w, http.StatusForbidden, authCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
 			return
 		}
 		var signupErr SignupError
@@ -512,11 +527,11 @@ type googleUserInfo struct {
 func writeGoogleLoginActionableError(w http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, auth.ErrTemporarilyDisabledUser):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 	case errors.Is(err, ErrSignupProhibited):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeSignupProhibited, ErrSignupProhibited.Error())
+		writeErrorCode(w, http.StatusForbidden, authCodeSignupProhibited, ErrSignupProhibited.Error())
 	case errors.Is(err, ErrEmailNotAllowed):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
+		writeErrorCode(w, http.StatusForbidden, authCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
 	default:
 		var signupErr SignupError
 		if !errors.As(err, &signupErr) {
@@ -678,7 +693,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 

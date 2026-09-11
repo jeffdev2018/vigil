@@ -77,6 +77,15 @@ vi.mock("@multica/core/api", () => ({
     startOIDCLogin: mockApiStartOIDCLogin,
     startGoogleLogin: mockApiStartGoogleLogin,
   },
+  // Duck-typed like the real client.ts helper: reads `code` off an error's
+  // `body`, which is how this file's fixtures shape a rejected ApiError.
+  errorCode: (err: unknown) => {
+    if (typeof err !== "object" || err === null) return undefined;
+    const body = (err as { body?: unknown }).body;
+    if (typeof body !== "object" || body === null) return undefined;
+    const code = (body as { code?: unknown }).code;
+    return typeof code === "string" && code.length > 0 ? code : undefined;
+  },
 }));
 
 vi.mock("@multica/core/types", () => ({}));
@@ -277,7 +286,10 @@ describe("LoginPage", () => {
   });
 
   it("shows error when sendCode fails", async () => {
-    mockSendCode.mockRejectedValueOnce(new Error("Rate limited"));
+    // A raw server sentence with no stable `code` on its body — must not be
+    // rendered verbatim (UX audit: untranslated auth errors leaking to the
+    // login screen); the client falls back to its own localized sentence.
+    mockSendCode.mockRejectedValueOnce(new Error("something the server said in English"));
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
     const user = userEvent.setup();
@@ -285,7 +297,24 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     await waitFor(() => {
-      expect(screen.getByText("Rate limited")).toBeInTheDocument();
+      expect(screen.queryByText("something the server said in English")).not.toBeInTheDocument();
+      expect(screen.getByText("Failed to send code. Make sure the server is running.")).toBeInTheDocument();
+    });
+  });
+
+  it("translates a known auth error code instead of the server's English sentence", async () => {
+    mockSendCode.mockRejectedValueOnce(
+      Object.assign(new Error("send code: account temporarily disabled"), { body: { code: "account_disabled" } }),
+    );
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("send code: account temporarily disabled")).not.toBeInTheDocument();
+      expect(screen.getByText("This account has been temporarily disabled.")).toBeInTheDocument();
     });
   });
 
@@ -348,7 +377,10 @@ describe("LoginPage", () => {
 
   it("shows error on invalid code", async () => {
     mockSendCode.mockResolvedValueOnce(undefined);
-    mockVerifyCode.mockRejectedValueOnce(new Error("Invalid code"));
+    // A raw server sentence with no stable `code` on its body — the client
+    // must not render it verbatim (UX audit: untranslated auth errors);
+    // it falls back to the localized generic message instead.
+    mockVerifyCode.mockRejectedValueOnce(new Error("something the server said in English"));
 
     renderWithI18n(<LoginPage onSuccess={onSuccess} />);
 
@@ -366,7 +398,8 @@ describe("LoginPage", () => {
     await user.type(otpInput, "000000");
 
     await waitFor(() => {
-      expect(screen.getByText("Invalid code")).toBeInTheDocument();
+      expect(screen.queryByText("something the server said in English")).not.toBeInTheDocument();
+      expect(screen.getByText("Invalid or expired code")).toBeInTheDocument();
     });
     expect(onSuccess).not.toHaveBeenCalled();
   });

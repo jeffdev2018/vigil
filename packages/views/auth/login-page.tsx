@@ -21,7 +21,7 @@ import {
 } from "@multica/ui/components/ui/input-otp";
 import { useAuthStore } from "@multica/core/auth";
 import { workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
+import { api, errorCode } from "@multica/core/api";
 import type { User } from "@multica/core/types";
 import { useT } from "../i18n";
 import { clearSessionResume, readSessionResume, saveSessionResume } from "../common/session-resume";
@@ -132,6 +132,28 @@ function isPendingCode(value: unknown): value is PendingCode {
 
 function rememberPendingCode(email: string) {
   saveSessionResume(PENDING_CODE_KEY, { email, sentAt: Date.now() } satisfies PendingCode, PENDING_CODE_TTL_MS);
+}
+
+/**
+ * Translates a login failure from its stable `code` (server/internal/handler
+ * /auth.go — account_disabled, signup_prohibited, email_not_allowed,
+ * code_invalid, rate_limited) instead of showing the server's English
+ * sentence, which every entry point (send-code, verify-code, Google) leaked
+ * verbatim to a French-locale user (UX audit).
+ *
+ * `fallback` is used for an unrecognized or missing code — never the raw
+ * `err.message` — so an older server (or a code this build predates) still
+ * shows a localized, if generic, sentence.
+ */
+function authErrorMessage(t: ReturnType<typeof useT<"auth">>["t"], err: unknown, fallback: string): string {
+  switch (errorCode(err)) {
+    case "account_disabled": return t(($) => $.errors.account_disabled);
+    case "signup_prohibited": return t(($) => $.errors.signup_prohibited);
+    case "email_not_allowed": return t(($) => $.errors.email_not_allowed);
+    case "code_invalid": return t(($) => $.errors.code_invalid);
+    case "rate_limited": return t(($) => $.errors.rate_limited);
+    default: return fallback;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,9 +268,7 @@ export function LoginPage({
         setCooldown(RESEND_COOLDOWN_S);
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : `${t(($) => $.errors.send_failed)} ${t(($) => $.errors.server_unreachable)}`,
+          authErrorMessage(t, err, `${t(($) => $.errors.send_failed)} ${t(($) => $.errors.server_unreachable)}`),
         );
       } finally {
         setLoading(false);
@@ -291,11 +311,7 @@ export function LoginPage({
           setSsoRequired(true);
           setError(t(($) => $.sso.required_hint));
         } else {
-          setError(
-            err instanceof Error
-              ? err.message
-              : t(($) => $.errors.code_invalid),
-          );
+          setError(authErrorMessage(t, err, t(($) => $.errors.code_invalid)));
         }
         setCode("");
         setLoading(false);
@@ -312,9 +328,7 @@ export function LoginPage({
       rememberPendingCode(email);
       setCooldown(RESEND_COOLDOWN_S);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t(($) => $.errors.resend_failed),
-      );
+      setError(authErrorMessage(t, err, t(($) => $.errors.resend_failed)));
     }
   };
 
