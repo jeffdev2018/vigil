@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -357,7 +358,10 @@ func (h *Handler) GenerateProjectEpicStep(w http.ResponseWriter, r *http.Request
 	}
 	if r.Body != nil {
 		// An empty body is the ordinary case: the workspace's Mika answers.
-		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req)
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 
 	ctx := r.Context()
