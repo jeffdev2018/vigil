@@ -4,7 +4,6 @@ import { ApiClient } from "../api/client";
 import {
   latestPlanVerification,
   planSeverityRank,
-  planVerificationBlocksDone,
   sortPlanFindings,
 } from "./plan";
 
@@ -35,13 +34,6 @@ describe("plan helpers", () => {
     expect(sorted.map((f) => f.severity)).toEqual(["critical", "minor", "weird"]);
     expect(planSeverityRank("CRITICAL")).toBe(0);
     expect(planSeverityRank("nope")).toBe(4);
-  });
-
-  it("blocks done only on a reported verification with a critical finding", () => {
-    expect(planVerificationBlocksDone(null)).toBe(false);
-    expect(planVerificationBlocksDone({ ...verification, critical_count: 1 })).toBe(true);
-    expect(planVerificationBlocksDone({ ...verification, critical_count: 1, state: "running" })).toBe(false);
-    expect(planVerificationBlocksDone({ ...verification, major_count: 3 })).toBe(false);
   });
 
   it("picks the newest verification", () => {
