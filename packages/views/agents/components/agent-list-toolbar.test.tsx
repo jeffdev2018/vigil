@@ -90,4 +90,11 @@ describe("AgentListToolbar", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /All runtimes/ }));
     expect(onRuntimeMachineChange).toHaveBeenCalledWith(null);
   });
+
+  // Below `md` the display trigger collapses to its direction icon; the name
+  // must not collapse with it.
+  it("names the display trigger for assistive tech", () => {
+    renderToolbar();
+    expect(screen.getByRole("button", { name: "Display" })).toBeTruthy();
+  });
 });
