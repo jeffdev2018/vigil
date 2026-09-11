@@ -8,6 +8,8 @@
     "archived_badge": "Archivé",
     "archived_hint": "Retiré des nouvelles assignations. Les issues déjà affectées le conservent.",
     "reorder_failed": "Impossible d'enregistrer le nouvel ordre.",
+    "load_error": "Impossible de charger les statuts.",
+    "retry": "Réessayer",
     "actions": {
       "open": "Actions pour {{name}}",
       "edit": "Modifier",
@@ -731,6 +733,8 @@
       "updated": "Mis à jour"
     },
     "usage_count": "{{count}} utilisations",
+    "load_error": "Impossible de charger les étiquettes.",
+    "retry": "Réessayer",
     "loading": "Chargement des étiquettes...",
     "empty": "Aucune étiquette {{scope}} pour le moment",
     "no_results": "Aucune étiquette correspondante",

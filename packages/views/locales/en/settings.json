@@ -8,6 +8,8 @@
     "archived_badge": "Archived",
     "archived_hint": "Retired from new assignments. Issues already on it keep it.",
     "reorder_failed": "Could not save the new order.",
+    "load_error": "Could not load issue statuses.",
+    "retry": "Retry",
     "actions": {
       "open": "Actions for {{name}}",
       "edit": "Edit",
@@ -693,6 +695,8 @@
       "updated": "Updated"
     },
     "usage_count": "{{count}} used",
+    "load_error": "Could not load labels.",
+    "retry": "Retry",
     "loading": "Loading labels...",
     "empty": "No {{scope}} labels yet",
     "no_results": "No matching labels",
