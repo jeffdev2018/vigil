@@ -95,6 +95,11 @@ func (h *Handler) CreateIssueFollowup(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): scheduling/cancelling a follow-up spawns real agent
+	// work on the issue, so it is a write, not a read.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req struct {
 		When    string `json:"when"`
 		Note    string `json:"note"`
@@ -161,6 +166,11 @@ func (h *Handler) CancelIssueFollowup(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	// Project roles (K60): scheduling/cancelling a follow-up spawns real agent
+	// work on the issue, so it is a write, not a read.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	followupID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "followupId"), "followup id")
