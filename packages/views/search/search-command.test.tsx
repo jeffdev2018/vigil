@@ -396,7 +396,6 @@ describe("SearchCommand", () => {
   });
 
   it("offers every workspace nav page, not a hand-maintained subset", async () => {
-    const user = userEvent.setup();
     renderSearch();
     const input = screen.getByPlaceholderText("Type a command or search...");
 
@@ -406,8 +405,7 @@ describe("SearchCommand", () => {
     // list this replaced had gone stale by four pages (MUL-6272).
     for (const page of Object.values(WORKSPACE_PAGES)) {
       const label = enLayout.nav[page.navKey];
-      await user.clear(input);
-      await user.type(input, label);
+      fireEvent.change(input, { target: { value: label } });
       expect(
         await screen.findByText(
           (_, el) => el?.textContent === label && el?.tagName === "SPAN",
