@@ -160,34 +160,40 @@ export default function MergeCaptureSheet() {
 
   const active = searching ? search : notes;
 
+  // The header goes through the list (sticky) instead of a sibling View:
+  // as a sibling the formSheet drew the rows over it (JEF-348 recette).
+  const header = (
+  <View className="gap-2 bg-background px-4 pb-2 pt-4">
+    <Text className="text-base font-semibold text-foreground">
+      Merge into…
+    </Text>
+      {capture.data ? (
+        <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+          {captureHeadline(capture.data)}
+        </Text>
+      ) : null}
+      <TextField
+        value={query}
+        onChangeText={onChangeQuery}
+        placeholder="Search notes"
+        accessibilityLabel="Search notes"
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+      />
+    </View>
+  );
+
   return (
     <View className="flex-1">
-      <View className="gap-2 px-4 pb-2 pt-4">
-        <Text className="text-base font-semibold text-foreground">
-          Merge into…
-        </Text>
-        {capture.data ? (
-          <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-            {captureHeadline(capture.data)}
-          </Text>
-        ) : null}
-        <TextField
-          value={query}
-          onChangeText={onChangeQuery}
-          placeholder="Search notes"
-          accessibilityLabel="Search notes"
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-        />
-      </View>
-
       <FlatList
         className="flex-1"
         data={rows}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="pb-8"
+        ListHeaderComponent={header}
+        stickyHeaderIndices={[0]}
         ListEmptyComponent={
           active.isLoading ? (
             <View className="py-8">
