@@ -278,7 +278,9 @@ describe("EvalLabTab", () => {
   it("renders an unknown status from a newer server without breaking", () => {
     state.runs = [run({ status: "quantum" as EvalRun["status"], score: null })];
     renderWithI18n(<EvalLabTab />);
-    expect(screen.getByTestId("eval-run-status").textContent).toBe("Unknown");
+    // Unknown-status fallback (humanize + muted tone) is StatusBadge's own
+    // contract, covered exhaustively in packages/views/common/status-badge.test.tsx.
+    expect(screen.getByTestId("eval-run-status").textContent).toBe("Quantum");
   });
 });
 
