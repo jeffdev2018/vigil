@@ -662,7 +662,7 @@
     "types_label": "적용 대상",
     "types_all": "모든 작업 항목 유형",
     "types_hint": "비워 두면 유형이 없는 이슈를 포함해 모든 곳에 적용됩니다.",
-    "types_count": "유형 {{count}}개",
+    "types_count_other": "유형 {{count}}개",
     "types_failed": "적용 범위를 저장하지 못했습니다."
   },
   "labels": {
@@ -907,6 +907,9 @@
     "rules_activate": "활성화",
     "rules_disable": "비활성화",
     "rules_remove": "규칙 삭제",
+    "rules_status_draft": "초안",
+    "rules_status_active": "활성",
+    "rules_status_disabled": "비활성",
     "rules_dry_run_clean": "드라이런: 오늘 차단되는 항목이 없습니다({{count}}개 확인).",
     "rules_dry_run_violations": "드라이런: {{checked}}개 중 {{count}}개가 오늘 차단됩니다.",
     "rules_failed": "규칙을 저장하지 못했습니다",
@@ -1791,6 +1794,11 @@
     "named_actors": "지정 {{count}}명",
     "needs_approval": "승인 필요",
     "disabled": "비활성",
+    "actor_type": {
+      "member": "멤버",
+      "agent": "에이전트",
+      "squad": "스쿼드"
+    },
     "editor": {
       "create_title": "새 전환 규칙",
       "edit_title": "전환 규칙 편집",
@@ -2056,6 +2064,7 @@
     }
   },
   "audit": {
+    "title": "감사 로그",
     "description": "이 워크스페이스의 모든 중요한 작업을 최신순으로 기록합니다: 결정 요청과 답변, 계획 승인, 상태 변경, 증거, 에이전트 롤백, 소유권 규칙, 브리핑, 설정. 항목은 수정되거나 삭제되지 않습니다.",
     "actor_type": "주체",
     "any_actor": "모두",

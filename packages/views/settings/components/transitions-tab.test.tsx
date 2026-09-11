@@ -75,22 +75,22 @@ describe("TransitionsTab", () => {
   it("summarises a rule as origin, target and who it grants", async () => {
     state.rules = [rule({ requires_approval: true })];
     render();
-    expect(await screen.findByText("in_progress → done")).toBeTruthy();
-    const summary = await screen.findByText(/Allowed: admin/);
+    expect(await screen.findByText("In Progress → Done")).toBeTruthy();
+    const summary = await screen.findByText(/Allowed: Admin/);
     expect(summary.textContent).toContain("needs approval");
   });
 
   it("reads any-origin as a named origin rather than an empty gap", async () => {
     state.rules = [rule({ from_category: null })];
     render();
-    expect(await screen.findByText("any status → done")).toBeTruthy();
+    expect(await screen.findByText("any status → Done")).toBeTruthy();
   });
 
   it("hides every write affordance from a plain member", async () => {
     state.rules = [rule()];
     state.role = "member";
     render();
-    await screen.findByText("in_progress → done");
+    await screen.findByText("In Progress → Done");
     expect(screen.queryByRole("button", { name: "Add rule" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit rule" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete rule" })).toBeNull();

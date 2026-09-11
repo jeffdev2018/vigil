@@ -662,7 +662,7 @@
     "types_label": "适用于",
     "types_all": "所有工作项类型",
     "types_hint": "留空则适用于所有议题，包括没有类型的议题。",
-    "types_count": "{{count}} 个类型",
+    "types_count_other": "{{count}} 个类型",
     "types_failed": "无法保存适用范围。"
   },
   "labels": {
@@ -907,6 +907,9 @@
     "rules_activate": "启用",
     "rules_disable": "停用",
     "rules_remove": "删除规则",
+    "rules_status_draft": "草稿",
+    "rules_status_active": "已启用",
+    "rules_status_disabled": "已停用",
     "rules_dry_run_clean": "试运行：今天不会阻止任何内容（已检查 {{count}} 项）。",
     "rules_dry_run_violations": "试运行：{{checked}} 项中有 {{count}} 项今天会被阻止。",
     "rules_failed": "无法保存规则",
@@ -1791,6 +1794,11 @@
     "named_actors": "指定 {{count}} 个",
     "needs_approval": "需要审批",
     "disabled": "已停用",
+    "actor_type": {
+      "member": "成员",
+      "agent": "智能体",
+      "squad": "小队"
+    },
     "editor": {
       "create_title": "新建流转规则",
       "edit_title": "编辑流转规则",
@@ -2056,6 +2064,7 @@
     }
   },
   "audit": {
+    "title": "审计日志",
     "description": "记录此工作区的每个重要操作，最新在前：决策的提出与回答、计划批准、状态变更、证明、智能体回滚、归属规则、简报、设置。条目不会被编辑或删除。",
     "actor_type": "操作者",
     "any_actor": "全部",

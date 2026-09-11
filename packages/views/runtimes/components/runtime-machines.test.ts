@@ -179,9 +179,10 @@ describe("runtime machine grouping", () => {
     const subtitle = machines[0]?.subtitle ?? "";
     expect(subtitle.toLowerCase()).not.toContain("claude code");
     expect(subtitle.toLowerCase()).not.toContain("codex-cli");
-    // Falls back to the daemon-id descriptor — at minimum it must not be
-    // the runtime CLI's marketing string.
-    expect(subtitle).toMatch(/^daemon /);
+    // Nothing readable is left, so the subtitle is empty and the row falls
+    // back to its translated "Local daemon" label (JEF-401): a truncated
+    // daemon id is not a subtitle either.
+    expect(subtitle).toBe("");
   });
 
   it("synthesizes a placeholder local machine when ensureLocalMachine is set and no runtime matches", () => {
@@ -380,7 +381,7 @@ describe("runtime machine grouping", () => {
     expect(machines[0]).toMatchObject({
       id: "cloud:runtime:cloud-1",
       title: "Codex cloud",
-      subtitle: "Cloud worker",
+      subtitle: null,
       section: "cloud",
     });
   });

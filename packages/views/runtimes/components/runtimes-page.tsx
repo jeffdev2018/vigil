@@ -472,7 +472,7 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
           {machine.title}
         </span>
         <span className="mt-1 flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-          <span className="truncate">
+          <span className="truncate" title={machine.daemonId ?? undefined}>
             {machine.subtitle ??
               (machine.section === "cloud"
                 ? t(($) => $.machine.metrics.cloud_worker)

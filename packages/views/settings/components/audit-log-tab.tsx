@@ -10,6 +10,7 @@ import type { AuditChainStatus, AuditLogFilter } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { useT, useTimeAgo } from "../../i18n";
+import { SettingsTab } from "./settings-layout";
 
 /**
  * Audit log (K08): the workspace's actions, newest first, filterable by
@@ -59,8 +60,8 @@ export function AuditLogTab() {
   }
 
   return (
+    <SettingsTab title={t(($) => $.audit.title)} description={t(($) => $.audit.description)}>
     <div data-testid="audit-log" className="flex flex-col gap-3 text-caption">
-      <p className="text-muted-foreground">{t(($) => $.audit.description)}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" variant="outline" disabled={verifying} onClick={() => void verify()}>
           {t(($) => $.audit.verify)}
@@ -120,8 +121,8 @@ export function AuditLogTab() {
                     {e.entity_type}
                     {e.entity_id ? ` ${e.entity_id.slice(0, 8)}` : ""}
                   </td>
-                  <td className="max-w-md truncate px-3 py-1.5 font-mono text-muted-foreground" title={JSON.stringify(e.details)}>
-                    {JSON.stringify(e.details)}
+                  <td className="max-w-md px-3 py-1.5 text-muted-foreground">
+                    <AuditDetails details={e.details} />
                   </td>
                 </tr>
               ))}
@@ -135,5 +136,39 @@ export function AuditLogTab() {
         </Button>
       )}
     </div>
+    </SettingsTab>
+  );
+}
+
+/** One audit value on a single line: scalars verbatim, nested data as JSON. */
+function detailValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/**
+ * Details as `key: value` pairs. Collapsed, the row shows the pairs on one
+ * truncated line; open, each pair gets its own wrapping line so nothing is
+ * cut off and nothing widens the table.
+ */
+function AuditDetails({ details }: { details: Record<string, unknown> }) {
+  const pairs = Object.entries(details ?? {});
+  if (pairs.length === 0) return <span>—</span>;
+  const inline = pairs.map(([k, v]) => `${k}: ${detailValue(v)}`).join(" · ");
+  return (
+    <details className="min-w-0">
+      <summary className="cursor-pointer list-none truncate" title={inline}>
+        {inline}
+      </summary>
+      <dl className="mt-1 flex flex-col gap-0.5">
+        {pairs.map(([k, v]) => (
+          <div key={k} className="flex gap-1.5 break-all">
+            <dt className="shrink-0 font-mono">{k}</dt>
+            <dd className="min-w-0">{detailValue(v)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   );
 }
