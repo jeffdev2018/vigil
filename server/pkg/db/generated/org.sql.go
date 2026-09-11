@@ -327,11 +327,16 @@ func (q *Queries) DeleteOrgStructure(ctx context.Context, arg DeleteOrgStructure
 }
 
 const getLatestOrgRoutingForIssue = `-- name: GetLatestOrgRoutingForIssue :one
-SELECT id, workspace_id, structure_id, unit_id, kind, issue_id, actor_type, actor_id, details, created_at FROM org_flow WHERE issue_id = $1 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1
+SELECT id, workspace_id, structure_id, unit_id, kind, issue_id, actor_type, actor_id, details, created_at FROM org_flow WHERE workspace_id = $1 AND issue_id = $2 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestOrgRoutingForIssue(ctx context.Context, issueID pgtype.UUID) (OrgFlow, error) {
-	row := q.db.QueryRow(ctx, getLatestOrgRoutingForIssue, issueID)
+type GetLatestOrgRoutingForIssueParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+}
+
+func (q *Queries) GetLatestOrgRoutingForIssue(ctx context.Context, arg GetLatestOrgRoutingForIssueParams) (OrgFlow, error) {
+	row := q.db.QueryRow(ctx, getLatestOrgRoutingForIssue, arg.WorkspaceID, arg.IssueID)
 	var i OrgFlow
 	err := row.Scan(
 		&i.ID,

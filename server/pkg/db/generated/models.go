@@ -3019,8 +3019,9 @@ type TriageItem struct {
 	OriginID    pgtype.UUID `json:"origin_id"`
 	ActorType   pgtype.Text `json:"actor_type"`
 	ActorID     pgtype.UUID `json:"actor_id"`
-	// Transport-level idempotency key (Idempotency-Key / X-GitHub-Delivery). Empty for unsigned senders; content_digest is the fallback then.
-	DedupeKey     string `json:"dedupe_key"`
+	// Transport-level idempotency key (Idempotency-Key / X-GitHub-Delivery). Empty for unsigned senders; queue collapse then relies on normalized_title alone (see uq_triage_item_pending_title).
+	DedupeKey string `json:"dedupe_key"`
+	// Unused. Always empty: as defined (hash of normalized_title + payload) it cannot distinguish anything uq_triage_item_pending_title does not already fold on normalized_title alone. Kept NOT NULL for schema stability only.
 	ContentDigest string `json:"content_digest"`
 	Title         string `json:"title"`
 	// lower(btrim(regexp_replace(title, '[[:space:]]+', ' ', 'g'))) — the same normalization issueguard uses, so queue collapse and issue duplicate detection agree.
