@@ -382,7 +382,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
       } catch (err) {
         if (!cancelled) {
           setRendered(null);
-          setError(err instanceof Error ? err.message : "Failed to render Mermaid diagram");
+          setError(err instanceof Error ? err.message : t(($) => $.mermaid.render_error_detail));
         }
       }
     }

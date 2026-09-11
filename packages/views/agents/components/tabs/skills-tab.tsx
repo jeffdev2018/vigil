@@ -238,9 +238,11 @@ export function SkillsTab({
 
       <CapabilitySection
         title={t(($) => $.tab_body.skills.runtime_title)}
-        description={t(($) => $.tab_body.skills.runtime_hint, {
-          runtime: runtime ? runtimeDisplayLabel(runtime) : "Runtime",
-        })}
+        description={
+          runtime
+            ? t(($) => $.tab_body.skills.runtime_hint, { runtime: runtimeDisplayLabel(runtime) })
+            : t(($) => $.tab_body.skills.runtime_hint_unset)
+        }
         action={
           runtimeId ? (
             <Button

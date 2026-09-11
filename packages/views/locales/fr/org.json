@@ -121,6 +121,7 @@
       "model": "Modèle",
       "name": "Nom",
       "unnamed": "Nommé d'après le modèle",
+      "members_one": "{{count}} membre",
       "members_other": "{{count}} membres",
       "open": "Ouvrir mon brouillon",
       "draft_note": "Rien n'est activé : le brouillon s'ouvre dans l'organigramme pour que vous l'ajustiez.",

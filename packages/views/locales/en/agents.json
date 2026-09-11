@@ -454,6 +454,7 @@
     "create_failed_toast": "Failed to create agent",
     "skill_attach_failed_toast": "Agent created, but failed to attach skills: {{error}}",
     "squad_join_failed_toast": "Agent \"{{name}}\" was created but couldn't join the squad: {{error}}. You can add it manually from Members.",
+    "squad_join_unknown_error": "Unknown error",
     "instructions": {
       "label": "Instructions",
       "placeholder_blank": "Click to write instructions…",
@@ -738,6 +739,7 @@
       "assigned_hint": "Workspace skills travel with the agent. Turn one off temporarily without removing it.",
       "runtime_title": "Inherited from runtime",
       "runtime_hint": "Discovered automatically from {{runtime}} and available whenever this agent runs there.",
+      "runtime_hint_unset": "Discovered automatically from the assigned runtime and available whenever this agent runs there.",
       "workspace_badge": "Workspace",
       "inherited_badge": "Inherited",
       "refresh_action": "Refresh",

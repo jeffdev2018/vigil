@@ -52,6 +52,9 @@ import { useT } from "../../i18n";
 // `dims` declares which dimensions each range is allowed in. 7 days at the
 // weekly grain is one bar, so 7d is daily-only; 180d is weekly-only because
 // 180 daily bars are visually unreadable.
+//
+// Labels are deliberately NOT localized — same rationale as the mirrored
+// list in packages/views/dashboard/components/dashboard-shared.tsx.
 const TIME_RANGES = [
   { days: 7, dims: ["daily"] as const },
   { days: 30, dims: ["daily", "weekly"] as const },

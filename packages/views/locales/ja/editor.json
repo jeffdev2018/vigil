@@ -54,6 +54,7 @@
   },
   "attachment": {
     "download_failed": "ダウンロードリンクを取得できませんでした。しばらくしてからもう一度お試しください。",
+    "preview_fallback_title": "HTML 添付ファイル",
     "preview": "プレビュー",
     "preview_loading": "プレビューを読み込み中…",
     "preview_failed": "プレビューを読み込めませんでした",
@@ -106,6 +107,7 @@
   "mermaid": {
     "diagram_label": "Mermaid 図",
     "render_error": "Mermaid ダイアグラムを描画できません。",
+    "render_error_detail": "ダイアグラムの描画に失敗しました。",
     "rendering": "ダイアグラムを描画中…",
     "viewer_title": "ダイアグラム",
     "canvas_label": "ダイアグラムキャンバス。ドラッグで移動、スクロールで拡大縮小できます。",

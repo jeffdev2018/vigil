@@ -144,7 +144,7 @@ function GoalFormDialog({ target, goals, onClose }: { target: FormTarget; goals:
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}</DialogTitle>
-            <DialogDescription className="sr-only">{t(($) => $.page.empty_description)}</DialogDescription>
+            <DialogDescription className="sr-only">{target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}</DialogDescription>
           </DialogHeader>
 
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">

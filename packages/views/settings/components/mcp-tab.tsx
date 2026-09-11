@@ -49,6 +49,7 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  */
 export function McpTab() {
   const { t } = useT("settings");
+  const { t: tCommon } = useT("common");
   const workspace = useCurrentWorkspace();
   const wsId = workspace?.id ?? "";
   const currentMember = useCurrentMember(wsId);
@@ -309,6 +310,7 @@ export function McpTab() {
                       configureAria: t(($) => $.mcp.replace_config),
                       remove: t(($) => $.mcp.remove_action),
                       removeAria: t(($) => $.mcp.remove_server),
+                      unknownTransport: tCommon(($) => $.unknown),
                     }}
                     onRenameStart={() => startRename(server)}
                     onConfigure={() => {
