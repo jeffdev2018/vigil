@@ -248,6 +248,8 @@ export function PacksTab() {
         kinds={kinds}
         installs={installs.data ?? []}
         isPending={installs.isPending}
+        isError={installs.isError}
+        onRetry={() => void installs.refetch()}
         onUpdate={(packId) => setOpenPackId(packId)}
       />
 
@@ -709,6 +711,8 @@ function InstalledSection({
   kinds,
   installs,
   isPending,
+  isError,
+  onRetry,
   onUpdate,
 }: {
   wsId: string;
@@ -716,6 +720,8 @@ function InstalledSection({
   kinds: LabelMap;
   installs: PackInstall[];
   isPending: boolean;
+  isError: boolean;
+  onRetry: () => void;
   onUpdate: (packId: string) => void;
 }) {
   const { t } = useT("settings");
@@ -760,6 +766,15 @@ function InstalledSection({
             <p role="status" className="text-caption text-muted-foreground">
               {t(($) => $.packs.catalogue.loading)}
             </p>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-start gap-2 px-4 py-3.5">
+            <p role="alert" className="text-caption text-destructive">
+              {t(($) => $.packs.installed.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              {t(($) => $.packs.installed.retry)}
+            </Button>
           </div>
         ) : installs.length === 0 ? (
           <div className="px-4 py-3.5">

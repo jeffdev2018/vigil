@@ -34,6 +34,8 @@ const state = vi.hoisted(() => ({
   catalogueError: false,
   detail: null as unknown,
   installs: [] as unknown[],
+  installsError: false,
+  refetchInstalls: vi.fn(),
   installDetail: null as unknown,
   previewData: null as unknown,
   uploadPreviewData: null as unknown,
@@ -61,7 +63,12 @@ vi.mock("@tanstack/react-query", () => ({
     if (kind === "detail")
       return { data: state.detail, isPending: false, isError: false, refetch: vi.fn() };
     if (kind === "installs")
-      return { data: state.installs, isPending: false, isError: false, refetch: vi.fn() };
+      return {
+        data: state.installs,
+        isPending: false,
+        isError: state.installsError,
+        refetch: state.refetchInstalls,
+      };
     if (kind === "install")
       return { data: state.installDetail, isPending: false, isError: false, refetch: vi.fn() };
     return { data: undefined, isPending: false, isError: false, refetch: vi.fn() };
@@ -218,6 +225,7 @@ beforeEach(() => {
   state.catalogueError = false;
   state.detail = { pack: pack(), contents: { labels: ["Bug"], views: ["Open tickets"] }, source: "pack:\n" };
   state.installs = [];
+  state.installsError = false;
   state.installDetail = null;
   state.previewData = null;
   state.uploadPreviewData = null;
@@ -417,6 +425,20 @@ describe("PacksTab installed", () => {
   it("shows the empty state when nothing is installed", () => {
     renderWithI18n(<PacksTab />);
     expect(screen.getByText("No pack installed yet.")).toBeTruthy();
+  });
+
+  // Regression: InstalledSection got `installs.data ?? []` and `isPending`
+  // only, never isError — a failed fetch rendered "No pack installed yet."
+  // on the one tab whose entire purpose is showing what is installed.
+  it("shows an error state with retry instead of a false empty list when the fetch fails", () => {
+    state.installsError = true;
+    renderWithI18n(<PacksTab />);
+
+    expect(screen.queryByText("No pack installed yet.")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not load installed packs.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchInstalls).toHaveBeenCalled();
   });
 });
 
