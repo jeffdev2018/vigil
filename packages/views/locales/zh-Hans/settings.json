@@ -2203,6 +2203,8 @@
     "suites_load_error": "无法加载套件。",
     "cases_empty_title": "暂无评测用例",
     "cases_empty_hint": "提升一个验收标准全部验证通过的已解决问题，创建第一个用例。",
+    "new_suite_waiting_title": "有了用例后表单才会打开",
+    "new_suite_waiting_hint": "第一个评估用例提升后，即可在这里为套件命名并挑选用例；在此之前没有可以分组的内容。",
     "cases_load_error": "无法加载评测用例。",
     "case_count": "{{n}} 个用例",
     "case_meta": "问题 #{{number}} · {{criteria}} 条标准",

@@ -29,6 +29,7 @@
   },
   "list": {
     "empty": "通知はありません",
+    "empty_hint": "コメント、割り当て、エージェントの更新がここに届きます。",
     "mark_done_tooltip": "完了にする",
     "archive_tooltip": "アーカイブ",
     "time": {
@@ -50,6 +51,8 @@
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
+    "select_prompt_hint": "左の通知を選ぶと内容を確認して対応できます。",
+    "empty_hint": "コメント、割り当て、エージェントの更新がここに届きます。",
     "empty": "インボックスは空です",
     "original_input": "元の入力",
     "retry_with_context": "コンテキストを保持して再試行",

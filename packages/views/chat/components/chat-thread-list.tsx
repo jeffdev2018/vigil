@@ -382,7 +382,10 @@ export function ChatThreadList({
                 className="size-3 shrink-0 -rotate-45 fill-current text-muted-foreground"
               />
             )}
-            <span className={cn("min-w-0 flex-1 truncate text-body", unread > 0 ? "font-semibold text-foreground" : "font-medium")}>
+            <span
+              title={titleText}
+              className={cn("min-w-0 flex-1 truncate text-body", unread > 0 ? "font-semibold text-foreground" : "font-medium")}
+            >
               {titleText}
             </span>
             <span className="ml-auto shrink-0 text-micro text-muted-foreground">{timeText}</span>
@@ -421,7 +424,7 @@ export function ChatThreadList({
                   <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-caption">
                     {agentName && (
                       <>
-                        <span className="max-w-[40%] shrink-0 truncate font-medium text-muted-foreground">
+                        <span title={agentName} className="max-w-[40%] shrink-0 truncate font-medium text-muted-foreground">
                           {agentName}
                         </span>
                         <span aria-hidden="true" className="shrink-0 text-faint-foreground">

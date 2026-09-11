@@ -195,9 +195,11 @@ export function EvalLabTab() {
               </Button>
             </div>
           ) : cases.length === 0 ? (
+            // The Suites card above already says how to get a first case; this
+            // section explains what will appear here instead of repeating it.
             <div className="py-4 text-center" data-testid="eval-cases-empty">
-              <p className="text-body font-medium">{t(($) => $.eval_lab.cases_empty_title)}</p>
-              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.cases_empty_hint)}</p>
+              <p className="text-body font-medium">{t(($) => $.eval_lab.new_suite_waiting_title)}</p>
+              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.new_suite_waiting_hint)}</p>
             </div>
           ) : (
             <form className="space-y-3" onSubmit={handleCreate} data-testid="eval-suite-form">

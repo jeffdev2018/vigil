@@ -31,6 +31,7 @@
   },
   "list": {
     "empty": "No notifications",
+    "empty_hint": "Comments, assignments and agent updates land here as they happen.",
     "mark_done_tooltip": "Mark as done",
     "archive_tooltip": "Archive",
     "time": {
@@ -52,6 +53,8 @@
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
+    "select_prompt_hint": "Pick a notification on the left to read it and act on it.",
+    "empty_hint": "Comments, assignments and agent updates land here as they happen.",
     "empty": "Your inbox is empty",
     "original_input": "Original input",
     "retry_with_context": "Retry with context",

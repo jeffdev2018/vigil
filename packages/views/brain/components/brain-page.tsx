@@ -223,6 +223,10 @@ export function BrainPage() {
                 setSelectedId(id);
                 setCreating(false);
               }}
+              onCreate={() => {
+                setCreating(true);
+                setSelectedId(null);
+              }}
             />
             {creating ? (
               <NoteCreate wsId={wsId} onDone={() => setCreating(false)} />
@@ -315,6 +319,7 @@ function NoteList({
   isFiltered,
   selectedId,
   onSelect,
+  onCreate,
 }: {
   items: WorkspaceNote[];
   /** Present only in search mode: the same notes, with their snippet. */
@@ -324,6 +329,7 @@ function NoteList({
   isFiltered: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onCreate: () => void;
 }) {
   const { t } = useT("brain");
   const timeAgo = useTimeAgo();
@@ -365,6 +371,14 @@ function NoteList({
           description={t(($) =>
             isFiltered ? $.list.empty_search_description : $.list.empty_description,
           )}
+          actions={
+            isFiltered ? undefined : (
+              <Button size="sm" onClick={onCreate}>
+                <Plus aria-hidden="true" className="size-3.5" />
+                {t(($) => $.create.new)}
+              </Button>
+            )
+          }
         />
       </div>
     );

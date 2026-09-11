@@ -212,7 +212,7 @@ export function RuntimeDetailPage({
               {t(($) => $.page.title)}
             </AppLink>
             <span aria-hidden="true">/</span>
-            <span className="truncate text-foreground">{machine.title}</span>
+            <span title={machine.title} className="truncate text-foreground">{machine.title}</span>
           </div>
 
           <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
