@@ -115,6 +115,12 @@ export function IconOtherOptionCard({
         if (!selected) onSelect();
       }}
       className={cn(selected && "border-primary/30 bg-primary/5")}
+      // Selected: the chip's own interactive role hands off to the input it
+      // now contains — rendering the root as a <div> (Base UI keeps the
+      // role/keyboard semantics from the props above) avoids a native
+      // <button> wrapping a native <input>, which is invalid HTML and
+      // fires the button's own click handler on every click into the field.
+      render={selected ? <div /> : undefined}
     >
       <span
         aria-hidden
