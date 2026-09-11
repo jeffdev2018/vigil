@@ -105,6 +105,17 @@ describe("AutopilotQuotaCard", () => {
     );
   });
 
+  // A failed fetch must not be silently swallowed into the same "nothing to
+  // show" state as an unlimited plan.
+  it("shows a discreet error line instead of nothing when the fetch fails", async () => {
+    mockGetAutopilotQuotaUsage.mockRejectedValue(new Error("network down"));
+
+    renderCard();
+
+    expect(await screen.findByTestId("autopilot-quota-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("autopilot-quota")).toBeNull();
+  });
+
   it("renders nothing when the workspace has no quota to report", async () => {
     // Enforcement off and an unlimited plan are both "no number to show".
     for (const over of [{ action: "off" as const }, { limit: null }]) {

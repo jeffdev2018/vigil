@@ -2,19 +2,23 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { IssueTypeEntry } from "@multica/core/types";
 import en from "../../locales/en/settings.json";
 import { IssueTypesTab } from "./issue-types-tab";
 
 const reorderMutate = vi.hoisted(() => vi.fn());
+const refetchIssueTypes = vi.hoisted(() => vi.fn());
 let catalog: IssueTypeEntry[] = [];
 let role: string = "owner";
+let issueTypesError = false;
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[] }) => ({
     data: options.queryKey[0] === "issue-types" ? catalog : members(),
     isLoading: false,
+    isError: options.queryKey[0] === "issue-types" ? issueTypesError : false,
+    refetch: refetchIssueTypes,
   }),
 }));
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -71,8 +75,10 @@ const BUG = entry({ id: "bug", key: "bug", name: "Bug", is_system: true, positio
 afterEach(() => {
   cleanup();
   reorderMutate.mockClear();
+  refetchIssueTypes.mockClear();
   catalog = [];
   role = "owner";
+  issueTypesError = false;
 });
 
 describe("IssueTypesTab", () => {
@@ -83,6 +89,15 @@ describe("IssueTypesTab", () => {
     expect(screen.getByText("Bug")).toBeTruthy();
     expect(screen.getByText("Spike")).toBeTruthy();
     expect(screen.getAllByText(en.issue_types.system_badge)).toHaveLength(1);
+  });
+
+  // A failed fetch must not look like a workspace with no types configured.
+  it("reports a load failure instead of the empty state, with a retry", () => {
+    issueTypesError = true;
+    render(<IssueTypesTab />);
+    expect(screen.getByText(en.issue_types.load_error)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: en.issue_types.retry }));
+    expect(refetchIssueTypes).toHaveBeenCalled();
   });
 
   it("offers type creation to an owner and withholds it from a member", () => {

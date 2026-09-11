@@ -92,6 +92,8 @@
     "copied": "コピーしました",
     "configured_since": "{{date}}から有効",
     "not_configured": "まだ公開されていません",
+    "load_error": "カレンダー公開設定を読み込めませんでした。",
+    "retry": "再試行",
     "mint_error": "リンクを発行できませんでした",
     "revoke_error": "リンクを取り消せませんでした",
     "google_title": "Google カレンダー",

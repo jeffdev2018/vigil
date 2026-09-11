@@ -92,6 +92,8 @@
     "copied": "Copied",
     "configured_since": "Active since {{date}}",
     "not_configured": "Not published yet",
+    "load_error": "Could not load calendar publishing settings.",
+    "retry": "Retry",
     "mint_error": "Could not mint the link",
     "revoke_error": "Could not revoke the link",
     "google_title": "Google Calendar",

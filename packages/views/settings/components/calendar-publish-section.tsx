@@ -28,7 +28,7 @@ export function CalendarPublishSection() {
   const { t } = useT("calendar-events");
   const { t: tSettings } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data: status, isLoading } = useQuery(feedTokenOptions(wsId));
+  const { data: status, isLoading, isError, refetch } = useQuery(feedTokenOptions(wsId));
   const mint = useMintCalendarFeedToken(wsId);
   const revoke = useRevokeCalendarFeedToken(wsId);
   const importGoogle = useImportGoogleCalendar(wsId);
@@ -95,6 +95,16 @@ export function CalendarPublishSection() {
           align="start"
           className="flex-col sm:flex-col sm:items-stretch sm:gap-3"
         >
+          {isError ? (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.publish.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.publish.retry)}
+              </Button>
+            </div>
+          ) : (
           <div className="flex flex-col gap-2">
             {mintedUrl ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -138,6 +148,7 @@ export function CalendarPublishSection() {
               ) : null}
             </div>
           </div>
+          )}
         </SettingsRow>
       </SettingsCard>
 

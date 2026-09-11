@@ -152,6 +152,7 @@
   "scorecards": {
     "title": "Agent scorecards · {{days}}D",
     "scope_note": "Workspace-wide, all projects · UTC days",
+    "load_error": "Could not load the agent scorecards.",
     "agent": "Agent",
     "runs": "Runs",
     "accepted": "Accepted",
@@ -159,12 +160,15 @@
     "reopened": "Reopened",
     "no_intervention": "No human",
     "mean_cost": "Mean cost",
-    "low_sample": "(few runs)"
+    "low_sample": "(few runs)",
+    "retry": "Retry"
   },
   "autopilot_quota": {
     "title": "Autopilot runs this period: {{used}} / {{limit}}",
+    "load_error": "Could not load the autopilot quota.",
     "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
-    "reached": "Limit reached — autopilots will not fire until the period resets."
+    "reached": "Limit reached — autopilots will not fire until the period resets.",
+    "retry": "Retry"
   },
   "workflow_outcomes": {
     "title": "Workflow outcomes",

@@ -27,11 +27,13 @@ const server = (over: Record<string, unknown>) => ({
 const data = vi.hoisted(() => ({
   servers: [] as Array<Record<string, unknown>>,
   isLoading: false,
+  isError: false,
   role: "owner" as "owner" | "admin" | "member",
+  refetch: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: data.servers, isLoading: data.isLoading }),
+  useQuery: () => ({ data: data.servers, isLoading: data.isLoading, isError: data.isError, refetch: data.refetch }),
 }));
 
 vi.mock("@multica/core/workspace/queries", () => ({
@@ -88,6 +90,7 @@ describe("McpTab", () => {
     vi.clearAllMocks();
     data.role = "owner";
     data.isLoading = false;
+    data.isError = false;
     data.servers = [
       server({ id: "srv-1", name: "linear", transport: "http" }),
       server({ id: "srv-2", name: "local-tool", transport: "stdio" }),
@@ -95,6 +98,18 @@ describe("McpTab", () => {
     mockCreate.mockResolvedValue({});
     mockUpdate.mockResolvedValue({});
     mockDelete.mockResolvedValue({});
+  });
+
+  // A failed fetch must not read as "no shared MCP servers" — that would
+  // invite adding a duplicate of a server that already exists.
+  it("reports a load failure instead of the empty state, with a retry", () => {
+    data.isError = true;
+    data.servers = [];
+    render(<McpTab />, { wrapper: Wrapper });
+    expect(screen.getByText(enSettings.mcp.load_error)).toBeInTheDocument();
+    expect(screen.queryByText(enSettings.mcp.empty_title)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: enSettings.mcp.retry }));
+    expect(data.refetch).toHaveBeenCalled();
   });
 
   it("shows each transport as visible text beside its labeled icon", async () => {

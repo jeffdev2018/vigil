@@ -84,4 +84,15 @@ describe("AgentScorecardsCard", () => {
 
     expect(container.querySelector('[data-testid="agent-scorecards"]')).toBeNull();
   });
+
+  // A failed fetch must not be silently swallowed into the same "nothing to
+  // show" state as a workspace with no runs yet.
+  it("shows a discreet error line instead of nothing when the fetch fails", async () => {
+    mockListWorkspaceScorecards.mockRejectedValue(new Error("network down"));
+
+    renderCard();
+
+    expect(await screen.findByTestId("agent-scorecards-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-scorecards")).toBeNull();
+  });
 });

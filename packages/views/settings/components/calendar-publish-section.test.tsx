@@ -12,6 +12,7 @@ import { CalendarPublishSection } from "./calendar-publish-section";
 
 const data = vi.hoisted(() => ({
   status: { configured: false } as { configured: boolean; created_at?: string },
+  statusError: null as Error | null,
   mint: vi.fn(async () => ({ url: "https://vigil.test/api/calendar/ics/mcal_abc", path: "/api/calendar/ics/mcal_abc" })),
   revoke: vi.fn(async () => undefined),
   importGoogle: vi.fn(async (_v: { from?: string; to?: string }) => ({ created: 2, updated: 1, seen: 3 })),
@@ -26,7 +27,10 @@ vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/calendar-events", () => ({
   feedTokenOptions: () => ({
     queryKey: ["calendar-events", "ws-1", "feed-token"],
-    queryFn: async () => data.status,
+    queryFn: async () => {
+      if (data.statusError) throw data.statusError;
+      return data.status;
+    },
   }),
   useMintCalendarFeedToken: () => ({
     mutate: (_v: undefined, opts?: { onSuccess?: (r: unknown) => void; onError?: (e: unknown) => void }) =>
@@ -60,6 +64,21 @@ describe("CalendarPublishSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     data.status = { configured: false };
+    data.statusError = null;
+  });
+
+  // A failed status fetch must not read as "not published yet": that hides a
+  // real backend problem behind a perfectly normal-looking empty state.
+  it("reports a load failure instead of the not-published state", async () => {
+    data.statusError = new Error("network down");
+    render();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(screen.queryByText(/not published yet/i)).toBeNull();
+
+    data.statusError = null;
+    data.status = { configured: true, created_at: "2026-09-01T00:00:00Z" };
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(await screen.findByRole("button", { name: /rotate link/i })).toBeTruthy();
   });
 
   it("mints a link and shows it once, with a hint that it will not be shown again", async () => {
