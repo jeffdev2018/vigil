@@ -35,7 +35,13 @@ import (
 const (
 	AuditAgentEffectReversed = "agent_effect.reversed"
 	AuditUndoSettings        = "undo.settings_updated"
-	InboxTypeUndoBreaker     = "agent_undo_breaker"
+	// AuditAgentEffectModeUpdated is distinct from AuditUndoSettings: a
+	// per-agent apply/preview toggle (agent_effect_preview.go) is not the
+	// same event as a workspace's undo window/breaker threshold, and mixing
+	// them under one audit kind made an admin filtering by kind see both
+	// shapes with no way to tell them apart without inspecting the payload.
+	AuditAgentEffectModeUpdated = "agent.effect_mode_updated"
+	InboxTypeUndoBreaker        = "agent_undo_breaker"
 )
 
 // effectActor is the run behind a task-token request: the only writes the

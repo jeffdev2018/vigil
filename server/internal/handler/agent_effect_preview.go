@@ -485,6 +485,6 @@ func (h *Handler) SetAgentEffectMode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update the effect mode")
 		return
 	}
-	h.audit(r.Context(), agent.WorkspaceID, "member", userID, AuditUndoSettings, "agent", agent.ID, map[string]any{"effect_mode": req.Mode, "from": agent.EffectMode}, nil)
+	h.audit(r.Context(), agent.WorkspaceID, "member", userID, AuditAgentEffectModeUpdated, "agent", agent.ID, map[string]any{"effect_mode": req.Mode, "from": agent.EffectMode}, nil)
 	writeJSON(w, http.StatusOK, map[string]any{"agent_id": uuidToString(agent.ID), "mode": updated.EffectMode})
 }
