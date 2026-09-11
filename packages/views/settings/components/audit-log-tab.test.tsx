@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AuditLogEntry } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -80,7 +81,9 @@ describe("AuditLogTab", () => {
   it("says the log is empty and exports with the same filter as the view", async () => {
     renderTab();
     expect(await screen.findByTestId("audit-empty")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Actor"), { target: { value: "agent" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Actor" }));
+    await user.click(await screen.findByRole("option", { name: "Agent" }));
     fireEvent.change(screen.getByLabelText("Action"), { target: { value: "decision.answered" } });
     expect(state.filters.at(-1)).toEqual({ actor_type: "agent", action: "decision.answered" });
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
