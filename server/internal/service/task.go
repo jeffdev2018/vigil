@@ -8706,9 +8706,13 @@ func agentToMap(a db.Agent) map[string]any {
 	}
 }
 
+// excerpt keeps at most n bytes of s without splitting a UTF-8 sequence.
 func excerpt(s string, n int) string {
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n]
 }
