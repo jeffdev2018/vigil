@@ -240,7 +240,10 @@ export default function ScheduleFollowupSheet() {
         ) : null}
 
         {/* Mobile has no autopilots screen; this is the one door to
-            "every Monday at 9…" on a phone. `replace` rather than `push` so
+            "every Monday at 9, send me the open tickets" on a phone. NOT the
+            same thing as "Make it recurring" on the issue itself, which files
+            this issue again (components/issue/recurrence-section.tsx) — this
+            one builds an autopilot that RUNS. `replace` rather than `push` so
             the flow stays one sheet deep instead of stacking a formSheet on
             a formSheet. */}
         <Pressable
@@ -250,10 +253,10 @@ export default function ScheduleFollowupSheet() {
               params: { workspace, id },
             })
           }
-          accessibilityLabel="Turn this into a recurring autopilot"
+          accessibilityLabel="Automate this on a schedule"
           className="self-start pt-2"
         >
-          <Text className="text-sm text-primary">Make it recurring…</Text>
+          <Text className="text-sm text-primary">Automate on a schedule…</Text>
         </Pressable>
       </ScrollView>
     </View>

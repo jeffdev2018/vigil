@@ -1,6 +1,10 @@
 /**
- * "Make it recurring…" (JEF-373) — turn a sentence into an autopilot,
+ * "Automate on a schedule" (JEF-373) — turn a sentence into an autopilot,
  * without leaving the issue.
+ *
+ * Not to be confused with "Make it recurring" on the issue itself
+ * (components/issue/recurrence-section.tsx), which files THIS issue again on
+ * a schedule. This sheet creates an autopilot: a standing job that RUNS.
  *
  * Mobile has no autopilots surface (managing them stays on web/desktop), so
  * this is the phone's only door to "every Monday at 9, send me the open
@@ -121,9 +125,14 @@ export default function ProposeAutopilotSheet() {
   return (
     <View className="flex-1">
       <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
-        <Text className="text-base font-semibold text-foreground">
-          Make it recurring
-        </Text>
+        <View className="flex-1 min-w-0 pr-2">
+          <Text className="text-base font-semibold text-foreground">
+            Automate on a schedule
+          </Text>
+          <Text className="text-xs text-muted-foreground">
+            Creates an autopilot from a sentence
+          </Text>
+        </View>
         <Pressable
           onPress={draft ? create : runDraft}
           disabled={draft ? !assigneeId || busy : !canDraft}
