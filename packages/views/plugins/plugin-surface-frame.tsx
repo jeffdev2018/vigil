@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { pluginSurfaceLaunchOptions } from "@multica/core/plugins";
 import type { PluginInstallation, PluginSurface } from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
+import { useThemeVersion } from "../common/use-theme-version";
 import { useT } from "../i18n";
 import { buildSurfaceFrameDocument, readThemeTokens } from "./surface-document";
 import { createSurfaceBridge } from "./surface-bridge";
@@ -97,6 +98,14 @@ export function PluginSurfaceFrame({ wsId, installation, surface, issueId, class
       frame.removeAttribute("srcdoc");
     };
   }, [bridge, surfaceDocument, surfaceInstance]);
+
+  // connect() hands the surface the theme once. A later light/dark switch
+  // re-reads the tokens and pushes them; before the guest connects this is a
+  // no-op, and connect() then sends the current tokens itself.
+  const themeVersion = useThemeVersion();
+  useEffect(() => {
+    bridge.pushTheme(readThemeTokens(anchorRef.current));
+  }, [bridge, themeVersion]);
 
   useEffect(() => {
     if (navigated) bridge.close();

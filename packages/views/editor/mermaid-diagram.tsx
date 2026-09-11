@@ -32,6 +32,7 @@ import { Check, Copy, Maximize2 } from "lucide-react";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { useT } from "../i18n";
 import { useDragToScroll } from "./hooks/use-drag-to-scroll";
+import { useThemeVersion } from "../common/use-theme-version";
 import { MermaidViewer } from "./mermaid-viewer";
 import type { Size } from "./utils/zoom-transform";
 
@@ -234,35 +235,6 @@ function buildViewerMermaidDocument(
   const cssVariables = getSandboxCssVariables(host);
 
   return `<!doctype html><html><head><style>:root { ${cssVariables} } html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; } svg { display: block; width: ${layout.width}px; height: ${layout.height}px; max-width: none; }</style></head><body>${svg}</body></html>`;
-}
-
-function useThemeVersion() {
-  const [themeVersion, setThemeVersion] = useState(0);
-
-  useEffect(() => {
-    const bumpThemeVersion = () => setThemeVersion((version) => version + 1);
-    const observer = new MutationObserver(bumpThemeVersion);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style", "data-theme"],
-    });
-    if (document.body) {
-      observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class", "style", "data-theme"],
-      });
-    }
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    mediaQuery.addEventListener("change", bumpThemeVersion);
-
-    return () => {
-      observer.disconnect();
-      mediaQuery.removeEventListener("change", bumpThemeVersion);
-    };
-  }, []);
-
-  return themeVersion;
 }
 
 /**
