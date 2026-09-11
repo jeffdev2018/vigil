@@ -17,6 +17,13 @@ import {
 } from "@multica/core/issues/watchdog";
 import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
@@ -67,17 +74,41 @@ export function WatchdogSection({ issueId, canManage = true }: { issueId: string
     <div data-testid="watchdog-form" className="flex flex-col gap-2">
       <label className="flex flex-col gap-0.5">
         <span className="text-muted-foreground">{t(($) => $.watchdog.agent)}</span>
-        <select aria-label={t(($) => $.watchdog.agent)} className="rounded border bg-background p-1" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-          <option value="">{t(($) => $.watchdog.pick_agent)}</option>
-          {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.watchdog.pick_agent) },
+            ...agents.map((a) => ({ value: a.id, label: a.name })),
+          ]}
+          value={agentId}
+          onValueChange={(value) => value !== null && setAgentId(value)}
+        >
+          <SelectTrigger size="sm" aria-label={t(($) => $.watchdog.agent)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.watchdog.pick_agent)}</SelectItem>
+            {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </label>
       <label className="flex flex-col gap-0.5">
         <span className="text-muted-foreground">{t(($) => $.watchdog.owner)}</span>
-        <select aria-label={t(($) => $.watchdog.owner)} className="rounded border bg-background p-1" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-          <option value="">{t(($) => $.watchdog.owner_me)}</option>
-          {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name || m.email || m.user_id}</option>)}
-        </select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.watchdog.owner_me) },
+            ...members.map((m) => ({ value: m.user_id, label: m.name || m.email || m.user_id })),
+          ]}
+          value={ownerId}
+          onValueChange={(value) => value !== null && setOwnerId(value)}
+        >
+          <SelectTrigger size="sm" aria-label={t(($) => $.watchdog.owner)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.watchdog.owner_me)}</SelectItem>
+            {members.map((m) => <SelectItem key={m.user_id} value={m.user_id}>{m.name || m.email || m.user_id}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </label>
       <label className="flex items-center gap-2">
         <span className="text-muted-foreground">{t(($) => $.watchdog.rest)}</span>
