@@ -240,6 +240,7 @@ function WakeupRow({
   followup: AgendaFollowup;
   wsSlug: string | null;
 }) {
+  const { colorScheme } = useColorScheme();
   return (
     <Pressable
       onPress={() =>
@@ -251,7 +252,7 @@ function WakeupRow({
       }
       className="flex-row items-start gap-2 px-3 py-2 active:opacity-70"
     >
-      <Ionicons name="alarm-outline" size={14} color="#71717a" />
+      <Ionicons name="alarm-outline" size={14} color={THEME[colorScheme].mutedForeground} />
       <View className="flex-1 min-w-0">
         <Text className="text-sm text-muted-foreground" numberOfLines={1}>
           Wake-up · {followup.agent_name || "Agent"} ·{" "}
@@ -284,7 +285,7 @@ function EventRow({ event, wsSlug }: { event: CalendarEventEntry; wsSlug: string
           isCancelled
             ? "bg-muted-foreground/40"
             : isProposed
-              ? "bg-amber-500"
+              ? "bg-warning"
               : "bg-brand",
         )}
       />
@@ -335,9 +336,10 @@ function IssueDueRow({ issue, wsSlug }: { issue: AgendaIssue; wsSlug: string | n
 }
 
 function MeetingRow({ meeting }: { meeting: AgendaMeeting }) {
+  const { colorScheme } = useColorScheme();
   return (
     <View className="flex-row items-center gap-2 px-3 py-2">
-      <Ionicons name="mic-outline" size={14} color="#71717a" />
+      <Ionicons name="mic-outline" size={14} color={THEME[colorScheme].mutedForeground} />
       <Text className="flex-1 text-sm text-muted-foreground" numberOfLines={1}>
         {meeting.title || "Meeting"}
       </Text>
