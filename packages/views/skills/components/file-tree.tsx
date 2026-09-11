@@ -297,10 +297,18 @@ function RenameRow({
 }) {
   const [value, setValue] = useState(node.path);
   const [error, setError] = useState("");
+  // Enter calls submit() and then onDone() unmounts this row — which can
+  // itself trigger the input's onBlur before the unmount completes, firing
+  // submit() a second time with the same (now-stale) value/node.path and
+  // double-submitting the rename. A per-instance guard makes submit()
+  // idempotent regardless of which path (Enter vs blur) gets there first.
+  const submittedRef = useRef(false);
 
   const submit = () => {
+    if (submittedRef.current) return;
     const next = value.trim();
     if (next === node.path) {
+      submittedRef.current = true;
       onDone();
       return;
     }
@@ -312,6 +320,7 @@ function RenameRow({
       setError(message);
       return;
     }
+    submittedRef.current = true;
     actions.onRename(node.path, next);
     onDone();
   };
