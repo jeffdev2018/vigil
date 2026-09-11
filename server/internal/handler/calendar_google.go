@@ -36,7 +36,7 @@ const (
 // calendar provider. The Composio-backed implementation is the only one;
 // the interface exists so tests can fake it.
 type CalendarExternalSync interface {
-	HasConnection(ctx context.Context, userID pgtype.UUID) bool
+	HasConnection(ctx context.Context, userID pgtype.UUID) (bool, error)
 	ListEvents(ctx context.Context, userID pgtype.UUID, from, to time.Time) ([]ExternalCalendarEvent, error)
 	CreateEvent(ctx context.Context, userID pgtype.UUID, e db.CalendarEvent) (externalID string, err error)
 }
@@ -62,7 +62,7 @@ func NewComposioCalendarSync(svc *composiointeg.Service) CalendarExternalSync {
 	return composioCalendarSync{svc: svc}
 }
 
-func (c composioCalendarSync) HasConnection(ctx context.Context, userID pgtype.UUID) bool {
+func (c composioCalendarSync) HasConnection(ctx context.Context, userID pgtype.UUID) (bool, error) {
 	return c.svc.HasConnection(ctx, userID, googleCalendarToolkit)
 }
 
@@ -190,7 +190,12 @@ func (h *Handler) exportCalendarEvent(ctx context.Context, e db.CalendarEvent, u
 		return
 	}
 	uid := parseUUID(userID)
-	if !h.CalendarSync.HasConnection(ctx, uid) {
+	connected, err := h.CalendarSync.HasConnection(ctx, uid)
+	if err != nil {
+		slog.Warn("calendar export: connection check failed", "event_id", uuidToString(e.ID), "error", err)
+		return
+	}
+	if !connected {
 		return
 	}
 	go func(ctx context.Context) {
@@ -264,7 +269,13 @@ func (h *Handler) ImportGoogleCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid := parseUUID(userID)
-	if !h.CalendarSync.HasConnection(r.Context(), uid) {
+	connected, err := h.CalendarSync.HasConnection(r.Context(), uid)
+	if err != nil {
+		slog.Warn("calendar google import: connection check failed", "error", err, "workspace_id", uuidToString(wsUUID))
+		writeError(w, http.StatusBadGateway, "failed to check Google Calendar connection")
+		return
+	}
+	if !connected {
 		writeErrorCode(w, http.StatusConflict, "no_google_connection", "connect Google Calendar under Settings → Integrations → Composio first")
 		return
 	}

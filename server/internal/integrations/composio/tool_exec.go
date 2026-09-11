@@ -56,16 +56,19 @@ func (s *Service) ExecuteToolForUser(ctx context.Context, userID pgtype.UUID, to
 	return resp.Data, nil
 }
 
-// HasConnection reports whether the user holds an active connection for the toolkit.
-func (s *Service) HasConnection(ctx context.Context, userID pgtype.UUID, toolkitSlug string) bool {
+// HasConnection reports whether the user holds an active connection for the
+// toolkit. A store error is returned rather than swallowed: callers must be
+// able to tell "not connected" from "couldn't check" instead of treating a
+// transient store failure as if the user were simply disconnected.
+func (s *Service) HasConnection(ctx context.Context, userID pgtype.UUID, toolkitSlug string) (bool, error) {
 	rows, err := s.store.ListActiveUserComposioConnections(ctx, userID)
 	if err != nil {
-		return false
+		return false, err
 	}
 	for _, row := range rows {
 		if strings.EqualFold(strings.TrimSpace(row.ToolkitSlug), toolkitSlug) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }

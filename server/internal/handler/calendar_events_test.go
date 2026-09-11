@@ -7,6 +7,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -350,11 +351,17 @@ func TestCalendarRemindersFireOnceBeforeTheStart(t *testing.T) {
 
 type fakeCalendarSync struct {
 	connected bool
+	connErr   error
 	events    []ExternalCalendarEvent
 	created   []db.CalendarEvent
 }
 
-func (f *fakeCalendarSync) HasConnection(context.Context, pgtype.UUID) bool { return f.connected }
+func (f *fakeCalendarSync) HasConnection(context.Context, pgtype.UUID) (bool, error) {
+	if f.connErr != nil {
+		return false, f.connErr
+	}
+	return f.connected, nil
+}
 func (f *fakeCalendarSync) ListEvents(context.Context, pgtype.UUID, time.Time, time.Time) ([]ExternalCalendarEvent, error) {
 	return f.events, nil
 }
@@ -408,6 +415,24 @@ func TestGoogleImportAndExportThroughTheProvider(t *testing.T) {
 	}
 	fake.connected = false
 	testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import", map[string]any{})).Want(http.StatusConflict)
+}
+
+// A store error checking the connection must not read as "not connected":
+// HasConnection distinguishes the two so the import endpoint returns 502
+// instead of lying with the 409 no_google_connection code.
+func TestGoogleImportConnectionCheckErrorIsNotNoConnection(t *testing.T) {
+	calendarCleanup(t)
+	prev := testHandler.CalendarSync
+	fake := &fakeCalendarSync{connErr: errors.New("composio store unavailable")}
+	testHandler.CalendarSync = fake
+	t.Cleanup(func() { testHandler.CalendarSync = prev })
+
+	resp := testutil.Call(t, testHandler.ImportGoogleCalendar, newRequest(http.MethodPost, "/api/calendar/google/import", map[string]any{})).Want(http.StatusBadGateway)
+	var body map[string]any
+	resp.JSON(&body)
+	if code, _ := body["code"].(string); code == "no_google_connection" {
+		t.Fatalf("store error read as no_google_connection: %+v", body)
+	}
 }
 
 // ImportGoogleCalendar batches its creates and updates into one statement
