@@ -256,7 +256,13 @@ export function ExportImportSetting({ canEdit }: { canEdit: boolean }) {
                 <span className="min-w-0 truncate">{run.name || run.source_name}</span>
                 {run.template === true && <Badge variant="secondary">{t(($) => $.transfer.template_badge)}</Badge>}
                 <span className="text-muted-foreground">{t(($) => $.transfer[`status_${run.status}`])}</span>
-                {run.direction === "import" && run.strategy && <span className="text-muted-foreground">{run.strategy}</span>}
+                {run.direction === "import" && run.strategy && (
+                  <span className="text-muted-foreground">
+                    {run.strategy === "rename" || run.strategy === "merge" || run.strategy === "skip"
+                      ? t(($) => $.transfer[`strategy_${run.strategy as TransferStrategy}`])
+                      : run.strategy}
+                  </span>
+                )}
                 <span className="text-muted-foreground">{timeAgo(run.created_at)}</span>
               </div>
             ))}

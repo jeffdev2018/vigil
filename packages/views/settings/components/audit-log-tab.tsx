@@ -20,6 +20,23 @@ import { SettingsTab } from "./settings-layout";
  * actor type and action, exportable as CSV or JSON with the same filter.
  * The export streams from the server and is saved by the browser.
  */
+// Same 3 values the filter dropdown offers below — kept as a lookup rather
+// than a second t($) => switch so the two never drift. A server-driven
+// actor_type this build does not know about (workspace.ts's `(string & {})`
+// escape hatch) falls back to the raw value instead of an empty label.
+function actorTypeLabel(actorType: string, t: ReturnType<typeof useT<"settings">>["t"]): string {
+  switch (actorType) {
+    case "member":
+      return t(($) => $.audit.actor_member);
+    case "agent":
+      return t(($) => $.audit.actor_agent);
+    case "system":
+      return t(($) => $.audit.actor_system);
+    default:
+      return actorType;
+  }
+}
+
 export function AuditLogTab() {
   const { t } = useT("settings");
   const timeAgo = useTimeAgo();
@@ -128,7 +145,7 @@ export function AuditLogTab() {
                 <tr key={e.id} data-testid="audit-row" className="border-t align-top">
                   <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground" title={e.occurred_at}>{timeAgo(e.occurred_at)}</td>
                   <td className="whitespace-nowrap px-3 py-1.5">
-                    {e.actor_type}
+                    {actorTypeLabel(e.actor_type, t)}
                     {e.approver_id && <span className="text-muted-foreground"> · {t(($) => $.audit.approved)}</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono">{e.action}</td>

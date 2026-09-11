@@ -62,6 +62,7 @@ export function BusinessRuleForm({
   onActivated?: () => void;
 }) {
   const { t } = useT("settings");
+  const { t: tIssues } = useT("issues");
   const attachLabel = useAttachPointLabel();
   const create = useCreateBusinessRule(wsId);
   const dryRun = useDryRunBusinessRule();
@@ -169,7 +170,7 @@ export function BusinessRuleForm({
                 <Select
                   items={[
                     { value: "", label: t(($) => $.workspace.rules_action_priority_keep) },
-                    ...ISSUE_PRIORITIES.map((p) => ({ value: p, label: p })),
+                    ...ISSUE_PRIORITIES.map((p) => ({ value: p, label: tIssues(($) => $.priority[p]) })),
                   ]}
                   value={actionPriority}
                   onValueChange={(value) => setActionPriority(value ?? "")}
@@ -178,7 +179,7 @@ export function BusinessRuleForm({
                   <SelectContent>
                     <SelectItem value="">{t(($) => $.workspace.rules_action_priority_keep)}</SelectItem>
                     {ISSUE_PRIORITIES.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                      <SelectItem key={p} value={p}>{tIssues(($) => $.priority[p])}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

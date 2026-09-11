@@ -114,7 +114,9 @@ describe("BusinessRulesSetting", () => {
     await pickOption(user, "Applies when", /webhook delivery/i);
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical becomes P0 for the oncall bot" } });
     await pickOption(user, "Then", "accept it as an issue");
-    await pickOption(user, "Priority", "urgent");
+    // The dropdown shows the translated priority label now (Urgent), the
+    // value it submits is still the lowercase wire value ("urgent").
+    await pickOption(user, "Priority", "Urgent");
     fireEvent.click(await screen.findByRole("button", { name: "pick agent" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(state.created[0]).toEqual({
