@@ -135,13 +135,17 @@
     "hint": "{{count}} 个已关闭 · 平均 ${{mean}}",
     "floor": "部分用量未定价",
     "none": "此期间没有",
-    "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。"
+    "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。",
+    "load_error": "无法加载每项交付成果的成本。",
+    "retry": "重试"
   },
   "agent_roi": {
     "title": "各智能体 ROI · {{days}} 天",
     "headline": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}；{{second}} 为 {{cost2}}",
     "headline_single": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}",
     "empty": "最近 {{days}} 天内没有智能体活动。",
+    "load_error": "无法加载智能体投资回报率。",
+    "retry": "重试",
     "agent": "智能体",
     "issues": "已关闭议题",
     "prs": "已合并 PR",
