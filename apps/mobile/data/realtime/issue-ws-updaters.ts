@@ -618,6 +618,15 @@ export function patchIssueLabels(
  * most fields but use different actor-key names (Comment uses
  * `author_type/author_id`; TimelineEntry uses `actor_type/actor_id`).
  */
+/**
+ * True when a comment:created payload cannot be appended to the timeline
+ * as-is: the server only sent identifiers (no actor, no timestamp), so
+ * the entry must come from a refetch.
+ */
+export function isPartialCommentPayload(comment: Partial<Comment>): boolean {
+  return !comment.created_at || !comment.author_type;
+}
+
 export function commentToTimelineEntry(comment: Comment): TimelineEntry {
   return {
     type: "comment",

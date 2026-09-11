@@ -57,6 +57,7 @@ import {
   clearIssueDetail,
   commentToTimelineEntry,
   invalidateIssueAfterReconnect,
+  isPartialCommentPayload,
   patchIssueDetail,
   patchIssueLabels,
   patchIssuesList,
@@ -152,12 +153,21 @@ export function useIssueRealtime(
         // ----- Comments / activity -----
         ws.on("comment:created", (payload) => {
           if (payload.comment.issue_id !== issueId) return;
-          appendTimelineEntry(
-            qc,
-            wsId,
-            issueId,
-            commentToTimelineEntry(payload.comment),
-          );
+          if (isPartialCommentPayload(payload.comment)) {
+            // Older backends broadcast only {id, issue_id} from some
+            // paths (goal loop, native tools): appending that would render
+            // an empty "System · Invalid Date" entry. Refetch instead.
+            qc.invalidateQueries({
+              queryKey: issueKeys.timeline(wsId, issueId),
+            });
+          } else {
+            appendTimelineEntry(
+              qc,
+              wsId,
+              issueId,
+              commentToTimelineEntry(payload.comment),
+            );
+          }
           onIssueAuxiliaryRevision(qc, wsId, issueId, payload.issue_revision);
         }),
         ws.on("comment:updated", (payload) => {

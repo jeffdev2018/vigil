@@ -9,6 +9,7 @@ import {
   addIssueReaction,
   onIssueAuxiliaryRevision,
   invalidateIssueAfterReconnect,
+  isPartialCommentPayload,
   patchIssueDetail,
   patchIssueLabels,
   removeIssueReaction,
@@ -297,5 +298,21 @@ describe("mobile issue revision gates", () => {
     addIssueReaction(qc, wsId, issueId, reaction, 2);
 
     expect(qc.getQueryData<Issue>(key)?.reactions).toEqual([]);
+  });
+});
+
+describe("isPartialCommentPayload", () => {
+  it("flags an id-only broadcast so the hook refetches instead of appending", () => {
+    expect(isPartialCommentPayload({ id: "c1", issue_id: "i1" })).toBe(true);
+    expect(
+      isPartialCommentPayload({
+        id: "c1",
+        issue_id: "i1",
+        author_type: "agent",
+        author_id: "a1",
+        created_at: "2026-09-11T01:13:27Z",
+        content: "Question for the team",
+      }),
+    ).toBe(false);
   });
 });
