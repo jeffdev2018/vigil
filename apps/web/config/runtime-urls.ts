@@ -119,34 +119,27 @@ export function runtimeRewriteDestination(
     return docsUrl ? appendPath(docsUrl, pathname) : undefined;
   }
 
+  if (!isBackendPath(pathname)) return undefined;
   const remoteApiUrl = resolveRemoteApiUrl(env);
-  if (!remoteApiUrl) return undefined;
+  return remoteApiUrl ? appendPath(remoteApiUrl, pathname) : undefined;
+}
 
-  if (pathname === "/v1" || pathname.startsWith("/v1/")) {
-    return appendPath(remoteApiUrl, pathname);
-  }
-  if (pathname === "/api" || pathname.startsWith("/api/")) {
-    return appendPath(remoteApiUrl, pathname);
-  }
-  if (pathname === "/uploads" || pathname.startsWith("/uploads/")) {
-    return appendPath(remoteApiUrl, pathname);
-  }
-  if (pathname === "/ws") {
-    return appendPath(remoteApiUrl, "/ws");
-  }
+/**
+ * Paths the Go backend serves (proxied by Next when it fronts the API). Their
+ * responses carry the backend's own security headers.
+ */
+export function isBackendPath(pathname: string): boolean {
+  if (pathname === "/v1" || pathname.startsWith("/v1/")) return true;
+  if (pathname === "/api" || pathname.startsWith("/api/")) return true;
+  if (pathname === "/uploads" || pathname.startsWith("/uploads/")) return true;
+  if (pathname === "/ws") return true;
   // `multica setup self-host` probes `{server-url}/health` and treats any
   // non-200 as "Server not reachable". The backend serves it, but a
   // same-origin reverse proxy that forwards everything to the web image left
   // the probe 404ing at the Next.js router, so setup failed against a healthy
   // stack. Proxy the exact path like /ws.
-  if (pathname === "/health") {
-    return appendPath(remoteApiUrl, "/health");
-  }
-  if (isBackendAuthPath(pathname)) {
-    return appendPath(remoteApiUrl, pathname);
-  }
-
-  return undefined;
+  if (pathname === "/health") return true;
+  return isBackendAuthPath(pathname);
 }
 
 function isBackendAuthPath(pathname: string): boolean {
