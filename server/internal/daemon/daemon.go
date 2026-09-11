@@ -5766,7 +5766,15 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 
 	// Pause (K19): the run stopped at a boundary on a human's request. Report
 	// where the session lives and leave the result to the resumed run.
-	if pauseCtl.paused() {
+	//
+	// Except when worktree Finalize could not complete: the agent's work then
+	// lives only in the preserved worktree, the error names it, and a pause ack
+	// has nowhere to put it. Fall through so the run fails with that error, as
+	// the same finalize failure does on the completion path.
+	var preservedOnPause *worktreePreservedError
+	if pauseCtl.paused() && errors.As(err, &preservedOnPause) {
+		taskLog.Warn("pause requested but the worktree could not be finalized; reporting the failure instead of the pause", "error", err)
+	} else if pauseCtl.paused() {
 		select {
 		case <-cancelledByPoll:
 		default:

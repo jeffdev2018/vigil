@@ -6044,3 +6044,49 @@ func TestHermesProfileChainCoversLaunchPrefix(t *testing.T) {
 		t.Errorf("custom = %v, want only the selector removed", strippedCustom)
 	}
 }
+
+// A paused worktree run whose Finalize could not complete keeps its work only in
+// the preserved worktree, and the error naming it is the one pointer to that
+// work. Acking the pause dropped it; the run must fail with it instead, as the
+// same finalize failure does on every other path.
+func TestHandleTask_PauseWithPreservedWorktreeReportsTheFailure(t *testing.T) {
+	t.Parallel()
+
+	var paths sync.Map
+	var failBody atomic.Value
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		paths.Store(req.URL.Path, true)
+		if strings.HasSuffix(req.URL.Path, "/fail") {
+			var body map[string]any
+			_ = json.NewDecoder(req.Body).Decode(&body)
+			failBody.Store(body)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	d := &Daemon{
+		client:             NewClient(srv.URL),
+		logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		runtimeIndex:       map[string]Runtime{"rt-1": {ID: "rt-1", Provider: "codex"}},
+		cancelPollInterval: time.Hour,
+	}
+	const taskID = "task-pause-preserved"
+	d.runner = taskRunnerFunc(func(runCtx context.Context, _ Task, _ string, _ int, _ *slog.Logger) (TaskResult, error) {
+		pause := d.pauseControlFor(taskID)
+		pause.request(runCtx)
+		pause.atBoundary()
+		<-runCtx.Done()
+		return TaskResult{}, &worktreePreservedError{err: errors.New("local_directory worktree: uncommitted work kept at /wt/task")}
+	})
+
+	d.handleTask(context.Background(), Task{ID: taskID, RuntimeID: "rt-1"}, 0)
+
+	if _, acked := paths.Load("/api/daemon/tasks/" + taskID + "/paused"); acked {
+		t.Fatal("the run was acked as paused; the preserved worktree error was dropped")
+	}
+	body, _ := failBody.Load().(map[string]any)
+	if msg, _ := body["error"].(string); !strings.Contains(msg, "/wt/task") {
+		t.Fatalf("fail body = %v, want the preserved worktree error", body)
+	}
+}
