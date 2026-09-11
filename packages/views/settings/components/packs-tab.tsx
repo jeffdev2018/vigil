@@ -47,8 +47,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Markdown } from "@multica/ui/markdown";
 import { cn } from "@multica/ui/lib/utils";
@@ -77,9 +81,6 @@ import {
  * client-side either: the server previews an upload and tells us the
  * collisions, the problems and which strategy it picked.
  */
-
-const SELECT_CLASS =
-  "h-8 w-full rounded-md border border-input bg-transparent px-2 text-caption";
 
 const PREREQUISITE_TONE: Record<string, string> = {
   met: "bg-success/10 text-success",
@@ -443,22 +444,28 @@ function PreviewPanel({
         <Label htmlFor="pack-strategy" className="text-caption">
           {t(($) => $.packs.preview.strategy)}
         </Label>
-        <select
-          id="pack-strategy"
-          className={SELECT_CLASS}
+        <Select
+          items={strategies.map((s) => ({
+            value: s,
+            label: labelFor(t(($) => $.packs.strategies, { returnObjects: true }) as LabelMap, s),
+          }))}
           value={strategy}
-          disabled={!canManage || installing}
-          onChange={(e) => onStrategyChange(e.target.value as PackStrategy)}
+          onValueChange={(value) => value && onStrategyChange(value as PackStrategy)}
         >
-          {strategies.map((s) => (
-            <option key={s} value={s}>
-              {labelFor(
-                t(($) => $.packs.strategies, { returnObjects: true }) as LabelMap,
-                s,
-              )}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="pack-strategy" size="sm" className="w-full" disabled={!canManage || installing}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {strategies.map((s) => (
+              <SelectItem key={s} value={s}>
+                {labelFor(
+                  t(($) => $.packs.strategies, { returnObjects: true }) as LabelMap,
+                  s,
+                )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <p className="text-caption text-muted-foreground">
           {labelFor(
             t(($) => $.packs.strategy_help, { returnObjects: true }) as LabelMap,
@@ -1118,19 +1125,22 @@ function ExportSection({
               disabled={!canManage}
               onChange={(e) => setSummary(e.target.value)}
             />
-            <select
-              aria-label={t(($) => $.packs.export.domain)}
-              className={SELECT_CLASS}
+            <Select
+              items={options.map((key) => ({ value: key, label: labelFor(domainLabels, key) }))}
               value={selectedDomain}
-              disabled={!canManage}
-              onChange={(e) => setDomain(e.target.value)}
+              onValueChange={(value) => value && setDomain(value)}
             >
-              {options.map((key) => (
-                <option key={key} value={key}>
-                  {labelFor(domainLabels, key)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={t(($) => $.packs.export.domain)} size="sm" className="w-full" disabled={!canManage}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {labelFor(domainLabels, key)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               aria-label={t(($) => $.packs.export.metric_label)}
               placeholder={t(($) => $.packs.export.metric_label)}
@@ -1146,29 +1156,26 @@ function ExportSection({
               onChange={(e) => setMetricDescription(e.target.value)}
             />
             <label className="flex items-center gap-2 text-caption">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={includeIssues}
                 disabled={!canManage}
-                onChange={(e) => setIncludeIssues(e.target.checked)}
+                onCheckedChange={(v) => setIncludeIssues(v === true)}
               />
               {t(($) => $.packs.export.include_issues)}
             </label>
             <label className="flex items-center gap-2 text-caption">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={includeNotes}
                 disabled={!canManage}
-                onChange={(e) => setIncludeNotes(e.target.checked)}
+                onCheckedChange={(v) => setIncludeNotes(v === true)}
               />
               {t(($) => $.packs.export.include_notes)}
             </label>
             <label className="flex items-center gap-2 text-caption">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={includeSkills}
                 disabled={!canManage}
-                onChange={(e) => setIncludeSkills(e.target.checked)}
+                onCheckedChange={(v) => setIncludeSkills(v === true)}
               />
               {t(($) => $.packs.export.include_skills)}
             </label>
