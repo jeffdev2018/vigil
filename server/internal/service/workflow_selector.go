@@ -263,13 +263,25 @@ func chooseWorkflow(options []workflowOption, rnd *rand.Rand) string {
 // excluded by the router's floor guard. A candidate without cost data cannot
 // be "the cheapest", so it never qualifies. False means the cascade cannot
 // start cheap and the caller falls back to normal routing.
+//
+// Same fences as the escalation hop (pickEscalationRuntime): only an
+// auto-routed agent may start on a runtime it is not bound to — for any other
+// routing mode the claim fence refuses the task and it sits queued forever —
+// and a runtime the data residency policy (K46) rejects is no candidate.
 func (s *TaskService) cheapCascadeCandidate(ctx context.Context, agent db.Agent, taskClass string) (pgtype.UUID, bool) {
+	if agent.RuntimeRouting != RoutingModeAuto {
+		return pgtype.UUID{}, false
+	}
 	runtimes, err := s.Queries.ListRoutingCandidateRuntimes(ctx, db.ListRoutingCandidateRuntimesParams{
 		WorkspaceID:      agent.WorkspaceID,
 		OwnerID:          agent.OwnerID,
 		RuntimeStaleSecs: RuntimeClaimFreshnessSeconds,
 	})
 	if err != nil || len(runtimes) == 0 {
+		return pgtype.UUID{}, false
+	}
+	runtimes, _ = partitionCompliantRuntimes(runtimes, s.compliantRuntimeFilter(ctx, agent.WorkspaceID))
+	if len(runtimes) == 0 {
 		return pgtype.UUID{}, false
 	}
 	stats, err := s.Queries.GetRoutingStats(ctx, db.GetRoutingStatsParams{
