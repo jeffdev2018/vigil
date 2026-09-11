@@ -15,7 +15,9 @@ package agent
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -181,5 +183,34 @@ done
 	// The override has to be what fired, not the 15s default.
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("provider timeout was ignored; handshake ran for %s", elapsed)
+	}
+}
+
+// TestDiscoverACPModelsClosesItsPipes guards the descriptors the probe opens.
+// Reaping with os.Process.Wait leaves exec.Cmd's pipe read ends open until a
+// finalizer runs, and discovery runs on a schedule, so a long-lived daemon
+// accumulated descriptors between collections. Not parallel, and GC is off, so
+// neither another test's descriptors nor a finalizer can move the count.
+func TestDiscoverACPModelsClosesItsPipes(t *testing.T) {
+	fakePath := filepath.Join(t.TempDir(), "hermes")
+	writeTestExecutable(t, fakePath, []byte(hermesACPCatalogScript()))
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+
+	openFDs := func() int {
+		entries, err := os.ReadDir("/dev/fd")
+		if err != nil {
+			t.Skipf("cannot list open descriptors: %v", err)
+		}
+		return len(entries)
+	}
+	before := openFDs()
+	const runs = 10
+	for i := 0; i < runs; i++ {
+		if _, err := discoverHermesModels(context.Background(), Command{Path: fakePath}); err != nil {
+			t.Fatalf("discover hermes models: %v", err)
+		}
+	}
+	if leaked := openFDs() - before; leaked >= runs {
+		t.Fatalf("%d descriptors still open after %d discoveries", leaked, runs)
 	}
 }
