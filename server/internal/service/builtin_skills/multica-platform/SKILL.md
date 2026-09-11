@@ -19,7 +19,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 
 | Open | When the task is about |
 |---|---|
-| `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running |
+| `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running, making an issue recur |
 | `references/racing.md` | Racing attempts: queueing 2-5 concurrent runs on one issue, reading their diffs, settling on a winner or abandoning the race |
 | `references/pr-walkthrough.md` | Answering a pull request walkthrough run: the `pr_walkthrough` block, the group kinds, anchoring an explanation to a hunk |
 | `references/review-flags.md` | Recording a review flag: what each severity means, when to state a confidence, the per-run cap, what a moving head does to a flag |
@@ -28,7 +28,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |
 | `references/autopilots.md` | Autopilots: schedule / webhook / manual triggers, `create_issue` vs `run_only`, why one did not fire |
-| `references/wakeups.md` | Moving work into the future: a follow-up (one deferred wake-up of this issue's agent, with a note and a daily budget), or an autopilot proposed from a sentence and left paused until a person activates it |
+| `references/wakeups.md` | Moving work into the future: a follow-up (one deferred wake-up of this issue's agent, with a note and a daily budget), a recurring issue (a rule that respawns it on a cron or when it closes; members only), or an autopilot proposed from a sentence and left paused until a person activates it |
 | `references/daemon-markdown.md` | A daemon declared as a `DAEMON.md` file: the frontmatter schema, importing and exporting one, and the execution memory a daemon keeps between its runs |
 | `references/projects.md` | Projects and their durable resources (`github_repo`, `local_directory`, worktree mode) |
 | `references/cycles.md` | Planning an issue into a dated cycle: which cycle it may join, what the capacity and burndown numbers mean, what rollover does at the end |

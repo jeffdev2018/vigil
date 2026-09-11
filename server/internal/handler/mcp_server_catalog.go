@@ -21,7 +21,7 @@ import (
 // the same decisions and the same dispatch.
 //
 // Deliberately absent (the "never exposed" list, after OpenMausBot's
-// bounded control API): deletes, member and role management, secrets and
+// bounded control API): deletes of content, member and role management, secrets and
 // agent environments, approval and gate resolution, billing and spend
 // redemption, workspace settings. A client that needs them has a person
 // open the app. The single exception is note_capture_delete: a client that
@@ -133,6 +133,27 @@ var mcpLeaves = []mcpLeaf{
 		Params: []mcpParam{pID,
 			{Name: "followup_id", Type: "string", Desc: "Follow-up id, from issue_followups.", Required: true, In: "path"},
 		}},
+	// Recurring issues: the rule lives on one issue and every occurrence it
+	// spawns carries it, so the read answers the same rule from any member of
+	// the series. Reading is open to a run; writing is not — the server
+	// answers 403 to anything but a member, because a rule is a standing
+	// order nobody signed up for by answering one issue. The clear is the way
+	// back out of that order and deletes no content (past occurrences stay as
+	// ordinary issues), so it is an internal write like the set.
+	{Name: "issue_recurrence_get", Group: "vigil_issue", Action: "recurrence_get", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues/{id}/recurrence",
+		Description: "The recurrence rule this issue belongs to: cron, timezone, mode, whether it is enabled, the issue it was set on, the latest occurrences and the next runs. An issue that does not recur answers 404.",
+		Params:      []mcpParam{pID}},
+	{Name: "issue_recurrence_set", Group: "vigil_issue", Action: "recurrence_set", Risk: mcpgov.RiskInternalWrite, Method: "PUT", Path: "/api/issues/{id}/recurrence",
+		Description: "Make this issue repeat, or update the rule of the series it belongs to. Each occurrence is a copy of the latest one and an assigned agent gets a run for it. Members only: a run is refused with 403 and should read the rule and ask a member.",
+		Params: []mcpParam{pID,
+			{Name: "cron_expression", Type: "string", Desc: "5-field cron read in timezone, e.g. \"0 9 * * 1\". Required for mode schedule.", In: "body"},
+			{Name: "timezone", Type: "string", Desc: "IANA timezone the schedule is read in (default UTC).", In: "body"},
+			{Name: "mode", Type: "string", Desc: "schedule: the cron fires. on_close: the next occurrence is created when the current one reaches a done or cancelled status.", In: "body", Enum: []string{"schedule", "on_close"}},
+			{Name: "enabled", Type: "boolean", Desc: "False files the rule without arming it (default true).", In: "body"},
+		}},
+	{Name: "issue_recurrence_clear", Group: "vigil_issue", Action: "recurrence_clear", Risk: mcpgov.RiskInternalWrite, Method: "DELETE", Path: "/api/issues/{id}/recurrence",
+		Description: "Stop the series. The occurrences already created stay as ordinary issues. Members only: a run is refused with 403.",
+		Params:      []mcpParam{pID}},
 
 	// ---- Goal loop ------------------------------------------------------------
 	{Name: "goal_get", Group: "vigil_goal", Action: "get", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues/{issue_id}/goal",
@@ -401,7 +422,7 @@ var mcpLeafByName = func() map[string]mcpLeaf {
 
 // mcpGroupDescriptions introduce each compound tool.
 var mcpGroupDescriptions = map[string]string{
-	"vigil_issue":     "Issues: list, search, get, create, update, comments, comment, timeline, labels, and follow-ups (followup, followups, followup_cancel: wake the issue's agent later with a note). Pick the action; pass that action's arguments.",
+	"vigil_issue":     "Issues: list, search, get, create, update, comments, comment, timeline, labels, follow-ups (followup, followups, followup_cancel: wake the issue's agent later with a note) and recurrence (recurrence_get, recurrence_set, recurrence_clear: make an issue repeat on a cron or when it closes; only a member may set or clear one). Pick the action; pass that action's arguments.",
 	"vigil_goal":      "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
 	"vigil_brain":     "The workspace Brain, shared notes every run reads, and its capture inbox: list, search (ranked), get, save, update, archive; capture (park something to be filed later), inbox, organize, reopen, delete.",
 	"vigil_project":   "Projects: list, search, get, create, update.",
