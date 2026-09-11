@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RoutingSettings } from "@multica/core/issues/routing";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Client parsing: packages/core/issues/routing.test.ts.
 
@@ -43,9 +55,10 @@ beforeEach(() => {
 describe("IssueRoutingSetting", () => {
   it("shows the policy and saves a pool per risk level, the switch and the threshold", async () => {
     render();
-    const high = (await screen.findByLabelText("Pool for High risk")) as HTMLSelectElement;
-    await waitFor(() => expect(high.value).toBe("p3"));
-    fireEvent.change(screen.getByLabelText("Pool for Low risk"), { target: { value: "p1" } });
+    const high = await screen.findByRole("combobox", { name: "Pool for High risk" });
+    await waitFor(() => expect(high.textContent).toContain("capable"));
+    const user = userEvent.setup();
+    await pickOption(user, "Pool for Low risk", "cheap");
     expect(state.save).toHaveBeenLastCalledWith({ enabled: false, pools: { high: "p3", low: "p1" }, escalation_failures: 2 }, expect.anything());
     fireEvent.click(screen.getByLabelText("Route issues by risk"));
     expect(state.save).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }), expect.anything());
@@ -57,6 +70,6 @@ describe("IssueRoutingSetting", () => {
 
   it("is inert for viewers", async () => {
     render(false);
-    expect(((await screen.findByLabelText("Pool for High risk")) as HTMLSelectElement).disabled).toBe(true);
+    expect(await screen.findByRole("combobox", { name: "Pool for High risk" })).toBeDisabled();
   });
 });
