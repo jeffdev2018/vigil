@@ -1,4 +1,6 @@
 "use client";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { SkillStudio } from "./skill-studio";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -769,6 +771,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
     data: skill,
     isLoading,
     error,
+    refetch: refetchSkill,
   } = useQuery(skillDetailOptions(wsId, skillId));
   const { data: agents = [], error: agentsError } = useQuery(
     agentListOptions(wsId),
@@ -1108,6 +1111,10 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
         </div>
       </div>
     );
+  }
+
+  if (error && !isResourceMissingError(error)) {
+    return <LoadErrorState onRetry={() => void refetchSkill()} />;
   }
 
   if (error || !skill) {

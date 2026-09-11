@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Issue } from "../types";
+import { isResourceMissingError } from "../api/load-error";
 import { issueDetailOptions, issueKeys } from "./queries";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,6 +31,13 @@ export interface CanonicalIssue {
    * that never settles on "not found".
    */
   notFound: boolean;
+  /**
+   * Terminal like `notFound`, but the resolution got no answer (offline, 5xx):
+   * the issue may exist. Callers render a retry state, never not-found.
+   */
+  loadFailed: boolean;
+  /** Re-runs a failed resolution. */
+  retry: () => void;
 }
 
 /**
@@ -96,11 +104,14 @@ export function useCanonicalIssue(wsId: string, routeId: string): CanonicalIssue
   // still-resolving, or the caller flips back to a loading frame and the
   // remount loop described on `notFound` starts.
   const failed = resolveEnabled && resolve.isError;
+  const missing = failed && isResourceMissingError(resolve.error);
 
   return {
     canonicalId,
     issue: detail.data,
     isResolving: resolveEnabled && !failed && resolve.data === undefined,
-    notFound: failed,
+    notFound: missing,
+    loadFailed: failed && !missing,
+    retry: () => void resolve.refetch(),
   };
 }

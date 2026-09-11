@@ -174,5 +174,10 @@
     "heart": "Favori",
     "circle-alert": "Alerte",
     "lock-keyhole": "Privé"
+  },
+  "load_error": {
+    "title": "Impossible de charger cette page",
+    "description": "Le serveur n'a pas répondu. Vérifiez votre connexion, puis réessayez.",
+    "retry": "Réessayer"
   }
 }

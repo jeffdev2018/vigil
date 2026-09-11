@@ -25,6 +25,7 @@ import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
 import { formatTokens, formatUsd } from "../../runtimes/utils";
+import { LoadErrorState } from "../../common/load-error-state";
 import { IssueNotFound, IssueDetailSkeleton } from "./issue-detail";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
@@ -39,8 +40,9 @@ import { useStatusLabel } from "../utils/status-label";
  */
 export function ReviewCockpitRoute({ routeId }: { routeId: string }) {
   const wsId = useWorkspaceId();
-  const { canonicalId, isResolving, notFound } = useCanonicalIssue(wsId, routeId);
+  const { canonicalId, isResolving, notFound, loadFailed, retry } = useCanonicalIssue(wsId, routeId);
   if (isResolving) return <IssueDetailSkeleton />;
+  if (loadFailed) return <LoadErrorState onRetry={retry} />;
   if (notFound || !canonicalId) return <IssueNotFound showBackLink />;
   return <ReviewCockpit issueId={canonicalId} />;
 }

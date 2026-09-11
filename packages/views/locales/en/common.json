@@ -174,5 +174,10 @@
     "heart": "Favorite",
     "circle-alert": "Alert",
     "lock-keyhole": "Private"
+  },
+  "load_error": {
+    "title": "Couldn't load this page",
+    "description": "The server did not answer. Check your connection, then try again.",
+    "retry": "Try again"
   }
 }

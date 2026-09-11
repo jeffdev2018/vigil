@@ -1,5 +1,7 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useCallback, useMemo, useState } from "react";
 import { AlertCircle, Cloud, Monitor, Pencil, Plus, Server } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -89,7 +91,7 @@ export function RuntimeDetailPage({
   const healthLabel = useHealthLabel();
   const timeAgo = useTimeAgo();
   const currentUserId = useAuthStore((state) => state.user?.id);
-  const { data: runtimes = [], isLoading } = useQuery(runtimeListOptions(wsId));
+  const { data: runtimes = [], isLoading, error: runtimesError, refetch: refetchRuntimes } = useQuery(runtimeListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: tasks = [] } = useQuery(agentTaskSnapshotOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
@@ -176,6 +178,10 @@ export function RuntimeDetailPage({
   }, [machine, isAdmin, currentUserId]);
 
   if (isLoading) return <MachineDetailSkeleton />;
+
+  if (!machine && runtimesError && !isResourceMissingError(runtimesError)) {
+    return <LoadErrorState onRetry={() => void refetchRuntimes()} />;
+  }
 
   if (!machine) {
     return (
