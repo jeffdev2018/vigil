@@ -1211,3 +1211,18 @@ func TestIssueTasksStillSerialiseOnPathMutex(t *testing.T) {
 	}
 	release()
 }
+
+// The wait reason is stored server-side and pushed to every client, so neither
+// the in-place wait nor the worktree snapshot wait may put the absolute path
+// (and the account name in it) there.
+func TestLocalDirectoryWaitReasonNamesTheDirectoryNotItsPath(t *testing.T) {
+	t.Parallel()
+	a := &localDirectoryAssignment{AbsPath: "/Users/alice/code/NuvioTV"}
+	got := localDirectoryWaitReason(a, "0123456789abcdef")
+	if strings.Contains(got, "/Users/alice") {
+		t.Fatalf("reason %q leaks the absolute path", got)
+	}
+	if !strings.HasPrefix(got, "NuvioTV (held by task ") {
+		t.Fatalf("reason = %q, want the directory name and the holder", got)
+	}
+}
