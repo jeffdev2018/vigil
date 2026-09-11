@@ -2379,14 +2379,16 @@ func routedTaskMatchesClaimedRuntime(agent db.Agent, task *db.AgentTaskQueue) bo
 		trace.ChosenRuntimeID == uuidToString(task.RuntimeID)
 }
 
-// benchmarkTaskPinsRuntime reports whether a task stamped with a runtime other
-// than the agent's bound one is a benchmark replay (JEF-276). A benchmark
-// exists to measure one (runtime, model) candidate, so the stamped runtime IS
-// the experiment and the agent's binding is not authority over it — the same
-// exemption an auto-routed task gets, for the same reason. The claim's
-// visibility and ownership fences still apply: only the binding is relaxed.
-func benchmarkTaskPinsRuntime(task *db.AgentTaskQueue) bool {
-	return task.LegRole == service.LegRoleBenchmark
+// explicitTaskPinsRuntime reports whether a task stamped with a runtime other
+// than the agent's bound one was pinned there on purpose: a benchmark replay
+// (JEF-276), whose stamped runtime IS the experiment, or a runtime-pinned row
+// (JEF-234 run-group attempt, resume child) enqueued with an explicit runtime.
+// The agent's binding is not authority over either — the same exemption an
+// auto-routed task gets, and the one the SQL claim fence already grants. The
+// claim's visibility and ownership fences still apply: only the binding is
+// relaxed.
+func explicitTaskPinsRuntime(task *db.AgentTaskQueue) bool {
+	return task.LegRole == service.LegRoleBenchmark || task.RuntimePinned
 }
 
 // poolTaskPinsRuntime reports whether the task's runtime is one the owner
@@ -2541,10 +2543,10 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// AND the task's routing trace confirms the runtime the router chose is
 	// exactly the one stamped on the row — an agent flipped back to fixed
 	// mode, or a task whose runtime no longer matches its trace, fails closed.
-	// A benchmark replay (JEF-276) is exempt too: its runtime is the candidate
-	// under measurement, pinned at enqueue. So is a task a pool failover (K28)
+	// A benchmark replay (JEF-276) or a runtime-pinned row (JEF-234) is exempt
+	// too: its runtime was pinned at enqueue. So is a task a pool failover (K28)
 	// moved to another runtime the owner listed in the agent's pool.
-	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) && !benchmarkTaskPinsRuntime(task) && !h.poolTaskPinsRuntime(r.Context(), agent, task) {
+	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) && !explicitTaskPinsRuntime(task) && !h.poolTaskPinsRuntime(r.Context(), agent, task) {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),

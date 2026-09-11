@@ -3917,14 +3917,16 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 //
 // taskPinsRuntime reports whether a queued candidate carries a runtime the
 // agent is not bound to BY DESIGN — a benchmark replay (JEF-276) pinned to
-// the candidate it measures, or a pool failover (K28) that moved the task to
-// another runtime the owner listed. This is only the cheap Go pre-filter: the
-// SQL fence checks pool membership per row and the claim handler rechecks the
-// freshly loaded agent, so a wrong value here can never dispatch a task the
-// SQL would refuse. A confidence-cascade hop (JEF-272) no longer needs a pin:
-// only an auto-routed agent cascades, and auto routing already passes.
+// the candidate it measures, a runtime-pinned row (JEF-234 run-group attempt,
+// resume child) stamped with an explicit runtime, or a pool failover (K28)
+// that moved the task to another runtime the owner listed. This is only the
+// cheap Go pre-filter: the SQL fence checks pool membership per row and the
+// claim handler rechecks the freshly loaded agent, so a wrong value here can
+// never dispatch a task the SQL would refuse. A confidence-cascade hop
+// (JEF-272) and a cascade workflow start (JEF-273) need no pin: only an
+// auto-routed agent cascades, and auto routing already passes.
 func taskPinsRuntime(candidate db.AgentTaskQueue) bool {
-	return candidate.LegRole == LegRoleBenchmark || len(candidate.FailoverHistory) > 0
+	return candidate.RuntimePinned || candidate.LegRole == LegRoleBenchmark || len(candidate.FailoverHistory) > 0
 }
 
 // runtimePinned says the candidate that led here carries a runtime the agent
