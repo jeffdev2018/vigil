@@ -854,47 +854,51 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           </SidebarMenu>
         </SidebarHeader>
 
+        {/* Personal nav (Inbox, My issues, Chat) stays outside the scrolling
+            container so it's always visible on deep pages (Skills, Runtimes,
+            Runs, …) — same reasoning as Analytics/Settings in SidebarFooter
+            below. Only Pinned/Work/AI Team scroll; see hasOverflowBelow above. */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-0.5">
+              {personalNav.map((item) => {
+                const href = p[item.key]();
+                const Icon = routeIconForPath(href);
+                const isActive = isNavActive(pathname, href);
+                return (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      render={<AppLink href={href} />}
+                      className={NAV_ITEM_CLASS_NAME}
+                    >
+                      <Icon />
+                      <span>{t(($) => $.nav[item.labelKey])}</span>
+                      {item.key === "inbox" && unreadCount > 0 && (
+                        <CappedNumberFlow
+                          value={unreadCount}
+                          animated={false}
+                          className="ml-auto text-caption"
+                        />
+                      )}
+                      {item.key === "chat" && chatUnreadCount > 0 && (
+                        <CappedNumberFlow
+                          value={chatUnreadCount}
+                          animated={false}
+                          className="ml-auto text-caption"
+                        />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Navigation */}
         <div className="relative flex min-h-0 flex-1 flex-col">
         <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
-                {personalNav.map((item) => {
-                  const href = p[item.key]();
-                  const Icon = routeIconForPath(href);
-                  const isActive = isNavActive(pathname, href);
-                  return (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        render={<AppLink href={href} />}
-                        className={NAV_ITEM_CLASS_NAME}
-                      >
-                        <Icon />
-                        <span>{t(($) => $.nav[item.labelKey])}</span>
-                        {item.key === "inbox" && unreadCount > 0 && (
-                          <CappedNumberFlow
-                            value={unreadCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
-                        {item.key === "chat" && chatUnreadCount > 0 && (
-                          <CappedNumberFlow
-                            value={chatUnreadCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
           {visiblePinned.length > 0 && (
             <Collapsible defaultOpen>
               <SidebarGroup className="group/pinned">

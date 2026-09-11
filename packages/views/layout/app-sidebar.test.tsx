@@ -49,7 +49,12 @@ vi.mock("@dnd-kit/sortable", () => ({
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => undefined } } }));
 vi.mock("@multica/ui/components/ui/sidebar", () => ({
   Sidebar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SidebarContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  // Renders a real wrapper (unlike the other passthrough mocks below) so
+  // tests can assert which nav items sit inside vs. outside the scrolling
+  // container — see "personal nav scroll container" below.
+  SidebarContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="sidebar-content">{children}</div>
+  ),
   SidebarFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SidebarGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SidebarGroupContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -403,6 +408,29 @@ describe("navigation item presentation", () => {
       expect(container.querySelector(`button[data-href="${href}"]`)?.className).toBe(
         referenceClassName,
       );
+    }
+  });
+});
+
+describe("personal nav scroll container", () => {
+  // JEF-405: on deep pages the scrolling container (Pinned/Work/AI Team)
+  // overflows a laptop screen, pushing Inbox/My issues/Chat out of view.
+  // Personal nav must live outside SidebarContent so it's always visible.
+  it("renders personal nav entries outside the scrolling container", () => {
+    const { container } = render(<AppSidebar />);
+    const scrollContainer = container.querySelector('[data-testid="sidebar-content"]');
+    expect(scrollContainer).not.toBeNull();
+
+    for (const href of ["/acme/inbox", "/acme/my-issues", "/acme/chat"]) {
+      const link = container.querySelector(`button[data-href="${href}"]`);
+      expect(link).not.toBeNull();
+      expect(scrollContainer).not.toContainElement(link as HTMLElement);
+    }
+
+    // Work/AI Team stay inside the scrolling container.
+    for (const href of ["/acme/issues", "/acme/agents"]) {
+      const link = container.querySelector(`button[data-href="${href}"]`);
+      expect(scrollContainer).toContainElement(link as HTMLElement);
     }
   });
 });
