@@ -20,15 +20,18 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
+import { agentKeys } from "@/data/queries/agents";
+import { runtimeKeys } from "@/data/queries/runtimes";
+import { agentTaskSnapshotKeys } from "@/data/queries/agent-task-snapshot";
 
 export function usePresenceRealtime() {
   const queryClient = useQueryClient();
 
   useWSSubscriptions(
     (ws, wsId) => {
-      const runtimesKey = ["runtimes", wsId];
-      const agentsKey = ["agents", wsId];
-      const snapshotKey = ["agent-task-snapshot", wsId];
+      const runtimesKey = runtimeKeys.all(wsId);
+      const agentsKey = agentKeys.all(wsId);
+      const snapshotKey = agentTaskSnapshotKeys.all(wsId);
 
       const invalidateRuntimes = () =>
         queryClient.invalidateQueries({ queryKey: runtimesKey });

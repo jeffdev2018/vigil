@@ -18,6 +18,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries }),
 }));
 
+vi.mock("@/data/api", () => ({ api: {} }));
+
 vi.mock("@/lib/use-ws-subscriptions", () => ({
   useWSSubscriptions: (
     setup: (ws: MockWS, wsId: string) => Array<() => void>,

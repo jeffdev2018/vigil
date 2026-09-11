@@ -91,3 +91,46 @@ describe("WSClient application heartbeat", () => {
     client.disconnect();
   });
 });
+
+// realtime-provider.tsx foregrounding: `const resumed = ws.resume(); if
+// (!resumed) ws.forceReconnect();`. Exercised here at the WSClient level
+// since realtime-provider.tsx itself needs RN/AppState and is out of this
+// Node-only test lane's scope (see vitest.config.ts).
+describe("WSClient.resume()", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    MockWebSocket.instances = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("resuming a paused socket opens exactly one fresh socket, with no redundant forceReconnect", () => {
+    const { client } = connectAuthenticatedClient();
+    client.pause();
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    // Mirrors realtime-provider.tsx's foreground handler exactly.
+    const resumed = client.resume();
+    if (!resumed) client.forceReconnect();
+
+    expect(resumed).toBe(true);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    client.disconnect();
+  });
+
+  it("is a no-op (returns false) on an already-active socket, so the caller's forceReconnect fallback is what reconnects a zombie", () => {
+    const { client } = connectAuthenticatedClient();
+    // Never paused — state is already "active" (the zombie case: iOS
+    // killed the socket without an AppState background event).
+    const resumed = client.resume();
+
+    expect(resumed).toBe(false);
+    expect(MockWebSocket.instances).toHaveLength(1);
+    client.disconnect();
+  });
+});
