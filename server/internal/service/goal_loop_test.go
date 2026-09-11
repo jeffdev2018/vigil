@@ -277,6 +277,17 @@ func TestGoalLoopQuestionAndAnswer(t *testing.T) {
 	f := newGoalFixture(t, "native")
 	ctx := context.Background()
 	task := f.newTask(t)
+	// The comment:created broadcast must carry the full comment: mobile
+	// appends the payload to the timeline as-is (no refetch), so an
+	// id-only payload rendered as "System · Invalid Date" with no body.
+	var commentEvents []map[string]any
+	f.bus.Subscribe(protocol.EventCommentCreated, func(e events.Event) {
+		if p, ok := e.Payload.(map[string]any); ok {
+			if c, ok := p["comment"].(map[string]any); ok {
+				commentEvents = append(commentEvents, c)
+			}
+		}
+	})
 	f.runNative(t, task,
 		nativeToolCallTurn("call_1", "ask_user", `{"question":"Which database?","kind":"choice","options":["Postgres","SQLite"]}`),
 		nativeTextTurn("Asked the team which database to use; waiting."),
@@ -295,6 +306,9 @@ func TestGoalLoopQuestionAndAnswer(t *testing.T) {
 	q := goalQuestionOf(row.Question)
 	if q == nil || q.Kind != "choice" || len(q.Options) != 2 || q.RunID != task || q.Answer != "" {
 		t.Fatalf("question = %+v", q)
+	}
+	if len(commentEvents) != 1 || commentEvents[0]["author_type"] != "agent" || commentEvents[0]["created_at"] == "" || commentEvents[0]["created_at"] == nil || !strings.Contains(fmt.Sprint(commentEvents[0]["content"]), "Which database?") {
+		t.Fatalf("comment:created payload = %+v, want the full comment", commentEvents)
 	}
 	c := f.comments(t, "agent")
 	if len(c) != 1 || !strings.Contains(c[0], "Which database?") || !strings.Contains(c[0], "2. SQLite") {

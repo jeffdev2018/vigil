@@ -743,6 +743,12 @@ func (s *GoalLoopService) questionRecipients(ctx context.Context, issue db.Issue
 	return out
 }
 
+// createdCommentEventFields is commentEventFields for the row CreateComment
+// returns, so broadcasts made right after the insert carry the full comment.
+func createdCommentEventFields(c db.CreateCommentRow) map[string]any {
+	return commentEventFields(db.Comment{ID: c.ID, IssueID: c.IssueID, AuthorType: c.AuthorType, AuthorID: c.AuthorID, Content: c.Content, Type: c.Type, ParentID: c.ParentID, SourceTaskID: c.SourceTaskID, CreatedAt: c.CreatedAt})
+}
+
 func (s *GoalLoopService) comment(ctx context.Context, issue db.Issue, agentID, taskID pgtype.UUID, text string) {
 	created, err := s.Queries.CreateComment(ctx, db.CreateCommentParams{
 		ID:           dbid.NewV7(),
@@ -759,7 +765,7 @@ func (s *GoalLoopService) comment(ctx context.Context, issue db.Issue, agentID, 
 		return
 	}
 	s.publish(protocol.EventCommentCreated, issue.WorkspaceID, agentID, map[string]any{
-		"comment":        map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)},
+		"comment":        createdCommentEventFields(created),
 		"issue_revision": created.IssueRevision,
 	})
 }
@@ -903,7 +909,7 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 		Content: "Answer to the agent's question: " + q.Answer, Type: "comment",
 	}); err == nil && s.Bus != nil {
 		s.Bus.Publish(events.Event{Type: protocol.EventCommentCreated, WorkspaceID: util.UUIDToString(issue.WorkspaceID), ActorType: "member", ActorID: util.UUIDToString(userID),
-			Payload: map[string]any{"comment": map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)}, "issue_revision": created.IssueRevision}})
+			Payload: map[string]any{"comment": createdCommentEventFields(created), "issue_revision": created.IssueRevision}})
 	}
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid && !closed {
 		who := userName

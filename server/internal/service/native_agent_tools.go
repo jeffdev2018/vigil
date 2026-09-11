@@ -719,7 +719,7 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 		return nil, fmt.Errorf("comment failed: %w", err)
 	}
 	s.publishNative(protocol.EventCommentCreated, tctx, map[string]any{
-		"comment":        map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)},
+		"comment":        createdCommentEventFields(created),
 		"issue_revision": created.IssueRevision,
 	})
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
