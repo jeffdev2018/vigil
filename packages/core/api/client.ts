@@ -288,7 +288,6 @@ import type {
   PRStack,
   IssuePlan,
   IssuePlanEnvelope,
-  IssuePlanStep,
   PlanVerification,
   IssueDecision,
   ReviewCockpit,
@@ -2023,16 +2022,6 @@ export class ApiClient {
     );
     return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
       endpoint: "GET /api/issues/:id/plan",
-    });
-  }
-
-  async setIssuePlan(issueId: string, data: { content: string; steps?: IssuePlanStep[] }): Promise<IssuePlanEnvelope> {
-    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/plan`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-    return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
-      endpoint: "PUT /api/issues/:id/plan",
     });
   }
 
