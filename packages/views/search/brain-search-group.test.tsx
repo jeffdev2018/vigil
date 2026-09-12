@@ -58,6 +58,7 @@ const hit = (over: Partial<WorkspaceNoteSearchHit> = {}): WorkspaceNoteSearchHit
   updated_at: "",
   score: 0.5,
   snippet: "push <mark>v0.x.x</mark> on main",
+  passage_heading: "",
   lex_rank: 1,
   vec_rank: null,
   ...over,
@@ -120,6 +121,13 @@ describe("BrainSearchGroup", () => {
     const row = await screen.findByTestId("brain-note");
     expect(row.querySelector("script")).toBeNull();
     expect(row.textContent).toContain('<script>alert("x")</script>');
+  });
+
+  it("puts the matching section before the excerpt", async () => {
+    state.notes = [hit({ passage_heading: "Release › Tags" })];
+    render("release");
+    const row = await screen.findByTestId("brain-note");
+    expect(row.textContent).toContain("Release › Tags · push v0.x.x on main");
   });
 
   it("opens a note hit on the Brain page with that note selected", async () => {

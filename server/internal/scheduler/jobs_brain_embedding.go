@@ -8,10 +8,12 @@ import (
 
 const JobNameBrainEmbeddingBackfill = "brain_embedding_backfill"
 
-// BrainEmbeddingBackfillJob embeds the notes whose vector is missing, stale
-// or from another model (OS plan, vague B). The write paths embed inline;
-// this job is what makes the ranked search whole after an outage, a model
-// change, or a write path that has no embedder (curation, agent effects).
+// BrainEmbeddingBackfillJob catches up the Brain search index (OS plan,
+// vague B; passages since JEF-412): passages of notes whose index is stale,
+// passages whose note is gone, then vectors missing or from another model.
+// The write paths embed inline and searches index lazily; this job is what
+// makes the ranked search whole after an outage, a model change, or a write
+// path that has no embedder (curation, agent effects).
 func BrainEmbeddingBackfillJob(backfill func(ctx context.Context) int) JobSpec {
 	return JobSpec{
 		Name:              JobNameBrainEmbeddingBackfill,

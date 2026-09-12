@@ -353,6 +353,24 @@ func searchNotes(t *testing.T, workspaceID, query string) []WorkspaceNoteSearchH
 	return out.Notes
 }
 
+// setPassageVector gives every passage of a note the same stored vector, as
+// if an embeddings provider had computed it. The passages exist once a search
+// has indexed the workspace.
+func setPassageVector(t *testing.T, noteID, literal string) {
+	t.Helper()
+	dbfx.Exec(t, `UPDATE workspace_note_passage SET embedding = $2::vector, embedding_model = 'test-model', embedded_at = now() WHERE note_id = $1`, noteID, literal)
+}
+
+// axisVector is a 1536-dimension unit vector on axis i, negated when sign is "-".
+func axisVector(i int, sign string) string {
+	parts := make([]string, 1536)
+	for j := range parts {
+		parts[j] = "0"
+	}
+	parts[i] = sign + "1"
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
 func TestWorkspaceNoteRankedSearch(t *testing.T) {
 	workspaceID := brainWorkspace(t)
 	deploy := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Deploy procedure", Content: "Push the release tag on main. The Homebrew tap follows the tag. Never deploy on a Friday.", Tags: []string{"ops"}})
@@ -374,45 +392,49 @@ func TestWorkspaceNoteRankedSearch(t *testing.T) {
 	if hits := searchNotes(t, workspaceID, "q=deploy&tag=vendor"); len(hits) != 0 {
 		t.Errorf("tag filter leaked %d hits", len(hits))
 	}
-	// Web-search syntax: a quoted phrase and a negation.
+	// A quoted phrase and a negation.
 	if hits := searchNotes(t, workspaceID, `q=%22release+tag%22+-friday`); len(hits) != 0 {
 		t.Errorf("negated term still matched %d", len(hits))
 	}
+	if hits := searchNotes(t, workspaceID, `q=%22tag+release%22`); len(hits) != 0 {
+		t.Errorf("a phrase in the wrong order matched %d", len(hits))
+	}
+	if hits := searchNotes(t, workspaceID, `q=%22release+tag%22`); len(hits) != 1 || hits[0].ID != deploy.ID {
+		t.Errorf("phrase = %v, want the deploy note", hits)
+	}
 
 	// Vector leg: a stored vector close to the query vector lifts a note the
-	// lexical leg does not see. 1536 dims: the query is a unit vector on
-	// axis 0; the vendor note's vector is the same; the deploy note points
-	// the other way.
-	unit := func(sign string) string {
-		parts := make([]string, 1536)
-		for i := range parts {
-			parts[i] = "0"
-		}
-		parts[0] = sign + "1"
-		return "[" + strings.Join(parts, ",") + "]"
-	}
-	dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, vendor.ID, workspaceID, unit(""))
-	dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, deploy.ID, workspaceID, unit("-"))
-	dbfx.Cleanup(t, `DELETE FROM workspace_note_embedding WHERE workspace_id = $1`, workspaceID)
+	// lexical leg does not see. The query is a unit vector on axis 0; the
+	// vendor note's passages are the same; the deploy note points the other
+	// way.
+	setPassageVector(t, vendor.ID, axisVector(0, ""))
+	setPassageVector(t, deploy.ID, axisVector(0, "-"))
 	origEmbedder := testHandler.BrainEmbedder
-	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "test-model"}
+	testHandler.BrainEmbedder = stubEmbedder{literal: axisVector(0, ""), model: "test-model"}
 	t.Cleanup(func() { testHandler.BrainEmbedder = origEmbedder })
 	hits = searchNotes(t, workspaceID, "q=printer")
 	if len(hits) != 1 || hits[0].ID != vendor.ID {
-		t.Fatalf("fused search = %v, want the vendor note alone: a search needs a lexical match", hits)
+		t.Fatalf("fused search = %v, want the vendor note alone: without a floor a search needs a lexical match", hits)
 	}
 	if hits[0].LexRank == nil || hits[0].VecRank == nil {
 		t.Errorf("ranks = %v/%v, want vendor on both legs", hits[0].LexRank, hits[0].VecRank)
 	}
 	// Merge candidates still take the vector neighbours: a model judges them.
 	candidates := testHandler.brainCaptureCandidates(context.Background(), db.BrainCapture{WorkspaceID: parseUUID(workspaceID), Content: "printer"})
-	if len(candidates) != 2 || candidates[0].ID != parseUUID(vendor.ID) || candidates[1].LexRank.Valid || !candidates[1].VecRank.Valid {
+	if len(candidates) != 2 || candidates[0].Note.ID != parseUUID(vendor.ID) || candidates[1].LexRank != nil || candidates[1].VecRank == nil {
 		t.Errorf("candidates = %v, want vendor then deploy on the vector leg only", candidates)
 	}
+	// With a calibrated floor, a neighbour above it is admitted on meaning
+	// alone and one below it is not.
+	testHandler.BrainEmbedder = stubEmbedder{literal: axisVector(0, ""), model: "test-model", floor: 0.5, floorOK: true}
+	hits = searchNotes(t, workspaceID, "q=zzzxxqq")
+	if len(hits) != 1 || hits[0].ID != vendor.ID || hits[0].LexRank != nil || hits[0].VecRank == nil {
+		t.Errorf("floor search = %v, want the vendor note on the vector leg alone", hits)
+	}
 	// A vector from another model never fuses.
-	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "other-model"}
-	if hits := searchNotes(t, workspaceID, "q=printer"); len(hits) != 1 {
-		t.Errorf("other model fused %d hits, want the lexical hit alone", len(hits))
+	testHandler.BrainEmbedder = stubEmbedder{literal: axisVector(0, ""), model: "other-model", floor: 0.5, floorOK: true}
+	if hits := searchNotes(t, workspaceID, "q=printer"); len(hits) != 1 || hits[0].VecRank != nil {
+		t.Errorf("other model fused %v, want the lexical hit alone", hits)
 	}
 	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
 		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=", workspaceID, nil)).Want(http.StatusBadRequest)
@@ -422,29 +444,21 @@ func TestWorkspaceNoteRankedSearch(t *testing.T) {
 // finding "the palette and the Brain page return every note whatever the
 // query": with an embeddings provider, the vector leg is a nearest-neighbour
 // list that always has neighbours, so every embedded note surfaced as a hit.
-// A query that matches nothing returns nothing; two different queries return
-// different notes.
+// A query that matches nothing returns nothing while no similarity floor is
+// calibrated; two different queries return different notes.
 func TestWorkspaceNoteSearchFiltersByQuery(t *testing.T) {
 	workspaceID := brainWorkspace(t)
 	deploy := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Deploy procedure", Content: "Push the release tag on main."})
 	vendor := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Vendor contacts", Content: "The printer vendor answers on Mondays."})
 	image := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "IMG_0111", Content: "image"})
-	axis := func(i int) string {
-		parts := make([]string, 1536)
-		for j := range parts {
-			parts[j] = "0"
-		}
-		parts[i] = "1"
-		return "[" + strings.Join(parts, ",") + "]"
-	}
+	searchNotes(t, workspaceID, "q=index") // builds the passages
 	for i, id := range []string{deploy.ID, vendor.ID, image.ID} {
-		dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, id, workspaceID, axis(i))
+		setPassageVector(t, id, axisVector(i, ""))
 	}
-	dbfx.Cleanup(t, `DELETE FROM workspace_note_embedding WHERE workspace_id = $1`, workspaceID)
 	origEmbedder := testHandler.BrainEmbedder
-	// The query vector sits right next to the image note: a real provider
-	// always has a nearest note, however unrelated the query is.
-	testHandler.BrainEmbedder = stubEmbedder{literal: axis(2), model: "test-model"}
+	// The query vector is identical to the image note's passage: a real
+	// provider always has a nearest note, however unrelated the query is.
+	testHandler.BrainEmbedder = stubEmbedder{literal: axisVector(2, ""), model: "test-model"}
 	t.Cleanup(func() { testHandler.BrainEmbedder = origEmbedder })
 
 	if hits := searchNotes(t, workspaceID, "q=zzzxxqqnonsense123"); len(hits) != 0 {
@@ -460,15 +474,20 @@ func TestWorkspaceNoteSearchFiltersByQuery(t *testing.T) {
 	}
 }
 
-// stubEmbedder answers a fixed query vector so the fusion is testable
-// without a provider.
-type stubEmbedder struct{ literal, model string }
+// stubEmbedder answers a fixed query vector and floor so the fusion is
+// testable without a provider.
+type stubEmbedder struct {
+	literal, model string
+	floor          float64
+	floorOK        bool
+}
 
 func (s stubEmbedder) EmbedNoteAsync(pgtype.UUID) {}
 func (s stubEmbedder) QueryEmbedding(_ context.Context, _ string) (string, string, bool) {
 	return s.literal, s.model, true
 }
-func (s stubEmbedder) Enabled() bool { return true }
+func (s stubEmbedder) VectorFloor(context.Context) (float64, bool) { return s.floor, s.floorOK }
+func (s stubEmbedder) Enabled() bool                               { return true }
 
 func TestFirstLineCutsAtAWordBoundary(t *testing.T) {
 	cases := map[string]string{

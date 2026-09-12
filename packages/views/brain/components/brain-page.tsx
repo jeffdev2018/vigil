@@ -333,7 +333,7 @@ function NoteList({
   const { t } = useT("brain");
   const timeAgo = useTimeAgo();
   const snippets = useMemo(
-    () => new Map((hits ?? []).map((hit) => [hit.id, hit.snippet])),
+    () => new Map((hits ?? []).map((hit) => [hit.id, hit])),
     [hits],
   );
 
@@ -422,7 +422,10 @@ function NoteList({
                   {note.title}
                 </span>
               </span>
-              <Snippet snippet={snippets.get(note.id) ?? ""} />
+              <Snippet
+                snippet={snippets.get(note.id)?.snippet ?? ""}
+                heading={snippets.get(note.id)?.passage_heading ?? ""}
+              />
               <span className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
                 <SourceBadge note={note} />
                 {(note.tags ?? []).map((noteTag) => (
@@ -446,19 +449,28 @@ function NoteList({
 }
 
 /**
- * A ranked-search snippet. The server hands us the note's own text with
+ * A ranked-search snippet, after the heading of the section it comes from
+ * (`Section · excerpt`). The server hands us the note's own text with
  * `<mark>` inserted and nothing escaped, so `renderSnippet` escapes the whole
  * string and revives only those two markers — a note containing `<script>`
- * renders as the characters the author typed. See
+ * renders as the characters the author typed. The heading is plain text. See
  * packages/core/brain/snippet.test.ts for the matrix.
  */
-function Snippet({ snippet }: { snippet: string }) {
-  if (snippet === "") return null;
+function Snippet({ snippet, heading }: { snippet: string; heading: string }) {
+  if (snippet === "" && heading === "") return null;
   return (
-    <span
-      className="line-clamp-2 text-caption text-muted-foreground [&_mark]:bg-warning/30 [&_mark]:text-foreground"
-      dangerouslySetInnerHTML={{ __html: renderSnippet(snippet) }}
-    />
+    <span className="line-clamp-2 text-caption text-muted-foreground">
+      {heading !== "" ? (
+        <span className="text-foreground">
+          {heading}
+          {snippet !== "" ? " · " : ""}
+        </span>
+      ) : null}
+      <span
+        className="[&_mark]:bg-warning/30 [&_mark]:text-foreground"
+        dangerouslySetInnerHTML={{ __html: renderSnippet(snippet) }}
+      />
+    </span>
   );
 }
 

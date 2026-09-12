@@ -6,9 +6,9 @@
  * badge, then the age. Mobile stacks the metadata under the title instead of
  * putting it on one line — the same facts, a phone-width layout.
  *
- * `SnippetText` is the search half. The server hands back the note's own
- * text with `<mark>` inserted by PostgreSQL `ts_headline` and nothing
- * escaped, so it is rendered through `parseSearchSnippet` into plain-text
+ * `SnippetText` is the search half: the heading of the section that matched,
+ * then the snippet (`Section · excerpt`). The server hands back the note's
+ * own text with `<mark>` inserted and nothing escaped, so it is rendered through `parseSearchSnippet` into plain-text
  * runs and drawn as `<Text>`: the marked runs get weight + a highlight, and
  * every other tag in the note body is dropped. Nothing here ever reaches an
  * HTML parser — same guarantee web gets from `renderSnippet`, by the route
@@ -51,8 +51,8 @@ export function NoteRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={
-        hit && hit.snippet
-          ? `${note.title}. ${searchSnippetText(hit.snippet)}`
+        hit && (hit.snippet || hit.passage_heading)
+          ? `${note.title}. ${[hit.passage_heading ?? "", searchSnippetText(hit.snippet)].filter((part) => part !== "").join(" · ")}`
           : note.title
       }
       className="gap-1 border-b border-border px-4 py-3 active:bg-secondary/50"
@@ -69,7 +69,9 @@ export function NoteRow({
         </Text>
       </View>
 
-      {hit && hit.snippet ? <SnippetText snippet={hit.snippet} /> : null}
+      {hit && (hit.snippet || hit.passage_heading) ? (
+        <SnippetText snippet={hit.snippet} heading={hit.passage_heading ?? ""} />
+      ) : null}
 
       <View className="flex-row flex-wrap items-center gap-1">
         <Chip>{noteSourceLabel(note.source)}</Chip>
@@ -85,12 +87,21 @@ export function NoteRow({
   );
 }
 
-/** The `<mark>` runs, bold and highlighted; everything else plain text. */
-export function SnippetText({ snippet }: { snippet: string }) {
+/**
+ * The section heading, then the `<mark>` runs bold and highlighted;
+ * everything else plain text.
+ */
+export function SnippetText({ snippet, heading = "" }: { snippet: string; heading?: string }) {
   const segments = parseSearchSnippet(snippet);
-  if (segments.length === 0) return null;
+  if (segments.length === 0 && heading === "") return null;
   return (
     <Text className="text-xs text-muted-foreground" numberOfLines={3}>
+      {heading !== "" ? (
+        <Text className="font-medium text-foreground">
+          {heading}
+          {segments.length > 0 ? " · " : ""}
+        </Text>
+      ) : null}
       {segments.map((segment, index) =>
         segment.hit ? (
           <Text

@@ -117,10 +117,16 @@ export interface OrganizeBrainCaptureResponse {
 export interface WorkspaceNoteSearchHit extends WorkspaceNote {
   score: number;
   /**
-   * The note's text with `<mark>` inserted around the matches. Raw note
+   * The most relevant passage of the note, with `<mark>` inserted around the
+   * matches. Raw note
    * content — render it through `renderSnippet`, never as HTML.
    */
   snippet: string;
+  /**
+   * Heading path (`A › B`) of the note section the snippet comes from; empty
+   * when that section has no heading.
+   */
+  passage_heading: string;
   lex_rank?: number | null;
   vec_rank?: number | null;
 }

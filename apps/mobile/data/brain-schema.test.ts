@@ -278,6 +278,7 @@ describe("ranked search schema", () => {
           ...NOTE_ROW,
           score: 0.032,
           snippet: "Tag <mark>v0.x.x</mark> on main.",
+          passage_heading: "Release › Tags",
           lex_rank: 1,
           vec_rank: 3,
         },
@@ -287,6 +288,7 @@ describe("ranked search schema", () => {
     expect(parsed.success && parsed.data.vector).toBe(true);
     expect(parsed.success && parsed.data.notes[0]?.snippet).toContain("<mark>");
     expect(parsed.success && parsed.data.notes[0]?.lex_rank).toBe(1);
+    expect(parsed.success && parsed.data.notes[0]?.passage_heading).toBe("Release › Tags");
   });
 
   it("accepts a lexical-only response (no embedder configured)", () => {
@@ -304,7 +306,16 @@ describe("ranked search schema", () => {
     });
     expect(parsed.success && parsed.data.notes[0]?.score).toBe(0);
     expect(parsed.success && parsed.data.notes[0]?.snippet).toBe("");
+    expect(parsed.success && parsed.data.notes[0]?.passage_heading).toBe("");
     expect(parsed.success && parsed.data.vector).toBe(false);
+  });
+
+  it("keeps a hit whose passage_heading is malformed, with no heading", () => {
+    const parsed = WorkspaceNoteSearchResponseSchema.safeParse({
+      notes: [{ ...NOTE_ROW, snippet: "x", passage_heading: ["Deploy"] }],
+    });
+    expect(parsed.success && parsed.data.notes.length).toBe(1);
+    expect(parsed.success && parsed.data.notes[0]?.passage_heading).toBe("");
   });
 
   it("falls back to no results on a malformed search body", () => {

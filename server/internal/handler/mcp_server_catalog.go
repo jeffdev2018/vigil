@@ -183,7 +183,7 @@ var mcpLeaves = []mcpLeaf{
 	{Name: "note_list", Group: "vigil_brain", Action: "list", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/workspace/notes",
 		Description: "List or search the workspace Brain: shared notes every run reads.",
 		Params: []mcpParam{
-			{Name: "search", Type: "string", Desc: "Words to look for.", In: "query"},
+			{Name: "search", Type: "string", Desc: "Words to look for: the same ranked engine as note_search, best match first.", In: "query"},
 			{Name: "tag", Type: "string", Desc: "Only notes with this tag.", In: "query"},
 			{Name: "archived", Type: "boolean", Desc: "Include archived notes.", In: "query"},
 			pLimit,
@@ -209,7 +209,7 @@ var mcpLeaves = []mcpLeaf{
 	{Name: "note_archive", Group: "vigil_brain", Action: "archive", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/workspace/notes/{id}/archive",
 		Description: "Archive a Brain note (reversible in the app).", Params: []mcpParam{{Name: "id", Type: "string", Desc: "Note id.", Required: true, In: "path"}}},
 	{Name: "note_search", Group: "vigil_brain", Action: "search", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/workspace/notes/search",
-		Description: "Ranked search over the Brain: relevance, not recency. Accepts websearch syntax (\"a quoted phrase\", -negation, OR); each hit carries a score and a snippet. Prefer it over list when you are looking for something rather than browsing.",
+		Description: "Ranked search over the Brain: relevance, not recency. Ask in plain words or a question (French, English, Chinese, Japanese, Korean; accents optional); \"a quoted phrase\" must appear as written, -word excludes. Each hit carries a score, the heading of the most relevant section (passage_heading) and a snippet from it. Semantic matches need an embeddings model on the server. Prefer it over list when you are looking for something rather than browsing.",
 		Params: []mcpParam{
 			{Name: "q", Type: "string", Desc: "What to look for.", Required: true, In: "query"},
 			{Name: "tag", Type: "string", Desc: "Only notes with this tag.", In: "query"},

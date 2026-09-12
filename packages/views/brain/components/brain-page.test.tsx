@@ -249,7 +249,9 @@ describe("BrainPage", () => {
 
   it("sends a typed query to the ranked search endpoint, and the tag with it", async () => {
     data.searchResponse = {
-      notes: [{ ...note(), score: 0.7, snippet: "", lex_rank: 1, vec_rank: null }],
+      notes: [
+        { ...note(), score: 0.7, snippet: "", passage_heading: "", lex_rank: 1, vec_rank: null },
+      ],
       vector: false,
     };
     await renderNotes();
@@ -278,6 +280,7 @@ describe("BrainPage", () => {
           ...note({ title: "Injected" }),
           score: 1,
           snippet: '<mark>deploy</mark> <script>alert("x")</script>',
+          passage_heading: "",
           lex_rank: 1,
           vec_rank: null,
         },
@@ -295,6 +298,30 @@ describe("BrainPage", () => {
     expect(screen.getByText(/<script>alert\("x"\)<\/script>/)).toBeTruthy();
     // A fused vector rank is worth saying; the score is not.
     expect(screen.getByText("semantic")).toBeTruthy();
+  });
+
+  it("shows the matching section before the snippet", async () => {
+    data.searchResponse = {
+      notes: [
+        {
+          ...note({ title: "Runbook" }),
+          score: 1,
+          snippet: "run the <mark>revert</mark> pipeline",
+          passage_heading: "Deploy › Rollback <b>",
+          lex_rank: 1,
+          vec_rank: null,
+        },
+      ],
+      vector: false,
+    };
+    await renderNotes();
+    fireEvent.change(screen.getByLabelText("Search notes"), {
+      target: { value: "revert" },
+    });
+    await waitFor(() => expect(document.querySelector("mark")?.textContent).toBe("revert"));
+    // The heading is text, even when it looks like markup.
+    expect(screen.getByText("Deploy › Rollback <b> ·")).toBeTruthy();
+    expect(document.querySelector("b")).toBeNull();
   });
 
   it("shows the raw capture count on the inbox tab", async () => {

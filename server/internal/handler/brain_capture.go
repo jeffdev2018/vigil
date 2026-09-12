@@ -523,7 +523,7 @@ Return JSON only:
 
 Rules: never invent facts that are not in the capture; keep the person's words; "discard" only for empty, test or accidental captures; when unsure between note and merge, choose note.`
 
-func brainSuggestUserPrompt(c db.BrainCapture, candidates []db.SearchWorkspaceNotesRow) string {
+func brainSuggestUserPrompt(c db.BrainCapture, candidates []service.BrainSearchHit) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Capture kind: %s\n", c.Kind)
 	if c.TitleHint != "" {
@@ -539,7 +539,8 @@ func brainSuggestUserPrompt(c db.BrainCapture, candidates []db.SearchWorkspaceNo
 	fmt.Fprintf(&b, "Content:\n<capture>\n%s\n</capture>\n", content)
 	if len(candidates) > 0 {
 		b.WriteString("\nExisting notes that may be the same topic (id · title · excerpt):\n")
-		for _, n := range candidates {
+		for _, hit := range candidates {
+			n := hit.Note
 			excerpt := n.Content
 			if len(excerpt) > 240 {
 				excerpt = util.TruncateUTF8Bytes(excerpt, 240) + "…"
@@ -553,7 +554,7 @@ func brainSuggestUserPrompt(c db.BrainCapture, candidates []db.SearchWorkspaceNo
 }
 
 // brainCaptureCandidates finds the notes a capture may belong to.
-func (h *Handler) brainCaptureCandidates(ctx context.Context, c db.BrainCapture) []db.SearchWorkspaceNotesRow {
+func (h *Handler) brainCaptureCandidates(ctx context.Context, c db.BrainCapture) []service.BrainSearchHit {
 	query := strings.TrimSpace(c.TitleHint + " " + c.Content)
 	if query == "" {
 		query = c.Url
@@ -564,11 +565,12 @@ func (h *Handler) brainCaptureCandidates(ctx context.Context, c db.BrainCapture)
 	if strings.TrimSpace(query) == "" {
 		return nil
 	}
-	rows, err := h.searchWorkspaceNotes(ctx, wsSearch{wsUUID: c.WorkspaceID, query: query, limit: brainCaptureSuggestMaxNotes, neighbours: true})
+	hits, err := service.SearchBrainNotes(ctx, h.Queries, h.BrainEmbedder, service.BrainSearchParams{WorkspaceID: c.WorkspaceID, Query: query, Limit: brainCaptureSuggestMaxNotes, Neighbours: true})
 	if err != nil {
+		slog.Warn("brain capture candidates: search failed", "capture_id", uuidToString(c.ID), "error", err)
 		return nil
 	}
-	return rows
+	return hits
 }
 
 // suggestBrainCapture asks the model; ok is false without a model.
@@ -607,7 +609,8 @@ func (h *Handler) suggestBrainCapture(ctx context.Context, c db.BrainCapture) (B
 	if utf8.RuneCountInString(s.Title) > workspaceNoteMaxTitleRunes {
 		s.Title = string([]rune(s.Title)[:workspaceNoteMaxTitleRunes])
 	}
-	for _, n := range candidates {
+	for _, hit := range candidates {
+		n := hit.Note
 		s.Candidates = append(s.Candidates, BrainCaptureMergeTarget{ID: uuidToString(n.ID), Title: n.Title})
 		if out.MergeNoteID != "" && uuidToString(n.ID) == out.MergeNoteID {
 			s.MergeNote = &BrainCaptureMergeTarget{ID: uuidToString(n.ID), Title: n.Title}
@@ -869,39 +872,15 @@ func (h *Handler) ReopenBrainCapture(w http.ResponseWriter, r *http.Request) {
 
 // --- ranked note search --------------------------------------------------------------
 
-type wsSearch struct {
-	wsUUID          pgtype.UUID
-	query           string
-	tag             string
-	includeArchived bool
-	limit           int32
-	// neighbours admits notes only the vector leg finds: merge candidates a
-	// model judges. A search a person reads needs a lexical match.
-	neighbours bool
-}
-
-// searchWorkspaceNotes runs the fused search, with the query embedded when
-// a provider is configured.
-func (h *Handler) searchWorkspaceNotes(ctx context.Context, s wsSearch) ([]db.SearchWorkspaceNotesRow, error) {
-	params := db.SearchWorkspaceNotesParams{WorkspaceID: s.wsUUID, Query: s.query, IncludeArchived: s.includeArchived, Prefilter: 60, TopK: s.limit, VectorOnlyHits: s.neighbours}
-	if s.tag != "" {
-		params.Tag = pgtype.Text{String: s.tag, Valid: true}
-	}
-	if h.BrainEmbedder != nil {
-		if literal, model, ok := h.BrainEmbedder.QueryEmbedding(ctx, s.query); ok {
-			params.QueryEmbedding = pgtype.Text{String: literal, Valid: true}
-			params.EmbeddingModel = pgtype.Text{String: model, Valid: true}
-		}
-	}
-	return h.Queries.SearchWorkspaceNotes(ctx, params)
-}
-
 type WorkspaceNoteSearchHit struct {
 	WorkspaceNoteResponse
 	Score   float64 `json:"score"`
 	Snippet string  `json:"snippet"`
-	LexRank *int64  `json:"lex_rank"`
-	VecRank *int64  `json:"vec_rank"`
+	// PassageHeading is the heading path of the section the snippet comes
+	// from, "" when that section has no heading.
+	PassageHeading string `json:"passage_heading"`
+	LexRank        *int64 `json:"lex_rank"`
+	VecRank        *int64 `json:"vec_rank"`
 }
 
 // GET /api/workspace/notes/search?q=&tag=&archived=&limit=
@@ -924,24 +903,15 @@ func (h *Handler) SearchWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = int32(n)
 	}
-	rows, err := h.searchWorkspaceNotes(r.Context(), wsSearch{wsUUID: wsUUID, query: q, tag: strings.TrimSpace(r.URL.Query().Get("tag")), includeArchived: r.URL.Query().Get("archived") == "true", limit: limit})
+	hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{WorkspaceID: wsUUID, Query: q, Tag: strings.TrimSpace(r.URL.Query().Get("tag")), IncludeArchived: r.URL.Query().Get("archived") == "true", Limit: limit})
 	if err != nil {
+		slog.Error("brain search failed", "workspace_id", uuidToString(wsUUID), "error", err)
 		writeError(w, http.StatusInternalServerError, "search failed")
 		return
 	}
-	out := make([]WorkspaceNoteSearchHit, 0, len(rows))
-	for _, row := range rows {
-		note := db.WorkspaceNote{ID: row.ID, WorkspaceID: row.WorkspaceID, Title: row.Title, Content: row.Content, Tags: row.Tags, Source: row.Source, SourceTaskID: row.SourceTaskID, SourceAgentID: row.SourceAgentID, Pinned: row.Pinned, ArchivedAt: row.ArchivedAt, MergedInto: row.MergedInto, CreatedByType: row.CreatedByType, CreatedByID: row.CreatedByID, Revision: row.Revision, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
-		hit := WorkspaceNoteSearchHit{WorkspaceNoteResponse: workspaceNoteToResponse(note), Score: row.Score, Snippet: string(row.Snippet)}
-		if row.LexRank.Valid {
-			v := row.LexRank.Int64
-			hit.LexRank = &v
-		}
-		if row.VecRank.Valid {
-			v := row.VecRank.Int64
-			hit.VecRank = &v
-		}
-		out = append(out, hit)
+	out := make([]WorkspaceNoteSearchHit, 0, len(hits))
+	for _, hit := range hits {
+		out = append(out, WorkspaceNoteSearchHit{WorkspaceNoteResponse: workspaceNoteToResponse(hit.Note), Score: hit.Score, Snippet: hit.Snippet, PassageHeading: hit.PassageHeading, LexRank: hit.LexRank, VecRank: hit.VecRank})
 	}
 	writeJSON(w, http.StatusOK, struct {
 		Notes  []WorkspaceNoteSearchHit `json:"notes"`
@@ -957,16 +927,18 @@ func (h *Handler) embedNoteAsync(noteID pgtype.UUID) {
 	}
 }
 
-// BackfillBrainEmbeddings is the scheduler entry point: embeds up to a batch
-// of notes whose vector is missing or stale. Returns how many were embedded.
+// BackfillBrainEmbeddings is the scheduler entry point: catches up the
+// passage index of every workspace, sweeps orphan passages and, with a
+// provider, embeds up to a batch of passages. Returns the work done.
 func (h *Handler) BackfillBrainEmbeddings(ctx context.Context) int {
 	b, ok := h.BrainEmbedder.(*service.BrainEmbedder)
-	if !ok || !b.Enabled() {
-		return 0
+	if !ok || b == nil {
+		// No embedder wired: the lexical index still has to catch up.
+		b = service.NewBrainEmbedder(h.Queries, nil)
 	}
 	n, err := b.Backfill(ctx, 200)
 	if err != nil {
-		slog.Warn("brain embedding backfill stopped", "embedded", n, "error", err)
+		slog.Warn("brain embedding backfill stopped", "done", n, "error", err)
 	}
 	return n
 }

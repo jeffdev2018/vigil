@@ -38,6 +38,7 @@ func createNote(t *testing.T, workspaceID string, body CreateWorkspaceNoteReques
 func testDBFixtureCleanupNote(t *testing.T, id string) {
 	t.Helper()
 	dbfx.Cleanup(t, `DELETE FROM workspace_note WHERE id = $1`, id)
+	dbfx.Cleanup(t, `DELETE FROM workspace_note_passage WHERE note_id = $1`, id)
 }
 
 func TestWorkspaceNoteCRUDRoundTrip(t *testing.T) {

@@ -2,18 +2,14 @@
 -- the workspace_id tenant guard.
 
 -- name: ListWorkspaceNotes :many
--- Brain listing. Optional full-text search (plainto_tsquery over the same
--- expression the GIN index builds), optional single-tag filter, archived rows
--- excluded unless asked for. Pinned notes float to the top so the ones the
--- workspace cares about stay reachable as the list grows.
+-- Brain listing: optional single-tag filter, archived rows excluded unless
+-- asked for. Pinned notes float to the top so the ones the workspace cares
+-- about stay reachable as the list grows. A search goes through
+-- SearchBrainNotes (brain_search.sql) instead.
 SELECT * FROM workspace_note
 WHERE workspace_id = $1
   AND (sqlc.arg('include_archived')::bool OR archived_at IS NULL)
   AND (sqlc.narg('tag')::text IS NULL OR sqlc.narg('tag')::text = ANY(tags))
-  AND (
-      sqlc.narg('search')::text IS NULL
-      OR to_tsvector('simple', title || ' ' || content) @@ plainto_tsquery('simple', sqlc.narg('search')::text)
-  )
 ORDER BY pinned DESC, updated_at DESC, id DESC
 LIMIT sqlc.arg('page_limit')::int;
 
@@ -60,8 +56,13 @@ WHERE id = $1 AND workspace_id = $2
 RETURNING *;
 
 -- name: DeleteWorkspaceNote :execrows
--- Defense-in-depth: workspace_id is a SQL-layer tenant guard.
-DELETE FROM workspace_note WHERE id = $1 AND workspace_id = $2;
+-- Defense-in-depth: workspace_id is a SQL-layer tenant guard. The note's
+-- search passages go in the same statement (no FK, no cascade).
+WITH passages AS (
+    DELETE FROM workspace_note_passage
+    WHERE note_id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
+)
+DELETE FROM workspace_note WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid;
 
 -- name: ListPinnedAndRecentWorkspaceNotesForBrief :many
 -- Run-time injection: every pinned note first, then the most recently updated
