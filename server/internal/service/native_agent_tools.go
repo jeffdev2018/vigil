@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -1031,20 +1032,17 @@ func (s *NativeAgentService) nativeSearchWorkspace(ctx context.Context, tctx *na
 			"title": i.Title, "status": i.Status,
 		})
 	}
-	notes, err := s.Queries.ListWorkspaceNotes(ctx, db.ListWorkspaceNotesParams{
-		WorkspaceID:     tctx.workspaceID,
-		IncludeArchived: false,
-		Search:          pgtype.Text{String: query, Valid: true},
-		PageLimit:       5,
-	})
+	notes, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{WorkspaceID: tctx.workspaceID, Query: query, Limit: 5})
 	if err != nil {
-		notes = nil
+		slog.Warn("search_workspace: note search failed", "error", err)
+		notes = nil // best-effort: issues may still answer
 	}
 	outNotes := make([]map[string]any, 0, len(notes))
-	for _, n := range notes {
+	for _, hit := range notes {
 		outNotes = append(outNotes, map[string]any{
-			"id": util.UUIDToString(n.ID), "title": n.Title,
-			"excerpt": clampString(n.Content, 200),
+			"id": util.UUIDToString(hit.Note.ID), "title": hit.Note.Title,
+			"section": hit.PassageHeading,
+			"excerpt": stripNoteHighlight(hit.Snippet),
 		})
 	}
 	return map[string]any{"issues": outIssues, "notes": outNotes}, nil
@@ -1077,11 +1075,6 @@ func nativeNoteTags(raw []any) ([]string, error) {
 	return out, nil
 }
 
-// nativeNoteSearchPrefilter is how deep each ranker looks before the two
-// are fused. It matches the app's own search so an agent and a person asking
-// the same question see the same notes.
-const nativeNoteSearchPrefilter = 60
-
 // nativeSearchNotes answers a question against the Brain by relevance. With a
 // query it runs the same ranked search the app does — lexical rank fused with
 // a vector rank when an embeddings model is configured, so a note that words
@@ -1103,37 +1096,27 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 		return s.nativeBrowseNotes(ctx, tctx, tag, includeArchived, limit)
 	}
 
-	params := db.SearchWorkspaceNotesParams{
-		WorkspaceID:     tctx.workspaceID,
-		Query:           query,
-		IncludeArchived: includeArchived,
-		Prefilter:       nativeNoteSearchPrefilter,
-		TopK:            limit,
-	}
-	if tag != "" {
-		params.Tag = pgtype.Text{String: tag, Valid: true}
-	}
-	if s.NoteEmbedder != nil && s.NoteEmbedder.Enabled() {
-		if literal, model, ok := s.NoteEmbedder.QueryEmbedding(ctx, query); ok {
-			params.QueryEmbedding = pgtype.Text{String: literal, Valid: true}
-			params.EmbeddingModel = pgtype.Text{String: model, Valid: true}
-		}
-	}
-	rows, err := s.Queries.SearchWorkspaceNotes(ctx, params)
+	// The app's own search (SearchBrainNotes), so an agent and a person
+	// asking the same question see the same notes in the same order.
+	hits, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{
+		WorkspaceID: tctx.workspaceID, Query: query, Tag: tag, IncludeArchived: includeArchived, Limit: limit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("note search failed: %w", err)
 	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, n := range rows {
+	out := make([]map[string]any, 0, len(hits))
+	for _, hit := range hits {
+		n := hit.Note
 		out = append(out, map[string]any{
-			"id":     util.UUIDToString(n.ID),
-			"title":  n.Title,
-			"tags":   n.Tags,
-			"pinned": n.Pinned,
-			"score":  n.Score,
+			"id":      util.UUIDToString(n.ID),
+			"title":   n.Title,
+			"tags":    n.Tags,
+			"pinned":  n.Pinned,
+			"score":   hit.Score,
+			"section": hit.PassageHeading,
 			// Fenced as a record (N01): a note's body is workspace data,
 			// never instructions for the agent reading it.
-			"snippet":    nativeDataFence("note", stripNoteHighlight(string(n.Snippet))),
+			"snippet":    nativeDataFence("note", stripNoteHighlight(hit.Snippet)),
 			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
 	}

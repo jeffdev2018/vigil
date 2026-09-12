@@ -958,6 +958,32 @@ func TestNativeAgentBrainTools(t *testing.T) {
 		t.Errorf("hit has no updated_at, so the model cannot tell a stale note from a fresh one")
 	}
 
+	// The tool and the REST endpoint run one engine (SearchBrainNotes): same
+	// notes, same order.
+	if _, err := svc.callNativeTool(ctx, tctx, "save_note", map[string]any{
+		"title":   "Remboursement express",
+		"content": "Un remboursement express passe par le responsable ; le remboursement standard passe par le formulaire.",
+	}); err != nil {
+		t.Fatalf("save_note: %v", err)
+	}
+	out, err = svc.callNativeTool(ctx, tctx, "search_notes", map[string]any{"query": "remboursement formulaire responsable"})
+	if err != nil {
+		t.Fatalf("search_notes: %v", err)
+	}
+	tool := out.([]map[string]any)
+	ranked, err := SearchBrainNotes(ctx, db.New(pool), nil, BrainSearchParams{WorkspaceID: agent.WorkspaceID, Query: "remboursement formulaire responsable", Limit: 10})
+	if err != nil {
+		t.Fatalf("SearchBrainNotes: %v", err)
+	}
+	if len(tool) != 2 || len(ranked) != len(tool) {
+		t.Fatalf("tool returned %d notes, ranked search %d; want both notes from each", len(tool), len(ranked))
+	}
+	for i := range tool {
+		if tool[i]["id"] != util.UUIDToString(ranked[i].Note.ID) {
+			t.Errorf("rank %d: tool %v, ranked search %s", i, tool[i]["id"], util.UUIDToString(ranked[i].Note.ID))
+		}
+	}
+
 	out, err = svc.callNativeTool(ctx, tctx, "update_note", map[string]any{
 		"note_id": noteID,
 		"content": "Mis à jour : validation par le responsable PUIS remboursement sous 5 jours.",

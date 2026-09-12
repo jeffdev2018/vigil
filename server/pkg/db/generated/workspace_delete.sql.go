@@ -668,10 +668,14 @@ func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtyp
 }
 
 const deleteWorkspaceNotes = `-- name: DeleteWorkspaceNotes :exec
+WITH passages AS (
+    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
+)
 DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1
 `
 
-// workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+// workspace_note carries no FK by repo rule; sweep the Brain by workspace,
+// with its search passages in the same statement.
 func (q *Queries) DeleteWorkspaceNotes(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceNotes, workspaceID)
 	return err

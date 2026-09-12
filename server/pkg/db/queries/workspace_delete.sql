@@ -686,7 +686,11 @@ DELETE FROM postmortem WHERE postmortem.workspace_id = $1;
 DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1;
 
 -- name: DeleteWorkspaceNotes :exec
--- workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+-- workspace_note carries no FK by repo rule; sweep the Brain by workspace,
+-- with its search passages in the same statement.
+WITH passages AS (
+    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
+)
 DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1;
 
 -- name: DeleteWorkspacePluginData :exec

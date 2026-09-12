@@ -3389,13 +3389,25 @@ type WorkspaceNote struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
-type WorkspaceNoteEmbedding struct {
-	NoteID         pgtype.UUID        `json:"note_id"`
-	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
-	Embedding      string             `json:"embedding"`
-	EmbeddingModel string             `json:"embedding_model"`
+// JEF-412: one searchable passage of a Brain note. Rebuilt from the note when its revision or the chunker version changes; embedding kept while content_hash is unchanged.
+type WorkspaceNotePassage struct {
+	NoteID         pgtype.UUID `json:"note_id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	Ordinal        int32       `json:"ordinal"`
+	Heading        string      `json:"heading"`
+	Body           string      `json:"body"`
+	SearchTitle    string      `json:"search_title"`
+	SearchHeading  string      `json:"search_heading"`
+	SearchBody     string      `json:"search_body"`
+	Tsv            interface{} `json:"tsv"`
+	NoteRevision   int64       `json:"note_revision"`
+	ChunkerVersion int32       `json:"chunker_version"`
+	// md5 of title, heading and body: the identity of what embedding was computed from.
 	ContentHash    string             `json:"content_hash"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Embedding      string             `json:"embedding"`
+	EmbeddingModel pgtype.Text        `json:"embedding_model"`
+	EmbeddedAt     pgtype.Timestamptz `json:"embedded_at"`
+	IndexedAt      pgtype.Timestamptz `json:"indexed_at"`
 }
 
 type WorkspacePackInstall struct {

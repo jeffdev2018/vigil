@@ -397,7 +397,9 @@ var brainSearchCmd = &cobra.Command{
 	Short: "Ranked search over the workspace notes",
 	Long: `Search the Brain by relevance rather than by recency.
 
-The query accepts websearch syntax: "a quoted phrase", -negation, OR. When an
+Ask in plain words or a question; accents are optional and Chinese, Japanese
+or Korean words match inside longer text. "A quoted phrase" must appear as
+written and -word excludes. Each hit shows the section that matched. When an
 embeddings model is configured the lexical rank is fused with a vector rank, so
 a note that uses different words than the query still surfaces.`,
 	Args: exactArgs(1),
@@ -443,10 +445,11 @@ type brainCapture struct {
 // brainNoteHit is one ranked search result: the note plus why it ranked.
 type brainNoteHit struct {
 	brainNote
-	Score   float64 `json:"score"`
-	Snippet string  `json:"snippet"`
-	LexRank *int64  `json:"lex_rank"`
-	VecRank *int64  `json:"vec_rank"`
+	Score          float64 `json:"score"`
+	Snippet        string  `json:"snippet"`
+	PassageHeading string  `json:"passage_heading"`
+	LexRank        *int64  `json:"lex_rank"`
+	VecRank        *int64  `json:"vec_rank"`
 }
 
 func runBrainCapture(cmd *cobra.Command, args []string) error {
@@ -803,7 +806,7 @@ func runBrainSearch(cmd *cobra.Command, args []string) error {
 			fmt.Sprintf("%.4f", hit.Score),
 			displayID(hit.ID, fullID),
 			hit.Title,
-			truncateBrainLine(stripSearchHighlight(hit.Snippet)),
+			truncateBrainLine(brainHitExcerpt(hit)),
 		})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
@@ -811,6 +814,15 @@ func runBrainSearch(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stdout, "\nLexical ranking only: no embeddings model is configured for this workspace.")
 	}
 	return nil
+}
+
+// brainHitExcerpt is the snippet prefixed with the section it comes from.
+func brainHitExcerpt(hit brainNoteHit) string {
+	excerpt := stripSearchHighlight(hit.Snippet)
+	if hit.PassageHeading != "" {
+		return hit.PassageHeading + " · " + excerpt
+	}
+	return excerpt
 }
 
 // stripSearchHighlight turns the server's <mark>-annotated snippet into one

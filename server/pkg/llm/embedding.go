@@ -20,7 +20,7 @@ import (
 var ErrEmbeddingsNotConfigured = errors.New("llm: no embedding model configured")
 
 // EmbeddingDimensions is the width every pgvector column in this codebase is
-// declared with (repo_index_chunk.embedding, workspace_note_embedding.embedding)
+// declared with (repo_index_chunk.embedding, workspace_note_passage.embedding)
 // and the largest width the hnsw index accepts is 2000. The request asks the
 // upstream for exactly this width; a model that ignores the parameter and
 // answers wider (gemini-embedding answers 3072 by default) is cut down to it

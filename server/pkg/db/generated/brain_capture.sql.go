@@ -74,8 +74,8 @@ type CreateBrainCaptureParams struct {
 	SourceTaskID        pgtype.UUID `json:"source_task_id"`
 }
 
-// Brain capture (OS plan, vague B): the raw inbox, its organization into
-// notes, ranked note search and note embeddings.
+// Brain capture (OS plan, vague B): the raw inbox and its organization into
+// notes. Ranked note search lives in brain_search.sql.
 func (q *Queries) CreateBrainCapture(ctx context.Context, arg CreateBrainCaptureParams) (BrainCapture, error) {
 	row := q.db.QueryRow(ctx, createBrainCapture,
 		arg.ID,
@@ -131,15 +131,6 @@ func (q *Queries) DeleteBrainCapture(ctx context.Context, arg DeleteBrainCapture
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const deleteWorkspaceNoteEmbedding = `-- name: DeleteWorkspaceNoteEmbedding :exec
-DELETE FROM workspace_note_embedding WHERE note_id = $1
-`
-
-func (q *Queries) DeleteWorkspaceNoteEmbedding(ctx context.Context, noteID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteWorkspaceNoteEmbedding, noteID)
-	return err
 }
 
 const getBrainCapture = `-- name: GetBrainCapture :one
@@ -306,55 +297,6 @@ func (q *Queries) ListNoteAttachments(ctx context.Context, arg ListNoteAttachmen
 	return items, nil
 }
 
-const listWorkspaceNotesNeedingEmbedding = `-- name: ListWorkspaceNotesNeedingEmbedding :many
-SELECT n.id, n.workspace_id, n.title, n.content
-FROM workspace_note n
-LEFT JOIN workspace_note_embedding e ON e.note_id = n.id
-WHERE n.archived_at IS NULL
-  AND (e.note_id IS NULL OR e.embedding_model <> $2::text OR e.content_hash <> md5(n.title || E'\n' || n.content))
-ORDER BY n.updated_at DESC
-LIMIT $1
-`
-
-type ListWorkspaceNotesNeedingEmbeddingParams struct {
-	Limit          int32  `json:"limit"`
-	EmbeddingModel string `json:"embedding_model"`
-}
-
-type ListWorkspaceNotesNeedingEmbeddingRow struct {
-	ID          pgtype.UUID `json:"id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	Title       string      `json:"title"`
-	Content     string      `json:"content"`
-}
-
-// Live notes whose stored vector is missing, from another model, or older
-// than their content.
-func (q *Queries) ListWorkspaceNotesNeedingEmbedding(ctx context.Context, arg ListWorkspaceNotesNeedingEmbeddingParams) ([]ListWorkspaceNotesNeedingEmbeddingRow, error) {
-	rows, err := q.db.Query(ctx, listWorkspaceNotesNeedingEmbedding, arg.Limit, arg.EmbeddingModel)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListWorkspaceNotesNeedingEmbeddingRow{}
-	for rows.Next() {
-		var i ListWorkspaceNotesNeedingEmbeddingRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Content,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const organizeBrainCapture = `-- name: OrganizeBrainCapture :one
 UPDATE brain_capture SET status = $3, note_id = $4, organized_by = $5, organized_at = now(), updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND status = 'raw'
@@ -411,15 +353,6 @@ func (q *Queries) PurgeWorkspaceBrainCaptures(ctx context.Context, workspaceID p
 	return err
 }
 
-const purgeWorkspaceNoteEmbeddings = `-- name: PurgeWorkspaceNoteEmbeddings :exec
-DELETE FROM workspace_note_embedding WHERE workspace_id = $1
-`
-
-func (q *Queries) PurgeWorkspaceNoteEmbeddings(ctx context.Context, workspaceID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, purgeWorkspaceNoteEmbeddings, workspaceID)
-	return err
-}
-
 const reopenBrainCapture = `-- name: ReopenBrainCapture :one
 UPDATE brain_capture SET status = 'raw', note_id = NULL, organized_by = NULL, organized_at = NULL, updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND status = 'discarded'
@@ -456,142 +389,6 @@ func (q *Queries) ReopenBrainCapture(ctx context.Context, arg ReopenBrainCapture
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const searchWorkspaceNotes = `-- name: SearchWorkspaceNotes :many
-WITH q AS (
-    SELECT websearch_to_tsquery('simple', $2::text) AS tsq
-), lexical AS (
-    SELECT n.id,
-           row_number() OVER (ORDER BY ts_rank_cd(to_tsvector('simple', n.title || ' ' || n.content), (SELECT tsq FROM q)) DESC, n.pinned DESC, n.updated_at DESC) AS lex_rank
-    FROM workspace_note n
-    WHERE n.workspace_id = $3
-      AND ($4::bool OR n.archived_at IS NULL)
-      AND ($5::text IS NULL OR $5::text = ANY(n.tags))
-      AND to_tsvector('simple', n.title || ' ' || n.content) @@ (SELECT tsq FROM q)
-    LIMIT $6::int
-), vec AS (
-    SELECT e.note_id AS id,
-           row_number() OVER (ORDER BY e.embedding <=> CAST($7::text AS vector)) AS vec_rank
-    FROM workspace_note_embedding e
-    JOIN workspace_note n ON n.id = e.note_id
-    WHERE $7::text IS NOT NULL
-      AND e.workspace_id = $3
-      AND e.embedding_model = $8::text
-      AND ($4::bool OR n.archived_at IS NULL)
-      AND ($5::text IS NULL OR $5::text = ANY(n.tags))
-    ORDER BY e.embedding <=> CAST($7::text AS vector)
-    LIMIT $6::int
-), fused AS (
-    SELECT COALESCE(l.id, v.id) AS id,
-           (COALESCE(1.0 / (60 + l.lex_rank), 0) + COALESCE(1.0 / (60 + v.vec_rank), 0))::float8 AS score,
-           l.lex_rank, v.vec_rank
-    FROM lexical l FULL OUTER JOIN vec v ON v.id = l.id
-    -- ponytail: no similarity floor, a fixed one cannot be calibrated across
-    -- embedding models; semantic-only recall for search returns with JEF-412.
-    WHERE l.id IS NOT NULL OR $9::bool
-)
-SELECT n.id, n.workspace_id, n.title, n.content, n.tags, n.source, n.source_task_id, n.source_agent_id, n.pinned, n.archived_at, n.merged_into, n.created_by_type, n.created_by_id, n.revision, n.created_at, n.updated_at, f.score, f.lex_rank, f.vec_rank,
-       ts_headline('simple', n.content, (SELECT tsq FROM q), 'MaxWords=40, MinWords=15, MaxFragments=2, FragmentDelimiter=" … ", StartSel=<mark>, StopSel=</mark>') AS snippet
-FROM fused f JOIN workspace_note n ON n.id = f.id
-ORDER BY f.score DESC, n.pinned DESC, n.updated_at DESC
-LIMIT $1::int
-`
-
-type SearchWorkspaceNotesParams struct {
-	TopK            int32       `json:"top_k"`
-	Query           string      `json:"query"`
-	WorkspaceID     pgtype.UUID `json:"workspace_id"`
-	IncludeArchived bool        `json:"include_archived"`
-	Tag             pgtype.Text `json:"tag"`
-	Prefilter       int32       `json:"prefilter"`
-	QueryEmbedding  pgtype.Text `json:"query_embedding"`
-	EmbeddingModel  pgtype.Text `json:"embedding_model"`
-	VectorOnlyHits  bool        `json:"vector_only_hits"`
-}
-
-type SearchWorkspaceNotesRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	Title         string             `json:"title"`
-	Content       string             `json:"content"`
-	Tags          []string           `json:"tags"`
-	Source        string             `json:"source"`
-	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
-	SourceAgentID pgtype.UUID        `json:"source_agent_id"`
-	Pinned        bool               `json:"pinned"`
-	ArchivedAt    pgtype.Timestamptz `json:"archived_at"`
-	MergedInto    pgtype.UUID        `json:"merged_into"`
-	CreatedByType string             `json:"created_by_type"`
-	CreatedByID   pgtype.UUID        `json:"created_by_id"`
-	Revision      int64              `json:"revision"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	Score         float64            `json:"score"`
-	LexRank       pgtype.Int8        `json:"lex_rank"`
-	VecRank       pgtype.Int8        `json:"vec_rank"`
-	Snippet       []byte             `json:"snippet"`
-}
-
-// Ranked note search: lexical rank over the same expression the GIN index
-// builds (websearch syntax, 'simple' config for the polyglot corpus), fused
-// by reciprocal rank with the vector rank when a query embedding is given
-// and the stored vector came from the same model. A note without an
-// embedding still ranks lexically. The vector leg is a nearest-neighbour
-// list: it always has neighbours, however unrelated the query, and RRF keeps
-// only their rank. So a note only the vector finds surfaces solely when the
-// caller asks for neighbours (vector_only_hits: capture merge candidates,
-// which a model then judges); a user-facing search needs a lexical match.
-// Snippets come from ts_headline over the content.
-func (q *Queries) SearchWorkspaceNotes(ctx context.Context, arg SearchWorkspaceNotesParams) ([]SearchWorkspaceNotesRow, error) {
-	rows, err := q.db.Query(ctx, searchWorkspaceNotes,
-		arg.TopK,
-		arg.Query,
-		arg.WorkspaceID,
-		arg.IncludeArchived,
-		arg.Tag,
-		arg.Prefilter,
-		arg.QueryEmbedding,
-		arg.EmbeddingModel,
-		arg.VectorOnlyHits,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SearchWorkspaceNotesRow{}
-	for rows.Next() {
-		var i SearchWorkspaceNotesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Content,
-			&i.Tags,
-			&i.Source,
-			&i.SourceTaskID,
-			&i.SourceAgentID,
-			&i.Pinned,
-			&i.ArchivedAt,
-			&i.MergedInto,
-			&i.CreatedByType,
-			&i.CreatedByID,
-			&i.Revision,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Score,
-			&i.LexRank,
-			&i.VecRank,
-			&i.Snippet,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const setBrainCaptureSuggestion = `-- name: SetBrainCaptureSuggestion :one
@@ -672,29 +469,4 @@ func (q *Queries) SetBrainCaptureTranscript(ctx context.Context, arg SetBrainCap
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const upsertWorkspaceNoteEmbedding = `-- name: UpsertWorkspaceNoteEmbedding :exec
-INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash)
-VALUES ($1, $2, CAST($5::text AS vector), $3, $4)
-ON CONFLICT (note_id) DO UPDATE SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, content_hash = EXCLUDED.content_hash, updated_at = now()
-`
-
-type UpsertWorkspaceNoteEmbeddingParams struct {
-	NoteID         pgtype.UUID `json:"note_id"`
-	WorkspaceID    pgtype.UUID `json:"workspace_id"`
-	EmbeddingModel string      `json:"embedding_model"`
-	ContentHash    string      `json:"content_hash"`
-	Embedding      string      `json:"embedding"`
-}
-
-func (q *Queries) UpsertWorkspaceNoteEmbedding(ctx context.Context, arg UpsertWorkspaceNoteEmbeddingParams) error {
-	_, err := q.db.Exec(ctx, upsertWorkspaceNoteEmbedding,
-		arg.NoteID,
-		arg.WorkspaceID,
-		arg.EmbeddingModel,
-		arg.ContentHash,
-		arg.Embedding,
-	)
-	return err
 }

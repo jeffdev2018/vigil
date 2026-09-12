@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -192,14 +193,29 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 	if tag := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tag"))); tag != "" {
 		params.Tag = pgtype.Text{String: tag, Valid: true}
 	}
-	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
-		params.Search = pgtype.Text{String: search, Valid: true}
-	}
 
-	rows, err := h.Queries.ListWorkspaceNotes(r.Context(), params)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
-		return
+	var rows []db.WorkspaceNote
+	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+		// The same ranked engine as /api/workspace/notes/search, so MCP
+		// note_list and the search endpoint agree; best match first.
+		hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{
+			WorkspaceID: workspaceID, Query: search, Tag: params.Tag.String, IncludeArchived: params.IncludeArchived, Limit: params.PageLimit,
+		})
+		if err != nil {
+			slog.Error("brain list search failed", "workspace_id", uuidToString(workspaceID), "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
+		for _, hit := range hits {
+			rows = append(rows, hit.Note)
+		}
+	} else {
+		var err error
+		rows, err = h.Queries.ListWorkspaceNotes(r.Context(), params)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
 	}
 	items := make([]WorkspaceNoteResponse, 0, len(rows))
 	for _, n := range rows {
@@ -530,7 +546,6 @@ func (h *Handler) DeleteWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workspace note not found")
 		return
 	}
-	_ = h.Queries.DeleteWorkspaceNoteEmbedding(r.Context(), note.ID)
 	// Undo (K69): a run's deletion is reversible.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteDelete, "workspace_note", note.ID, noteEffectSnapshot(note), map[string]any{}, true)
 
