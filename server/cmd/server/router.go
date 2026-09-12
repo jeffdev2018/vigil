@@ -3273,6 +3273,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/failures/by-agent", h.GetDashboardFailuresByAgent)
 				// Cost per deliverable (K04).
 				r.Get("/cost-per-deliverable", h.GetDashboardCostPerDeliverable)
+				// Mixed member/agent velocity (JEF-251).
+				r.Get("/velocity/weekly", h.GetDashboardVelocityWeekly)
 				// ROI per agent (JEF-252).
 				r.Get("/roi-by-agent", h.GetDashboardAgentRoi)
 			})

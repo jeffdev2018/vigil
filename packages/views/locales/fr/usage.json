@@ -214,5 +214,28 @@
     "pin_failed": "Impossible d'épingler cette réponse.",
     "reorder_failed": "Impossible de réordonner cette carte.",
     "remove_failed": "Impossible de supprimer cette carte."
+  },
+  "velocity": {
+    "title": "Vélocité",
+    "kpi_member_cycle": "Cycle membres · {{days}}j",
+    "kpi_agent_cycle": "Cycle agents · {{days}}j",
+    "kpi_throughput": "Issues fermées · {{days}}j",
+    "throughput_hint": "{{member}} par les membres · {{agent}} par les agents",
+    "closed_hint": "{{count}} fermées",
+    "no_closed": "Aucune fermeture sur la période",
+    "days_unit": "j",
+    "legend_member": "Membres",
+    "legend_agent": "Agents",
+    "throughput_title": "Débit hebdomadaire",
+    "throughput_empty": "Aucune issue fermée sur la période.",
+    "tooltip_total": "Total",
+    "cost_title": "Coût par issue fermée",
+    "cost_series": "Coût moyen",
+    "cost_caption": "Issues fermées avec des exécutions d'agent — le coût ne couvre que ces exécutions.",
+    "cost_empty": "Aucune issue fermée avec une exécution d'agent sur la période.",
+    "empty_title": "Pas encore de vélocité",
+    "empty_body": "Quand des membres ou des agents fermeront des issues, le temps de cycle et le débit hebdomadaire des {{days}} derniers jours apparaîtront ici.",
+    "load_error": "Impossible de charger la vélocité.",
+    "retry": "Réessayer"
   }
 }

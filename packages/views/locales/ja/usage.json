@@ -214,5 +214,28 @@
     "pin_failed": "この回答をピン留めできませんでした。",
     "reorder_failed": "このカードを並べ替えできませんでした。",
     "remove_failed": "このカードを削除できませんでした。"
+  },
+  "velocity": {
+    "title": "ベロシティ",
+    "kpi_member_cycle": "メンバーのサイクルタイム · {{days}}日",
+    "kpi_agent_cycle": "エージェントのサイクルタイム · {{days}}日",
+    "kpi_throughput": "完了イシュー · {{days}}日",
+    "throughput_hint": "メンバー {{member}} 件 · エージェント {{agent}} 件",
+    "closed_hint": "{{count}} 件完了",
+    "no_closed": "この期間に完了したイシューはありません",
+    "days_unit": "日",
+    "legend_member": "メンバー",
+    "legend_agent": "エージェント",
+    "throughput_title": "週間スループット",
+    "throughput_empty": "この期間に完了したイシューはありません。",
+    "tooltip_total": "合計",
+    "cost_title": "完了イシューあたりのコスト",
+    "cost_series": "平均コスト",
+    "cost_caption": "エージェント実行を伴う完了イシュー — コストはそれらの実行分のみです。",
+    "cost_empty": "この期間にエージェント実行を伴う完了イシューはありません。",
+    "empty_title": "ベロシティはまだありません",
+    "empty_body": "メンバーやエージェントがイシューを完了すると、過去 {{days}} 日間のサイクルタイムと週間スループットがここに表示されます。",
+    "load_error": "ベロシティを読み込めませんでした。",
+    "retry": "再試行"
   }
 }

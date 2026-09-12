@@ -76,6 +76,7 @@ import { Leaderboard } from "./leaderboard";
 import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
 import { WorkflowOutcomesCard } from "./workflow-outcomes-card";
 import { ErrorsTab } from "./errors-tab";
+import { VelocityTab } from "./velocity-tab";
 import { cn } from "@multica/ui/lib/utils";
 import { BudgetNotice } from "./budget-notice";
 
@@ -95,7 +96,7 @@ const EMPTY_WORKFLOW_STATS_ROWS: import("@multica/core/types").WorkflowStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
-type DashboardTab = "usage" | "errors" | "insights";
+type DashboardTab = "usage" | "velocity" | "errors" | "insights";
 const TAB_QUERY_KEY = "tab";
 const DEFAULT_TAB: DashboardTab = "usage";
 
@@ -177,7 +178,9 @@ export function DashboardPage() {
   // falls back to Usage rather than rendering nothing.
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
   const tab: DashboardTab =
-    tabFromUrl === "errors" || tabFromUrl === "insights" ? tabFromUrl : DEFAULT_TAB;
+    tabFromUrl === "velocity" || tabFromUrl === "errors" || tabFromUrl === "insights"
+      ? tabFromUrl
+      : DEFAULT_TAB;
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
     if (next === DEFAULT_TAB) params.delete(TAB_QUERY_KEY);
@@ -530,6 +533,12 @@ export function DashboardPage() {
               {t(($) => $.tab_usage)}
             </TabsTrigger>
             <TabsTrigger
+              value="velocity"
+              className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t(($) => $.velocity.title)}
+            </TabsTrigger>
+            <TabsTrigger
               value="errors"
               className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
             >
@@ -684,6 +693,12 @@ export function DashboardPage() {
               loading={workflowStatsQuery.isLoading}
               lessThanMinuteLabel={lessThanMinuteLabel}
             />
+          </TabsContent>
+
+          <TabsContent value="velocity" className="space-y-5">
+            {/* Mixed member/agent velocity (JEF-251). The tab fetches its own
+                weekly rollup, like the cost/ROI cards do. */}
+            <VelocityTab wsId={wsId} days={days} projectId={projectId} locales={locales} />
           </TabsContent>
 
           <TabsContent value="errors">

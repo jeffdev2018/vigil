@@ -121,6 +121,7 @@ import type {
   DashboardRunTimeDaily,
   DashboardFailureDaily,
   DashboardFailureByAgent,
+  DashboardVelocityWeekly,
   RuntimeUpdate,
   RuntimeModelListRequest,
 	RuntimeCliAuthRequest,
@@ -514,6 +515,7 @@ import {
   DashboardUsageByAgentListSchema,
   DashboardAgentRoiSchema,
   DashboardCostPerDeliverableSchema,
+  DashboardVelocityWeeklySchema,
   AgentScorecardSchema,
   AgentCostEstimateSchema,
   WorkspaceScorecardsSchema,
@@ -4214,6 +4216,31 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/dashboard/roi-by-agent?${search}`);
     return parseWithFallback(raw, DashboardAgentRoiSchema, { days: params.days ?? 30, agents: [] }, {
       endpoint: "GET /api/dashboard/roi-by-agent",
+    });
+  }
+
+  // Mixed member/agent velocity, weekly buckets (JEF-251). The server
+  // buckets weeks in UTC, so unlike the day-sliced rollups there is no `tz`.
+  async getDashboardVelocityWeekly(
+    params: { days?: number; projectId?: string },
+  ): Promise<DashboardVelocityWeekly> {
+    const search = new URLSearchParams();
+    if (params.days) search.set("days", String(params.days));
+    if (params.projectId) search.set("project_id", params.projectId);
+    const raw = await this.fetch<unknown>(`/api/dashboard/velocity/weekly?${search}`);
+    return parseWithFallback(raw, DashboardVelocityWeeklySchema, {
+      throughput: [],
+      cycle_time: {
+        member_median_days: null,
+        agent_median_days: null,
+        prev_member_median_days: null,
+        prev_agent_median_days: null,
+        member_count: 0,
+        agent_count: 0,
+      },
+      cost_per_closed_issue: [],
+    }, {
+      endpoint: "GET /api/dashboard/velocity/weekly",
     });
   }
 
