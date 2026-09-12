@@ -1,0 +1,361 @@
+[
+  {
+    "key": "deploy-procedure-current",
+    "title": "Procédure de déploiement en production (v2)",
+    "content": "## Contexte\n\nDepuis la migration vers le pipeline v2, Coralis Desk se déploie par tag Git\nsigné, jamais depuis une branche. Cette note remplace toutes les procédures\nantérieures à mars 2026 et sert de référence pour l'astreinte.\n\n## Prérequis\n\n- Accès au bastion de production (clé SSH personnelle, pas de clé partagée).\n- Être membre du groupe `deploy-prod` dans l'annuaire interne.\n- Avoir vérifié que la CI est verte sur `main` (GitHub Actions, workflow\n  `release.yml`).\n- Prévenir sur le canal Slack `#déploiements` au moins quinze minutes avant.\n\n## Étapes de déploiement\n\n### 1. Préparation\n\nCréer le tag de version en suivant le semver (`v2.14.3` par exemple), puis\nle pousser. Le pipeline construit les images Docker et les publie dans le\nregistre interne.\n\n### 2. Fenêtre de gel\n\nAucun déploiement n'est autorisé le vendredi après 16h, sauf correctif de\nsécurité critique validé par le responsable ops. La variable d'environnement\n`DEPLOY_FREEZE_WINDOW_HOURS` fixe la durée du gel du week-end (48h par\ndéfaut) et bloqué le pipeline si on tente de forcer un déploiement pendant\ncette fenêtre.\n\n### 3. Déploiement progressif\n\nLe trafic est basculé par vagues de 10%, 50%, puis 100%, avec dix minutes\nd'observation entre chaque palier. Le tableau de bord de latence et de taux\nd'erreur doit rester stable avant de passer au palier suivant.\n\n## Que faire si on doit déployer un vendredi soir\n\nC'est la question qui revient le plus souvent en astreinte. La réponse\ncourte : on ne le fait pas, sauf incident de sécurité actif. Si c'est\nvraiment nécessaire, il faut l'accord explicite du responsable ops par\nécrit (message Slack suffit), et un déploiement hors gel doit systématiquement\nêtre suivi d'une astreinte renforcée jusqu'au lundi matin. Dans les faits,\nla quasi-totalite des demandes de déploiement du vendredi soir sont refusées\net reportées au lundi.\n\n## Rollback\n\n```bash\n# revenir à la version précédente en moins de deux minutes\n./deploy.sh rollback --to=previous\n# vérifier que le trafic est revenu sur l'ancienne version\n./deploy.sh status\n```\n\nSi le rollback automatique échoué, contacter directement le responsable ops\nvia l'astreinte téléphonique, ne pas attendre la réponse Slack.\n\n## Historique\n\nCette procédure a remplacé l'ancienne procédure de déploiement manuel\n(voir la note correspondante, marquée obsolète) le jour où le pipeline v2\nest passe en production pour tout le monde.\n\n## Astreinte et escalade\n\nLa personne d'astreinte n'est pas forcément celle qui a fait le\ndéploiement. Le planning d'astreinte tourne par semaine, indépendamment du\ncalendrier des déploiements, et il est affiché sur le canal Slack\n`#astreinte`. Si un problème survient pendant ou juste après un\ndéploiement, la personne d'astreinte est prévenue en priorité, même si elle\nn'a pas participé au déploiement lui-même.\n\nEn cas de doute sur la gravité d'un problème post-déploiement, la règle est\nsimple : on considère que c'est grave jusqu'à preuve du contraire, on ne\nlaisse jamais une anomalie \"pour voir si ca se confirme\" pendant plus de\nquelques minutes sans agir.\n\n## Vérifications post-déploiement\n\nUne fois le palier de 100% atteint, une checklist courte doit être suivie\navant de considérer le déploiement terminé :\n\n- Les tests de fumée automatiques (login, création de ticket, changement de\n  statut) passent sur l'environnement de production.\n- Aucune augmentation anormale du taux d'erreur côté API sur les quinze\n  dernières minutes.\n- Le webhook de facturation (intégration PayLoop) reçoit et traite\n  correctement au moins un événement de test si le déploiement touchait au\n  code de facturation.\n- Les migrations de base de données associées, si elles existent, sont\n  bien passées à `applied` dans le suivi des migrations, pas seulement\n  exécutées sans erreur visible dans les logs.\n\n## Communication après un déploiement qui a mal tourné\n\nSi un rollback a été nécessaire, un message récapitulatif est posté sur\n`#déploiements` avec : ce qui a été déployé, ce qui a cassé, l'heure du\nrollback, et si un ticket de suivi (correction ou postmortem) a été ouvert.\nCe message n'attend pas le postmortem complet, qui peut arriver plusieurs\njours plus tard ; il sert à informer l'équipe rapidement, dans les minutes\nqui suivent le rollback.\n\n## Cas particulier : déploiement lié à un correctif de sécurité\n\nUn correctif de sécurité critique peut déroger à la fenêtre de gel du\nvendredi soir mentionnée plus haut, mais uniquement si le responsable ops\ndonné son accord explicite. Dans ce cas, l'astreinte reste mobilisée toute\nla nuit et le lendemain matin, même si le déploiement s'est bien passe en\napparence, par précaution.\n",
+    "tags": [
+      "ops",
+      "deploiement"
+    ]
+  },
+  {
+    "key": "deploy-procedure-legacy",
+    "title": "Ancienne procédure de déploiement (abandonnée)",
+    "content": "Avant la mise en place du pipeline v2, le déploiement de Coralis Desk se faisait à la main depuis le posté du responsable ops : on se connectait en\nSSH sur chaque serveur applicatif, on tirait la dernière version depuis\n`main`, on relançait le service avec `systemctl restart coralis-api`, puis\non vérifiait à l'œil les logs pendant cinq minutes.\n\nCette méthode n'avait aucune notion de fenêtre de gel, aucun rollback\nautomatique, et dépendait entièrement de la mémoire de la personne qui\ndéployait pour savoir dans quel ordre relancer les services. Elle a\nprovoqué au moins deux incidents de production documentés en 2025, dont un lié à un oubli de migration de base de données avant redémarrage.\n\nCette procédure est abandonnée depuis le passage au pipeline v2 et ne doit\nplus être suivie. Elle reste documentée ici uniquement pour comprendre les\ntickets d'incident anciens qui y font référence.\n",
+    "tags": [
+      "ops",
+      "deploiement",
+      "obsolete"
+    ]
+  },
+  {
+    "key": "printer-vendor-a",
+    "title": "Fournisseur imprimantes - ImprimaPro",
+    "content": "Fournisseur actuel des imprimantes et du contrat de maintenance : ImprimaPro\n(contact commercial : commandes@example.com, délai de réponse annoncé sous\n24h). Contrat renouvelé en janvier 2026 pour deux ans.\n",
+    "tags": [
+      "achats",
+      "fournisseurs"
+    ]
+  },
+  {
+    "key": "printer-vendor-b",
+    "title": "Ancien fournisseur imprimantes - TonerExpress",
+    "content": "Ancien fournisseur d'imprimantes, TonerExpress (contact : support@example.com).\nContrat résilié fin 2025 après plusieurs retards de livraison de toner\ndépassant deux semaines. Ne plus commander chez ce fournisseur.\n",
+    "tags": [
+      "achats",
+      "fournisseurs",
+      "obsolete"
+    ]
+  },
+  {
+    "key": "leave-policy-fr",
+    "title": "Politique de congés - équipe France",
+    "content": "La politique de congés pour l'équipe basée en France suit le cadre legal\nstandard : 25 jours de congés payés par an plus les RTT accordées selon le\nnombre de jours travailles. Les demandes de congés se font via le formulaire\nRH interne, avec un délai de prévenance recommandé de deux semaines pour les\nabsences de plus de trois jours.\n\nAucune demande n'est validée automatiquement pendant les périodes de forte\ncharge (lancement produit, clôture comptable de fin d'année). En cas de\ncongés maladie, un justificatif doit être transmis dans les 48h à la personne en charge des RH.\n\nLes jours fériés suivent le calendrier officiel français (voir la note\ndédiée au calendrier des jours fériés). Les congés non pris ne sont pas\nreportables au-dela du 31 mars de l'année suivante, sauf accord écrit\nexceptionnel.\n",
+    "tags": [
+      "rh",
+      "conges"
+    ]
+  },
+  {
+    "key": "leave-policy-cn",
+    "title": "休假政策-中国办公室",
+    "content": "中国办公室的休假政策遵循国家法定标准并结合公司内部规定。员工每年享有五天年假,工作满三年后每年增加一天,最多累计到十五天。请假需要提前至少三个工作日通过内部系统提交申请,超过五天的连续休假需要提前两周申请并获得直属负责人书面同意。\n\n病假需要在请假当天上午通知直属负责人,并在返岗后三天内提交医院开具的证明。产假、陪产假按照当地劳动法规执行,具体天数由人事负责人在入职时说明,不在本文档中重复列出。\n\n年假不可跨自然年结转,唯一例外是因公司业务原因导致员工无法休完当年年假,需由部门负责人书面确认后方可延期至次年三月底之前使用。法定节假日安排见另一份专门的节假日日历文档,与本政策相互独立,不要混用两份文档中的天数。\n",
+    "tags": [
+      "rh",
+      "conges"
+    ]
+  },
+  {
+    "key": "incident-postmortem-aug",
+    "title": "Postmortem: August billing webhook outage",
+    "content": "## Summary\n\nOn August 19th, Coralis Desk stopped processing incoming billing webhooks\nfrom our payment vendor PayLoop for roughly 47 minutes. No customer data\nwas lost, but around 300 invoices were marked as pending instead of paid\nuntil the backlog was replayed.\n\n## Timeline\n\n- 14:02 UTC - Alert fires in Slack `#alerts-prod`: webhook queue depth above\n  threshold.\n- 14:06 UTC - On-call engineer acknowledges, starts investigating the\n  webhook consumer service.\n- 14:21 UTC - Root cause identified: the deploy earlier that day rotated\n  the value behind `BILLING_WEBHOOK_SECRET_NAME` without updating the\n  vendor-side signing secret first, so every incoming request failed\n  signature verification and was dropped silently.\n- 14:35 UTC - Fix rolled out: secret rotation reverted, vendor notified.\n- 14:49 UTC - Queue confirmed draining, webhook processing back to normal.\n\n## Root cause\n\nThe runbook for rotating `BILLING_WEBHOOK_SECRET_NAME` did not enforce the\norder of operations (update vendor first, then our side). The engineer who\nrotated it followed the general secret-rotation checklist, which is correct\nfor most secrets but wrong for a shared webhook signing secret.\n\n## Why this went unnoticed for so long\n\nNothing in the deploy pipeline validated that webhook signature checks were\nstill succeeding after a secret rotation. The monitoring only alerted on\nqueue depth, which took several minutes to cross the threshold.\n\n## Customer impact\n\nAround 300 invoices briefly showed as \"pending\" in the dashboard instead of\n\"paid\". No payment was actually lost or duplicated; the webhook replay from\nPayLoop's side caught up automatically once signature verification passed\nagain.\n\n## Follow-up actions\n\n1. Add a synthetic webhook check that fires every five minutes and pages if\n   signature verification fails twice in a row.\n2. Update the secret-rotation runbook to call out shared-secret rotations\n   (billing webhook, but also the support-ticket import webhook) as a\n   special case requiring vendor coordination.\n3. Reduce the alert threshold on webhook queue depth so we notice within\n   two minutes instead of four.\n\nThis incident is unrelated to the earlier outage discussed in the March\npostmortem, which had a completely different root cause (database\nconnection pool exhaustion), even though both produced a similar symptom of\ninvoices stuck in \"pending\" state.\n\n## Detailed impact breakdown\n\nOf the roughly 300 affected invoices, about 260 belonged to workspaces on\nthe Team tier, and the remaining 40 to Scale-tier workspaces with heavier\nAPI usage. No Starter-tier workspace was affected, most likely because\nStarter workspaces generate invoices less frequently and none happened to\nfall in the affected window by chance.\n\n## Why the on-call engineer's first hypothesis was wrong\n\nThe on-call engineer initially suspected a PayLoop-side outage, since the\nsymptom (webhooks stopping) looked identical to a vendor incident. Fifteen\nminutes were spent checking PayLoop's public status page and posting in\ntheir support channel before the secret rotation was even considered as a\ncause. This delay is called out explicitly in the follow-up actions below,\nbecause the deploy log that would have pointed at the rotation immediately\nwas not checked first.\n\n## Follow-up actions (continued)\n\n4. Add a note to the on-call runbook: whenever a webhook integration stops\n   receiving events right after a deploy, check what that deploy changed\n   before assuming a vendor-side outage. The deploy log is the fastest\n   signal, faster than checking a vendor status page.\n5. Review whether any other shared secret in the system has the same\n   ordering hazard as the billing webhook secret. The support-ticket import\n   webhook was flagged as a candidate for the same review, but has not been\n   checked yet as of this writing.\n\n## Communication sent to affected customers\n\nA short status update was sent to the handful of customers who had opened\na support ticket asking why an invoice looked unpaid. No proactive mass\nemail was sent to every affected workspace, since no payment was actually\nlost and the dashboard corrected itself automatically once the backlog\ndrained; this was a deliberate choice to avoid alarming customers over an\nissue that had already resolved itself by the time most of them would have\nread the email.\n\n## Cost of the incident\n\nNo financial loss was recorded: every invoice eventually settled correctly\nonce the webhook queue drained. The only cost was the 47 minutes of\nengineering time from the on-call engineer plus roughly two hours writing\nthis postmortem and the associated follow-up tickets.\n",
+    "tags": [
+      "ops",
+      "incident"
+    ]
+  },
+  {
+    "key": "incident-postmortem-mar",
+    "title": "事后分析:三月数据库连接池耗尽事故",
+    "content": "三月十二日,亚太区用户在当地时间凌晨报告Coralis Desk仪表盘加载缓慢,部分发票状态长时间停留在待处理。值班的亚太运维同事最先注意到问题,因为影响主要发生在亚洲时段的高峰期,欧洲团队当时还没上线。\n\n排查后发现根因是数据库连接池被耗尽:当天上午的一次批量导入任务打开了大量长连接却没有正确释放,导致后续正常请求排队等待连接,超时后被应用层重试,进一步加剧了连接池压力,形成恶性循环。\n\n处理过程:运维同事先手动重启了导入任务对应的服务,连接数迅速下降,仪表盘在约十五分钟后恢复正常。随后团队为该导入任务加上了连接数上限和超时保护,避免同类任务再次占满连接池。\n\n需要说明的是,这次事故和八月的账单webhook故障表面症状相似(发票停留在待处理状态),但根本原因完全不同,八月那次是签名密钥轮换顺序错误导致webhook被拒绝,和本次的数据库连接池问题没有任何关联,排查时不要把两者混为一谈。\n",
+    "tags": [
+      "ops",
+      "incident"
+    ]
+  },
+  {
+    "key": "onboarding-dev",
+    "title": "Checklist d'onboarding - développeur",
+    "content": "Première semaine d'un nouveau développeur chez Coralis :\n\n1. Compte GitHub ajouté à l'organisation, accès au dépôt `coralis-desk`\n   accordé en lecture-écriture.\n2. Installation de l'environnement local via le script `make dev`, qui\n   dépend de Homebrew sur macOS pour installer Go, pnpm et PostgreSQL.\n3. Accès au canal Slack `#ingénierie` et `#alerts-prod` (lecture seule les\n   deux premières semaines, écriture ensuite).\n4. Lecture obligatoire des conventions de code (note dédiée) avant la\n   première pull request.\n5. Binôme assigné pour les deux premières semaines, revue systématique de\n   chaque pull request par ce binôme.\n6. Pas d'accès à la production avant la fin du premier mois : les accès\n   au bastion et au groupe `deploy-prod` sont demandes explicitement par le\n   responsable ops après validation de la période d'intégration.\n\nLe matériel (laptop, écran) est commandé via le formulaire achats standard,\nen général deux semaines avant la date d'arrivée pour tenir compte des\ndélais fournisseur.\n",
+    "tags": [
+      "rh",
+      "onboarding",
+      "ingenierie"
+    ]
+  },
+  {
+    "key": "onboarding-support",
+    "title": "Checklist d'onboarding - agent support",
+    "content": "Première semaine d'un nouvel agent support chez Coralis :\n\n1. Accès à l'outil de tickets interne, avec un quota réduit de tickets\n   assignés pendant les deux premières semaines.\n2. Lecture des macros de réponse standard : réinitialisation de mot de\n   passé, déblocage de compte verrouillé, et politique d'escalade des\n   tickets (notes dédiées).\n3. Ombrage (shadowing) d'un agent senior pendant trois jours avant de\n   prendre ses propres tickets.\n4. Accès au canal Slack `#support` en lecture-écriture dès le premier jour,\n   contrairement aux développeurs qui n'ont qu'un accès lecture au départ.\n5. Formation d'une demi-journee sur les niveaux de SLA et sur les critères\n   d'escalade vers l'équipe ingénierie.\n6. Aucun accès direct à la base de données de production : toute\n   vérification technique passe par l'outil d'administration interne, pas\n   par une requête SQL directe.\n\nContrairement à l'onboarding développeur, il n'y a pas de période d'un mois\navant d'avoir des responsabilités : un agent support traité ses premiers\ntickets réels dès la deuxième semaine, sous supervision.\n",
+    "tags": [
+      "rh",
+      "onboarding",
+      "support"
+    ]
+  },
+  {
+    "key": "api-versioning-v2",
+    "title": "Coralis Desk API v2 - versioning and migration guide",
+    "content": "## Overview\n\nCoralis Desk's public API is currently on major version 2, latest release\n`v2.14.3`. This document explains how versioning works and what changed\nsince v1.\n\n## Versioning scheme\n\nWe follow semver strictly for the public API. Breaking changes only happen\non a major version bump, which historically has happened once every twelve\nto eighteen months. Minor and patch releases are always backward\ncompatible.\n\n## What changed in v2\n\n- Pagination moved from offset-based to cursor-based for every list\n  endpoint.\n- Webhook payloads now include a `schema_version` field so consumers can\n  detect format changes without guessing from the API version alone.\n- Rate limits moved from per-API-key to per-workspace, which matters for\n  customers who share one key across several integrations.\n\n## Migrating from v1\n\nCustomers still on v1 should read the deprecation note (separate document)\nfor the exact sunset date. In short: v1 stops receiving bug fixes now and\nwill be shut down entirely on the announced date. There is no automatic\nmigration; integrations must switch their base URL and adapt to\ncursor-based pagination manually.\n\n## Changelog highlights for the 2.14.x line\n\n- `v2.14.0`: added bulk issue import endpoint.\n- `v2.14.1`: fixed a pagination cursor that could repeat the last item of a\n  page under high write concurrency.\n- `v2.14.2`: internal only, no customer-visible change.\n- `v2.14.3`: fixed an issue where the `assignee_type` field could be\n  returned as `null` instead of the expected enum value when an agent was\n  removed from a workspace while still assigned to open issues. This is the\n  current recommended version for all new integrations.\n\n## Authentication\n\nAPI keys are scoped to a single workspace. There is no cross-workspace key.\nRotate keys from the workspace settings page; the old key keeps working for\nfive minutes after rotation to avoid a hard cutover for long-running jobs.\n\n## Where to report problems\n\nIntegration issues should be filed as support tickets, not GitHub issues,\nsince the public API repository only contains generated client SDKs and no\nserver code. Include the exact API version you called against and, if\nrelevant, the ticket number of any related billing or webhook issue so\nsupport can cross-reference it.\n\n## A note on the frontend versus backend split\n\nThis document only covers the public HTTP API. Internal coding conventions\nfor the Go backend and the TypeScript frontend are documented separately\nand are not part of the public API contract; changing an internal function\nsignature does not require a version bump here unless it changes the HTTP\ncontract.\n\n## Deprecation policy going forward\n\nStarting with v2, any field or endpoint marked deprecated in the changelog\nstays functional for at least twelve months before removal, and removal\nonly happens on a major version bump, never in a minor or patch release.\nThis is a stricter guarantee than v1 ever had, where fields could\ndisappear without much warning.\n\n## Rate limit details\n\nPer-workspace rate limits are enforced with a sliding window, not a fixed\nper-minute bucket, so a burst right at the boundary of two minutes cannot\ndouble the effective limit the way a fixed window would allow. The exact\nnumeric limits differ by pricing tier and are documented in the pricing\ndecision record rather than here, since they are a commercial parameter\nthat can change independently of the API's technical behavior.\n\n## Webhook delivery guarantees\n\nWebhooks are delivered at-least-once, never exactly-once. Consumers must\nbe idempotent, using the event identifier included in every payload to\ndetect and ignore duplicates. Delivery is retried with exponential backoff\nfor up to 24 hours if the consumer's endpoint returns a non-2xx response or\ntimes out; after 24 hours the event is dropped and only available through\nthe reconciliation API as a fallback.\n\n## SDKs\n\nGenerated client SDKs exist for a handful of languages and are published\nfrom the same repository as this documentation, kept in sync automatically\nwhenever a new API version ships. Hand-written SDK code is not accepted;\nany manual fix should go into the generator instead so it survives the\nnext regeneration.\n\n## Support for older minor versions within v2\n\nOnly the latest patch release of the current minor version and the\nprevious minor version receive bug fixes. Anything older than that is\nexpected to upgrade; support will point customers still running an old\n2.x minor version at the changelog to identify what changed before helping\ndebug an issue that a newer patch might already fix.\n",
+    "tags": [
+      "ingenierie",
+      "api"
+    ]
+  },
+  {
+    "key": "api-versioning-v1-legacy",
+    "title": "Coralis Desk API v1 - deprecation notice",
+    "content": "API v1 was the original public API, launched before Coralis Desk had any\nconcept of workspaces; every API key mapped to a single account instead.\nIt used offset-based pagination and did not support webhooks at all,\ncustomers had to poll for changes.\n\nv1 entered deprecation on January 15th 2026 and stopped receiving bug fixes\nfrom that date. The sunset date (full shutdown, all v1 endpoints returning\n410 Gone) is set six months later. Any integration still calling v1 after\nthat date will fail entirely with no fallback.\n\nThere is no automated migration tool. Customers must rewrite their\nintegration against v2, in particular adapting to cursor-based pagination\nand to the new workspace-scoped API keys. Support has a migration guide\nthey can send on request, but engineering will not extend the v1 sunset\ndate for individual customers.\n",
+    "tags": [
+      "ingenierie",
+      "api",
+      "obsolete"
+    ]
+  },
+  {
+    "key": "billing-webhook-current",
+    "title": "Billing webhook integration - PayLoop (current)",
+    "content": "## Overview\n\nCoralis Desk bills customers through PayLoop. PayLoop sends signed webhook\nevents for every invoice state change, and our webhook consumer verifies\nthe signature before processing anything.\n\n## Required environment variables\n\n- `BILLING_WEBHOOK_SECRET_NAME` - the name of the secret (in our secret\n  manager) holding the current signing secret shared with PayLoop. Never\n  the secret value itself, only its name; the value is fetched at runtime.\n- `BILLING_WEBHOOK_ENDPOINT_PATH` - the path PayLoop posts to, currently\n  `/webhooks/payloop`.\n- `PAYLOOP_API_KEY_NAME` - name of the secret holding the API key used to\n  query PayLoop's REST API for reconciliation.\n\n## Verifying a webhook\n\n```bash\n# compute the expected signature and compare it to the header PayLoop sent\n# never log the raw secret value, only whether verification passed\nsecret=$(read_secret \"$BILLING_WEBHOOK_SECRET_NAME\")\nexpected=$(echo -n \"$payload\" | openssl dgst -sha256 -hmac \"$secret\")\n# reject anything that does not match, do not process partially-verified events\nif [ \"$expected\" != \"$received_signature\" ]; then\n  echo \"signature mismatch, dropping event\"\n  exit 1\nfi\n```\n\n## Rotating the signing secret\n\nThis is the step that caused the August outage (see the postmortem). The\norder matters:\n\n1. Generate the new secret value in PayLoop's dashboard, but do not\n   activate it yet on their side.\n2. Update the secret in our secret manager under the name held by\n   `BILLING_WEBHOOK_SECRET_NAME`, and deploy so the new value is picked up.\n3. Only then, activate the new secret on PayLoop's side. There is a short\n   window where both the old and new secret are accepted on our side to\n   avoid a hard cutover.\n4. Confirm at least one real webhook has been verified successfully with\n   the new secret before removing the old one from the accepted list.\n\n## Reconciliation job\n\nA nightly job calls PayLoop's REST API (using `PAYLOOP_API_KEY_NAME`) to\ncompare our local invoice states against PayLoop's records, in case any\nwebhook was missed despite retries. Discrepancies open a support ticket\nautomatically under the `facturation` label.\n\n## Migrating away from QuickPay\n\nCoralis Desk used to bill through QuickPay before switching to PayLoop.\nThat integration is documented separately and marked obsolete; it must not\nbe reactivated, the QuickPay contract was terminated.\n\n## Idempotency and duplicate events\n\nPayLoop can deliver the same event more than once, especially if our\nendpoint is slow to respond. Every processed event identifier is recorded\nso a duplicate delivery is recognized and skipped rather than double-\napplied to an invoice's state. This matters most for the \"invoice paid\"\nevent, since applying it twice must never result in a customer being\ncharged or credited twice on our side.\n\n## Monitoring dashboards\n\nTwo dashboards matter for this integration day to day: one tracking\nwebhook queue depth and processing latency, and one tracking the daily\nreconciliation job's discrepancy count. A discrepancy count above zero is\nnot automatically an incident; a handful of discrepancies per week are\nexpected and usually self-resolve once a delayed webhook eventually\narrives. Sustained growth in discrepancies over several days, on the other\nhand, usually means something is wrong with delivery or with the\nreconciliation job itself.\n\n## Sandbox testing\n\nPayLoop provides a sandbox environment with its own separate signing\nsecret, tracked under a different secret name than production. Never point\nthe production `BILLING_WEBHOOK_SECRET_NAME` value at the sandbox secret or\nvice versa; the two environments must stay fully isolated from each other,\nincluding during manual testing.\n\n## Who to contact at PayLoop\n\nFor anything beyond a routine reconciliation discrepancy, escalate through\nPayLoop's dedicated integration support address rather than their generic\nsupport form, since the generic form routes to a queue with a much longer\nresponse time than the integration-specific channel that Coralis has\naccess to as a paying customer on their business plan.\n",
+    "tags": [
+      "ingenierie",
+      "facturation"
+    ]
+  },
+  {
+    "key": "billing-webhook-old-vendor",
+    "title": "Billing webhook integration - QuickPay (obsolete)",
+    "content": "Before PayLoop, Coralis Desk billed customers through QuickPay. QuickPay's\nwebhooks were not signed at all; verification relied on an allowlist of\nQuickPay's outbound IP ranges, which QuickPay changed without much notice\non at least two occasions, causing missed events.\n\nThe environment variables used at the time were `QUICKPAY_WEBHOOK_TOKEN`\nand `QUICKPAY_ALLOWED_IPS`. Neither of these exist anymore in any running\nenvironment; they were removed when the QuickPay contract was terminated\nand the PayLoop integration went live.\n\nThis document is kept only so that anyone reading old support tickets or\nold incident reports from before the migration understands what those\nvariable names referred to. Do not reintroduce this integration or reuse\nthese variable names for anything else.\n",
+    "tags": [
+      "ingenierie",
+      "facturation",
+      "obsolete"
+    ]
+  },
+  {
+    "key": "coding-conventions-backend",
+    "title": "Backend coding conventions (Go)",
+    "content": "## Scope\n\nThese conventions apply to the Go backend of Coralis Desk. They exist\nbecause reviewers were repeatedly flagging the same issues in pull\nrequests; codifying them here means the checklist is applied consistently\ninstead of depending on who happens to review.\n\n## Naming\n\n- Package names are short, lowercase, no underscores.\n- Exported functions that touch the database live in a `store` or `repo`\n  suffix package, never directly in the handler package.\n- Error variables are named `Err<Something>` and declared with\n  `errors.New` or `fmt.Errorf` with `%w` for wrapping, never a bare string\n  comparison.\n\n## Error handling\n\nErrors are never silently swallowed. A function that can fail returns an\nerror; the caller either handles it explicitly or wraps and propagates it.\n`_ = someCall()` to discard an error is only acceptable for a small,\nexplicitly documented allowlist (closing a response body after logging,\nfor instance), never for anything that touches persistence or money.\n\n## UUID handling in handlers\n\nResource path parameters that could be either a UUID or a human-readable\nidentifier must go through a loader function before being used in a write\nquery. Trusted UUIDs coming back from generated database code can use the\npanicking parse helper, since a malformed value there indicates a bug in\nour own code rather than untrusted input.\n\n## Testing\n\nDatabase-backed tests build their fixtures through the shared test\nfixture helpers rather than hand-writing an insert and a matching cleanup\nstatement in every test. This was not always the convention; a lot of\nearly tests in this codebase predate the shared helpers and have not all\nbeen migrated, so do not copy patterns from very old test files.\n\n## SQL and migrations\n\nEvery new index is created concurrently, in its own migration file, never\ninside a transaction with other statements. Foreign keys are not used;\nrelationships and cleanup are handled explicitly in application code\ninstead, with an application-level transaction when an operation and its\ncleanup must succeed or fail together.\n\n## Formatting and linting\n\n`gofmt` and `go vet` are run before every commit; there is no style\nargument to be had beyond what those tools already enforce. Reviewers\nshould spend their time on logic and naming, not on spacing.\n\n## Late note on comments\n\nCode comments are always written in English, even though a large share of\nday-to-day conversation among the team happens in French. This keeps the\ncodebase readable for the whole engineering team, including newer hires who\nmay not read French yet.\n\n## Dependency injection and package boundaries\n\nPackages that hold shared business logic must not import anything specific\nto a single delivery platform: no direct dependency on a web framework, no\ndirect filesystem access assuming a particular deployment target.\nAnything platform-specific is injected from the outermost layer instead,\nso the same business logic package can run in more than one binary without\nmodification.\n\n## Concurrency\n\nGoroutines started for background work must have an explicit way to be\nstopped or to report a panic upward; a goroutine that can silently die\nwithout anyone noticing is treated as a bug during review, not an\nacceptable shortcut, even for something that looks like a \"fire and\nforget\" background task.\n\n## Logging conventions\n\nLog lines never include secret values, full request bodies for endpoints\nthat carry sensitive data, or raw personal data beyond what is strictly\nneeded to debug an issue. A log line that would leak a signing secret or a\ncustomer's full billing details is treated the same severity as a security\nbug in review, not as a minor nitpick.\n\n## Reviewing pull requests\n\nA reviewer is expected to actually run the diff's tests locally when the\nchange touches anything database-related, not just read the diff. This\nslows down review slightly but has caught several bugs that passed CI by\naccident due to test ordering or shared fixture state.\n\n## When to open a new package versus adding to an existing one\n\nA new package is justified when the code represents a genuinely separate\nconcern with its own tests and its own reason to change independently of\nits neighbors. Splitting a package purely to make file sizes smaller,\nwithout a real boundary behind the split, is discouraged and comes up\noften enough in review to be worth writing down here explicitly.\n",
+    "tags": [
+      "conventions",
+      "ingenierie"
+    ]
+  },
+  {
+    "key": "coding-conventions-frontend",
+    "title": "Frontend coding conventions (TypeScript/React)",
+    "content": "Coralis Desk's frontend is TypeScript with strict mode enabled everywhere;\navoiding `any` is not optional, a genuinely unknown shape should be typed\nas `unknown` and narrowed explicitly.\n\nServer state (anything fetched from the API) and client state (filters,\ndrafts, open modals) are kept in separate systems rather than mixed in one\nglobal store, so a component never has to guess which one it is reading\nfrom. Components that render the same thing on two different apps get\nextracted into the shared views package instead of being copy-pasted, which\nwas a recurring review comment before this rule was written down.\n\nNetwork responses are always parsed through a schema before being trusted\nas a typed object; casting raw JSON straight to a TypeScript type is\ntreated as a bug during review, not a style preference, because backend\nresponses can drift out from under an older installed client.\n\nOptimistic UI updates are reserved for changes that are locally predictable\nand rarely fail, like toggling a status; anything that navigates the user\naway or deletes something must wait for the server to confirm first.\n",
+    "tags": [
+      "conventions",
+      "ingenierie"
+    ]
+  },
+  {
+    "key": "meeting-notes-roadmap-q3",
+    "title": "CR réunion roadmap - T3",
+    "content": "Réunion roadmap du troisième trimestre, avec le responsable produit, le\nresponsable ops et deux développeurs seniors.\n\nDécisions actées :\n- Priorité au chantier de recherche hybride dans le Brain avant toute\n  nouvelle fonctionnalité de reporting.\n- L'application mobile native reste hors scope ce trimestre (voir la note\n  de décision dédiée).\n- Le passage à l'API v2.14 est confirmé comme version minimale supportée\n  pour toute nouvelle intégration partenaire signée ce trimestre.\n\nPoints ouverts reportés au trimestre suivant : la refonte de la politique\nde tarification (dossier porté par le responsable produit, décision\nattendue avant la réunion T4), et l'évaluation d'un deuxième fournisseur\nd'hébergement pour la zone Asie-Pacifique en complément de l'actuel.\n\nProchaine réunion roadmap prévue en début de trimestre suivant, avec le\nmême format : bilan du trimestre écoulé puis priorisation du suivant.\n",
+    "tags": [
+      "reunion",
+      "produit"
+    ]
+  },
+  {
+    "key": "meeting-notes-roadmap-q4",
+    "title": "CR réunion roadmap - T4",
+    "content": "Réunion roadmap du quatrième trimestre, même format que la réunion\nprécédente : bilan du trimestre écoulé puis priorisation du suivant.\n\nBilan T3 : le chantier de recherche hybride dans le Brain a avancé comme\nprévu. L'évaluation d'un deuxième fournisseur d'hébergement pour l'Asie-\nPacifique n'a pas été lancée, faute de temps ; elle est repoussee au\npremier trimestre de l'année suivante.\n\nDécisions T4 :\n- La nouvelle politique de tarification est validée (voir la note de\n  décision correspondante) et entre en vigueur pour les nouveaux clients\n  dès le début du trimestre.\n- L'application mobile native reste hors scope, deuxième trimestre\n  consécutif sans changement de position sur ce sujet.\n- Un budget est alloué pour renforcer l'équipe support avant la période de\n  forte affluence de fin d'année.\n\nA la différence de la réunion T3, celle-ci s'est tenue avec la présence\nexceptionnelle d'un représentant de l'équipe support, invité spécifiquement\npour le point sur le renforcement d'effectif.\n",
+    "tags": [
+      "reunion",
+      "produit"
+    ]
+  },
+  {
+    "key": "support-macro-password-reset",
+    "title": "Macro support - réinitialisation de mot de passe",
+    "content": "Pour réinitialiser le mot de passe d'un client : vérifier son identité via\nl'email associé au compte, puis déclencher l'envoi du lien depuis l'outil\nd'administration interne. Ne jamais communiquer ou définir un mot de passe\npar téléphone ou par email.\n",
+    "tags": [
+      "support",
+      "runbook"
+    ]
+  },
+  {
+    "key": "support-macro-account-lockout",
+    "title": "Macro support - déblocage de compte verrouillé",
+    "content": "Un compte se verrouillé automatiquement après cinq tentatives de connexion\néchouées en dix minutes. Pour le débloquer : vérifier l'identité du client\ncomme pour une réinitialisation de mot de passe, puis utiliser le bouton\n\"débloquer le compte\" dans l'outil d'administration interne, distinct du\nlien de réinitialisation de mot de passe.\n",
+    "tags": [
+      "support",
+      "runbook"
+    ]
+  },
+  {
+    "key": "product-decision-pricing",
+    "title": "Decision record: new pricing tiers",
+    "content": "## Decision\n\nCoralis Desk moves from a single flat per-seat price to three tiers\n(Starter, Team, Scale) starting with all new customers signing after the\nQ4 roadmap meeting where this was approved.\n\n## Context\n\nThe flat per-seat price undercharged large workspaces that used almost no\nsupport-agent seats but heavy API usage, and overcharged small teams that\nwanted agent assignees but only a handful of human seats. Several churned\ncustomers cited pricing rigidity in exit interviews conducted by the\nsupport team.\n\n## Options considered\n\n1. Keep flat per-seat pricing, just raise the price. Rejected: does not fix\n   the underlying mismatch between usage pattern and price, it only delays\n   the same complaints.\n2. Pure usage-based pricing (API calls, storage). Rejected: too\n   unpredictable for finance teams who need to budget in advance, based on\n   feedback gathered directly from several enterprise prospects.\n3. Three tiers combining a seat allowance with API call limits. Chosen.\n\n## The three tiers\n\n- Starter: up to 5 human seats, unlimited agent assignees, a modest monthly\n  API call allowance, intended for very small teams.\n- Team: up to 25 human seats, higher API allowance, includes the hybrid\n  Brain search feature at no extra cost.\n- Scale: unlimited seats, custom API allowance negotiated per contract,\n  dedicated support channel.\n\n## Grandfathering existing customers\n\nEvery customer who signed before the new tiers went live keeps their old\nflat per-seat price indefinitely, as long as they do not request a plan\nchange themselves. If they explicitly ask to move to a new tier, they\ncannot go back to the old flat pricing afterward; this is a one-way switch,\nand support should say this explicitly before making the change on a\ncustomer's request.\n\n## What this does not change\n\nExisting billing infrastructure (PayLoop integration, invoice webhooks) is\nunaffected; only the price calculation logic changes, not the payment\nrails. Support ticket escalation for billing disputes still follows the\nexisting SLA levels regardless of tier.\n\n## Rollout\n\nNew tiers are live for new signups immediately after this decision;\nexisting customers are notified by email about the grandfathering policy\nbut nothing changes for them unless they act.\n\n## Impact on the sales process\n\nSales conversations now start by understanding a prospect's expected human-\nseat count and API usage pattern before quoting a tier, instead of quoting\na flat per-seat number from memory. This adds a short discovery step to\nevery sales call that did not exist before, which the sales team flagged\nas a minor friction but accepted as worthwhile given the churn reasons\ndescribed above.\n\n## Handling mid-cycle upgrades\n\nA customer who upgrades from Starter to Team mid-billing-cycle is charged\na prorated difference for the remainder of the current cycle, then the full\nTeam price from the next cycle onward. Downgrades take effect only at the\nnext renewal, never immediately, to avoid mid-cycle refund complexity that\nthe finance team specifically asked to avoid when this decision was drafted.\n\n## Interaction with the mobile app decision\n\nBecause Team and Scale tiers are the ones most likely to ask about a\nnative mobile app, the pricing decision explicitly notes that entitlement\nlanguage for tiers should be written in a way that does not promise a\nnative app feature that does not exist yet, given the separate decision to\nnot build one this year.\n\n## Metrics to watch after rollout\n\nThe team agreed to track, for three months after rollout, the distribution\nof new signups across the three tiers and the rate of tier changes among\nexisting customers who voluntarily opt into the new structure. If Starter\nsign-ups turn out unexpectedly high relative to Team, that would suggest\nthe tier boundaries need revisiting at the next roadmap meeting, though no\nsuch revisit has been scheduled yet as of this decision.\n\n## What triggered this decision\n\nThis decision was not proposed in isolation; it followed directly from the\nroadmap discussion recorded in the Q3 and Q4 meeting notes, where pricing\nrigidity was flagged as an open point carried over from Q3 into Q4 and\nresolved with this record.\n",
+    "tags": [
+      "produit",
+      "decision"
+    ]
+  },
+  {
+    "key": "product-decision-mobile-app",
+    "title": "Décision: pas d'application mobile native cette année",
+    "content": "Décision actée en réunion roadmap T3 puis reconfirmée en T4 : Coralis ne lance pas d'application mobile native cette année, malgré plusieurs\ndemandes clients récurrentes sur ce sujet dans les retours support.\n\nRaisons principales : l'équipe ingénierie est déjà engagée sur le chantier\nde recherche hybride dans le Brain, jugée prioritaire, et une application\nmobile native représenterait un chantier séparé avec sa propre pile\ntechnique, ses propres cycles de publication sur les stores, et sa propre\ncharge de maintenance continue.\n\nAlternative retenue en attendant : améliorer la version web mobile\n(navigateur) pour qu'elle couvre les usages les plus fréquents en\ndéplacement (consultation de tickets, changement de statut), sans viser la\nparité complète avec la version bureau.\n\nCette décision sera revue à la prochaine réunion roadmap si le volume de\ndemandes clients continue d'augmenter significativement, mais aucune date\nde réévaluation n'est fixée pour l'instant au-dela du cycle trimestriel\nhabituel.\n",
+    "tags": [
+      "produit",
+      "decision"
+    ]
+  },
+  {
+    "key": "supplier-contact-hosting",
+    "title": "供应商联系方式-云锐科技(亚太CDN)",
+    "content": "亚太区CDN与加速节点供应商为云锐科技,商务联系邮箱sales@example.com,技术支持邮箱ops-support@example.com。合同覆盖上海和新加坡两个节点,续约日期为每年三月。\n",
+    "tags": [
+      "achats",
+      "fournisseurs"
+    ]
+  },
+  {
+    "key": "supplier-contact-legal",
+    "title": "Contact fournisseur - Cabinet Ferrand & Associés",
+    "content": "Cabinet juridique partenaire pour les questions de droit des contrats et de\nconformité : Cabinet Ferrand & Associés, contact principal\ncontact@example.com. A solliciter systématiquement avant toute signature de\ncontrat fournisseur supérieur à un seuil défini par les achats.\n",
+    "tags": [
+      "achats",
+      "fournisseurs"
+    ]
+  },
+  {
+    "key": "runbook-database-restore",
+    "title": "Runbook: production database restore",
+    "content": "## When to use this runbook\n\nUse this only for a real data-loss incident or a scheduled disaster\nrecovery drill, never to \"quickly check\" something in production data.\nRestoring pulls a snapshot into an isolated instance; it never touches the\nlive database directly.\n\n## Prerequisites\n\n- Access to the backup storage bucket (read-only role is enough for a\n  restore, do not request write access for this task).\n- The exact timestamp or backup identifier you need to restore, confirmed\n  with whoever requested the restore.\n- A dedicated restore instance provisioned ahead of time, never restore\n  onto an instance that also serves other traffic.\n\n## Restoring the latest full backup\n\n```bash\n# list available backups, newest first\nlist_backups --newest-first\n# download the chosen backup to the restore instance\nfetch_backup --id=\"$BACKUP_ID\" --dest=/mnt/restore\n# restore into a fresh, isolated database, never the live one\nrestore_db --from=/mnt/restore --target=restore-instance\n```\n\n## Point-in-time recovery\n\nFor an incident where we need the database state at an exact moment (for\nexample, right before a bad migration ran), point-in-time recovery replays\nthe write-ahead log on top of the nearest full backup up to the requested\ntimestamp.\n\n```bash\n# replay WAL segments up to (but not including) the bad migration commit\nrestore_db --from=/mnt/restore --target=restore-instance \\\n  --point-in-time=\"2026-08-19T13:58:00Z\"\n# verify row counts on a few known tables before trusting the restore\nverify_restore --target=restore-instance --tables=issues,workspaces\n```\n\nPoint-in-time recovery is the slower path and should only be used when a\nfull backup restore is not precise enough for the incident, because replaying\nthe log can take significantly longer than restoring a full snapshot,\ndepending on how much write-ahead log has accumulated since the last\nbackup.\n\n## Handing off to the requester\n\nOnce the restore instance is verified, hand off the connection details to\nwhoever requested the restore; do not run any application code against the\nrestore instance yourself unless explicitly asked, since query patterns can\ndiffer from what a human reviewer expects when comparing data.\n\n## After the drill or incident\n\nTear down the restore instance once it is no longer needed. It should never\nbe left running as a permanent second database, and it should never receive\nproduction traffic under any circumstance.\n\n## Backup retention\n\nFull backups are retained for 35 days on a rolling basis; write-ahead log\nsegments needed for point-in-time recovery are retained for the same\nwindow. Anything older than that is not recoverable through this runbook\nat all, there is no cold-storage tier beyond the 35-day window as of this\nwriting.\n\n## Common mistakes to avoid\n\n- Restoring directly onto the primary instance instead of an isolated\n  restore instance. There is no legitimate reason to ever do this.\n- Forgetting to verify row counts before handing off the restore instance,\n  which has led in the past to a requester assuming a restore was complete\n  when it had actually stalled partway through replay.\n- Using a backup identifier from memory instead of listing available\n  backups first; backup identifiers are not sequential and guessing one\n  can silently restore the wrong point in time.\n\n## Testing this runbook\n\nThis runbook is exercised at least twice a year through a scheduled drill,\nindependent of the annual security incident simulation exercise described\nin the security incident response plan; the two exercises are unrelated\nand test different failure modes; do not treat completing one as\nsatisfying the requirement for the other.\n\n## Escalation if the restore itself fails\n\nIf the restore command fails partway through, do not retry blindly more\nthan once. A second failure with the same backup identifier usually means\nthe backup itself is corrupted rather than a transient issue, and should\nbe escalated immediately to whoever owns the backup pipeline rather than\nretried repeatedly, since repeated retries against a corrupted backup\nmostly waste time during an already stressful incident.\n\n## Relationship to the March incident\n\nThe March database connection-pool incident did not require a restore;\nrestarting the affected service was enough to release the exhausted\nconnections. This runbook exists for genuine data-loss scenarios, which is\na different class of problem than a resource-exhaustion incident, even\nthough both are database-related.\n",
+    "tags": [
+      "ops",
+      "runbook"
+    ]
+  },
+  {
+    "key": "runbook-ssl-renewal",
+    "title": "Runbook - renouvellement du certificat SSL",
+    "content": "Le certificat SSL de l'API de production est configuré dans\n`/etc/nginx/conf.d/api.conf` et renouvelé automatiquement via un job\nplanifié qui tourne toutes les nuits, largement avant l'échéance réelle.\n\nEn cas d'échec du renouvellement automatique (alerte spécifique sur le\ncanal Slack `#alerts-prod`), la procédure manuelle consiste à relancer le\nclient de renouvellement, vérifier que le nouveau certificat est bien pris\nen compte par nginx sans redémarrage complet du service (rechargement à chaud uniquement), puis contrôler depuis l'extérieur que la date\nd'expiration affichée correspond au nouveau certificat.\n\nNe jamais modifier `/etc/nginx/conf.d/api.conf` à la main en production\nsans passer par la procédure de déploiement standard : ce fichier est\nrégénéré automatiquement à chaque renouvellement et toute modification\nmanuelle non versionnée serait perdue au renouvellement suivant.\n\nUne échéance de renouvellement manquée sans intervention entraînerait une\ncoupure totale de l'API en HTTPS pour tous les clients, ce qui en fait une\nalerte à traiter en priorité absolue, avant même les alertes de latence.\n",
+    "tags": [
+      "ops",
+      "runbook"
+    ]
+  },
+  {
+    "key": "security-incident-response",
+    "title": "Plan de réponse a un incident de sécurité",
+    "content": "## Objectif\n\nCe document décrit la procédure à suivre en cas de suspicion d'incident de\nsécurité touchant Coralis Desk : accès non autorisé, fuite de données\nsuspectée, ou compromission d'un compte à privilèges élevés.\n\n## Détection et première alerte\n\nToute personne de l'équipe qui suspecte un incident de sécurité doit le\nsignaler immédiatement sur le canal Slack dédié à la sécurité, même en cas\nde doute : il est préférable de lever une fausse alerte que de retarder un\nsignalement réel.\n\n## Confinement immédiat\n\nLes premières actions visent à limiter la propagation, pas à comprendre la\ncause complète : révocation immédiate des accès suspectés, rotation des\nsecrets potentiellement exposés, et isolation des systèmes concernés si\nnécessaire. Ces actions ne doivent pas attendre une analyse complète.\n\n## Qualification de la gravité\n\nUne fois le confinement effectue, l'équipe qualifie la gravité de\nl'incident selon trois niveaux : mineur (aucune donnée client concernée),\nmajeur (accès non autorisé sans exfiltration confirmée), critique\n(exfiltration de données personnelles confirmée ou très probable).\n\n## Communication interne\n\nPour un incident qualifié majeur ou critique, la direction est informée\nsans délai, avant même la fin de l'investigation technique complète.\n\n## Notification externe et obligations réglementaires\n\nPour un incident critique impliquant des données personnelles de clients\neuropéens, la notification à la CNIL doit intervenir dans un délai de\nsoixante-douze heures à compter de la connaissance de l'incident, même si\nl'investigation n'est pas terminée : une notification initiale incomplète\nsuivie d'un complément est préférable à une notification tardive. Le\nresponsable juridique (voir le contact du cabinet partenaire) est associé à la rédaction de cette notification.\n\nLes clients concernés sont notifiés individuellement si leurs données\npersonnelles sont impliquées, avec un délai qui dépend de la nature exacte\ndes données, mais qui ne doit jamais dépasser celui imposé par la\nréglementation applicable.\n\n## Post-incident\n\nUn rapport post-incident est rédigé dans les deux semaines suivant la\nrésolution, sur le même modèle que les postmortems techniques, mais avec\nune section supplémentaire dédiée aux obligations réglementaires\neffectivement remplies et à leurs dates.\n\n## Rôles et responsabilités pendant l'incident\n\nUn incident de sécurité désigne systématiquement une seule personne comme\ncoordinatrice de l'incident, distincte de la personne qui a détecté le\nproblème. Cette coordination évite que plusieurs personnes prennent des\ndécisions contradictoires en même temps, par exemple révoquer un accès\nd'un côté pendant qu'une autre personne tente de s'y reconnecter de\nl'autre pour investiguer.\n\n## Conservation des preuves\n\nAvant toute action de confinement qui modifierait l'état d'un système\n(révocation d'accès, redémarrage), les journaux et états pertinents\ndoivent être copiées dans un espace de stockage prévu à cet effet, dans la mesure où cela ne retarde pas significativement le confinement lui-même. Un\nconfinement qui sauve des données clients passe toujours avant la\nconservation parfaite des preuves, mais on ne détruit jamais une preuve\nsans nécessité.\n\n## Astreinte sécurité spécifique\n\nContrairement à l'astreinte technique générale décrite dans la procédure\nde déploiement, l'astreinte sécurité suit un planning distinct et plus\nrestreint : seules les personnes ayant suivi la formation interne\ndédiée peuvent être d'astreinte sécurité. Le contact de cette astreinte\nest différent du contact de l'astreinte ops habituelle et ne doit pas être\nconfondu avec lui en cas d'urgence.\n\n## Exercices de simulation\n\nUn exercice de simulation d'incident de sécurité est organisé au moins une\nfois par an, avec un scénario différent chaque année, pour vérifier que la\nprocédure décrite ici reste comprise et applicable par l'équipe, et pas\nseulement lue une fois à l'onboarding puis oubliée.\n\n## Lien avec la revue trimestrielle des accès\n\nLa revue trimestrielle des accès (voir la note dédiée) n'est pas une\nprocédure de réponse à un incident, mais les écarts qu'elle détecte\n(permissions non révoquées, comptes inactifs toujours actifs) sont une\nsource fréquente de vulnérabilités qui peuvent, si elles sont exploitées,\ndéclencher exactement le type d'incident décrit dans ce document.\n",
+    "tags": [
+      "securite",
+      "ops"
+    ]
+  },
+  {
+    "key": "security-access-review",
+    "title": "季度访问权限审查流程",
+    "content": "每个季度末,IT团队对所有生产环境访问权限进行一次系统性审查,目的是发现并移除不再需要的权限,而不是等到安全事件发生后才补救。\n\n审查范围包括堡垒机SSH访问权限、deploy-prod用户组成员、数据库只读和读写角色分配,以及第三方服务(如账单供应商PayLoop的管理后台)的账号列表。任何离职员工的权限必须在离职当天之内撤销,这一点不属于季度审查的范畴,而是入职离职流程本身就要保证的最低要求。\n\n季度审查重点关注的是\"权限累积\"问题:员工换岗或参与临时项目后被授予的权限,如果没有人主动撤销,会一直保留下去。审查时由各团队负责人逐条确认名下成员是否仍然需要对应权限,凡是负责人在两周内未回复确认的权限,默认视为可以撤销,而不是默认保留。\n\n审查结果和撤销记录归档保存,作为安全事件响应流程中回溯\"谁在什么时间有什么权限\"的重要依据。\n",
+    "tags": [
+      "securite"
+    ]
+  },
+  {
+    "key": "hr-remote-work-policy",
+    "title": "Politique de télétravail",
+    "content": "Coralis fonctionne en mode hybride : deux jours de présence au bureau\nminimum par semaine pour les équipes basées en France, le reste en\ntélétravail au choix de chacun, sous réserve de coordination avec son\néquipe pour les jours de présence communs.\n\nLe télétravail depuis l'étranger est possible ponctuellement (jusqu'à\nquatre semaines par an) mais doit être déclaré à l'avance aux RH pour des\nraisons fiscales et de couverture sociale, pas seulement par courtoisie.\n\nL'entreprise fournit un forfait d'équipement pour le domicile (écran,\nchaise) une fois par période de trois ans, commandé via le même formulaire\nachats que le matériel de bureau.\n\nLes réunions d'équipe importantes (revues de roadmap, entretiens annuels)\nrestent en présentiel dans la mesure du possible, même pour les personnes\nqui travaillent habituellement à distance la plupart du temps.\n",
+    "tags": [
+      "rh"
+    ]
+  },
+  {
+    "key": "hr-expense-cn",
+    "title": "报销政策",
+    "content": "员工因公产生的费用可通过内部报销系统提交,需要在费用发生后三十天内提交,超过三十天的报销申请默认不予受理,除非有部门负责人特批的书面说明。\n\n常见可报销项目包括:客户拜访交通费、团队建设活动费用、异地出差住宿(需提前通过内部审批,不能先订后补批)、以及经批准的培训课程费用。办公用品和日常耗材不走员工报销流程,统一通过采购部门下单。\n\n报销单必须附带正规发票或收据原件的扫描件,没有票据的费用一律不予报销,口头说明或聊天记录截图都不能替代票据。超过一定金额的报销单(具体金额线由财务负责人在入职培训中说明)需要额外经过部门负责人和财务负责人双重审批才能放款。\n\n报销款项一般在提交并审批通过后的下一个发薪周期内随工资一起发放,不单独打款。\n",
+    "tags": [
+      "rh",
+      "achats"
+    ]
+  },
+  {
+    "key": "apac-support-team-notes",
+    "title": "亚太支持团队月度会议记录",
+    "content": "## 会议概况\n\n本月亚太支持团队会议由团队全员参加,主要议题包括上月工单回顾、当前积压情况,以及即将到来的中国法定节假日期间的值班安排。\n\n## 上月工单回顾\n\n上月总工单量比前一个月略有上升,主要集中在账单相关问题和登录问题两大类。其中有一张工单(编号SUP-1042)被多次提及,客户反馈发票列表页面在数据量较大的工作区加载明显变慢,后续排查发现与数据库索引有关,详情记录在另一份专门的技术笔记中,这里不重复展开。\n\n## 积压情况\n\n截至会议当天,待处理工单积压量处于可接受范围内,平均首次响应时间符合当前SLA等级的要求。有两名新加入的支持同事仍在轮岗观察期,他们的工单量按照入职清单里的规定被人为限制,不计入积压压力的评估。\n\n## 节假日值班安排\n\n即将到来的中国法定节假日期间,亚太支持团队按照往年惯例安排轮值,保证核心时段(当地上午九点到下午六点)至少有一名支持同事在线处理紧急工单,非紧急工单可以延后到假期结束后处理,不需要在假期内强行清零积压。具体轮值表已经在团队内部单独同步,不在本会议记录中列出姓名。\n\n## 与欧洲团队的协作提醒\n\n会议最后特别提醒:凡是需要升级到工程团队的工单,升级标准和SLA等级请参照支持工单升级政策这份文档,不要凭经验自行判断是否需要升级,尤其是涉及账单webhook或数据库性能相关的工单,应该优先升级而不是自行长时间排查。\n\n## 下次会议\n\n下次月度会议维持相同形式:上月回顾加下月关注点,时间待定,由团队负责人在群里另行通知。\n\n## 客户反馈汇总\n\n除了工单数据本身,本次会议还汇总了几条比较有代表性的客户反馈,供产品团队参考。有客户提到希望发票列表页面支持按到期日排序后仍然保持较快的加载速度,这一点和SUP-1042那张工单反映的问题基本一致,说明该问题的影响面比最初以为的更广,不止一个工作区受影响。另有客户反馈,登录失败次数过多后账号被锁定的机制没有明确提示还剩几次尝试机会,建议在提示文案上做优化,这条反馈已经记录并会转达给产品团队,但本次会议不做进一步处理。\n\n## 值班同事的常见困惑\n\n新加入轮岗观察期的两名同事在会议上提出了几个共同的困惑,团队负责人当场做了澄清:第一,重置密码和解锁账号是两个不同的操作入口,不能用同一个按钮处理,详见对应的支持宏文档;第二,遇到账单相关的异常,不要自己在数据库层面查,统一通过内部管理工具查看,这一点在支持团队入职清单里已经写明,但新同事容易忘记;第三,升级工单给工程团队之前,需要按照支持工单升级政策里的标准先确认基本信息,不能只写一句笼统的描述就转过去。\n\n## 跨团队沟通渠道回顾\n\n会议专门回顾了一次跨团队沟通不畅的情况:上个月一张涉及数据库性能的工单在支持团队内部排查了将近一天才升级,超过了升级政策里规定的三十分钟标准,原因是当时值班同事以为这只是普通的页面卡顿,没有意识到符合\"必须升级\"的条件。团队负责人重申:遇到不确定要不要升级的情况,原则上倾向于升级,不要因为担心打扰工程团队而拖延,升级之后如果证明确实是小问题,也远好于拖延导致客户等待过久。\n\n## 值班表说明\n\n本次会议确认的值班安排只覆盖即将到来的法定节假日期间,平时的值班表是每周单独发布的,和本次讨论的假期值班表是两份不同的文档,不要把两者混在一起查阅,以免看错日期导致值班空缺。\n\n## 会议纪要归档\n\n本次会议纪要和历史上每个月的会议纪要一样,归档在团队共享空间中,方便日后追溯某个月的工单量、客户反馈或值班安排,归档本身不需要额外操作,会议结束后由记录员直接保存即可。\n",
+    "tags": [
+      "support",
+      "reunion"
+    ]
+  },
+  {
+    "key": "apac-onboarding",
+    "title": "上海办公室新员工入职清单",
+    "content": "上海办公室新员工入职当天需要完成以下事项:签署劳动合同并留存人事部门存档一份;开通公司邮箱和内部协作工具账号;领取工位相关设备(电脑、屏幕),设备申领同样走公司统一的采购表单流程,和法国办公室使用同一套流程,只是审批人不同。\n\n第一周需要完成:阅读并确认已知悉休假政策和报销政策两份文档(内容各自独立,不要混淆两份文档里的天数和金额限制);如果是技术岗位,还需要额外完成开发者入职清单中列出的账号和环境配置事项;如果是支持岗位,则完成支持团队入职清单中列出的工单系统权限开通和跟岗安排。\n\n试用期一般为三个月,期间由直属负责人安排每两周一次的沟通,试用期结束前两周由负责人提交评估意见给人事部门,而不是等试用期最后一天才提交。\n",
+    "tags": [
+      "rh",
+      "onboarding"
+    ]
+  },
+  {
+    "key": "sql-index-invoice",
+    "title": "Investigation note: slow invoice list queries",
+    "content": "Support ticket `SUP-1042` reported that the invoice list page was loading\nnoticeably slowly for workspaces with a large invoice history, sometimes\ntaking several seconds instead of the usual sub-second response.\n\nInvestigation traced the slowness to a full table scan on the invoices\ntable whenever the list was filtered and sorted by due date, which is the\ndefault sort order on that page. There was no index supporting that access\npattern; the existing indexes only covered lookups by workspace and by\ninvoice status, not by due date.\n\nThe fix was adding `idx_invoice_due_date`, a concurrently-built index\ncovering workspace, status and due date together, matching exactly the\nfilter-and-sort pattern the page uses. After the index was added, the same\nquery dropped from several seconds to well under a hundred milliseconds\nfor the workspace that originally reported the ticket.\n\nThis is purely a read-path performance fix; it did not require any change\nto how invoices are written, and it has no relationship to the billing\nwebhook integration or to PayLoop at all, despite both being under the\n`facturation` tag.\n",
+    "tags": [
+      "ingenierie",
+      "facturation"
+    ]
+  },
+  {
+    "key": "support-escalation-policy",
+    "title": "支持工单升级政策",
+    "content": "支持工单分为三个优先级:普通、紧急、严重。普通工单的首次响应时间标准为一个工作日以内,紧急工单为四小时以内,严重工单要求三十分钟以内响应并立即评估是否需要升级给工程团队。\n\n以下情况必须升级给工程团队,不允许支持同事自行长时间排查:涉及生产环境数据异常(例如账单状态错误、发票金额不对)、涉及疑似安全问题(异常登录、疑似未授权访问)、以及任何客户报告的性能问题在初步排查后无法在三十分钟内定位原因的情况。\n\n升级时需要在工单中附上已经确认过的基本信息(客户工作区标识、问题发生的大致时间、是否可以稳定复现),不要只写一句\"客户反馈异常\"就直接转给工程团队,这样会拖慢工程团队的排查速度。\n\n升级不等于放弃处理这张工单:支持同事仍然是客户沟通的第一联系人,负责把工程团队的排查进展及时转达给客户,除非工程团队明确说明需要直接联系客户。\n",
+    "tags": [
+      "support"
+    ]
+  },
+  {
+    "key": "vendor-print-decision",
+    "title": "Décision - changement de fournisseur d'impression",
+    "content": "Décision actée par les achats : passage de TonerExpress à ImprimaPro comme\nfournisseur d'imprimantes et de consommables, suite aux retards de\nlivraison répétés de TonerExpress fin 2025. Le contrat ImprimaPro est en\nvigueur depuis janvier 2026.\n",
+    "tags": [
+      "achats",
+      "decision"
+    ]
+  },
+  {
+    "key": "meeting-notes-hiring",
+    "title": "招聘委员会简要记录",
+    "content": "本周招聘委员会讨论了上海办公室支持团队的两个候选人,一致同意进入下一轮技术加实操面试。会议同时确认了本季度支持团队新增人手的预算已经在roadmap会议上获批,不需要再单独走一次审批。\n",
+    "tags": [
+      "rh",
+      "reunion"
+    ]
+  },
+  {
+    "key": "changelog-v2140",
+    "title": "Release notes - v2.14.0",
+    "content": "v2.14.0 adds a bulk issue import endpoint to the public API, allowing up to\n500 issues per request instead of the previous one-at-a-time creation\nendpoint. No breaking changes; fully backward compatible with earlier\n2.x clients.\n",
+    "tags": [
+      "ingenierie"
+    ]
+  },
+  {
+    "key": "company-holidays-fr",
+    "title": "Jours fériés - France 2026",
+    "content": "Calendrier des jours fériés officiels pour l'équipe France en 2026 : suit\nle calendrier legal français standard, sans jour férié d'entreprise\nsupplémentaire cette année. La liste exacte des dates est communiquée par\nles RH en début d'année civile.\n",
+    "tags": [
+      "rh"
+    ]
+  },
+  {
+    "key": "company-holidays-cn",
+    "title": "2026年中国法定节假日安排",
+    "content": "2026年上海办公室按照国家法定节假日安排休假,具体包括元旦、春节、清明、劳动节、端午、中秋和国庆假期,放假天数以国务院当年公布的安排为准,公司不额外增加或减少法定假期天数。\n",
+    "tags": [
+      "rh"
+    ]
+  },
+  {
+    "key": "glossary-internal-acronyms",
+    "title": "Internal acronym glossary",
+    "content": "A running glossary of acronyms used across Coralis Desk documentation, kept\nhere because new hires keep asking the same questions in their first weeks.\n\n- SLA: service level agreement, the response-time commitment tied to a\n  support ticket's priority level.\n- ARR: annual recurring revenue, tracked by finance, not something support\n  or engineering need to reference day to day.\n- MRR: monthly recurring revenue, same caveat as ARR.\n- SUP-xxxx: the numbering scheme for support tickets, referenced in\n  engineering investigation notes when a bug was first reported through a\n  ticket rather than found internally.\n- CDN: content delivery network, relevant to the APAC hosting vendor\n  contract but not something engineering configures directly day to day.\n- RTO / RPO: recovery time objective and recovery point objective, used in\n  the database restore runbook to describe how fast and how fresh a\n  restore needs to be.\n\nThis glossary is intentionally short; it only covers acronyms that came up\noften enough in onboarding to be worth writing down, not an exhaustive\ndictionary of every term used anywhere in the company.\n",
+    "tags": [
+      "conventions"
+    ]
+  }
+]
