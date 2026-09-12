@@ -497,6 +497,7 @@ var concurrentIndexCleanups = map[string]string{
 	"916_project_sandbox_policy_pkey_index":                     "project_sandbox_policy_pkey_uidx",
 	"918_budget_reservation_task_index":                         "idx_budget_reservation_task",
 	"919_workspace_model_key_active_unique_index":               "idx_workspace_model_key_active_unique",
+	"924_cycle_actor_capacity_pkey_index":                       "cycle_actor_capacity_pkey_uidx",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

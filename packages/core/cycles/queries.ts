@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Cycle, CycleWriteRequest } from "../types";
+import type { Cycle, CycleActorCapacityWrite, CycleWriteRequest } from "../types";
 import { issueKeys } from "../issues/queries";
 
 // Dated cycles (F29): the list per project, one cycle's detail, its burndown,
@@ -12,6 +12,8 @@ export const cycleKeys = {
     [...cycleKeys.all(wsId), "list", projectId ?? "all"] as const,
   detail: (wsId: string, id: string) => [...cycleKeys.all(wsId), "detail", id] as const,
   burndown: (wsId: string, id: string) => [...cycleKeys.all(wsId), "burndown", id] as const,
+  capacities: (wsId: string, id: string) => [...cycleKeys.all(wsId), "capacities", id] as const,
+  velocity: (wsId: string, id: string) => [...cycleKeys.all(wsId), "velocity", id] as const,
 };
 
 export function cycleListOptions(wsId: string, projectId?: string) {
@@ -35,6 +37,38 @@ export function cycleBurndownOptions(wsId: string, id: string) {
     queryKey: cycleKeys.burndown(wsId, id),
     queryFn: () => api.getCycleBurndown(id),
     enabled: id.length > 0,
+  });
+}
+
+// Per-actor capacity + velocity (JEF-246).
+
+export function cycleCapacitiesOptions(wsId: string, id: string) {
+  return queryOptions({
+    queryKey: cycleKeys.capacities(wsId, id),
+    queryFn: () => api.getCycleCapacities(id),
+    select: (data) => data.capacities,
+    enabled: id.length > 0,
+  });
+}
+
+export function cycleVelocityOptions(wsId: string, id: string) {
+  return queryOptions({
+    queryKey: cycleKeys.velocity(wsId, id),
+    queryFn: () => api.getCycleVelocity(id),
+    enabled: id.length > 0,
+  });
+}
+
+export function usePutCycleCapacities(wsId: string, cycleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (capacities: CycleActorCapacityWrite[]) =>
+      api.putCycleCapacities(cycleId, capacities),
+    // Declared capacities feed the velocity bars, so both views are stale.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: cycleKeys.capacities(wsId, cycleId) });
+      qc.invalidateQueries({ queryKey: cycleKeys.velocity(wsId, cycleId) });
+    },
   });
 }
 

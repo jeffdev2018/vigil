@@ -2659,6 +2659,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/", h.DeleteCycle)
 					r.Get("/burndown", h.GetCycleBurndown)
 					r.Post("/close", h.CloseCycle)
+					// JEF-246: per-actor declared capacity and the velocity
+					// report that measures done points against it.
+					r.Get("/capacities", h.GetCycleCapacities)
+					r.Put("/capacities", h.PutCycleCapacities)
+					r.Get("/velocity", h.GetCycleVelocity)
 				})
 			})
 			// Contest (K72): a rival model challenges an agent output.
