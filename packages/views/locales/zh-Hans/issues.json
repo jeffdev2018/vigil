@@ -1755,6 +1755,9 @@
     "reject": "驳回",
     "note_placeholder": "备注（可选）",
     "decide_failed": "无法记录审批结果。",
+    "cancel_request": "取消我的申请",
+    "cancelled_toast": "已取消申请。",
+    "cancel_failed": "无法取消申请。",
     "pending_toast": "已提交审批，状态尚未变更。"
   },
   "run_preview": {

@@ -1774,6 +1774,9 @@
     "reject": "Refuser",
     "note_placeholder": "Note (facultative)",
     "decide_failed": "Impossible d'enregistrer la décision.",
+    "cancel_request": "Annuler ma demande",
+    "cancelled_toast": "Demande annulée.",
+    "cancel_failed": "Impossible d'annuler la demande.",
     "pending_toast": "Envoyé pour approbation. Le statut n'a pas encore changé."
   },
   "run_preview": {

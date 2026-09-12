@@ -1755,6 +1755,9 @@
     "reject": "거부",
     "note_placeholder": "메모(선택)",
     "decide_failed": "결정을 기록하지 못했습니다.",
+    "cancel_request": "내 요청 취소",
+    "cancelled_toast": "요청을 취소했습니다.",
+    "cancel_failed": "요청을 취소하지 못했습니다.",
     "pending_toast": "승인 요청을 보냈습니다. 상태는 아직 바뀌지 않았습니다."
   },
   "run_preview": {
