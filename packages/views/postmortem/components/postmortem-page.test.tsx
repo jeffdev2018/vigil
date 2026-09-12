@@ -154,7 +154,8 @@ describe("PostmortemPage", () => {
   it("renders draft postmortems with the failure reason badge", async () => {
     renderPage();
     expect(await screen.findByText("The run exhausted the model context.")).toBeTruthy();
-    expect(screen.getByText("agent_error.context_overflow")).toBeTruthy();
+    // Known codes resolve through the shared task-failure table (JEF-401).
+    expect(screen.getByText("Context window exceeded")).toBeTruthy();
   });
 
   it("shows the empty state when there are no drafts", async () => {

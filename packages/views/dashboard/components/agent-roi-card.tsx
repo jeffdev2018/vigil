@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { dashboardAgentRoiOptions, roiTrendPct } from "@multica/core/dashboard/queries";
 import type { AgentRoiRow } from "@multica/core/types";
 import { CurrencyNumberFlow } from "@multica/ui/components/ui/number-flow";
+import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { formatUsd } from "../../runtimes/utils";
 import { RESTRICTED_AGENTS_ROW_ID } from "../utils";
@@ -33,10 +34,26 @@ export function AgentRoiCard({
   locales: string;
 }) {
   const { t } = useT("usage");
-  const { data, isError } = useQuery(dashboardAgentRoiOptions(wsId, days, projectId, tz));
+  const { data, isError, refetch } = useQuery(dashboardAgentRoiOptions(wsId, days, projectId, tz));
+  // A failed fetch must not render as nothing — that told the user "no ROI
+  // data" indistinguishable from a workspace with no agent activity yet.
+  if (isError) {
+    return (
+      <div
+        data-testid="agent-roi-error"
+        role="alert"
+        className="flex items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-caption text-destructive"
+      >
+        <span>{t(($) => $.agent_roi.load_error)}</span>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          {t(($) => $.agent_roi.retry)}
+        </Button>
+      </div>
+    );
+  }
   // Defensive on shape: an older backend (or a test fixture) may hand back
   // something that is not this response.
-  if (!data || isError || !Array.isArray(data.agents)) return null;
+  if (!data || !Array.isArray(data.agents)) return null;
   const agents = data.agents;
   if (agents.length === 0) {
     return (
@@ -100,8 +117,19 @@ export function AgentRoiCard({
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.issues_closed}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{row.prs_merged}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
-                    {usd(row.cost_usd_ticks)}
-                    {row.uncosted_runs > 0 && <span className="ml-1 text-muted-foreground">{t(($) => $.agent_roi.floor)}</span>}
+                    <CurrencyNumberFlow
+                      value={row.cost_usd_ticks / 1e10}
+                      locales={locales}
+                      aria-label={usd(row.cost_usd_ticks)}
+                    />
+                    {row.uncosted_runs > 0 && (
+                      <span
+                        className="ml-1 cursor-help text-muted-foreground underline decoration-dotted underline-offset-2"
+                        title={t(($) => $.agent_roi.floor_hint)}
+                      >
+                        {t(($) => $.agent_roi.floor)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-1.5 text-right tabular-nums">
                     {row.cost_per_issue_usd_ticks === null ? (

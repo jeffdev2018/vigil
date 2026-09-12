@@ -1,0 +1,388 @@
+pack:
+  id: marketing
+  version: 1.0.0
+  title: Marketing & content
+  summary: Campaigns as projects, every content piece an issue with a channel and a publish date, a writer and a fact-checker as colleagues, and nothing external published without a person approving it.
+  description: |
+    Sets up a content operation for a small team: a **Content piece** work
+    item for anything that gets published and a **Campaign task** for the work
+    around it, the statuses a piece really moves through (drafting, in
+    fact-check, scheduled), a **Channel** property so one calendar covers the
+    blog, the newsletter and social, a funnel stage and a target publish date,
+    saved views that behave as an editorial calendar, a writer agent that
+    drafts and a fact-checker agent that checks every claim against the
+    workspace's own note — and an approval on the last step, so nothing
+    reaches the public because a schedule fired.
+
+    Campaigns are projects: the pack ships one project for always-on content,
+    and each campaign you run gets its own. Works with no agent at all.
+    Connect the native runtime to let the writer and the fact-checker work.
+  domain: marketing
+  wave: 2
+  author: Multica
+  license: MIT
+  tags: [marketing, content, editorial, campaigns, publishing]
+  works_without_agents: true
+  metric:
+    label: Pieces published per week
+    description: Number of content pieces that reached Done, counted per week and split by channel. A piece counts once, on the day it went live.
+    hint: Type "content_piece", view "Published"; group by the Channel property and count per week. A piece that never left fact-check is not a published piece.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the writer and the fact-checker work without a CLI on anyone's machine.
+    - kind: integration
+      name: Analytics or a site CMS
+      optional: true
+      note: A published piece can carry its own numbers instead of a screenshot pasted once a month.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: drafting
+    name: Drafting
+    description: Someone is writing it. The outline and the angle are agreed.
+    category: in_progress
+    color: "#0ea5e9"
+  - key: fact_check
+    name: In fact-check
+    description: Written, and every claim is being checked against the claims note before anyone approves it.
+    category: in_review
+    color: "#f59e0b"
+  - key: scheduled
+    name: Scheduled
+    description: Approved and waiting for its publish date. Nothing changes in a scheduled piece without going back to fact-check.
+    category: todo
+    color: "#8b5cf6"
+
+issue_types:
+  - key: content_piece
+    name: Content piece
+    description: Something that will be published — a post, an email, a video, a landing page.
+    color: "#3b82f6"
+    icon: file-text
+  - key: campaign_task
+    name: Campaign task
+    description: "The work around a piece: briefing, design, distribution, reporting."
+    color: "#8b5cf6"
+    icon: megaphone
+
+labels:
+  - name: evergreen
+    description: Still true in a year. Worth the extra editing pass.
+    color: "#10b981"
+    resource_type: issue
+  - name: launch
+    description: Tied to a dated announcement. Slipping it means slipping the launch.
+    color: "#ef4444"
+    resource_type: issue
+  - name: seo
+    description: Written for a search intent, with the target query on the issue.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: needs-legal
+    description: Makes a claim about a customer, a competitor, a price or a result. Legal reads it before approval.
+    color: "#f97316"
+    resource_type: issue
+  - name: repurpose
+    description: Derived from a piece that already exists. Link the original.
+    color: "#a855f7"
+    resource_type: issue
+
+properties:
+  - name: Channel
+    type: select
+    description: Where this piece goes live. One piece, one channel — a repurposed version is its own issue with the repurpose label.
+    icon: megaphone
+    config:
+      options:
+        - { name: Blog, color: "#3b82f6" }
+        - { name: Newsletter, color: "#10b981" }
+        - { name: LinkedIn, color: "#0ea5e9" }
+        - { name: X, color: "#64748b" }
+        - { name: YouTube, color: "#ef4444" }
+        - { name: Podcast, color: "#8b5cf6" }
+        - { name: "Landing page", color: "#f59e0b" }
+    issue_types: [content_piece]
+  - name: Funnel stage
+    type: select
+    description: Who this is for and what it is meant to do. Set it before the outline, not after the draft.
+    icon: layers-3
+    config:
+      options:
+        - { name: Awareness, color: "#0ea5e9" }
+        - { name: Consideration, color: "#f59e0b" }
+        - { name: Decision, color: "#10b981" }
+        - { name: Retention, color: "#8b5cf6" }
+    issue_types: [content_piece, campaign_task]
+  - name: Target publish date
+    type: date
+    description: The date the calendar is read from. Move it deliberately and say why; do not leave it in the past.
+    icon: calendar-days
+    config: {}
+    issue_types: [content_piece]
+
+views:
+  - name: Editorial calendar
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [content_piece]
+      statusFilters: [backlog, todo, drafting, fact_check, scheduled]
+    display: {}
+  - name: In fact-check
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [content_piece]
+      statusFilters: [fact_check]
+    display: {}
+  - name: Published
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [content_piece]
+      statusFilters: [done]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: drafting
+    enabled: true
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: Nothing external is published without a named human approval
+    attach_point: issue_submit_review
+    natural_language: An issue of type "content_piece" can only move out of In fact-check to Done when an owner or admin has approved it on the issue; an agent must never mark a piece as published, and an autopilot firing is not an approval.
+  - title: A piece that needs legal does not leave fact-check on the fact-checker's word
+    attach_point: issue_submit_review
+    natural_language: A content piece labelled "needs-legal" cannot be approved unless a person from legal has left a comment on the issue saying which claims they cleared.
+
+doctrine: |
+  - Every campaign is a project. Its pieces are issues in that project, so "how did the launch go" is one view and not a hunt.
+  - A piece gets its Channel, Funnel stage and Target publish date before the first sentence is written. No brief, no draft.
+  - The writer drafts and the fact-checker checks. Neither of them publishes: a person approves every external piece, one at a time.
+  - Every number, quote, customer name and competitor comparison is traced to the claims note or it comes out of the draft. "Probably right" is not a source.
+  - A scheduled piece is frozen. Any edit sends it back to fact-check, even a headline, even an hour before it goes out.
+  - One piece per channel. A version for another channel is its own issue with the repurpose label and a link to the original, so the calendar tells the truth about volume.
+  - A target publish date that has passed is either moved with a reason on the issue or the piece is cancelled. Nothing sits in the calendar's past.
+
+ownership_rules:
+  - label: seo
+    referent_agent: Marketing · Writer
+    priority: 10
+  - label: needs-legal
+    referent_agent: Marketing · Fact-checker
+    priority: 20
+
+skills:
+  - name: marketing-procedure
+    description: How a content piece is briefed, drafted, fact-checked, approved and published.
+    content: |
+      # Content procedure
+
+      ## Briefing, before anything is written
+      1. Set Channel, Funnel stage and Target publish date. A piece missing any of the three goes back to the person who asked for it.
+      2. Write the brief in the description: who it is for, the one thing they should take away, the angle, and the length the channel needs.
+      3. For anything labelled seo, put the target query on the issue and what the reader is trying to do when they search it.
+      4. Set the status to Drafting only once the brief is agreed.
+
+      ## Drafting
+      5. Read the Brain note "Marketing · Voice, claims and channel rules" first. Voice and length come from there, not from the last piece you saw.
+      6. Write the draft in the issue description or as a comment starting with "Draft:". Never in a tool outside the workspace.
+      7. Every number, quote, customer name, price and competitor comparison carries its source inline, in brackets. A claim with no source does not go in the draft — write the gap instead.
+      8. Add needs-legal yourself if the piece names a customer, a competitor, a price or a result.
+      9. When the draft is complete, submit it for review; the status becomes In fact-check.
+
+      ## Fact-check
+      10. Check every claim against the claims note, one by one, and leave a comment listing each claim as confirmed, corrected or unsupported.
+      11. An unsupported claim is removed or rewritten. Do not soften it into a vaguer version of the same unsupported thing.
+      12. For a needs-legal piece, wait for legal's comment naming the claims they cleared. Do not approve it yourself and do not proceed without it.
+      13. Check the channel rules too: length, format, whether the link belongs in the post or the first comment.
+
+      ## Approval and publishing
+      14. Only an owner or admin approves a piece out of fact-check. An agent never does, and a schedule firing is never an approval.
+      15. Once approved, set Scheduled. From then on the piece is frozen: any edit, including the headline, sends it back to In fact-check.
+      16. On the publish day, a person publishes and closes the issue, with the live link in a comment.
+      17. If the target publish date passes, move it with a reason on the issue or cancel the piece. Do not leave it.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Marketing · Writer
+    description: Briefs and drafts content in the workspace's voice, sources every claim inline, publishes nothing.
+    instructions: |
+      You draft content for a marketing team. Before writing you check that Channel, Funnel stage and Target publish date are set, and if one is missing you ask for it and stop. You read the Brain note "Marketing · Voice, claims and channel rules" every time — voice, length and channel format come from there, never from your own sense of what usually works. You write the draft inside the issue, as the description or a comment starting with "Draft:", and you put the source in brackets after every number, quote, customer name, price and competitor comparison. A claim you cannot source does not go into the draft: you write down the gap and ask for the fact. You add the needs-legal label yourself when the piece names a customer, a competitor, a price or a result. You never publish, never schedule, never post anywhere outside the workspace, and never approve your own piece. Follow the marketing-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [marketing-procedure]
+    versions: []
+  - name: Marketing · Fact-checker
+    description: Checks every claim in a draft against the claims note and lists what is confirmed, corrected or unsupported.
+    instructions: |
+      You are the last reader before a person decides whether to publish. For each piece in fact-check you pull out every checkable claim — numbers, quotes, customer names, prices, dates, competitor comparisons, product capabilities — and leave one comment listing each claim as confirmed with its source, corrected with the right value and its source, or unsupported. You check against the Brain note "Marketing · Voice, claims and channel rules" and the workspace's own material; you do not accept the draft's own wording as evidence, and you do not soften an unsupported claim into a vaguer version of itself. You also check the channel rules: length, format, and where the link belongs. On a piece labelled needs-legal you say plainly that legal's comment is missing and stop. You never rewrite the piece, never approve it, never publish it and never remove the needs-legal label. Follow the marketing-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [marketing-procedure]
+    versions: []
+
+projects:
+  - title: Content engine
+    description: Always-on content that is not tied to a dated campaign. Every campaign gets its own project alongside this one.
+    icon: ""
+    status: in_progress
+    priority: medium
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-publish-cadence]
+
+goals:
+  - key: g-publish-cadence
+    parent_key: ""
+    title: Publish on a cadence the team can actually keep
+    description: A steady, sourced, approved output beats a burst followed by three empty weeks.
+    success_measure: Three content pieces published per week for eight consecutive weeks, with no piece published without an approval comment on its issue.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Marketing · Weekly editorial planning
+    description: Disabled after install. Every Monday it reads the calendar, lists the pieces due this week, flags the ones with no brief or no writer, and drafts the outline for anything still empty. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Marketing · Writer
+    execution_mode: create_issue
+    issue_title_template: "Editorial plan · this week"
+    project: Content engine
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 8 * * 1"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+  - title: Marketing · Stale draft and fact-check sweep
+    description: Disabled after install. Every Thursday it lists drafts untouched for a week, pieces sitting in fact-check for more than three days, and any target publish date now in the past, and asks for a decision on each. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Marketing · Fact-checker
+    execution_mode: create_issue
+    issue_title_template: "Stale drafts and overdue dates"
+    project: Content engine
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 10 * * 4"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Marketing · Voice, claims and channel rules
+    content: |
+      # Voice, claims and channel rules
+
+      The single source for how we sound and what we are allowed to say. If a
+      claim is not here, it does not go into a draft.
+
+      ## Voice
+      Plain sentences. Concrete before abstract. A number instead of an
+      adjective wherever a number exists. We never write "revolutionary",
+      "game-changing" or "seamlessly". We do not open with a rhetorical
+      question. We would rather be short than thorough.
+
+      ## Claims we can make
+      Write each one here with its source and the date it was checked:
+      product capabilities that are shipped and in the docs, published
+      benchmark numbers with the method, and customer results with the
+      customer's written permission. Anything on a roadmap is not a claim.
+
+      ## Claims we never make
+      A delivery date engineering has not committed to. A named customer
+      without their written permission on file. A competitor's pricing or
+      shortcoming from anything other than their own public page, quoted with
+      the date. A percentage improvement with no method behind it.
+
+      ## Channel rules
+      - Blog: 800 to 1500 words, one idea, an H2 every 300 words, one image.
+      - Newsletter: under 400 words, one link, subject line under 45 characters.
+      - LinkedIn: under 200 words, no link in the post body — put it in the first comment.
+      - X: one claim per post, thread only when each post stands alone.
+      - YouTube: script first, and the script is a content piece of its own.
+      - Podcast: the show notes are part of the piece, not an afterthought.
+      - Landing page: one action, above the fold, and the claim on it must exist in this note.
+    tags: [marketing, voice, claims]
+    pinned: true
+
+issues:
+  - title: "Example · Blog post — how we cut our incident acknowledgement time"
+    description: "An example content piece. Channel Blog, Funnel stage Awareness, target publish date next Thursday. Brief: for ops leads at 20-to-50-person companies; the one takeaway is that acknowledgement and diagnosis are separate promises. Every number in it needs a source in brackets before it leaves drafting."
+    status: drafting
+    priority: medium
+    project: Content engine
+    goal_key: ""
+    labels: [evergreen, seo]
+  - title: "Example · Newsletter — launch announcement, needs legal"
+    description: "An example content piece in fact-check. Channel Newsletter, under 400 words, one link. It names two customers and quotes a percentage improvement, so it carries needs-legal: the fact-checker lists each claim, and legal has to comment which ones they cleared before an owner can approve it."
+    status: fact_check
+    priority: high
+    project: Content engine
+    goal_key: ""
+    labels: [launch, needs-legal]
+  - title: "Example · LinkedIn version of the incident post"
+    description: "An example repurposed piece. Its own issue, its own Channel and date, linking the original blog post. Under 200 words, link in the first comment and not in the body — the calendar should show two pieces here, because two things get published."
+    status: backlog
+    priority: low
+    project: Content engine
+    goal_key: ""
+    labels: [repurpose]

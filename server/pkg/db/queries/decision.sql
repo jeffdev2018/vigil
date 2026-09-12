@@ -8,6 +8,12 @@ RETURNING *;
 -- name: GetIssueDecision :one
 SELECT * FROM issue_decision WHERE id = $1 AND issue_id = $2;
 
+-- name: ListIssueDecisionsByIDs :many
+-- The inbox decision list resolves a page of cards in one query.
+SELECT * FROM issue_decision
+WHERE id = ANY(sqlc.arg('ids')::uuid[])
+  AND issue_id = ANY(sqlc.arg('issue_ids')::uuid[]);
+
 -- name: ListIssueDecisions :many
 SELECT * FROM issue_decision
 WHERE issue_id = $1 AND workspace_id = $2

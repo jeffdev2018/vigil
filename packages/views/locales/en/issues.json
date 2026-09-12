@@ -1,4 +1,26 @@
 {
+  "inline_run": {
+    "label": "{{name}} run",
+    "stop": "Stop",
+    "stopping": "Stopping...",
+    "queued": "Waiting for an available agent.",
+    "starting": "Preparing the agent session.",
+    "waiting_directory": "Waiting for another run to release the working directory.",
+    "thinking": "Thinking",
+    "waiting_response": "Waiting for the agent to respond.",
+    "view_activity": "View activity",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps",
+    "loading": "Loading activity...",
+    "load_failed": "Could not load activity.",
+    "try_again": "Try again",
+    "empty": "No activity recorded yet.",
+    "show_earlier": "Show {{count}} earlier steps",
+    "full_log": "Open full log",
+    "message": "Agent message",
+    "error": "Error",
+    "waiting_result": "Waiting for the tool result..."
+  },
   "status_catalog_error": {
     "title": "Couldn't load the status list",
     "hint": "Issues are hidden until it loads, because a status filter can't be applied without it.",
@@ -80,7 +102,9 @@
     "breadcrumb_workspace_fallback": "Workspace",
     "empty_title": "No issues yet",
     "empty_hint": "Create an issue to get started.",
-    "move_failed": "Failed to move issue"
+    "move_failed": "Failed to move issue",
+    "empty_run_explainer": "Agents run in the browser on the native runtime — or on a computer you connect.",
+    "empty_run_explainer_link": "Create an agent"
   },
   "status": {
     "backlog": "Backlog",
@@ -220,6 +244,7 @@
     "empty": "No issues match this view.",
     "search_placeholder": "Search title or issue ID…",
     "search_clear": "Clear search",
+    "resize_column": "Resize {{label}} column",
     "load_failed": "Failed to load issues.",
     "load_failed_retry": "Retry",
     "load_more_failed_retry": "Loading more failed — Retry",
@@ -324,7 +349,8 @@
     "empty_column": "No issues",
     "empty_grouping": "No matching issues",
     "no_value": "No value",
-    "ordered_by": "Board ordered by {{field}}"
+    "ordered_by": "Board ordered by {{field}}",
+    "column_menu_aria": "Column options"
   },
   "detail": {
     "not_found": "This issue does not exist or has been deleted in this workspace.",
@@ -478,7 +504,10 @@
       "hint_select": "select",
       "hint_jump": "jump",
       "hint_close": "close"
-    }
+    },
+    "section_related": "Related",
+    "section_duplicate": "Duplicates",
+    "more_actions_tooltip": "More actions"
   },
   "timeline": {
     "loading": "Loading..."
@@ -515,6 +544,9 @@
     "show_more_activities_other": "Show {{count}} more activities"
   },
   "comment": {
+    "add_reaction": "Add reaction",
+    "collapse_thread": "Collapse thread",
+    "expand_thread": "Expand thread",
     "delete_title": "Delete comment",
     "delete_desc": "This comment will be permanently deleted. This cannot be undone.",
     "delete_desc_with_replies": "This comment and all its replies will be permanently deleted. This cannot be undone.",
@@ -696,7 +728,38 @@
     "revert_dialog_confirm": "Revert branch",
     "revert_pending": "Reverting…",
     "revert_done": "Reverted to this turn",
-    "revert_failed": "The revert did not complete"
+    "revert_failed": "The revert did not complete",
+    "branch_promote": "Promote",
+    "branch_promote_pending": "Promoting…",
+    "branch_promoted": "Promoted",
+    "branch_promoted_view_pr": "Promoted · View PR",
+    "branch_discard": "Discard",
+    "branch_discard_pending": "Discarding…",
+    "branch_discarded": "Discarded",
+    "branch_show_diff": "Show diff",
+    "branch_hide_diff": "Hide diff",
+    "branch_diff_loading": "Loading diff…",
+    "branch_promote_dialog_title": "Promote this branch?",
+    "branch_promote_dialog_body": "Push {{branch}} and open a pull request.",
+    "branch_promote_dialog_confirm": "Push and open PR",
+    "branch_discard_dialog_title": "Discard this branch?",
+    "branch_discard_dialog_body": "The branch {{branch}} and its worktree are deleted. This cannot be undone.",
+    "branch_discard_dialog_confirm": "Delete branch",
+    "branch_dialog_cancel": "Cancel",
+    "branch_action_failed": "The branch action did not complete",
+    "branch_error_not_promotable": "This run can no longer be promoted — the list has been refreshed.",
+    "branch_error_not_discardable": "This run can no longer be discarded — the list has been refreshed.",
+    "branch_error_pending": "Another branch action is already in progress for this run.",
+    "consult": {
+      "answered": "Consulted {{model}} · {{cost}}",
+      "pending": "Consulting {{model}}…",
+      "failed": "Consult to {{model}} failed",
+      "refused": "Consult to {{model}} refused · {{reason}}",
+      "refused_no_reason": "Consult to {{model}} refused",
+      "cost_unreported": "cost not reported",
+      "reason_budget_exceeded": "daily consult budget exhausted",
+      "reason_llm_disabled": "no LLM configured for consults"
+    }
   },
   "legs": {
     "workflow": "Workflow",
@@ -717,9 +780,17 @@
       "fanout": "Fan-out",
       "shard": "Shard",
       "eval": "Eval",
+      "benchmark": "Benchmark",
       "escalation": "Escalation",
-      "other": "Leg"
-    }
+      "pr_walkthrough": "Walkthrough",
+      "epic_step": "Epic step",
+      "other": "Leg",
+      "continuation": "Continuation",
+      "subagent": "Sub-agent"
+    },
+    "total_unknown": "cost unknown",
+    "total_partial_one": "{{cost}} + {{count}} run of unknown cost",
+    "total_partial_other": "{{cost}} + {{count}} runs of unknown cost"
   },
   "usage_detail": {
     "title": "Usage breakdown",
@@ -811,7 +882,9 @@
     "delete_issue": "Delete issue",
     "add_blocking": "Mark as blocking...",
     "add_blocked_by": "Mark as blocked by...",
-    "remove_dependency": "Remove dependency"
+    "remove_dependency": "Remove dependency",
+    "remove_dependency_failed": "Could not remove the dependency.",
+    "add_relation": "Add relation…"
   },
   "pickers": {
     "custom_property": {
@@ -1175,6 +1248,39 @@
       "expired": "expired"
     }
   },
+  "sandbox_override": {
+    "section": "Sandbox override",
+    "description": "Restrict agent runs for this issue beyond the workspace and project policies. The most restrictive of the three wins, enforced fail-closed.",
+    "capability_hint": "Allowlist and no-network modes need a container-capable runtime: runs on runtimes without that capability are refused and fail over (fail-closed).",
+    "none": "No override — inherits the project policy",
+    "edit": "Edit override",
+    "dialog_title": "Sandbox override",
+    "network": "Network access",
+    "mode": {
+      "unrestricted": "Unrestricted",
+      "allowlist": "Allowlist",
+      "none": "No network"
+    },
+    "hint": {
+      "unrestricted": "Runs may reach any host.",
+      "allowlist": "Only the listed hosts and the platform defaults are reachable.",
+      "none": "No network egress beyond what the platform needs."
+    },
+    "hosts_label": "Allowed hosts",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "One host per line. The platform defaults stay reachable.",
+    "block_sensitive": "Block sensitive files",
+    "block_sensitive_help": "Agents must not read .env files (best effort).",
+    "effective": "Effective for this issue: {{mode}}",
+    "effective_blocked": "sensitive files blocked",
+    "save": "Save override",
+    "saving": "Saving...",
+    "remove": "Remove override",
+    "toast_saved": "Sandbox override saved",
+    "toast_removed": "Sandbox override removed — the project policy applies",
+    "failed": "The sandbox override could not be saved",
+    "load_failed": "The sandbox override could not be loaded"
+  },
   "decisions": {
     "section": "Decisions",
     "recommended": "recommended",
@@ -1190,7 +1296,10 @@
     "sla_overdue": "Overdue, escalation pending",
     "sla_substitute": "Overdue · escalated to the substitute",
     "sla_leads": "Overdue · escalated to the workspace leads",
-    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request."
+    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request.",
+    "urgency_high": "High",
+    "urgency_normal": "Normal",
+    "urgency_low": "Low"
   },
   "acceptance": {
     "section": "Acceptance criteria",
@@ -1248,7 +1357,13 @@
     "failed_sections": "Some sections could not be loaded: {{sections}}.",
     "error": "The review cockpit could not be loaded.",
     "retry": "Retry",
-    "move_failed": "Failed to change the issue status"
+    "move_failed": "Failed to change the issue status",
+    "changes_label": "What needs to change?",
+    "changes_hint": "Your request is posted as a comment on the issue, then the issue goes back to In Progress.",
+    "changes_cancel": "Cancel",
+    "changes_send": "Send the request",
+    "changes_requested": "Changes requested: comment posted, issue back to In Progress.",
+    "request_changes_failed": "The request could not be posted. Your text is kept; try again."
   },
   "ownership": {
     "section": "Suggested owner",
@@ -1297,6 +1412,7 @@
     "winner": "Winner: {{side}}",
     "winner_tie": "Declared a tie",
     "open": "Start a duel",
+    "open_hint": "Run two agents on the same issue in parallel and compare their results.",
     "agent_a": "Agent A",
     "agent_b": "Agent B",
     "pick_agent": "Pick an agent…",
@@ -1322,6 +1438,7 @@
     "start_confirm": "Start the race",
     "attempt_agent": "Attempt {{index}} — agent",
     "attempt_model": "Attempt {{index}} — model",
+    "attempt_runtime": "Attempt {{index}} — runtime",
     "remove_attempt": "Remove attempt {{index}}",
     "add_attempt": "Add an attempt",
     "pick_agent": "Pick an agent…",
@@ -1330,6 +1447,10 @@
     "note_placeholder": "Note for every attempt (optional)",
     "model": "Model",
     "default_model": "agent default",
+    "runtime": "Runtime",
+    "default_runtime": "Default (agent binding)",
+    "cost": "Cost",
+    "duration": "Duration",
     "run_status": "Run",
     "diff_stat": "Diff",
     "diff_truncated": "Diff too large to store — stat only; read the branch.",
@@ -1346,7 +1467,13 @@
     "cancel": "Cancel",
     "failed": "The race request failed",
     "error_already_active": "A race is already running on this issue.",
-    "error_already_settled": "This race is no longer running."
+    "error_already_settled": "This race is no longer running.",
+    "ask_judge": "Ask the judge",
+    "judging": "Judging…",
+    "recommended": "Recommended",
+    "judge_score": "Judge score",
+    "judge_failed": "The judge could not give a verdict — compare the attempts yourself.",
+    "error_not_judgeable": "The judge needs at least 2 completed attempts."
   },
   "campaign": {
     "section": "Refactoring campaign",
@@ -1370,6 +1497,7 @@
     "conflict_hint": "Needs a human: resolve it or skip the shard so the queue moves on.",
     "skip": "Skip shard #{{n}}",
     "open": "Start a refactoring campaign",
+    "open_hint": "Runs the same refactor across many branches in parallel, merging each independently.",
     "name": "Campaign name",
     "target_branch": "Target branch",
     "leader": "Leader agent",
@@ -1383,7 +1511,8 @@
     "add": "Add a shard",
     "launch": "Launch campaign",
     "cancel": "Cancel",
-    "failed": "The campaign request failed"
+    "failed": "The campaign request failed",
+    "unknown_agent": "Unknown agent"
   },
   "competency": {
     "section": "Success history on this kind of task",
@@ -1520,6 +1649,75 @@
       "none": "no action"
     }
   },
+  "goal_loop": {
+    "section": "Goal",
+    "intro": "Give this agent a goal to work toward across several runs.",
+    "goal_label": "Goal",
+    "goal_placeholder": "What should this issue accomplish?",
+    "max_continuations": "Max continuations",
+    "save": "Save goal",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "save_failed": "Could not save the goal",
+    "saved": "Goal saved",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pause_failed": "Could not pause the goal",
+    "resume_failed": "Could not resume the goal",
+    "paused": "Goal paused",
+    "resumed": "Goal resumed",
+    "continuation_progress": "Continuation {{n}} / {{max}}",
+    "blocker": "Blocker",
+    "reason": "Reason",
+    "next_step": "Next step",
+    "evidence": "Evidence",
+    "evidence_show_all": "Show all ({{count}})",
+    "evidence_collapse": "Show less",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "waiting_user": "Waiting for answer",
+      "satisfied": "Goal met",
+      "stopped": "Stopped"
+    },
+    "outcomes": {
+      "none": "No outcome yet",
+      "satisfied": "Satisfied",
+      "continued": "Continued",
+      "stopped_exhausted": "Exhausted its continuation budget",
+      "stopped_stagnation": "Stalled — no progress",
+      "stopped_needs_user_input": "Needs your input",
+      "stopped_external_wait": "Waiting on something external",
+      "stopped_run_failed": "The run failed",
+      "stopped_judge_unavailable": "The judge was unavailable",
+      "stopped_paused": "Paused",
+      "stopped_issue_changed": "The issue changed",
+      "stopped_unknown": "Stopped",
+      "other": "Unknown outcome"
+    },
+    "badge": {
+      "continued": "Goal: continued {{n}}/{{max}}",
+      "satisfied": "Goal met",
+      "waiting": "Goal: waiting for answer",
+      "stopped": "Goal: stopped ({{reason}})"
+    },
+    "question": {
+      "answer_placeholder": "Type your answer…",
+      "answer": "Answer",
+      "answer_failed": "Could not send the answer",
+      "answered": "Answer sent",
+      "answered_line": "Answered {{when}}",
+      "answered_by_line": "Answered by {{by}} · {{when}}"
+    },
+    "blockers": {
+      "goal_not_met_yet": "Goal not met yet",
+      "missing_evidence": "Missing evidence",
+      "needs_user_input": "Needs your input",
+      "external_wait": "Waiting on something external",
+      "run_failed": "The run failed",
+      "other": "Other"
+    }
+  },
   "eval_promote": {
     "promote": "Promote to eval case",
     "added": "Added to Eval Lab",
@@ -1598,6 +1796,9 @@
     "reject": "Reject",
     "note_placeholder": "Note (optional)",
     "decide_failed": "Could not record the decision.",
+    "cancel_request": "Cancel my request",
+    "cancelled_toast": "Request cancelled.",
+    "cancel_failed": "Could not cancel the request.",
     "pending_toast": "Sent for approval. The status has not changed yet."
   },
   "run_preview": {
@@ -1722,6 +1923,151 @@
     "human_effort": "Active review time reported by this client: {{seconds}} s (self-timed while the review form was open; not wall-clock delay).",
     "result_counts": "{{accepted}} / {{reviewed}} reviewed results currently accepted",
     "correction_counts": "{{corrections}} correction requests · {{reversals}} corrections following acceptance",
-    "metrics_hint": "A result is a distinct evidence snapshot. Repeated acceptance of the same snapshot counts once; a later correction decision removes its acceptance."
+    "metrics_hint": "A result is a distinct evidence snapshot. Repeated acceptance of the same snapshot counts once; a later correction decision removes its acceptance.",
+    "result_pr": "Pull request",
+    "technical_details": "Technical details"
+  },
+  "approvals": {
+    "kind_gate_git_push": "Git push held",
+    "kind_gate_tool": "Tool call held",
+    "kind_gate_spend": "Spend held",
+    "kind_plan": "Plan approval",
+    "kind_interview": "Interview question",
+    "kind_preview": "Show me first",
+    "kind_watchdog": "Watchdog verdict",
+    "kind_pipeline": "Pipeline stage",
+    "kind_goal_attach": "Goal attachment",
+    "kind_org_assign": "Routed assignment",
+    "kind_transition": "Status change held",
+    "kind_goal_question": "Question from the run",
+    "kind_decision": "Decision",
+    "asked_by": "asked by {{name}}",
+    "expires_in": "{{time}} left",
+    "expired": "Expired",
+    "details_show": "What it would do",
+    "details_hide": "Hide details",
+    "gate_type": "Gate",
+    "paths": "Paths",
+    "blast_radius": "Blast radius",
+    "dual_approval": "{{have}}/{{need}} approvals",
+    "cannot_decide_policy": "This workspace reserves approval gates to owners and admins.",
+    "cannot_decide_role": "You are not an approver for this ask.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "note_placeholder": "Note for the requester (optional)",
+    "answer_placeholder": "Your answer",
+    "send": "Send",
+    "answered": "Answer recorded",
+    "answer_failed": "Could not record the answer",
+    "pending_banner_one": "{{count}} awaiting a decision",
+    "pending_banner_other": "{{count}} awaiting a decision",
+    "run_halt_title": "Agents are halted",
+    "run_halt_body": "Every gated action is refused while the halt is on.",
+    "run_halt_by": "Halted by {{who}} {{when}}",
+    "run_halt_reason_prefix": "Reason: {{reason}}",
+    "run_halt_unknown_actor": "an owner",
+    "run_halt_lift": "Lift the halt",
+    "run_halt_lift_failed": "Could not lift the halt",
+    "run_halt_frozen_count": "{{count}} runs frozen",
+    "kind_calendar_proposal": "Meeting proposal",
+    "kind_autopilot_proposal": "Autopilot proposal"
+  },
+  "followups": {
+    "section": "Follow-ups",
+    "schedule": "Schedule a follow-up",
+    "empty": "No wake-up scheduled.",
+    "fires_in": "in {{countdown}}",
+    "scheduled_by": "by {{by}}",
+    "cancel": "Cancel this follow-up",
+    "cancelled": "Follow-up cancelled",
+    "cancel_failed": "Could not cancel the follow-up",
+    "scheduled": "Follow-up scheduled",
+    "schedule_failed": "Could not schedule the follow-up",
+    "budget_reached": "Daily follow-up budget reached.",
+    "budget_line": "At most {{agent}} per agent and {{workspace}} per workspace each day.",
+    "quick": {
+      "in_1h": "In 1 h",
+      "tomorrow_9": "Tomorrow 9:00",
+      "next_monday_9": "Next Monday 9:00",
+      "custom": "Pick a time"
+    },
+    "cancel_dialog": {
+      "title": "Cancel this follow-up?",
+      "description": "{{agent}} will not wake up on this issue.",
+      "keep": "Keep it",
+      "confirm": "Cancel the follow-up"
+    },
+    "dialog": {
+      "title": "Schedule a follow-up",
+      "description": "The agent comes back to this issue with your note.",
+      "custom_label": "Date and time",
+      "agent_label": "Agent",
+      "agent_placeholder": "Which agent wakes up?",
+      "note_label": "Note",
+      "note_placeholder": "What should it check?",
+      "budget_hint": "At most {{agent}} follow-ups per agent per day.",
+      "cancel": "Cancel",
+      "confirm": "Schedule"
+    }
+  },
+  "recurrence": {
+    "section": "Recurrence",
+    "empty": "This issue happens once.",
+    "make_recurring": "Make it recurring",
+    "edit": "Edit",
+    "stop": "Stop recurring",
+    "active": "Active",
+    "paused": "Paused — no next run.",
+    "next_runs": "Next runs",
+    "next_on": "next on {{when}}",
+    "in_time": "in {{countdown}}",
+    "series": "Occurrences",
+    "source": "Source",
+    "part_of_series": "Part of the series {{identifier}}",
+    "occurrence_created": "created {{when}}",
+    "occurrence_due": "due {{when}}",
+    "saved": "Recurrence saved",
+    "save_failed": "Could not save the recurrence",
+    "stopped": "Recurrence stopped",
+    "stop_failed": "Could not stop the recurrence",
+    "forbidden": "Only a member can change a recurrence.",
+    "sentence": {
+      "daily": "Every day at {{time}} ({{tz}})",
+      "weekdays": "Every weekday at {{time}} ({{tz}})",
+      "weekly": "Every {{weekday}} at {{time}} ({{tz}})",
+      "monthly": "Every month on day {{day}} at {{time}} ({{tz}})",
+      "custom": "Custom ({{cron}})",
+      "on_close": "When the current one is closed"
+    },
+    "dialog": {
+      "title": "Recurrence",
+      "description": "A new issue is raised from this one on the rhythm you pick.",
+      "preset": {
+        "daily": "Every day at",
+        "weekdays": "Weekdays",
+        "weekly": "Every week on",
+        "monthly": "Every month on the",
+        "custom": "Custom cron",
+        "on_close": "When the current one is closed"
+      },
+      "time_label": "Time",
+      "weekday_label": "Day of the week",
+      "day_label": "Day of the month",
+      "cron_label": "Cron expression",
+      "timezone_label": "Timezone",
+      "preview": "Next: {{runs}}",
+      "preview_empty": "This expression never fires.",
+      "preview_unreadable": "Could not preview this expression.",
+      "enabled_label": "Active",
+      "cancel": "Cancel",
+      "confirm": "Save"
+    },
+    "stop_dialog": {
+      "title": "Stop this recurrence?",
+      "description": "No new issue will be raised. The ones already created stay.",
+      "keep": "Keep it",
+      "confirm": "Stop recurring"
+    },
+    "badge": "Recurring"
   }
 }

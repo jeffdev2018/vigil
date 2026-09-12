@@ -185,6 +185,38 @@ export type {
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
 } from "./workspace-note";
+export type {
+  BrainCapture,
+  BrainCaptureAttachment,
+  BrainCaptureKind,
+  BrainCaptureMergeTarget,
+  BrainCaptureOrigin,
+  BrainCaptureStatus,
+  BrainCaptureSuggestion,
+  BrainCapturesResponse,
+  BrainTranscriptionStatus,
+  CreateBrainCaptureInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UploadBrainCaptureInput,
+  WorkspaceNoteSearchHit,
+  WorkspaceNoteSearchResponse,
+} from "./brain-capture";
+export type {
+  Followup,
+  FollowupBudget,
+  FollowupScheduledByType,
+  IssueFollowupsResponse,
+  ScheduleFollowupInput,
+} from "./followup";
+export type {
+  IssueRecurrence,
+  IssueRecurrenceMode,
+  IssueRecurrenceOccurrence,
+  IssueRecurrenceResponse,
+  IssueRecurrenceSource,
+  SetIssueRecurrenceInput,
+} from "./recurrence";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";
@@ -245,21 +277,57 @@ export type {
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
 export type {
+  IssueGoal,
+  IssueGoalStatus,
+  IssueGoalQuestion,
+  IssueGoalQuestionKind,
+  SetIssueGoalInput,
+} from "./issue-goal";
+export type {
   Cycle,
+  CycleActorCapacity,
+  CycleActorCapacityWrite,
+  CycleActorType,
   CycleBurndown,
   CycleBurndownDay,
   CycleCapacity,
   CycleCapacitySide,
+  CycleCapacitiesResponse,
   CycleLoadUnit,
   CycleStatus,
+  CycleVelocity,
+  CycleVelocityActor,
+  CycleVelocityHistoryEntry,
   CycleWriteRequest,
   GoalProgress,
   GoalProjectProgress,
   ListCyclesResponse,
 } from "./cycle";
 export type {
+  CalendarEventStatus,
+  CalendarParticipantType,
+  CalendarParticipantResponse,
+  CalendarParticipant,
+  CalendarActor,
+  CalendarEventEntry,
+  CalendarEventParticipantInput,
+  CalendarEventInput,
+  CalendarEventsResponse,
+  AgendaIssue,
+  AgendaCycle,
+  AgendaMeeting,
+  AgendaFollowup,
+  CalendarAgenda,
+  CalendarSlot,
+  CalendarSlotsResponse,
+  CalendarFeedTokenStatus,
+  CalendarFeedTokenMinted,
+  CalendarGoogleImportResult,
+} from "./calendar-events";
+export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
+  OrgSimulationUnit, OrgSimulationRef, OrgSimulationActor, OrgSimulationRequest, OrgSimulation,
 } from "./org";
 export type {
   Project,
@@ -384,6 +452,10 @@ export type {
   WebhookTriggerDryRunRequest,
   WebhookTriggerDryRunResult,
   ScheduleTriggerDryRunResult,
+  AutopilotDraft,
+  DraftAutopilotInput,
+  ProposeAutopilotInput,
+  AutopilotProposalResponse,
 } from "./autopilot";
 export type {
   Squad,
@@ -442,12 +514,19 @@ export type {
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
 export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
 export type { AgentRoiRow, DashboardAgentRoi } from "./agent";
+export type {
+  DashboardCostPerClosedIssueWeek,
+  DashboardThroughputWeek,
+  DashboardVelocityCycleTime,
+  DashboardVelocityWeekly,
+} from "./dashboard-velocity";
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
-export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
+export type { AgentScorecard, AgentCostEstimate, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
 export type { AgentVersion, AgentVersionDiff } from "./agent";
 export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
 export type { DecisionRecord, ADRRequirement, BlastRadiusLevel, BlastRadiusRule, BlastRadiusPreview } from "./workspace";
+export type { SandboxNetworkMode, SandboxPolicy, ProjectSandboxPolicyResponse, IssueSandboxOverrideResponse } from "./workspace";
 export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleAction, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";
 export type {
   Meeting,

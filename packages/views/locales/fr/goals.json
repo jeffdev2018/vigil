@@ -13,7 +13,8 @@
     "loading_issues": "Chargement des tâches...",
     "progress": "{{done}} / {{total}} terminées",
     "no_owner": "Sans responsable",
-    "no_due_date": "Sans échéance"
+    "no_due_date": "Sans échéance",
+    "load_error": "Impossible de charger les objectifs"
   },
   "status": {
     "draft": "Brouillon",

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -34,7 +35,7 @@ func issueStatusOf(t *testing.T, issueID string) string {
 func cleanupInterview(t *testing.T, issueID string) {
 	t.Helper()
 	t.Cleanup(func() {
-		ctx := t.Context()
+		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM issue_decision WHERE issue_id = $1`, issueID)
 		testPool.Exec(ctx, `DELETE FROM inbox_item WHERE issue_id = $1`, issueID)
 		testPool.Exec(ctx, `DELETE FROM agent_task_queue WHERE issue_id = $1`, issueID)
@@ -44,7 +45,7 @@ func cleanupInterview(t *testing.T, issueID string) {
 func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	issue, _ := completedAgentRun(t, "interview")
 	cleanupInterview(t, issue)
@@ -116,7 +117,7 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 func TestRequirementInterviewValidatesAndKeepsHumanIssuesParked(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	issue := dbfx.Issue(t, "interview validation", testutil.Cols{"status": "todo"})
 	cleanupInterview(t, issue)
@@ -149,7 +150,7 @@ func TestRequirementInterviewValidatesAndKeepsHumanIssuesParked(t *testing.T) {
 func TestInterviewAnswersMergeIntoPendingRun(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	agentID := dbfx.Agent(t, "interview-merge agent", handlerTestRuntimeID(t), testutil.Cols{
 		"instructions": "",

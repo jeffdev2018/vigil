@@ -43,9 +43,14 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeLabel = "Close",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /** Accessible/visible label for the close button. `packages/ui` has no i18n
+   *  of its own — pass the translated label from the caller. Defaults to the
+   *  English "Close". */
+  closeLabel?: string
 }) {
   return (
     <DialogPortal>
@@ -72,7 +77,7 @@ function DialogContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -93,10 +98,15 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 function DialogFooter({
   className,
   showCloseButton = false,
+  closeLabel = "Close",
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
+  /** Accessible/visible label for the close button. `packages/ui` has no i18n
+   *  of its own — pass the translated label from the caller. Defaults to the
+   *  English "Close". Same pattern as DialogContent's closeLabel above. */
+  closeLabel?: string
 }) {
   return (
     <div
@@ -110,7 +120,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close render={<Button variant="outline" />}>
-          Close
+          {closeLabel}
         </DialogPrimitive.Close>
       )}
     </div>

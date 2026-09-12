@@ -10,7 +10,8 @@
     "issues": "任务",
     "cancelled": "已取消",
     "recent": "最近",
-    "why": "原因"
+    "why": "原因",
+    "brain": "知识库"
   },
   "commands": {
     "current_theme_aria": "当前主题",
@@ -40,5 +41,10 @@
     "task_message": "运行消息",
     "decision_record": "决策记录",
     "empty": "没有相关来源。请换个方式提问。"
+  },
+  "brain": {
+    "capture": "捕获到知识库：{{text}}",
+    "captured": "已捕获到收集箱",
+    "capture_failed": "捕获失败"
   }
 }

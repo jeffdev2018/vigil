@@ -132,6 +132,7 @@
     "local_on_device": "Lié à {{device}}",
     "local_this_machine": "cette machine",
     "local_daemon_offline": "Daemon hors ligne — démarrez-le pour lier un répertoire local.",
+    "local_daemon_dropped": "Le daemon est passé hors ligne pendant la sélection du dossier — reconnectez-le avant de créer le projet.",
     "local_pick": "Choisir le répertoire…",
     "local_picking": "Ouverture du sélecteur…",
     "local_change": "Changer de répertoire…",
@@ -243,7 +244,8 @@
       "error_agent_unavailable_fallback": "L'agent est indisponible. Choisissez un autre agent.",
       "error_daemon_version": "Le daemon CLI de cet agent ({{current}}) est inférieur à la version {{min}} requise. Mettez à jour le daemon pour utiliser la création avec agent.",
       "error_unknown": "Échec de l'envoi. Réessayez.",
-      "sub_issue_of": "Sous-issue de {{identifier}}"
+      "sub_issue_of": "Sous-issue de {{identifier}}",
+      "run_notice": "Créer lance un run de {{name}} : l'agent rédige l'issue à partir de votre description."
     },
     "scoping_toggle": "Brouillon à partir de quelques phrases",
     "scoping_placeholder": "Décrivez l'issue en quelques phrases…",
@@ -259,6 +261,13 @@
     "title_blocked_by": "Marquer comme bloqué par",
     "description": "Rechercher une issue à lier à cette issue",
     "toast_failed": "Échec de l'ajout de la dépendance",
-    "toast_success": "{{identifier}} lié"
+    "toast_success": "{{identifier}} lié",
+    "title": "Ajouter une relation",
+    "type_labels": {
+      "blocks": "Bloque",
+      "blocked_by": "Bloquée par",
+      "related": "Liée à",
+      "duplicate": "Doublon de"
+    }
   }
 }

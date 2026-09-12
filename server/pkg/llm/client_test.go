@@ -178,6 +178,41 @@ func TestGenerateJSONUsesGPT56CompatibleParameters(t *testing.T) {
 	}
 }
 
+func TestGenerateJSONWithUsageParsesTokenCounts(t *testing.T) {
+	srv := stubUpstream(t, func(w http.ResponseWriter, body map[string]any) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"cmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"{\"answer\":\"ok\"}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1234,"completion_tokens":56}}`)
+	})
+
+	c := New(Config{APIKey: "k", BaseURL: srv.URL, DefaultModel: "gpt-5.6-luna"})
+	out, usage, err := c.GenerateJSONWithUsage(context.Background(), "", "Return JSON.", "Q?", 0, 1024)
+	if err != nil {
+		t.Fatalf("GenerateJSONWithUsage failed: %v", err)
+	}
+	if out != `{"answer":"ok"}` {
+		t.Fatalf("unexpected output %q", out)
+	}
+	if usage.InputTokens != 1234 || usage.OutputTokens != 56 {
+		t.Fatalf("usage = %+v, want {1234, 56}", usage)
+	}
+}
+
+func TestGenerateJSONWithUsageToleratesMissingUsage(t *testing.T) {
+	srv := stubUpstream(t, func(w http.ResponseWriter, body map[string]any) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"cmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"{\"answer\":\"ok\"}"},"finish_reason":"stop"}]}`)
+	})
+
+	c := New(Config{APIKey: "k", BaseURL: srv.URL})
+	_, usage, err := c.GenerateJSONWithUsage(context.Background(), "", "Return JSON.", "Q?", 0, 1024)
+	if err != nil {
+		t.Fatalf("GenerateJSONWithUsage failed: %v", err)
+	}
+	if usage != (Usage{}) {
+		t.Fatalf("usage = %+v, want zero value when the upstream omits it", usage)
+	}
+}
+
 func TestGenerateJSONFallsBackToLegacyMaxTokens(t *testing.T) {
 	var bodies []map[string]any
 	srv := stubUpstream(t, func(w http.ResponseWriter, body map[string]any) {

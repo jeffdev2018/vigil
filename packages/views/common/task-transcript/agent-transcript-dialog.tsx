@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, forwardRef } from "react";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { useTraceIssueLabels } from "./use-trace-issue-labels";
 import { Virtuoso, type VirtuosoHandle, type Components } from "react-virtuoso";
 import {
   Bot,
@@ -80,7 +82,6 @@ import {
   isCallStep,
   isGroupRow,
   rowCalls,
-  shouldShowTimeline,
   toolKindTotals,
   type TraceCallStep,
   type TraceGroupRow,
@@ -132,6 +133,16 @@ interface AgentTranscriptDialogProps {
   items: TimelineItem[];
   agentName: string;
   isLive?: boolean;
+  /**
+   * Whether focus returns to the trigger when the dialog closes. Pass `true`
+   * only for a keyboard open, where the reader has no other way back. After a
+   * pointer open, returning focus is what leaves the trigger wearing a focus
+   * ring and its tooltip once Esc closes the log — and, on the hover-revealed
+   * comment action row, holds the whole row visible with the pointer long gone.
+   */
+  finalFocus?: boolean;
+  /** Loading/error content while the caller retrieves the transcript. */
+  contentState?: React.ReactNode;
   /**
    * Optional content rendered between the header chips and the event list.
    * Used by autopilot run rows to surface the inbound webhook trigger
@@ -326,7 +337,9 @@ export function AgentTranscriptDialog({
   items,
   agentName,
   isLive = false,
+  finalFocus = false,
   headerSlot,
+  contentState,
 }: AgentTranscriptDialogProps) {
   const { t } = useT("agents");
   // Optional on purpose: the transcript is rendered from issue cards, agent
@@ -336,6 +349,7 @@ export function AgentTranscriptDialog({
   const navigate = useOptionalNavigation();
   const workspaceSlug = useWorkspaceSlug();
   const locale = useLocale();
+  const formatText = useTraceIssueLabels(useWorkspaceId(), task.issue_id, items, open);
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set());
   const [query, setQuery] = useState("");
@@ -564,10 +578,13 @@ export function AgentTranscriptDialog({
     if (activeFilterSet.size === 0 && trimmedQuery.length === 0) return steps;
     return steps.filter((step) => {
       if (activeFilterSet.size > 0 && !activeFilterSet.has(stepFilterKey(step))) return false;
-      if (trimmedQuery.length > 0 && !stepHaystack(step).includes(trimmedQuery)) return false;
+      if (trimmedQuery.length > 0) {
+        const raw = stepHaystack(step);
+        if (!raw.includes(trimmedQuery) && !formatText(raw).toLowerCase().includes(trimmedQuery)) return false;
+      }
       return true;
     });
-  }, [steps, activeFilterSet, trimmedQuery]);
+  }, [steps, activeFilterSet, trimmedQuery, formatText]);
 
   // Grouping runs on what the reader is looking at: filtering breaks adjacency,
   // and a group that spans a hidden step would be a lie about what ran.
@@ -593,9 +610,6 @@ export function AgentTranscriptDialog({
   const runEnd = task.completed_at ?? lastStamp;
 
   const lanes = useMemo(() => buildLanes(steps, runStart, runEnd), [steps, runStart, runEnd]);
-  // A short run's timeline says less than the durations already on each row,
-  // so it does not render at all.
-  const showTimeline = shouldShowTimeline(steps, lanes);
   const toolKinds = useMemo(() => toolKindTotals(steps), [steps]);
   const outcome = useMemo(() => buildRunOutcome(steps), [steps]);
 
@@ -988,6 +1002,7 @@ export function AgentTranscriptDialog({
       <DialogContent
         className="!max-w-5xl !w-[calc(100vw-4rem)] !max-h-[calc(100vh-4rem)] !h-[calc(100vh-4rem)] flex flex-col !p-0 !gap-0 overflow-hidden"
         showCloseButton={false}
+        finalFocus={finalFocus}
       >
         <DialogTitle className="sr-only">{t(($) => $.transcript.dialog_title)}</DialogTitle>
 
@@ -1421,7 +1436,7 @@ export function AgentTranscriptDialog({
         <RunOutcomeRow outcome={outcome} branch={task.branch_name} />
 
         {/* ── Where the time went ────────────────────────────────────── */}
-        {showTimeline && lanes && (
+        {lanes && (
           <RunTimeline
             lanes={lanes}
             toolKinds={toolKinds}
@@ -1548,7 +1563,7 @@ export function AgentTranscriptDialog({
         {/* ── Steps, and the inspector when one is selected ───────────── */}
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            {displayRows.length === 0 ? (
+            {contentState ? <div className="flex h-full items-center justify-center p-4">{contentState}</div> : displayRows.length === 0 ? (
               <div className="flex h-full items-center justify-center text-body text-muted-foreground">
                 {isAntigravityLiveEmpty ? (
                   <div className="flex max-w-md items-center gap-2 px-4 text-center">
@@ -1595,6 +1610,7 @@ export function AgentTranscriptDialog({
                 itemContent={(_, row) => (
                   <TranscriptRow
                     row={row}
+                    formatText={formatText}
                     runStartMs={runStartMs}
                     isLive={isLive}
                     selectedSeq={selectedSeq}
@@ -1708,6 +1724,7 @@ function RunOutcomeRow({
 // ─── Rows ───────────────────────────────────────────────────────────────────
 
 interface TranscriptRowProps {
+  formatText: (text: string) => string;
   row: TraceRow;
   runStartMs?: number;
   isLive: boolean;
@@ -1827,6 +1844,7 @@ function messageStepLabel(step: TraceMessageStep, t: AgentsT): string {
 
 function StepRow({
   row,
+  formatText,
   runStartMs,
   isLive,
   selectedSeq,
@@ -1835,10 +1853,11 @@ function StepRow({
   const { t } = useT("agents");
   const summaryLabels = useMemo<TraceSummaryLabels>(
     () => ({
+      formatText,
       morePaths: (path, extraCount) =>
         t(($) => $.transcript.patch_summary_more, { path, extra: extraCount }),
     }),
-    [t],
+    [t, formatText],
   );
 
   const call = isCallStep(row) ? row : null;
@@ -1904,6 +1923,7 @@ function StepRow({
 /** Consecutive same-tool calls, folded to one line until asked. */
 function GroupRow({
   row,
+  formatText,
   runStartMs,
   selectedSeq,
   expanded,
@@ -1913,10 +1933,11 @@ function GroupRow({
   const { t } = useT("agents");
   const summaryLabels = useMemo<TraceSummaryLabels>(
     () => ({
+      formatText,
       morePaths: (path, extraCount) =>
         t(($) => $.transcript.patch_summary_more, { path, extra: extraCount }),
     }),
-    [t],
+    [t, formatText],
   );
 
   return (
@@ -1989,7 +2010,7 @@ function callSummary(step: TraceCallStep, labels: TraceSummaryLabels): string {
   }
   if (!step.result) return "";
   if (readImageResult(step.result.output)) return "";
-  return traceEventSummary({ type: "tool_result", output: step.result.output });
+  return traceEventSummary({ type: "tool_result", output: step.result.output }, labels);
 }
 
 function firstLineOf(value: string | undefined): string {
@@ -2040,12 +2061,10 @@ function StepInspector({
     });
   }, [call, message, showCopied]);
 
-  const title =
-    call
-      ? call.tool || t(($) => $.transcript.kind_tool)
-      : step.kind === "thinking"
-        ? t(($) => $.transcript.kind_thinking)
-        : t(($) => $.transcript.kind_error);
+  // Same label as the row: every message kind, not just thinking vs error.
+  const title = call
+    ? call.tool || t(($) => $.transcript.kind_tool)
+    : messageStepLabel(message!, t);
 
   return (
     <aside className="flex w-[26rem] shrink-0 flex-col border-l bg-muted/25">
@@ -2184,7 +2203,7 @@ function InspectorSection({ label, children }: { label: string; children: React.
 }
 
 /** One payload, rendered as what it is. */
-function StepBody({ item }: { item: TimelineItem }) {
+export function StepBody({ item }: { item: TimelineItem }) {
   const { t } = useT("agents");
   const detail = useMemo(() => traceEventDetail(item), [item]);
   const image = useMemo(() => readImageResult(item.output), [item.output]);

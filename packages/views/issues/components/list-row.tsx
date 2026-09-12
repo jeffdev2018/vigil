@@ -4,6 +4,7 @@ import { memo, type Ref } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { AppLink } from "../../navigation";
 import type { Issue, Project,
   IssueProperty,
@@ -22,6 +23,7 @@ import { PriorityIcon } from "./priority-icon";
 import { ProgressRing } from "./progress-ring";
 import { IssueActionsContextMenu } from "../actions";
 import { LabelChip } from "../../labels/label-chip";
+import { RecurringBadge } from "./recurring-badge";
 import { CustomStatusChip } from "./custom-status-chip";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { useIssueSurfaceSelection } from "../surface/selection-context";
@@ -103,12 +105,11 @@ function ListRowContent({
             priority={issue.priority}
             className={selected ? "hidden" : "group-hover/row:hidden"}
           />
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={() => toggle(issue.id)}
-            className={`absolute inset-0 cursor-pointer accent-primary ${
-              selected ? "" : "hidden group-hover/row:block"
+            onCheckedChange={() => toggle(issue.id)}
+            className={`absolute inset-0 cursor-pointer ${
+              selected ? "" : "hidden group-hover/row:flex"
             }`}
           />
         </div>
@@ -127,6 +128,7 @@ function ListRowContent({
             {/* List sections are categories, so a custom status needs to name
                 itself on the row. Silent for built-ins. (MUL-6243) */}
             <CustomStatusChip status={issue.status} className="shrink-0" />
+            {issue.recurrence_id ? <RecurringBadge /> : null}
             {showChildProgress && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5">
                 <ProgressRing done={childProgress!.done} total={childProgress!.total} size={14} />

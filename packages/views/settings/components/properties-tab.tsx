@@ -130,7 +130,7 @@ export function PropertiesTab() {
   const currentMember = members.find((m) => m.user_id === user?.id) ?? null;
   const canManage = currentMember?.role === "owner" || currentMember?.role === "admin";
 
-  const { data: properties = [], isLoading } = useQuery(propertyListOptions(wsId, true));
+  const { data: properties = [], isLoading, isError, refetch } = useQuery(propertyListOptions(wsId, true));
   const update = useUpdateProperty();
 
   const activeCount = useMemo(
@@ -203,6 +203,15 @@ export function PropertiesTab() {
           {isLoading ? (
             <div className="px-4 py-12 text-center text-body text-muted-foreground">
               {t(($) => $.properties.loading)}
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.properties.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.properties.retry)}
+              </Button>
             </div>
           ) : visible.length === 0 ? (
             <div className="px-4 py-12 text-center">
@@ -799,6 +808,7 @@ function TypeScopeSelector({
       <button
         type="button"
         onClick={() => onChange([])}
+        aria-pressed={isGlobal}
         className="flex w-full items-center gap-2 border-b border-surface-border px-2 py-1.5 text-caption transition-colors hover:bg-accent/50"
       >
         <Checkbox checked={isGlobal} aria-hidden tabIndex={-1} />
@@ -812,6 +822,7 @@ function TypeScopeSelector({
             key={entry.key}
             type="button"
             onClick={() => toggle(entry.key)}
+            aria-pressed={value.includes(entry.key)}
             className="flex w-full items-center gap-2 rounded px-1 py-1 text-caption transition-colors hover:bg-accent/50"
           >
             <Checkbox checked={value.includes(entry.key)} aria-hidden tabIndex={-1} />

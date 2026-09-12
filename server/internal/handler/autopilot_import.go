@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -369,8 +370,22 @@ func (h *Handler) ImportDaemon(w http.ResponseWriter, r *http.Request) {
 	// byte-identical document a repository already holds must be a no-op
 	// whatever the strategy says, and must not move updated_at.
 	if hasExisting && existing.SourceDigest.Valid && existing.SourceDigest.String == digest {
-		triggers, _ := h.Queries.ListAutopilotTriggers(r.Context(), existing.ID)
-		subs, _ := h.Queries.ListAutopilotSubscribers(r.Context(), existing.ID)
+		// Fail closed, same rationale as CreateAutopilot/UpdateAutopilot: a
+		// transient DB error here must not report a re-imported (unchanged)
+		// daemon as having zero triggers/subscribers, indistinguishable from
+		// one that legitimately has none.
+		triggers, err := h.Queries.ListAutopilotTriggers(r.Context(), existing.ID)
+		if err != nil {
+			slog.Warn("autopilot import: triggers reload failed", "error", err, "autopilot_id", uuidToString(existing.ID))
+			writeError(w, http.StatusInternalServerError, "failed to load the existing autopilot's triggers")
+			return
+		}
+		subs, err := h.Queries.ListAutopilotSubscribers(r.Context(), existing.ID)
+		if err != nil {
+			slog.Warn("autopilot import: subscribers reload failed", "error", err, "autopilot_id", uuidToString(existing.ID))
+			writeError(w, http.StatusInternalServerError, "failed to load the existing autopilot's subscribers")
+			return
+		}
 		skillID := ""
 		if s, serr := h.Queries.GetSkillByWorkspaceAndName(r.Context(), db.GetSkillByWorkspaceAndNameParams{
 			WorkspaceID: wsUUID,
@@ -551,9 +566,12 @@ func (h *Handler) writeDaemon(
 		return DaemonImportResponse{}, 0, err
 	}
 
+	// Fail closed, same rationale as CreateAutopilot/UpdateAutopilot: the
+	// import already committed, so degrading to subs=nil here would report
+	// a real subscriber list as empty.
 	subs, err := h.Queries.ListAutopilotSubscribers(ctx, autopilot.ID)
 	if err != nil {
-		subs = nil
+		return DaemonImportResponse{}, 0, fmt.Errorf("autopilot imported but failed to load its subscribers: %w", err)
 	}
 	return DaemonImportResponse{
 		Status:    map[bool]string{true: "updated", false: "created"}[hasExisting],

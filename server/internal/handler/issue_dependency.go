@@ -24,6 +24,9 @@ const (
 	dependencyBlocks    = "blocks"
 	dependencyBlockedBy = "blocked_by"
 	dependencyRelated   = "related"
+	// dependencyDuplicate (R01): a symmetric "same work" link, like related —
+	// no direction to normalize, and the exists-check looks both ways.
+	dependencyDuplicate = "duplicate"
 )
 
 // IssueDependencyResponse is one relation seen from the requested issue:
@@ -38,6 +41,7 @@ type IssueDependenciesResponse struct {
 	Blocks    []IssueDependencyResponse `json:"blocks"`
 	BlockedBy []IssueDependencyResponse `json:"blocked_by"`
 	Related   []IssueDependencyResponse `json:"related"`
+	Duplicate []IssueDependencyResponse `json:"duplicate"`
 }
 
 func (h *Handler) ListIssueDependencies(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +63,7 @@ func (h *Handler) ListIssueDependencies(w http.ResponseWriter, r *http.Request) 
 		Blocks:    []IssueDependencyResponse{},
 		BlockedBy: []IssueDependencyResponse{},
 		Related:   []IssueDependencyResponse{},
+		Duplicate: []IssueDependencyResponse{},
 	}
 	for _, row := range rows {
 		other := issueToResponse(row.Issue, prefix)
@@ -69,6 +74,8 @@ func (h *Handler) ListIssueDependencies(w http.ResponseWriter, r *http.Request) 
 			resp.Blocks = append(resp.Blocks, item)
 		case dependencyBlockedBy:
 			resp.BlockedBy = append(resp.BlockedBy, item)
+		case dependencyDuplicate:
+			resp.Duplicate = append(resp.Duplicate, item)
 		default:
 			resp.Related = append(resp.Related, item)
 		}
@@ -81,6 +88,9 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -90,7 +100,7 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 		TargetIssueID string `json:"target_issue_id"`
 		Type          string `json:"type"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -99,9 +109,9 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	switch req.Type {
-	case dependencyBlocks, dependencyBlockedBy, dependencyRelated:
+	case dependencyBlocks, dependencyBlockedBy, dependencyRelated, dependencyDuplicate:
 	default:
-		writeError(w, http.StatusBadRequest, "type must be blocks, blocked_by or related")
+		writeError(w, http.StatusBadRequest, "type must be blocks, blocked_by, related or duplicate")
 		return
 	}
 
@@ -125,7 +135,7 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 
 	ctx := r.Context()
 	if h.issueDependencyExists(ctx, from.ID, to.ID, storedType) ||
-		(storedType == dependencyRelated && h.issueDependencyExists(ctx, to.ID, from.ID, storedType)) {
+		((storedType == dependencyRelated || storedType == dependencyDuplicate) && h.issueDependencyExists(ctx, to.ID, from.ID, storedType)) {
 		writeError(w, http.StatusConflict, "dependency already exists")
 		return
 	}
@@ -166,6 +176,9 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) DeleteIssueDependency(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	userID, ok := requireUserID(w, r)
@@ -300,7 +313,7 @@ func (h *Handler) ListIssueDependenciesBulk(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req BulkIssueDependenciesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

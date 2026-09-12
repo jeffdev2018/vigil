@@ -90,23 +90,68 @@ func (s *TaskService) ResumePreemptedTasks(ctx context.Context, maxPerTick int32
 }
 
 func (s *TaskService) resumePreempted(ctx context.Context, t db.AgentTaskQueue) bool {
-	issue, err := s.Queries.GetIssue(ctx, t.IssueID)
-	if err != nil {
-		return false
-	}
-	child, err := s.EnqueueTaskForIssueWithHandoff(ctx, issue, preemptionResumeNoteLead, pgtype.UUID{})
-	if err != nil {
-		slog.Warn("preemption: resume enqueue failed", "task_id", util.UUIDToString(t.ID), "error", err)
-		return false
-	}
-	if t.SessionID.Valid && t.SessionID.String != "" {
-		_ = s.Queries.SetTaskResumeContext(ctx, db.SetTaskResumeContextParams{ID: child.ID, SessionID: t.SessionID, WorkDir: t.WorkDir})
-	}
-	if _, err := s.Queries.MarkTaskResumed(ctx, db.MarkTaskResumedParams{ID: t.ID, ResumedByTaskID: child.ID}); err != nil {
-		slog.Warn("preemption: mark resumed failed", "task_id", util.UUIDToString(t.ID), "error", err)
+	child, ok := s.resumePausedOnOwnSession(ctx, t, preemptionResumeNoteLead)
+	if !ok {
 		return false
 	}
 	s.systemMessage(ctx, t.ID, fmt.Sprintf("Resumed at %s as run %s from its checkpoint.", time.Now().UTC().Format(time.RFC3339), util.UUIDToString(child.ID)))
 	slog.Info("preemption: resumed", "task_id", util.UUIDToString(t.ID), "resumed_by_task_id", util.UUIDToString(child.ID))
 	return true
+}
+
+// resumePausedOnOwnSession continues a paused run as a follow-up run pinned
+// to the session the pause ack saved, then closes the paused row. Shared by
+// the K41 preemption sweeper and the JEF-257 halt lift; the human resume
+// endpoint (handler.ResumeRun) does the same three steps with its own HTTP
+// error mapping.
+// EnqueueResumeChild queues the follow-up run that continues a paused run.
+// A resume continues the PAUSED TASK's session, so it is agent-explicit: the
+// task's agent, not the issue's current assignee. Reassigning the issue
+// mid-pause must not hand the saved session to another agent, and an
+// unassigned issue must not make the run unresumable. The child is also
+// pinned to the runtime that ran the paused task (runtime_pinned), because
+// that is where the session's files live.
+//
+// A gone/archived agent or a runtime deleted mid-pause fails the enqueue:
+// the caller keeps the pause marker so the run stays visibly paused for a
+// human. A pending-slot collision merges the note into the waiting task,
+// like every other handoff enqueue (JEF-241).
+func (s *TaskService) EnqueueResumeChild(ctx context.Context, issue db.Issue, task db.AgentTaskQueue, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	attempt := RunGroupAttempt{}
+	if task.RuntimeID.Valid {
+		if _, err := s.Queries.GetAgentRuntimeForWorkspace(ctx, db.GetAgentRuntimeForWorkspaceParams{
+			ID:          task.RuntimeID,
+			WorkspaceID: issue.WorkspaceID,
+		}); err != nil {
+			return db.AgentTaskQueue{}, fmt.Errorf("resume runtime: %w", err)
+		}
+		attempt.RuntimeOverride = task.RuntimeID
+	}
+	child, err := s.enqueueMentionTaskWithCommentPlan(ctx, issue, task.AgentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, attempt)
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return child, err
+	}
+	return s.mergeHandoffIntoPendingTaskForAgent(ctx, issue, task.AgentID, handoffNote)
+}
+
+func (s *TaskService) resumePausedOnOwnSession(ctx context.Context, t db.AgentTaskQueue, note string) (db.AgentTaskQueue, bool) {
+	issue, err := s.Queries.GetIssue(ctx, t.IssueID)
+	if err != nil {
+		return db.AgentTaskQueue{}, false
+	}
+	child, err := s.EnqueueResumeChild(ctx, issue, t, note, pgtype.UUID{})
+	if err != nil {
+		slog.Warn("resume: enqueue failed", "task_id", util.UUIDToString(t.ID), "error", err)
+		return db.AgentTaskQueue{}, false
+	}
+	if t.SessionID.Valid && t.SessionID.String != "" {
+		if err := s.Queries.SetTaskResumeContext(ctx, db.SetTaskResumeContextParams{ID: child.ID, SessionID: t.SessionID, WorkDir: t.WorkDir}); err != nil {
+			slog.Warn("preemption: resume context not copied to the child run", "child_id", util.UUIDToString(child.ID), "error", err)
+		}
+	}
+	if _, err := s.Queries.MarkTaskResumed(ctx, db.MarkTaskResumedParams{ID: t.ID, ResumedByTaskID: child.ID}); err != nil {
+		slog.Warn("resume: mark resumed failed", "task_id", util.UUIDToString(t.ID), "error", err)
+		return db.AgentTaskQueue{}, false
+	}
+	return child, true
 }

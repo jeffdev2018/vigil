@@ -29,6 +29,8 @@ import {
   FlaskRound,
   HeartPulse,
   FileDiff,
+  Scale,
+  Package,
 } from "lucide-react";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { useFeatureEnabled } from "@multica/core/config";
@@ -36,6 +38,9 @@ import {
   BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG,
   PLUGINS_V1_FLAG,
 } from "@multica/core/feature-flags";
+import {
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { resolveSettingsLocation, settingsHref } from "./settings-navigation";
 import { AppLink, useNavigation } from "../../navigation";
@@ -44,6 +49,8 @@ import { PreferencesTab } from "./preferences-tab";
 import { TokensTab } from "./tokens-tab";
 import { LearningTab } from "./learning-tab";
 import { WorkspaceTab } from "./workspace-tab";
+import { DoctrineTab } from "./doctrine-tab";
+import { PacksTab } from "./packs-tab";
 import { MembersTab } from "./members-tab";
 import { RepositoriesTab } from "./repositories-tab";
 import { IntegrationsTab } from "./integrations-tab";
@@ -154,6 +161,20 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           t(($) => $.page.tabs.general),
           Settings,
           <WorkspaceTab />,
+        ),
+        entry(
+          "doctrine",
+          t(($) => $.page.tabs.doctrine),
+          Scale,
+          <DoctrineTab />,
+          true,
+        ),
+        entry(
+          "packs",
+          t(($) => $.page.tabs.packs),
+          Package,
+          <PacksTab />,
+          true,
         ),
         entry(
           "members",
@@ -340,25 +361,27 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           </h1>
         </div>
         <div className="px-4 pb-4 md:hidden">
-          <label className="sr-only" htmlFor="settings-navigation">
-            {t(($) => $.page.navigate)}
-          </label>
-          <select
-            id="settings-navigation"
-            className="h-10 w-full rounded-lg border border-input bg-background px-3 text-body text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          <Select
+            items={groups.flatMap((group) => group.entries.map((item) => ({ value: item.value, label: item.label })))}
             value={active.value}
-            onChange={(event) => navigation.push(href(event.target.value))}
+            onValueChange={(value) => value && navigation.push(href(value))}
           >
-            {groups.map((group) => (
-              <optgroup key={group.key} label={group.label}>
-                {group.entries.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            <SelectTrigger aria-label={t(($) => $.page.navigate)} className="h-10 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((group) => (
+                <SelectGroup key={group.key}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.entries.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <nav
           aria-label={t(($) => $.page.title)}

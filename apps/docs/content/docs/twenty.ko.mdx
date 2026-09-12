@@ -1,0 +1,57 @@
+---
+title: Twenty CRM
+description: Twenty 인스턴스를 연결합니다 — 에이전트는 CRM 자체의 MCP 서버를 받고, CRM 이벤트는 트리아지에 도착하며, 승인된 항목은 레코드로 다시 연결되고, 멤버는 이메일로 매칭됩니다.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+[Twenty](https://twenty.com)는 오픈소스 CRM입니다. 워크스페이스에 연결하면 네 가지 방식으로 팀의 업무 일부가 됩니다.
+
+- **에이전트가 CRM 안에서 일합니다.** 모든 에이전트 실행은 워크스페이스의 API 키로 `twenty`라는 이름의 Twenty 자체 [MCP](/mcp-server) 서버를 가집니다. 에이전트는 플러그인이나 복사한 키 없이 사람과 회사를 검색하고, opportunity를 업데이트하고, 노트를 남길 수 있습니다.
+- **CRM 이벤트가 트리아지 큐에 도착합니다.** Twenty의 webhook(사람 생성, opportunity 단계 이동 등)은 레코드가 연결되고 변경된 필드가 나열된 [트리아지](/triage) 항목이 됩니다. 무엇을 이슈로 만들지는 사람이 결정합니다.
+- **승인된 항목은 다시 연결됩니다.** CRM의 항목이 승인되면 Multica는 해당 레코드에 Task를 기록해(`Vigil ONE-42: <title>`처럼 이슈를 연결) CRM에서도 거기서 나온 작업을 볼 수 있게 합니다.
+- **양쪽에서 하나의 신원.** 워크스페이스 멤버는 이메일로 Twenty의 멤버와 매칭됩니다. 두 제품을 같은 identity provider에 로그인시키면(**설정 → 보안**의 워크스페이스 SSO) 양쪽에서 같은 사람이 되며, 매칭 결과는 설정에서 확인할 수 있습니다.
+
+Multica는 공개 REST, GraphQL, webhook, MCP 인터페이스로 Twenty와 통신합니다. Twenty 내부에서 실행되는 것은 없습니다.
+
+## 워크스페이스 연결
+
+워크스페이스 소유자나 관리자가 **설정 → 연동 → Twenty CRM**에서 연결합니다.
+
+1. Twenty에서 API 키를 만듭니다(**설정 → APIs & Webhooks**). 이 키는 만든 워크스페이스 멤버의 권한으로 동작하므로, Multica 전용 멤버를 두면 감사 기록을 읽기 쉽습니다.
+2. Multica에서 인스턴스 URL(`https://crm.example.com`, Twenty Cloud라면 `https://api.twenty.com`)과 키를 붙여넣습니다.
+3. 받을 이벤트와 에이전트가 CRM을 사용할 수 있는지를 선택합니다. 기본값은 opportunities(모든 작업), 새 사람, 새 회사, 새 task를 구독하고 CRM을 에이전트에 공개합니다.
+4. 연결합니다. Multica는 인스턴스에 대해 키를 검증하고, 암호화해 저장하고, Twenty에 webhook을 등록한 뒤 연결 정보(인스턴스, 상태, 이벤트, MCP 엔드포인트, 수신 경로)를 보여줍니다.
+
+API 키와 webhook secret은 `MULTICA_TWENTY_SECRET_KEY`로 저장 시 암호화됩니다. 둘 다 다시 표시되지 않습니다. **연결 확인**은 키를 다시 검증해 결과를 기록하며, 거부된 키는 다시 연결할 때까지 연결을 오류 상태로 표시합니다.
+
+<Callout title="자체 호스팅">
+운영자가 `MULTICA_TWENTY_SECRET_KEY`를 설정하기 전까지는 이 연동이 꺼져 있습니다([환경 변수](/environment-variables) 참고). Twenty는 `MULTICA_PUBLIC_URL`로 webhook을 전달합니다. 설정하지 않아도 연결은 계속 에이전트에게 서비스를 제공하며, 설정 페이지에 수신 경로가 표시되어 Twenty에서 구독을 수동으로 등록할 수 있습니다.
+</Callout>
+
+## 에이전트가 얻는 것
+
+**에이전트에 공개**가 켜져 있으면, 워크스페이스의 모든 실행은 Multica 도구와 나란히 Twenty의 MCP 서버가 마운트된 채로 시작됩니다. Twenty의 서버는 동적입니다. 에이전트는 먼저 카탈로그를 조회한 뒤 그중 하나의 도구(`find_many_people`, `update_one_opportunity` 등)를 실행합니다. 내장된 플랫폼 skill은 에이전트에게 쓰기 전에 읽을 것, 변경한 모든 레코드를 종료 상태에 명시할 것, 키나 레코드 덤프를 댓글에 붙여넣지 말 것을 지시합니다.
+
+공개를 끄면 다음 실행부터 서버가 제거됩니다. 이미 진행 중인 실행은 그대로 유지됩니다. 에이전트의 신뢰 다이얼은 아무것도 바뀌지 않습니다. CRM 쓰기는 그 키의 권한으로 Twenty가 수행하는 외부 작업이므로, 에이전트가 할 수 있길 원하는 일에 맞는 권한을 가진 멤버에게 키를 부여하세요.
+
+## 트리아지의 이벤트
+
+각 전달은 승인되기 전에 확인됩니다. webhook 경로의 토큰이 워크스페이스를 식별하고, HMAC 서명(`${timestamp}:${body}`에 대한 `X-Twenty-Webhook-Signature`, 구독을 위해 Twenty가 발급한 secret 사용)이 발신자를 증명하며, 5분보다 오래된 타임스탬프는 거부됩니다. 서명이 없거나 잘못 서명된 전달은 거부되며 발신자의 rate limit에 반영됩니다.
+
+승인된 이벤트는 `Twenty · Opportunity updated: Acme renewal`처럼 제목이 붙은 보류 항목이 되며, 레코드 링크, 변경된 필드, 본문의 짧은 요약을 담습니다. 원본 이벤트는 해당 항목에 남습니다. 이 소스는 [이메일 수집](/triage#email-intake)과 같은 방식으로 게이트됩니다. 사람이 승인, 기각 또는 병합합니다. 이벤트 패턴은 와일드카드를 포함한 Twenty의 `object.operation` 형식을 사용합니다(`opportunity.*`, `*.created`, `person.updated`). 목록을 변경하면 같은 수신 주소로 Twenty의 구독이 다시 등록됩니다.
+
+항목을 승인하면 평소처럼 이슈가 만들어지고, 백그라운드에서 해당 레코드에 백링크 Task가 기록됩니다. CRM이 다운되어 있어도 승인은 막히지 않습니다.
+
+## 멤버
+
+**설정 → 연동 → Twenty CRM → 멤버**는 같은 이메일을 가진 Twenty 멤버와 매칭된 모든 워크스페이스 멤버, 그리고 대응하는 항목이 없는 Twenty 멤버를 나열합니다. 매칭은 이메일만으로 이루어지며, 어느 쪽에도 새 계정을 만들 필요가 없습니다. 두 제품에 같은 identity provider를 설정해 두면 한 번 로그인으로 양쪽 모두에서 인식됩니다.
+
+## 연결 해제
+
+연결을 해제하면 Twenty의 webhook 구독이 삭제되고, 수신 토큰이 취소되며, 키를 잊습니다. 이미 큐에 있는 항목과 이미 생성된 이슈는 기록을 유지합니다. Twenty에 이미 기록된 Task는 그대로 남습니다.
+
+## 다음 단계
+
+- [MCP 서버](/mcp-server) — Multica 워크스페이스 자체가 어떻게 MCP 서버가 되는지, 그리고 Twenty 옆에서 에이전트의 카탈로그가 어떻게 보이는지.
+- [트리아지](/triage) — CRM 이벤트가 도착하는 큐.

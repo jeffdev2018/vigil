@@ -25,7 +25,7 @@
 export type NavigationGuardWindow = {
   webContents: {
     on(
-      event: "will-navigate",
+      event: "will-navigate" | "will-redirect",
       listener: (event: { preventDefault(): void }, url: string) => void,
     ): unknown;
   };
@@ -79,11 +79,19 @@ export function installNavigationGuard(
   window: NavigationGuardWindow,
   trustedURL: string,
 ): void {
-  window.webContents.on("will-navigate", (event, url) => {
-    if (isTrustedRendererURL(url, trustedURL)) return;
-    event.preventDefault();
-    console.warn(
-      `[security] blocked will-navigate to a non-renderer origin: ${describeBlockedNavigation(url)}`,
-    );
-  });
+  const guard = (kind: "will-navigate" | "will-redirect") =>
+    (event: { preventDefault(): void }, url: string) => {
+      if (isTrustedRendererURL(url, trustedURL)) return;
+      event.preventDefault();
+      console.warn(
+        `[security] blocked ${kind} to a non-renderer origin: ${describeBlockedNavigation(url)}`,
+      );
+    };
+  window.webContents.on("will-navigate", guard("will-navigate"));
+  // will-navigate blocks the navigation before it starts, so a same-window
+  // server redirect from an already-trusted page in practice never reaches
+  // here (production loads file:// only; dev's Vite server is the only case
+  // that could redirect). Symmetric listener regardless, so this guard does
+  // not depend on that being true forever.
+  window.webContents.on("will-redirect", guard("will-redirect"));
 }

@@ -1956,16 +1956,21 @@ func discoverACPModels(ctx context.Context, runtimeCmd Command, p acpDiscoveryPr
 	// Discard stderr; noisy logs here don't help us and we don't
 	// want them bleeding into the daemon log every 60s.
 	cmd.Stderr = io.Discard
+	// Bound the Wait below: a descendant that escaped the group kill and still
+	// holds an output pipe would otherwise block it forever.
+	cmd.WaitDelay = probeWaitDelay
 	if err := startOwnedProcessTree(cmd, runtimeCmd.logger); err != nil {
 		return fail("process start", err)
 	}
 	// Ensure the child process and everything it spawned are always reaped.
 	// This probe runs on a discovery schedule, so a leaked ACP server here
-	// accumulates rather than showing up once.
+	// accumulates rather than showing up once. cmd.Wait, not cmd.Process.Wait:
+	// only the former closes the pipes exec.Cmd opened, and a descriptor left
+	// to its finalizer piles up between collections just the same.
 	defer func() {
 		_ = stdin.Close()
 		signalProcessGroup(cmd, syscall.SIGKILL)
-		_, _ = cmd.Process.Wait()
+		_ = cmd.Wait()
 		releaseProcessGroup(cmd)
 	}()
 

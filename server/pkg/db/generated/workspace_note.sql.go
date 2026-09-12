@@ -94,7 +94,11 @@ func (q *Queries) CreateWorkspaceNote(ctx context.Context, arg CreateWorkspaceNo
 }
 
 const deleteWorkspaceNote = `-- name: DeleteWorkspaceNote :execrows
-DELETE FROM workspace_note WHERE id = $1 AND workspace_id = $2
+WITH passages AS (
+    DELETE FROM workspace_note_passage
+    WHERE note_id = $1::uuid AND workspace_id = $2::uuid
+)
+DELETE FROM workspace_note WHERE id = $1::uuid AND workspace_id = $2::uuid
 `
 
 type DeleteWorkspaceNoteParams struct {
@@ -102,7 +106,8 @@ type DeleteWorkspaceNoteParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-// Defense-in-depth: workspace_id is a SQL-layer tenant guard.
+// Defense-in-depth: workspace_id is a SQL-layer tenant guard. The note's
+// search passages go in the same statement (no FK, no cascade).
 func (q *Queries) DeleteWorkspaceNote(ctx context.Context, arg DeleteWorkspaceNoteParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWorkspaceNote, arg.ID, arg.WorkspaceID)
 	if err != nil {
@@ -255,34 +260,28 @@ SELECT id, workspace_id, title, content, tags, source, source_task_id, source_ag
 WHERE workspace_id = $1
   AND ($2::bool OR archived_at IS NULL)
   AND ($3::text IS NULL OR $3::text = ANY(tags))
-  AND (
-      $4::text IS NULL
-      OR to_tsvector('simple', title || ' ' || content) @@ plainto_tsquery('simple', $4::text)
-  )
 ORDER BY pinned DESC, updated_at DESC, id DESC
-LIMIT $5::int
+LIMIT $4::int
 `
 
 type ListWorkspaceNotesParams struct {
 	WorkspaceID     pgtype.UUID `json:"workspace_id"`
 	IncludeArchived bool        `json:"include_archived"`
 	Tag             pgtype.Text `json:"tag"`
-	Search          pgtype.Text `json:"search"`
 	PageLimit       int32       `json:"page_limit"`
 }
 
 // Workspace Brain: notes shared by the whole workspace. Every read carries
 // the workspace_id tenant guard.
-// Brain listing. Optional full-text search (plainto_tsquery over the same
-// expression the GIN index builds), optional single-tag filter, archived rows
-// excluded unless asked for. Pinned notes float to the top so the ones the
-// workspace cares about stay reachable as the list grows.
+// Brain listing: optional single-tag filter, archived rows excluded unless
+// asked for. Pinned notes float to the top so the ones the workspace cares
+// about stay reachable as the list grows. A search goes through
+// SearchBrainNotes (brain_search.sql) instead.
 func (q *Queries) ListWorkspaceNotes(ctx context.Context, arg ListWorkspaceNotesParams) ([]WorkspaceNote, error) {
 	rows, err := q.db.Query(ctx, listWorkspaceNotes,
 		arg.WorkspaceID,
 		arg.IncludeArchived,
 		arg.Tag,
-		arg.Search,
 		arg.PageLimit,
 	)
 	if err != nil {

@@ -44,6 +44,12 @@ ORDER BY created_at ASC;
 SELECT * FROM agent
 WHERE id = $1;
 
+-- name: GetAgentsByIDs :many
+-- Batch lookup, mirroring GetUsersByIDs. Used to render a roster of several
+-- agents (e.g. a squad briefing) without one GetAgent round trip per member.
+SELECT * FROM agent
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetAgentForUpdate :one
 -- Serializes read-modify-write updates to disabled_runtime_skills so two
 -- concurrent per-skill toggles cannot overwrite each other.
@@ -322,7 +328,7 @@ INSERT INTO agent_task_queue (
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
     task_class, routing, a2a_depth,
-    run_group_id, model_override,
+    run_group_id, model_override, runtime_pinned,
     id
 )
 SELECT
@@ -367,6 +373,9 @@ SELECT
     -- what keeps this INSERT's behaviour identical to its pre-F11 self.
     sqlc.narg('run_group_id')::uuid,
     NULLIF(COALESCE(sqlc.narg('model_override')::text, ''), ''),
+    -- Runtime pin (JEF-234): TRUE only for an attempt enqueued with an
+    -- explicit runtime_id; NULL keeps the column default for every other run.
+    COALESCE(sqlc.narg('runtime_pinned')::boolean, FALSE),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -473,6 +482,10 @@ SELECT
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING *;
 
+-- Upstream removed this query with the delayed comment-assignee fallback it was
+-- written for (multica-ai#8174). It survives here because this fork grew a
+-- second, unrelated caller: nativeScheduleFollowup, the native runtime's
+-- "remind me in N days" tool. The escalation caller is gone; the query is not.
 -- name: CreateDeferredAgentTask :one
 -- Fenced against workspace teardown: lock_task_owner_rows (migration 284)
 -- locks the owners' workspace rows in the writer's own transaction and returns
@@ -612,7 +625,8 @@ INSERT INTO agent_task_queue (
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
     channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
-    task_class, routing, run_group_id, model_override, id
+    task_class, routing, run_group_id, model_override,
+    handoff_note, runtime_pinned, a2a_depth, id
 )
 SELECT
     p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -650,17 +664,26 @@ SELECT
     -- take that attempt out of the race — its diff would never reach the
     -- comparison, and it would be serialized against its own siblings.
     p.run_group_id, p.model_override,
+    -- The run the retry repeats opened with this note (interview answer,
+    -- rework brief, resume instructions); without it the retry starts blind.
+    p.handoff_note,
+    -- Runtime pin (JEF-234): the parent was pinned where its session lives, so
+    -- the retry stays pinned while it stays there. A failover that moves it
+    -- elsewhere drops the pin; the pool fence authorizes that runtime instead.
+    p.runtime_pinned AND COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id) = p.runtime_id,
+    -- A2A hop distance (F19): the retry is the same hop, not a new one.
+    p.a2a_depth,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
 WHERE p.id = $1
   AND lock_task_owner_rows(p.agent_id, p.issue_id, p.runtime_id)
--- Arbiter for idx_one_pending_task_per_issue_agent_v3 (migration 835). The
--- run_group_id predicate is part of the index and so must be part of the
--- arbiter: without it PostgreSQL finds no matching index and raises 42P10.
--- Grouped rows have no pending-slot rule to conflict with, which is why this
--- clause simply does not apply to them.
-ON CONFLICT (issue_id, agent_id) WHERE run_group_id IS NULL
+-- Arbiter for idx_one_pending_task_per_issue_agent_thread (migration 895).
+-- The index composes upstream's thread column with this fork's run_group_id
+-- predicate, so the arbiter has to carry both: PostgreSQL matches an arbiter
+-- against the index definition literally, and dropping either half raises
+-- 42P10 rather than silently widening the rule.
+ON CONFLICT (issue_id, agent_id, (COALESCE(comment_thread_id, '00000000-0000-0000-0000-000000000000'::uuid))) WHERE run_group_id IS NULL
        AND (status IN ('queued', 'dispatched')
             OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true'))
 DO NOTHING
@@ -752,6 +775,16 @@ WHERE issue_id = $1 AND agent_id = $2
   AND status IN ('queued', 'dispatched', 'deferred')
 RETURNING *;
 
+-- name: CancelPendingTasksByIssueAndAgentInThread :many
+-- Cancel only the not-yet-started plan in the selected thread. Other threads
+-- retain their queues; running tasks are stopped explicitly through CancelTask.
+UPDATE agent_task_queue
+SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL
+WHERE issue_id = $1 AND agent_id = $2
+  AND status IN ('queued', 'dispatched', 'deferred')
+  AND comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(sqlc.narg('thread_comment_id')::uuid)
+RETURNING *;
+
 -- name: CancelAgentTasksByAgent :many
 -- Bulk-cancel every active (queued/dispatched/running) task for an agent.
 -- Returns the affected rows so callers can broadcast task:cancelled events.
@@ -769,7 +802,8 @@ RETURNING *;
 -- coalesced input; cancellation prevents an agent from acting on a stale or
 -- deleted version. Must run before deletion clears trigger_comment_id.
 UPDATE agent_task_queue
-SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL
+SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL,
+    context = COALESCE(context, '{}'::jsonb) || jsonb_build_object('comment_change_cancelled_task_id', id::text)
 WHERE (trigger_comment_id = $1 OR $1 = ANY(coalesced_comment_ids))
   AND status IN ('queued', 'dispatched', 'running', 'waiting_local_directory', 'deferred')
 RETURNING *;
@@ -854,8 +888,14 @@ WHERE id = (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise. The pin only relaxes the
+            -- AGENT's binding; the outer atq.runtime_id = @runtime_id still
+            -- holds, so a pinned task is claimable by exactly the pinned
+            -- runtime and by no other.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -1017,8 +1057,11 @@ WHERE id = (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -1080,8 +1123,11 @@ WHERE id IN (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -1969,6 +2015,21 @@ WHERE issue_id = $1 AND agent_id = $2
     OR context->>'head_sha' = sqlc.narg('head_sha')::text
   );
 
+-- name: HasPendingTaskForIssueAndAgentInThread :one
+-- Same pending/head rules as HasPendingTaskForIssueAndAgent, scoped to one
+-- root comment and all descendants. NULL selects assignment-level work.
+SELECT count(*) > 0 AS has_pending FROM agent_task_queue
+WHERE issue_id = $1 AND agent_id = $2
+  AND (
+    status IN ('queued', 'dispatched')
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  )
+  AND (
+    COALESCE(sqlc.narg('head_sha')::text, '') = ''
+    OR context->>'head_sha' = sqlc.narg('head_sha')::text
+  )
+  AND comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(sqlc.narg('thread_comment_id')::uuid);
+
 -- name: HasPendingTaskForIssueAndAgentExcludingTriggerComment :one
 -- Same as HasPendingTaskForIssueAndAgent, but ignores tasks triggered by the
 -- current comment being edited. Edit preview needs this because save cancels
@@ -1986,6 +2047,22 @@ WHERE issue_id = @issue_id
     COALESCE(sqlc.narg('head_sha')::text, '') = ''
     OR context->>'head_sha' = sqlc.narg('head_sha')::text
   );
+
+-- name: HasPendingTaskForIssueAndAgentExcludingTriggerCommentInThread :one
+-- Thread-scoped edit preview: ignore the comment whose old run save replaces.
+SELECT count(*) > 0 AS has_pending FROM agent_task_queue
+WHERE issue_id = @issue_id
+  AND agent_id = @agent_id
+  AND (
+    status IN ('queued', 'dispatched')
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  )
+  AND trigger_comment_id IS DISTINCT FROM @exclude_trigger_comment_id::uuid
+  AND (
+    COALESCE(sqlc.narg('head_sha')::text, '') = ''
+    OR context->>'head_sha' = sqlc.narg('head_sha')::text
+  )
+  AND comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(sqlc.narg('thread_comment_id')::uuid);
 
 -- name: MergeCommentIntoPendingTask :one
 -- MUL-4195: fold a newly-arrived comment into an existing task for (issue,
@@ -2058,12 +2135,13 @@ WHERE id = (
     SELECT t.id FROM agent_task_queue t
     WHERE t.issue_id = @issue_id
       AND t.agent_id = @agent_id
+      AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@new_trigger_comment_id::uuid)
       AND (
           t.status = 'queued'
           OR (t.status = 'deferred' AND t.context->>'channel_issue_media_pending' = 'true')
       )
       -- Head-scoped (TEN-356, #5914): never fold across HEADs. The physical
-      -- unique index is only (issue_id, agent_id), so an insert-race loser can
+      -- unique index is per (issue_id, agent_id, thread), so an insert-race loser can
       -- collide with a pending task stamped for a DIFFERENT head_sha; merging
       -- into it would give a new-HEAD comment old-HEAD review coverage. Empty/
       -- absent head_sha (no linked PR) matches any task, preserving coalescing.
@@ -2110,6 +2188,7 @@ WHERE id = (
     SELECT t.id FROM agent_task_queue t
     WHERE t.issue_id = @issue_id
       AND t.agent_id = @agent_id
+      AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@comment_id::uuid)
       AND t.status IN ('dispatched', 'running', 'waiting_local_directory')
       AND (
           COALESCE(sqlc.narg('head_sha')::text, '') = ''
@@ -2139,6 +2218,7 @@ WHERE id = (
     SELECT t.id FROM agent_task_queue t
     WHERE t.issue_id = @issue_id
       AND t.agent_id = @agent_id
+      AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@comment_id::uuid)
       AND (
           t.status = 'queued'
           OR (t.status = 'deferred' AND t.context->>'channel_issue_media_pending' = 'true')
@@ -2345,6 +2425,16 @@ WHERE issue_id = $1 AND agent_id = $2
     OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
   );
 
+-- name: HasActiveTaskForIssueAndAgentInThread :one
+-- Active execution and pending work in this comment thread only.
+SELECT count(*) > 0 AS has_active FROM agent_task_queue
+WHERE issue_id = $1 AND agent_id = $2
+  AND (
+    status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  )
+  AND comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(sqlc.narg('thread_comment_id')::uuid);
+
 -- name: GetLatestTaskRoleForIssueAndAgent :one
 -- Returns the role markers from the agent's most recent task on this issue.
 -- Used by the squad-leader self-trigger guard to tell apart leader tasks,
@@ -2382,9 +2472,12 @@ WHERE atq.runtime_id = $1
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
-        -- it exists to measure, for the same reason.
+        -- it exists to measure, for the same reason. A runtime-pinned
+        -- run-group attempt (JEF-234) is stamped with the runtime the user
+        -- raced, likewise.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
+             OR atq.runtime_pinned
              -- Runtime pool failover (K28): the owner listed this runtime in the
              -- agent's pool, so a task moved there is where the owner said it
              -- may run. Membership is checked per row — a runtime dropped from
@@ -2426,8 +2519,6 @@ ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC
 --
 -- Scope is deliberately tight:
 --   * retry_of_task_id IS NOT NULL — only auto-retry clones, never a fresh run.
---   * escalation_for_task_id IS NULL — assignee-fallback escalations own their
---     fire_at lifecycle and are SUPPOSED to coexist with an active primary.
 --   * channel-media pending rows are excluded for the same reason: that deferred
 --     row is the issue's own task waiting on media, not a superseded retry.
 --   * issue_id IS NOT NULL — chat / quick-create tasks have no slot semantics.
@@ -2441,12 +2532,12 @@ WHERE r.runtime_id = ANY(@runtime_ids::uuid[])
   AND r.status = 'deferred'
   AND r.issue_id IS NOT NULL
   AND r.retry_of_task_id IS NOT NULL
-  AND r.escalation_for_task_id IS NULL
   AND COALESCE(r.context->>'channel_issue_media_pending', '') <> 'true'
   AND EXISTS (
     SELECT 1 FROM agent_task_queue successor
     WHERE successor.issue_id = r.issue_id
       AND successor.agent_id = r.agent_id
+      AND successor.comment_thread_id IS NOT DISTINCT FROM r.comment_thread_id
       AND successor.id <> r.id
       AND successor.status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
   )
@@ -2454,7 +2545,7 @@ RETURNING *;
 
 -- name: PromoteDueDeferredTasksForRuntime :many
 -- Promotion is fenced against the single queued/dispatched slot
--- idx_one_pending_task_per_issue_agent_v2 allows per (issue, agent). A deferred
+-- idx_one_pending_task_per_issue_agent_thread allows per (issue, agent, thread). A deferred
 -- row is NOT covered by that index, so it can legitimately coexist with a queued
 -- one — a manual rerun enqueued behind a running task, plus the deferred retry
 -- that task's failure armed (runtime_offline, provider_network's final attempt).
@@ -2462,8 +2553,8 @@ RETURNING *;
 -- the claim loop promotes before it claims, that error blocked every claim on the
 -- runtime — including the rerun the operator was waiting for.
 --
--- Two fences: skip a row whose (issue, agent) slot is already occupied, and
--- promote at most ONE row per (issue, agent) so a single statement cannot collide
+-- Two fences: skip a row whose (issue, agent, thread) slot is already occupied, and
+-- promote at most ONE row per (issue, agent, thread) so a single statement cannot collide
 -- with itself. A skipped row stays deferred with fire_at in the past and is
 -- promoted by a later tick once the slot frees, so nothing is lost — the human's
 -- rerun simply goes first. Chat / quick-create rows (issue_id NULL) are outside
@@ -2472,7 +2563,7 @@ WITH due AS (
     SELECT t.id,
            t.issue_id,
            row_number() OVER (
-               PARTITION BY t.issue_id, t.agent_id
+               PARTITION BY t.issue_id, t.agent_id, t.comment_thread_id
                ORDER BY t.priority DESC, t.created_at ASC, t.id
            ) AS rn
     FROM agent_task_queue t
@@ -2490,6 +2581,7 @@ WITH due AS (
         SELECT 1 FROM agent_task_queue occupant
         WHERE occupant.issue_id = t.issue_id
           AND occupant.agent_id = t.agent_id
+          AND occupant.comment_thread_id IS NOT DISTINCT FROM t.comment_thread_id
           AND occupant.id <> t.id
           AND (
             occupant.status IN ('queued', 'dispatched')
@@ -2526,9 +2618,12 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
-        -- it exists to measure, for the same reason.
+        -- it exists to measure, for the same reason. A runtime-pinned
+        -- run-group attempt (JEF-234) is stamped with the runtime the user
+        -- raced, likewise.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
+             OR atq.runtime_pinned
              -- Runtime pool failover (K28): the owner listed this runtime in the
              -- agent's pool, so a task moved there is where the owner said it
              -- may run. Membership is checked per row — a runtime dropped from
@@ -2580,6 +2675,7 @@ WHERE t.runtime_id = ANY(@runtime_ids::uuid[])
       SELECT 1 FROM agent_task_queue occupant
       WHERE occupant.issue_id = t.issue_id
         AND occupant.agent_id = t.agent_id
+          AND occupant.comment_thread_id IS NOT DISTINCT FROM t.comment_thread_id
         AND occupant.id <> t.id
         AND (
           occupant.status IN ('queued', 'dispatched')
@@ -2596,7 +2692,7 @@ WITH due AS (
     SELECT t.id,
            t.issue_id,
            row_number() OVER (
-               PARTITION BY t.issue_id, t.agent_id
+               PARTITION BY t.issue_id, t.agent_id, t.comment_thread_id
                ORDER BY t.priority DESC, t.created_at ASC, t.id
            ) AS rn
     FROM agent_task_queue t
@@ -2614,6 +2710,7 @@ WITH due AS (
         SELECT 1 FROM agent_task_queue occupant
         WHERE occupant.issue_id = t.issue_id
           AND occupant.agent_id = t.agent_id
+          AND occupant.comment_thread_id IS NOT DISTINCT FROM t.comment_thread_id
           AND occupant.id <> t.id
           AND (
             occupant.status IN ('queued', 'dispatched')
@@ -2625,26 +2722,6 @@ UPDATE agent_task_queue
 SET status = 'queued'
 WHERE id IN (SELECT id FROM due WHERE issue_id IS NULL OR rn = 1)
 RETURNING *;
-
--- name: CancelDeferredEscalationsForTask :many
-UPDATE agent_task_queue
-SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL
-WHERE escalation_for_task_id = $1
-  AND status IN ('deferred', 'queued', 'dispatched', 'waiting_local_directory')
-RETURNING *;
-
--- name: CancelDeferredEscalationsForIssueAgent :many
-WITH cancelled AS (
-    UPDATE agent_task_queue fallback
-    SET status = 'cancelled', completed_at = now(), prepare_lease_expires_at = NULL
-    FROM agent_task_queue primary_task
-    WHERE fallback.escalation_for_task_id = primary_task.id
-      AND fallback.status IN ('deferred', 'queued', 'dispatched', 'waiting_local_directory')
-      AND primary_task.issue_id = @issue_id
-      AND primary_task.agent_id = @agent_id
-    RETURNING fallback.*
-)
-SELECT * FROM cancelled;
 
 -- name: ListActiveTasksByIssue :many
 -- Backs the issue-detail "agent live" banner. Includes 'queued' so the
@@ -2983,28 +3060,32 @@ INSERT INTO agent (
 )
 RETURNING *;
 
--- name: GetPendingTaskForIssueAndAgent :one
--- Returns the task occupying the pending slot (the same predicate as
--- idx_one_pending_task_per_issue_agent_v2). Used by the handoff coalescing
--- path (JEF-241): when an interview answer / review rework / resume arrives
--- while a run is already queued, its note merges into that task instead of
--- failing the enqueue on the unique index.
-SELECT * FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
-  AND (
-    status IN ('queued', 'dispatched')
-    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
-  );
-
--- name: AppendTaskHandoffNote :one
--- Appends a handoff note to the task's existing one (JEF-241 coalescing).
+-- name: AppendHandoffNoteToPendingTask :one
+-- Handoff coalescing (JEF-241): when an interview answer / review rework /
+-- resume arrives while a run is already queued, its note merges into that task
+-- instead of failing the enqueue on the unique pending index. A handoff enqueue
+-- carries no trigger comment and no run group, so the only row it can have
+-- collided with is the assignment-level one (comment_thread_id NULL, outside
+-- any run group) — idx_one_pending_task_per_issue_agent_thread admits at most
+-- one such row. A dispatched occupant is excluded: its claim payload, and so
+-- its prompt, was built from the row as it stood, and a note written now would
+-- never be read. The status re-check under the row lock also closes the race
+-- with a claim committing between the enqueue failure and this write. No row
+-- means the note has no pending run to ride on.
 -- The separator keeps successive notes readable as distinct blocks.
 UPDATE agent_task_queue
 SET handoff_note = CASE
-    WHEN handoff_note IS NULL OR handoff_note = '' THEN $2
-    ELSE handoff_note || E'\n\n---\n\n' || $2
+    WHEN handoff_note IS NULL OR handoff_note = '' THEN sqlc.arg('handoff_note')::text
+    ELSE handoff_note || E'\n\n---\n\n' || sqlc.arg('handoff_note')::text
   END
-WHERE id = $1
+WHERE issue_id = sqlc.arg('issue_id')
+  AND agent_id = sqlc.arg('agent_id')
+  AND comment_thread_id IS NULL
+  AND run_group_id IS NULL
+  AND (
+    status = 'queued'
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  )
 RETURNING *;
 
 -- name: StampTaskDispatchLane :exec
@@ -3072,3 +3153,5 @@ ORDER BY turn_seq DESC;
 -- F09: drop the runs a revert removed. Their task_message rows follow through
 -- the FK inherited from migration 026; nothing new is added here.
 DELETE FROM agent_task_queue WHERE id = ANY(sqlc.arg('ids')::uuid[]);
+-- name: GetCommentThreadRootID :one
+SELECT comment_thread_root_id(@comment_id::uuid)::uuid AS id;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -16,6 +17,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -356,7 +358,10 @@ func (h *Handler) GenerateProjectEpicStep(w http.ResponseWriter, r *http.Request
 	}
 	if r.Body != nil {
 		// An empty body is the ordinary case: the workspace's Mika answers.
-		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req)
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 
 	ctx := r.Context()
@@ -930,6 +935,12 @@ func (h *Handler) applyEpicTickets(
 		for _, c := range fresh {
 			if err := h.Queries.DeleteIssue(ctx, db.DeleteIssueParams{ID: c.ID, WorkspaceID: c.WorkspaceID}); err != nil {
 				slog.Warn("epic: rollback delete failed", "issue_id", uuidToString(c.ID), "error", err)
+				// The compensating delete itself failed, so this issue is
+				// orphaned: created by a call that was refused, with no
+				// further automatic cleanup. Record it so an operator can
+				// find and remove it manually instead of it going unnoticed.
+				h.audit(ctx, c.WorkspaceID, actorType, actorID, AuditEpicStepFailed, "issue", c.ID,
+					map[string]any{"reason": "rollback_delete_failed", "error": err.Error()}, nil)
 			}
 		}
 	}
@@ -1081,7 +1092,7 @@ func (h *Handler) settleEpicStepRun(ctx context.Context, task db.AgentTaskQueue,
 		return
 	}
 	if len(content) > epicContentMaxBytes {
-		content = content[:epicContentMaxBytes]
+		content = util.TruncateUTF8Bytes(content, epicContentMaxBytes)
 	}
 	payload := []byte("{}")
 	if len(report.Payload) > 0 && json.Valid(report.Payload) {
@@ -1141,7 +1152,7 @@ func (h *Handler) failEpicClaim(ctx context.Context, claim db.EpicArtifact, reas
 		return
 	}
 	if len(reason) > 1000 {
-		reason = reason[:1000]
+		reason = util.TruncateUTF8Bytes(reason, 1000)
 	}
 	h.audit(ctx, claim.WorkspaceID, "system", "", AuditEpicStepFailed, "project", claim.ProjectID,
 		map[string]any{"kind": claim.Kind, "reason": reason, "task_id": uuidToString(claim.GeneratedByTaskID)}, nil)

@@ -364,8 +364,8 @@ func TestUpdateTriageSourceMode(t *testing.T) {
 		t.Fatalf("load source: %v", err)
 	}
 
-	var out TriageSourceStats
-	testutil.Call(t, testHandler.UpdateTriageSource, testutil.WithURLParams(
+	var out TriageSourceResponse
+	testutil.Call(t, testHandler.UpdateTriageSourceSettings, testutil.WithURLParams(
 		newRequest(http.MethodPatch, "/api/triage/sources/"+sourceID, map[string]any{"mode": "gate"}),
 		"id", sourceID,
 	)).Want(http.StatusOK).JSON(&out)
@@ -373,12 +373,12 @@ func TestUpdateTriageSourceMode(t *testing.T) {
 		t.Fatalf("mode = %q, want gate", out.Mode)
 	}
 
-	testutil.Call(t, testHandler.UpdateTriageSource, testutil.WithURLParams(
+	testutil.Call(t, testHandler.UpdateTriageSourceSettings, testutil.WithURLParams(
 		newRequest(http.MethodPatch, "/api/triage/sources/"+sourceID, map[string]any{"mode": "bogus"}),
 		"id", sourceID,
 	)).Want(http.StatusBadRequest)
 
-	testutil.Call(t, testHandler.UpdateTriageSource, testutil.WithURLParams(
+	testutil.Call(t, testHandler.UpdateTriageSourceSettings, testutil.WithURLParams(
 		newRequest(http.MethodPatch, "/api/triage/sources/"+fmt.Sprintf("00000000-0000-0000-0000-%012d", 1), map[string]any{"mode": "gate"}),
 		"id", fmt.Sprintf("00000000-0000-0000-0000-%012d", 1),
 	)).Want(http.StatusNotFound)

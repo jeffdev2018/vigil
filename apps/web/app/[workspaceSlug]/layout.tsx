@@ -7,6 +7,7 @@ import { WorkspaceSlugProvider, paths } from "@multica/core/paths";
 import { workspaceBySlugOptions } from "@multica/core/workspace";
 import { setCurrentWorkspace } from "@multica/core/platform";
 import { useAuthStore } from "@multica/core/auth";
+import { AuthRecoveryPage } from "@multica/views/auth";
 import { NoAccessPage } from "@multica/views/workspace/no-access-page";
 import { WelcomeAfterOnboarding } from "@multica/views/workspace/welcome-after-onboarding";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
@@ -23,6 +24,7 @@ export default function WorkspaceLayout({
   const { workspaceSlug } = use(params);
   const user = useAuthStore((s) => s.user);
   const isAuthLoading = useAuthStore((s) => s.isLoading);
+  const authStatus = useAuthStore((s) => s.status);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -49,7 +51,12 @@ export default function WorkspaceLayout({
   // Resolve workspace by slug through the shared workspace-list query. A
   // warm auth bootstrap reuses its cache; a cold route fetches it directly.
   // Keep it disabled until identity has been verified.
-  const { data: workspace } = useQuery({
+  const {
+    data: workspace,
+    isLoadingError: workspaceListUnavailable,
+    isFetching: workspaceListRetrying,
+    refetch: retryWorkspaceList,
+  } = useQuery({
     ...workspaceBySlugOptions(workspaceSlug),
     enabled: !!user,
   });
@@ -101,6 +108,9 @@ export default function WorkspaceLayout({
     </div>
   );
 
+  // `recovering` keeps isLoading true while the initializer retries an
+  // unreachable server; say so rather than pulsing the logo indefinitely.
+  if (authStatus === "recovering") return <AuthRecoveryPage />;
   if (isAuthLoading) return loadingIndicator;
   // Don't render children until workspace is resolved. useWorkspaceId()
   // throws when the list hasn't populated or the slug is unknown — gating
@@ -108,6 +118,16 @@ export default function WorkspaceLayout({
   // The selector returns undefined until the list has resolved, including
   // after an initial request failure. It returns null only when an
   // authoritative list does not contain this slug.
+  if (workspace === undefined && workspaceListUnavailable) {
+    return (
+      <AuthRecoveryPage
+        isRetrying={workspaceListRetrying}
+        onRetry={() => {
+          void retryWorkspaceList();
+        }}
+      />
+    );
+  }
   if (workspace === undefined) return loadingIndicator;
   if (workspace === null) {
     // If we've resolved this slug before in this session, it was just

@@ -28,6 +28,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/scheduler"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -388,7 +389,9 @@ func main() {
 
 	bus := events.New()
 	hub := realtime.NewHub()
-	go hub.Run()
+	// Every long-lived loop below runs under util.Supervise: a panic logs and
+	// restarts that loop instead of taking the whole server down.
+	go util.Supervise(context.Background(), "realtime hub", func(context.Context) { hub.Run() })
 	daemonHub := daemonws.NewHub()
 	var daemonWakeup interface {
 		service.TaskWakeupNotifier
@@ -699,29 +702,43 @@ func main() {
 	// Queued work now expires on the same runtime-liveness signal as in-flight
 	// work, so there is no separate queue TTL to tune: a busy runtime keeps its
 	// backlog, and a departed one retires everything it owned at once.
-	go runRuntimeSweeper(sweepCtx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
-	go runDelegatedFailureRecoverySweeper(sweepCtx, taskSvc)
+	go util.Supervise(sweepCtx, "runtime sweeper", func(ctx context.Context) {
+		runRuntimeSweeper(ctx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
+	})
+	go util.Supervise(sweepCtx, "delegated failure recovery sweeper", func(ctx context.Context) {
+		runDelegatedFailureRecoverySweeper(ctx, taskSvc)
+	})
 	// Seven-day runtime retention does not share the 30-second liveness tick:
 	// its bounded transactions run independently once per hour, so a slow GC
 	// round cannot delay offline detection or task recovery.
-	go runRuntimeGCSweeper(sweepCtx, pool, queries, taskSvc.Metrics, h)
+	go util.Supervise(sweepCtx, "runtime gc sweeper", func(ctx context.Context) {
+		runRuntimeGCSweeper(ctx, pool, queries, taskSvc.Metrics, h)
+	})
+	// Approval gates past their deadline are settled once a minute so an
+	// inbox row or a timeline card never shows an ask nobody can answer.
+	go util.Supervise(sweepCtx, "approval gate sweeper", func(ctx context.Context) { runApprovalGateSweeper(ctx, h) })
 	// Source-context cleanup is object-store work, so it gets its own goroutine
 	// instead of a slot in the runtime sweep tick.
-	go runSourceContextSweeper(sweepCtx, taskSvc)
-	go heartbeatScheduler.Run(sweepCtx)
-	go runAutopilotFailureMonitor(autopilotCtx, queries, bus, envFailureMonitorConfig())
+	go util.Supervise(sweepCtx, "source context sweeper", func(ctx context.Context) { runSourceContextSweeper(ctx, taskSvc) })
+	go heartbeatScheduler.Run(sweepCtx) // supervises its own loop
+	failureMonitorCfg := envFailureMonitorConfig()
+	go util.Supervise(autopilotCtx, "autopilot failure monitor", func(ctx context.Context) {
+		runAutopilotFailureMonitor(ctx, queries, bus, failureMonitorCfg)
+	})
 	if autopilotSvc.QuotaEnabled() {
-		go runAutopilotQuotaReconciler(autopilotCtx, autopilotSvc)
+		go util.Supervise(autopilotCtx, "autopilot quota reconciler", func(ctx context.Context) {
+			runAutopilotQuotaReconciler(ctx, autopilotSvc)
+		})
 	}
-	go runDBStatsLogger(sweepCtx, "primary", pool)
+	go util.Supervise(sweepCtx, "primary db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "primary", pool) })
 	if replicaPool != nil {
-		go runDBStatsLogger(sweepCtx, "replica", replicaPool)
+		go util.Supervise(sweepCtx, "replica db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "replica", replicaPool) })
 	}
 	if h.WebhookDeliveryWorker != nil {
-		go h.WebhookDeliveryWorker.Run(sweepCtx)
+		go h.WebhookDeliveryWorker.Run(sweepCtx) // supervises each pool worker
 	}
 	if h.SeatCapacityWorker != nil {
-		go h.SeatCapacityWorker.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "seat capacity worker", h.SeatCapacityWorker.Run)
 	}
 	if h.TelegramOutbound != nil {
 		h.TelegramOutbound.Start(sweepCtx)
@@ -738,7 +755,7 @@ func main() {
 	// alongside the other long-running workers, AFTER the HTTP server has
 	// drained.
 	if h.ChannelSupervisor != nil {
-		go h.ChannelSupervisor.Run(sweepCtx)
+		go h.ChannelSupervisor.Run(sweepCtx) // supervises its own loop
 	}
 
 	// Media intent-ledger reconciler (PR #5580): settles uploaded-but-unbound
@@ -746,7 +763,7 @@ func main() {
 	// spikes cannot starve any other sweeper's cadence.
 	if h.ChannelMediaReconciler != nil {
 		h.ChannelMediaReconciler.Metrics = channelMediaMetrics
-		go h.ChannelMediaReconciler.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "channel media reconciler", h.ChannelMediaReconciler.Run)
 	}
 
 	// MUL-2957: DB-backed execution scheduler. The scheduler turns the
@@ -765,10 +782,12 @@ func main() {
 	// cycle, so a temporary outage does not crash the server.
 	schedulerMgr := scheduler.NewManager(pool, scheduler.Options{})
 	if err := schedulerMgr.Register(scheduler.TaskUsageHourlyJob(pool)); err != nil {
-		slog.Warn("scheduler: failed to register task_usage_hourly rollup job", "error", err)
+		slog.Error("scheduler: failed to register task_usage_hourly rollup job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.BudgetReservationReconciliationJob(h.BudgetService)); err != nil {
-		slog.Warn("scheduler: failed to register budget reservation reconciliation job", "error", err)
+		slog.Error("scheduler: failed to register budget reservation reconciliation job", "error", err)
+		os.Exit(1)
 	}
 	// MUL-3551: scheduled-Autopilot dispatch runs on the same DB-backed
 	// scheduler. The job owns its plan_times via PlansForScope (each
@@ -777,89 +796,129 @@ func main() {
 	// theft, and retry are all reused from the manager + sys_cron_executions
 	// — there is no separate goroutine for scheduled Autopilot anymore.
 	if err := schedulerMgr.Register(scheduler.AutopilotScheduleDispatchJob(pool, queries, autopilotSvc)); err != nil {
-		slog.Warn("scheduler: failed to register autopilot_schedule_dispatch job", "error", err)
+		slog.Error("scheduler: failed to register autopilot_schedule_dispatch job", "error", err)
+		os.Exit(1)
 	}
 	// Manifest-declared Plugin schedules share the same durable lease and retry
 	// machinery. The job is inert while plugins_v1 is disabled.
 	if err := schedulerMgr.Register(scheduler.PluginHookScheduleDispatchJob(queries, h.PluginService)); err != nil {
-		slog.Warn("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+		slog.Error("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+		os.Exit(1)
 	}
-	// Decision SLA (K35): overdue Decision Cards step to their substitute,
-	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.SkillMinerJob(pool, h.MineSkills)); err != nil {
-		slog.Warn("scheduler: failed to register skill_miner job", "error", err)
+		slog.Error("scheduler: failed to register skill_miner job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
-		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
+		slog.Error("scheduler: failed to register watchdog_scan job", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.IssueRecurrenceTickJob(h.TickIssueRecurrences)); err != nil {
+		slog.Error("scheduler: register issue recurrence tick job failed", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.BrainEmbeddingBackfillJob(h.BackfillBrainEmbeddings)); err != nil {
+		slog.Error("scheduler: register brain embedding backfill job failed", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.CalendarReminderJob(h.RemindCalendarEvents)); err != nil {
+		slog.Error("scheduler: register calendar reminder job failed", "error", err)
+		os.Exit(1)
 	}
 	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
 	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
 	if err := schedulerMgr.Register(scheduler.NativeAgentTickJob(h.NativeAgents.Tick)); err != nil {
-		slog.Warn("scheduler: failed to register native_agent_tick job", "error", err)
+		slog.Error("scheduler: failed to register native_agent_tick job", "error", err)
+		os.Exit(1)
 	}
 	// Code health autopilot (K22): one scheduled read-only maintenance scan per
 	// enabled workspace. Inert while every workspace leaves it disabled.
 	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
-		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
+		slog.Error("scheduler: failed to register code_health_scan job", "error", err)
+		os.Exit(1)
 	}
 
 	if err := schedulerMgr.Register(scheduler.RunPreviewStaleSweepJob(h.SweepStaleRunPreviews)); err != nil {
 		slog.Error("scheduler: register run preview stale sweep job", "error", err)
 		os.Exit(1)
 	}
+	// Dead run-branch GC (JEF-388): workspaces that opted in get the branches
+	// their terminal runs left behind discarded past the TTL, through the
+	// JEF-255 branch-action channel. Inert while every workspace leaves it
+	// disabled.
+	if err := schedulerMgr.Register(scheduler.BranchGCTickJob(pool, h.TickBranchGC)); err != nil {
+		slog.Error("scheduler: register branch gc tick job", "error", err)
+		os.Exit(1)
+	}
 	if err := schedulerMgr.Register(scheduler.CycleSnapshotJob(h.SnapshotCycles)); err != nil {
-		slog.Warn("scheduler: failed to register cycle_snapshot job", "error", err)
+		slog.Error("scheduler: failed to register cycle_snapshot job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.CycleRolloverJob(h.RolloverCycles)); err != nil {
-		slog.Warn("scheduler: failed to register cycle_rollover job", "error", err)
+		slog.Error("scheduler: failed to register cycle_rollover job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
-		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
+		slog.Error("scheduler: failed to register doc_drift_check job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
-		slog.Warn("scheduler: failed to register org_tick job", "error", err)
+		slog.Error("scheduler: failed to register org_tick job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.McpBindingReviewJob(pool, h.ReviewMcpBindings)); err != nil {
-		slog.Warn("scheduler: failed to register mcp_binding_review job", "error", err)
+		slog.Error("scheduler: failed to register mcp_binding_review job", "error", err)
+		os.Exit(1)
 	}
+	// Decision SLA (K35): overdue Decision Cards step to their substitute,
+	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
-		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
+		slog.Error("scheduler: failed to register decision_sla_escalation job", "error", err)
+		os.Exit(1)
 	}
 	// Scorecards (K25): recompute the last days of per-agent metrics.
 	if err := schedulerMgr.Register(scheduler.AgentScorecardRollupJob(pool, h.RollupAgentScorecards)); err != nil {
-		slog.Warn("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+		slog.Error("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+		os.Exit(1)
 	}
 	// Morning briefing (K30): one daily digest per enabled workspace.
 	if err := schedulerMgr.Register(scheduler.StandupJob(pool, h.RunStandup)); err != nil {
-		slog.Warn("scheduler: failed to register standup job", "error", err)
+		slog.Error("scheduler: failed to register standup job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.WeeklyRetroJob(pool, h.GenerateDueWeeklyRetros)); err != nil {
-		slog.Warn("scheduler: failed to register weekly_retro job", "error", err)
+		slog.Error("scheduler: failed to register weekly_retro job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
-		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
+		slog.Error("scheduler: failed to register morning_briefing job", "error", err)
+		os.Exit(1)
 	}
 	// Triage digest: tell a workspace's admins when nobody has decided on the
 	// queue for two days. The queue reports its own age to whoever opens it,
 	// which is the person already looking; this reaches the one who stopped.
 	if err := schedulerMgr.Register(scheduler.TriageStaleDigestJob(pool, h.RunTriageStaleDigest)); err != nil {
-		slog.Warn("scheduler: failed to register triage_stale_digest job", "error", err)
+		slog.Error("scheduler: failed to register triage_stale_digest job", "error", err)
+		os.Exit(1)
 	}
 	// Triage retention: pending items past expires_at leave the queue as
 	// expired, so a queue nobody reads stops growing without losing the
 	// resolved history the auto-classifier learns from.
 	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.SweepTriageQueue)); err != nil {
-		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
+		slog.Error("scheduler: failed to register triage_retention_sweep job", "error", err)
+		os.Exit(1)
 	}
 	// Workspace Brain: a daily pass merges near-duplicate notes, retitles the
 	// vague ones, normalizes tags and archives what stopped being true. Inert
 	// without an assist-layer LLM.
 	if err := schedulerMgr.Register(scheduler.WorkspaceBrainCurationJob(pool, h.TaskService.CurateWorkspaceBrains)); err != nil {
-		slog.Warn("scheduler: failed to register workspace_brain_curation job", "error", err)
+		slog.Error("scheduler: failed to register workspace_brain_curation job", "error", err)
+		os.Exit(1)
 	}
 	// Refactoring campaigns (K42): merge queues move without a board read.
-	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
-		slog.Warn("scheduler: failed to register campaign_merge_queue job", "error", err)
+	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(h.AdvanceCampaignMergeQueues)); err != nil {
+		slog.Error("scheduler: failed to register campaign_merge_queue job", "error", err)
+		os.Exit(1)
 	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)

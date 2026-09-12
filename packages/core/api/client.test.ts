@@ -4,6 +4,13 @@ import { configStore } from "../config";
 import type { StorageAdapter, User } from "../types";
 import { ApiClient, ApiError, CHAT_DRAFT_RESTORE_CAPABILITY, clientErrorMessage } from "./client";
 import { EMPTY_PLUGIN_PACKAGE_LIST, EMPTY_PLUGIN_PREVIEW, EMPTY_PLUGIN_SURFACE_LAUNCH } from "./schemas";
+import {
+  EMPTY_CALENDAR_EVENTS_RESPONSE,
+  EMPTY_CALENDAR_AGENDA,
+  EMPTY_CALENDAR_SLOTS_RESPONSE,
+  EMPTY_CALENDAR_FEED_TOKEN_STATUS,
+  EMPTY_CALENDAR_EVENT,
+} from "./schemas";
 
 afterEach(() => {
   configStore.getState().setAgentConversationStartersSupported(false);
@@ -310,6 +317,51 @@ describe("ApiClient Plugin preview response schema", () => {
 
     await expect(new ApiClient("https://api.example.test").listPluginPackages("workspace-1"))
       .resolves.toEqual(EMPTY_PLUGIN_PACKAGE_LIST);
+  });
+});
+
+describe("ApiClient calendar events (OS plan, chantier 19)", () => {
+  function respondWith(body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+  }
+
+  it("falls back to an empty events response when the list is malformed", async () => {
+    respondWith({ events: "nope", from: 1, to: 2 });
+    await expect(new ApiClient("https://api.example.test").listCalendarEvents())
+      .resolves.toEqual(EMPTY_CALENDAR_EVENTS_RESPONSE);
+  });
+
+  it("falls back to an empty agenda when a join list is malformed", async () => {
+    respondWith({ events: [], issues_due: "nope", cycles: null, meetings: {} });
+    await expect(new ApiClient("https://api.example.test").getCalendarAgenda())
+      .resolves.toEqual(EMPTY_CALENDAR_AGENDA);
+  });
+
+  it("falls back to an empty slots response when duration is malformed", async () => {
+    respondWith({ slots: "nope", duration_minutes: "thirty", tz: 7 });
+    await expect(
+      new ApiClient("https://api.example.test").findCalendarSlots({ participants: "member:u1" }),
+    ).resolves.toEqual(EMPTY_CALENDAR_SLOTS_RESPONSE);
+  });
+
+  it("falls back to unconfigured when the feed-token response is malformed", async () => {
+    respondWith({ configured: "yes" });
+    await expect(new ApiClient("https://api.example.test").getCalendarEventFeedToken())
+      .resolves.toEqual(EMPTY_CALENDAR_FEED_TOKEN_STATUS);
+  });
+
+  it("degrades a single event to the empty fallback (with the requested id) when malformed", async () => {
+    respondWith({ event: { id: 123, participants: "nope" } });
+    await expect(new ApiClient("https://api.example.test").getCalendarEvent("evt-1"))
+      .resolves.toEqual({ ...EMPTY_CALENDAR_EVENT, id: "evt-1" });
   });
 });
 
@@ -772,7 +824,6 @@ describe("ApiClient label response schemas", () => {
     const client = new ApiClient("https://api.example.test");
 
     await expect(client.listLabels("agent")).resolves.toEqual({ labels: [], total: 0 });
-    await expect(client.getLabel("label-1")).resolves.toMatchObject({ id: "" });
     await expect(
       client.createLabel({ resource_type: "agent", name: "Ops", color: "#3b82f6" }),
     ).resolves.toMatchObject({ id: "" });
@@ -792,7 +843,7 @@ describe("ApiClient label response schemas", () => {
       client.detachLabelFromResource("agent", "agent-1", "label-1"),
     ).resolves.toEqual({ labels: [] });
 
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(9);
   });
 });
 
@@ -2973,5 +3024,85 @@ describe("ApiClient batch update refusals", () => {
     expect(result.refused).toEqual([
       { issue_id: "issue-9", code: "some_future_guard", reason: "", requires_approval: false },
     ]);
+  });
+});
+
+describe("organization simulation boundary", () => {
+  it("rejects malformed results rather than displaying a successful routing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ basis: "draft", prepares: "broken" }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.simulateOrg({ request: { title: "Review this request" } })).rejects.toThrow("malformed simulation");
+  });
+});
+
+// The compliance endpoints echo the whole runtime. Before this test the body
+// was cast to AgentRuntime and only `compliance` went through zod, so a
+// drifted runtime shape reached the cache unparsed.
+describe("ApiClient runtime compliance responses", () => {
+  const respond = (body: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  it("parses the echoed runtime through the runtime schema", async () => {
+    respond({ id: "rt-1", status: "bogus", compliance: { region: "eu-west", on_prem: true } });
+    const runtime = await new ApiClient("https://api.example.test").putRuntimeCompliance("rt-1", {
+      region: "eu-west",
+      on_prem: true,
+    });
+    expect(runtime.id).toBe("rt-1");
+    // A drifted enum falls to the schema default rather than reaching the cache raw.
+    expect(runtime.status).toBe("offline");
+    expect(runtime.compliance).toEqual({ region: "eu-west", on_prem: true });
+  });
+
+  it("reads a drifted compliance declaration as not declared", async () => {
+    respond({ id: "rt-1", compliance: { region: "eu-west", on_prem: "no" } });
+    const runtime = await new ApiClient("https://api.example.test").putRuntimeCompliance("rt-1", {
+      region: "eu-west",
+      on_prem: false,
+    });
+    expect(runtime.compliance).toBeNull();
+  });
+
+  it("rejects a malformed runtime instead of handing it to the cache", async () => {
+    respond({ compliance: null });
+    await expect(
+      new ApiClient("https://api.example.test").deleteRuntimeCompliance("rt-1"),
+    ).rejects.toThrow(/malformed runtime/);
+  });
+});
+
+describe("ApiClient Google sign-in state", () => {
+  it("returns the browser-bound state and sends it back with the code", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ state: "abc123" }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: "jwt", user: { id: "u1", name: "U", email: "u@example.test", avatar_url: null, created_at: "", updated_at: "" } }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.startGoogleLogin()).resolves.toBe("abc123");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/auth/google/start");
+    await client.googleLogin("code-1", "https://app.example.test/auth/callback", "abc123");
+    expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({
+      code: "code-1",
+      redirect_uri: "https://app.example.test/auth/callback",
+      state: "abc123",
+    });
+  });
+
+  it("refuses to start a Google sign-in on a malformed start response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ state: 42 }), { status: 200 })));
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.startGoogleLogin()).rejects.toThrow(/malformed/);
   });
 });

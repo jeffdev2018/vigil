@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // "Show me first" (K69, lot 2): a preview-mode run's writes are held (202,
@@ -157,4 +159,44 @@ func containsAll(s string, parts ...string) bool {
 		}
 	}
 	return true
+}
+
+// TestSetAgentEffectModeUsesDistinctAuditKind guards the fix for the audit
+// finding that SetAgentEffectMode (a per-agent apply/preview toggle) reused
+// AuditUndoSettings, the same audit kind as PutUndoSettings (a workspace-wide
+// undo window/breaker threshold change) — an admin filtering the audit log
+// by kind=undo.settings_updated could not tell the two apart without
+// inspecting the payload, and the two have different target_type/payload
+// shapes entirely.
+func TestSetAgentEffectModeUsesDistinctAuditKind(t *testing.T) {
+	agentID := createHandlerTestAgent(t, "Effect Mode Audit Test", nil)
+
+	req := newRequest(http.MethodPut, "/api/agents/"+agentID+"/effect-mode", map[string]any{"mode": "apply"})
+	req = withURLParam(req, "id", agentID)
+	testutil.Call(t, testHandler.SetAgentEffectMode, req).Want(http.StatusOK)
+
+	if n := dbfx.Count(t, `SELECT count(*) FROM audit_log_entry WHERE entity_type = 'agent' AND entity_id = $1 AND action = $2`, agentID, AuditAgentEffectModeUpdated); n != 1 {
+		t.Fatalf("audit_log rows with kind %q for agent %s = %d, want 1", AuditAgentEffectModeUpdated, agentID, n)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM audit_log_entry WHERE entity_type = 'agent' AND entity_id = $1 AND action = $2`, agentID, AuditUndoSettings); n != 0 {
+		t.Fatalf("audit_log rows with kind %q (workspace undo settings) for agent %s = %d, want 0: effect-mode toggles must not share the workspace undo-settings audit kind", AuditUndoSettings, agentID, n)
+	}
+}
+
+// TestDescribePendingIssueUpdateIsDeterministic guards a cosmetic but real
+// bug: the EffectIssueUpdate branch iterated a map[string]any with no sort,
+// so the "field1 -> x, field2 -> y" rendering changed between renders of
+// the same effect (Go's randomized map order). Multiple calls must render
+// identical, alphabetically-ordered output. Pure function, no DB needed.
+func TestDescribePendingIssueUpdateIsDeterministic(t *testing.T) {
+	eff := db.AgentEffect{
+		Kind:    service.EffectIssueUpdate,
+		Payload: []byte(`{"title":"New title","status":"in_progress","priority":"high"}`),
+	}
+	want := "Issue update: priority → high, status → in_progress, title → New title"
+	for i := 0; i < 5; i++ {
+		if got := describePending(eff); got != want {
+			t.Fatalf("describePending call %d = %q, want %q", i, got, want)
+		}
+	}
 }

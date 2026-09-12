@@ -95,8 +95,17 @@ import { IssueDescription } from "./issue-description";
 import { IssueReactionRow } from "./issue-reaction-row";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { AgentEffectsSection } from "./agent-effects-section";
+import { GoalSection } from "./goal-section";
+import { FollowupsSection } from "./followups-section";
+import { RecurrenceSection } from "./recurrence-section";
 import { ActivityRow } from "./activity-row";
 import { CommentCard } from "./comment-card";
+import { ApprovalAskCard, PendingApprovalsBar } from "@/components/approvals/approval-card";
+import { useIssueApprovals } from "@/data/queries/approvals";
+import {
+  approvalIdOfRowId,
+  interleaveApprovals,
+} from "@/lib/approvals-display";
 import { useLastViewedStore } from "@/data/stores/last-viewed-store";
 import { coalesceTimeline } from "@/lib/timeline-coalesce";
 import { buildTimelineRows, type TimelineRow } from "@/lib/timeline-thread";
@@ -175,6 +184,20 @@ export function TimelineList({
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const { data: issueAttachments } = useQuery(
     issueAttachmentsOptions(wsId, issue.id),
+  );
+
+  // Inline approvals: pending asks on this issue (Decision Cards, held
+  // transitions, goal questions), interleaved into the timeline below by
+  // time asked — same feed and same product semantics as web's
+  // `packages/views/issues/components/issue-detail.tsx` interleaveApprovals.
+  const { data: approvalsFeed } = useIssueApprovals(wsId, issue.id);
+  const pendingApprovals = useMemo(
+    () => approvalsFeed?.approvals ?? [],
+    [approvalsFeed],
+  );
+  const approvalsById = useMemo(
+    () => new Map(pendingApprovals.map((a) => [a.id, a])),
+    [pendingApprovals],
   );
   const imageBlocks = useMemo<ImageSequenceBlock[]>(() => {
     const blocks: ImageSequenceBlock[] = [
@@ -295,6 +318,27 @@ export function TimelineList({
     return [...data.slice(0, anchorIdx), divider, ...data.slice(anchorIdx)];
   }, [data, dividerAnchorId]);
 
+  // Final render array: pending asks interleaved by time asked, same
+  // sentinel-row technique as the divider above. Everything downstream
+  // that indexes into "what FlashList actually renders" (viewability,
+  // FlashList's own `data`, the header bar's scroll target) must use this
+  // array, not `dataWithDivider` — approvals shift row positions.
+  const renderData = useMemo(
+    () => interleaveApprovals(dataWithDivider, pendingApprovals),
+    [dataWithDivider, pendingApprovals],
+  );
+
+  const scrollToApproval = useCallback(
+    (approvalId: string) => {
+      const index = renderData.findIndex(
+        (r) => approvalIdOfRowId(r.entry.id) === approvalId,
+      );
+      if (index < 0) return;
+      listRef.current?.scrollToIndex({ index, animated: true });
+    },
+    [renderData],
+  );
+
   // Mark "scrolled past" once the divider row leaves the viewport — used
   // by the unmount effect below to decide whether to bump last-viewed.
   const viewabilityConfig = useMemo(
@@ -305,7 +349,7 @@ export function TimelineList({
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (!dividerAnchorId) return;
       if (dividerScrolledPastRef.current) return;
-      const dividerIdx = dataWithDivider.findIndex(
+      const dividerIdx = renderData.findIndex(
         (r) => r.entry.id === DIVIDER_ID,
       );
       if (dividerIdx < 0) return;
@@ -317,7 +361,7 @@ export function TimelineList({
         dividerScrolledPastRef.current = true;
       }
     },
-    [dividerAnchorId, dataWithDivider],
+    [dividerAnchorId, renderData],
   );
   // FlashList v2 captures `viewabilityConfigCallbackPairs` at mount —
   // "Changing viewabilityConfig on the fly is not supported." So we wrap
@@ -365,11 +409,22 @@ export function TimelineList({
       <IssueReactionRow issue={issue} />
       <IssueDeliverySection issue={issue} />
       <AgentEffectsSection issueId={issue.id} />
+      <GoalSection issue={issue} />
+      <FollowupsSection issue={issue} />
+      <RecurrenceSection issue={issue} />
       <View className="px-4 pt-4 pb-2 border-t border-border">
         <Text className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
           Activity
         </Text>
       </View>
+      {pendingApprovals.length > 0 ? (
+        <View className="px-4 pb-2">
+          <PendingApprovalsBar
+            approvals={pendingApprovals}
+            onSelect={scrollToApproval}
+          />
+        </View>
+      ) : null}
       {timelineLoading && (!entries || entries.length === 0) ? (
         <View className="py-6 items-center">
           <ActivityIndicator />
@@ -386,7 +441,7 @@ export function TimelineList({
   // `initialScrollCompletedRef`) would have already declared completion at
   // length 0 and never re-fire. Switching the key when data goes empty →
   // non-empty under a live highlight is the cheapest way to re-arm it.
-  const hasData = dataWithDivider.length > 0;
+  const hasData = renderData.length > 0;
   const flashListKey =
     highlightCommentId && hasData
       ? `hl-${highlightNonce ?? "0"}`
@@ -416,7 +471,7 @@ export function TimelineList({
       <FlashList
         key={flashListKey}
         ref={listRef}
-        data={dataWithDivider}
+        data={renderData}
         keyExtractor={(row) => row.entry.id}
         ListHeaderComponent={ListHeader}
         // Drag-to-dismiss keyboard — when the user scrolls the timeline
@@ -447,6 +502,16 @@ export function TimelineList({
         renderItem={({ item }) => {
           if (item.entry.id === DIVIDER_ID) {
             return <UnreadDivider />;
+          }
+          const approvalId = approvalIdOfRowId(item.entry.id);
+          if (approvalId) {
+            const approval = approvalsById.get(approvalId);
+            if (!approval || !wsId) return null;
+            return (
+              <View className="px-4">
+                <ApprovalAskCard approval={approval} wsId={wsId} />
+              </View>
+            );
           }
           return item.entry.type === "comment" ? (
             <CommentCard

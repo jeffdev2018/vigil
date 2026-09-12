@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
+import { useCallback, useMemo, useState } from "react";
 import { AlertCircle, Cloud, Monitor, Pencil, Plus, Server } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
@@ -22,6 +24,7 @@ import { AppLink } from "../../navigation";
 import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import {
   buildRuntimeMachines,
+  capitalize,
   sharedCustomName,
 } from "./runtime-machines";
 import { RenameMachineDialog } from "./rename-machine-dialog";
@@ -30,6 +33,7 @@ import { pendingRuntimesForProfiles } from "./pending-runtime";
 import { MachineCliSection } from "./machine-cli-section";
 import { SkippedAgentsSection } from "./skipped-agents-section";
 import { HealthIcon, useHealthLabel } from "./shared";
+import { useNowTick } from "./use-now-tick";
 import { useT, useTimeAgo } from "../../i18n";
 
 export interface RuntimeDetailPageProps {
@@ -42,14 +46,6 @@ export interface RuntimeDetailPageProps {
   bootstrapping?: boolean;
 }
 
-function useNowTick(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 function decodeRouteParam(value: string): string {
   try {
@@ -95,7 +91,7 @@ export function RuntimeDetailPage({
   const healthLabel = useHealthLabel();
   const timeAgo = useTimeAgo();
   const currentUserId = useAuthStore((state) => state.user?.id);
-  const { data: runtimes = [], isLoading } = useQuery(runtimeListOptions(wsId));
+  const { data: runtimes = [], isLoading, error: runtimesError, refetch: refetchRuntimes } = useQuery(runtimeListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: tasks = [] } = useQuery(agentTaskSnapshotOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
@@ -119,6 +115,10 @@ export function RuntimeDetailPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        cloudMachineTitle: (provider) =>
+          t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
+        localMachineTitle: t(($) => $.machine.this_machine),
+        unknownMachineTitle: t(($) => $.machine.unknown_machine),
       }),
     [
       runtimes,
@@ -128,6 +128,7 @@ export function RuntimeDetailPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      t,
     ],
   );
   const baseMachine = findMachine(baseMachines, machineLocator);
@@ -180,6 +181,10 @@ export function RuntimeDetailPage({
 
   if (isLoading) return <MachineDetailSkeleton />;
 
+  if (!machine && runtimesError && !isResourceMissingError(runtimesError)) {
+    return <LoadErrorState onRetry={() => void refetchRuntimes()} />;
+  }
+
   if (!machine) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -219,7 +224,7 @@ export function RuntimeDetailPage({
               {t(($) => $.page.title)}
             </AppLink>
             <span aria-hidden="true">/</span>
-            <span className="truncate text-foreground">{machine.title}</span>
+            <span title={machine.title} className="truncate text-foreground">{machine.title}</span>
           </div>
 
           <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

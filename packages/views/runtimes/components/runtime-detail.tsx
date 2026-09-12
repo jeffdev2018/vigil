@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Trash2,
   ChevronRight,
@@ -42,6 +42,7 @@ import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { AppLink, useNavigation } from "../../navigation";
 import { availabilityConfig, workloadConfig } from "../../agents/presence";
 import { HealthBadge } from "./shared";
+import { useNowTick } from "./use-now-tick";
 import { ProviderLogo } from "./provider-logo";
 import { UsageSection } from "./usage-section";
 import { SandboxEditor } from "./sandbox-editor";
@@ -73,14 +74,6 @@ function shortDaemonId(id: string | null): string | null {
 // query data arriving. Agent presence has no time windows anymore, so it
 // doesn't need this — but useWorkspacePresenceMap is the dependency we
 // already mounted on this page, and that's wired to query data, not `now`.
-function useNowTick(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 export function RuntimeDetail({
   runtime,
@@ -308,7 +301,7 @@ function HeroCard({
                 size="sm"
                 enableHoverCard
               />
-              <span className="cursor-pointer truncate text-body">{ownerMember.name}</span>
+              <span className="truncate text-body">{ownerMember.name}</span>
             </span>
           ) : (
             <span className="text-body text-muted-foreground">—</span>

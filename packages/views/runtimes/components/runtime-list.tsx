@@ -77,6 +77,7 @@ import {
   pendingRuntimeCommandName,
 } from "./pending-runtime";
 import { useT, useTimeAgo } from "../../i18n";
+import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 
 // The machine detail's runtimes table on the shared ListGrid. Paradigm
 // pieces are taken À LA CARTE here: subgrid template + var-width tracks +
@@ -422,10 +423,14 @@ export function CostCell({
     ...runtimeUsageOptions(runtimeId, COST_CELL_DAYS, tz),
     enabled,
   });
-  const cost7d = useMemo(() => computeCostInWindow(usage, 7, tz), [usage, tz]);
+  const pricings = useCustomPricingStore((s) => s.pricings);
+  const cost7d = useMemo(
+    () => computeCostInWindow(usage, 7, tz, 0, pricings),
+    [usage, tz, pricings],
+  );
   const costPrev7d = useMemo(
-    () => computeCostInWindow(usage, 7, tz, 7),
-    [usage, tz],
+    () => computeCostInWindow(usage, 7, tz, 7, pricings),
+    [usage, tz, pricings],
   );
   const delta = pctChange(cost7d, costPrev7d);
 

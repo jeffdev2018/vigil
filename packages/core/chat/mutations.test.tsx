@@ -10,6 +10,7 @@ import { setApiInstance } from "../api";
 import type { ApiClient } from "../api/client";
 import {
   useConsumeChatDraftRestore,
+  useDeleteChatSession,
   useSetChatSessionArchived,
   useSetChatSessionProject,
 } from "./mutations";
@@ -255,5 +256,63 @@ describe("useConsumeChatDraftRestore", () => {
       restores: { id: string }[];
     };
     expect(cached.restores.map((r) => r.id)).toEqual(["r2"]);
+  });
+});
+
+// JEF-397: a delete awaits the server. The row must survive a refusal and
+// leave the list only after a confirmed success — never optimistically.
+describe("useDeleteChatSession", () => {
+  let qc: QueryClient;
+
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData<ChatSession[]>(chatKeys.sessions(WS_ID), [
+      makeSession({ id: "s1" }),
+      makeSession({ id: "s2" }),
+    ]);
+  });
+
+  afterEach(() => {
+    qc.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the session in the list when the server refuses", async () => {
+    const deleteChatSession = vi.fn().mockRejectedValue(new Error("403"));
+    setApiInstance({ deleteChatSession } as unknown as ApiClient);
+    const { result } = renderHook(() => useDeleteChatSession(), { wrapper: createWrapper(qc) });
+
+    await act(async () => {
+      await result.current.mutateAsync("s1").catch(() => undefined);
+    });
+
+    expect(qc.getQueryData<ChatSession[]>(chatKeys.sessions(WS_ID))?.map((s) => s.id)).toEqual([
+      "s1",
+      "s2",
+    ]);
+  });
+
+  it("drops the session only once the server confirms", async () => {
+    let resolve!: () => void;
+    const gate = new Promise<void>((r) => (resolve = r));
+    const deleteChatSession = vi.fn(() => gate);
+    setApiInstance({ deleteChatSession } as unknown as ApiClient);
+    const { result } = renderHook(() => useDeleteChatSession(), { wrapper: createWrapper(qc) });
+
+    let pending!: Promise<unknown>;
+    await act(async () => {
+      pending = result.current.mutateAsync("s1");
+      await Promise.resolve();
+    });
+    expect(deleteChatSession).toHaveBeenCalledWith("s1");
+    expect(qc.getQueryData<ChatSession[]>(chatKeys.sessions(WS_ID))).toHaveLength(2);
+
+    await act(async () => {
+      resolve();
+      await pending;
+    });
+    expect(qc.getQueryData<ChatSession[]>(chatKeys.sessions(WS_ID))?.map((s) => s.id)).toEqual([
+      "s2",
+    ]);
   });
 });

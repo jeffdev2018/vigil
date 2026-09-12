@@ -106,6 +106,17 @@ func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID
 	return err
 }
 
+const deleteWorkspaceAgentConsults = `-- name: DeleteWorkspaceAgentConsults :exec
+DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1
+`
+
+// agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
+// before the agent rows it logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentConsults(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentConsults, workspaceID)
+	return err
+}
+
 const deleteWorkspaceAgentEffects = `-- name: DeleteWorkspaceAgentEffects :exec
 DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1
 `
@@ -657,10 +668,14 @@ func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtyp
 }
 
 const deleteWorkspaceNotes = `-- name: DeleteWorkspaceNotes :exec
+WITH passages AS (
+    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
+)
 DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1
 `
 
-// workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+// workspace_note carries no FK by repo rule; sweep the Brain by workspace,
+// with its search passages in the same statement.
 func (q *Queries) DeleteWorkspaceNotes(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceNotes, workspaceID)
 	return err
@@ -772,12 +787,21 @@ deleted_project_goals AS (
 deleted_cycle_snapshots AS (
     DELETE FROM cycle_snapshot WHERE cycle_snapshot.workspace_id = $1
 ),
+deleted_cycle_actor_capacities AS (
+    DELETE FROM cycle_actor_capacity WHERE cycle_actor_capacity.workspace_id = $1
+),
 deleted_cycles AS (
     DELETE FROM cycle WHERE cycle.workspace_id = $1
+),
+deleted_project_sandbox_policies AS (
+    DELETE FROM project_sandbox_policy
+    WHERE project_id IN (SELECT id FROM project WHERE project.workspace_id = $1)
 )
 DELETE FROM project WHERE project.workspace_id = $1
 `
 
+// JEF-256: keyed by project, not workspace, so the sweep goes through the
+// project set this same statement is about to remove.
 func (q *Queries) DeleteWorkspaceRuntimesAndProjects(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceRuntimesAndProjects, workspaceID)
 	return err

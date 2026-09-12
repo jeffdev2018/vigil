@@ -17,6 +17,7 @@ import {
   useUpdateAutopilot,
 } from "@multica/core/autopilots";
 import { useWorkspacePaths } from "@multica/core/paths";
+import { runBulk } from "@multica/core/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
@@ -57,17 +58,27 @@ export function DeleteAutopilotsDialog({
 
   const handleDelete = async () => {
     setDeleting(true);
-    try {
-      for (const row of rows) {
-        await deleteAutopilot.mutateAsync(row.id);
-      }
+    // Every row is attempted independently: one 5xx/network failure must not
+    // strand rows that would have deleted fine. useDeleteAutopilot patches
+    // the cache per successfully deleted id via its own onSuccess, so
+    // succeeded rows still disappear regardless of how many rows failed; the
+    // dialog only closes (and onDeleted only fires) on a fully clean run, so
+    // the failed rows stay in the list, still selected, for retry.
+    const { succeeded, failed } = await runBulk(rows, (row) =>
+      deleteAutopilot.mutateAsync(row.id),
+    );
+    setDeleting(false);
+    if (failed.length === 0) {
       onOpenChange(false);
       onDeleted?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
+      return;
     }
+    toast.error(
+      t(($) => $.actions.delete_dialog.partial, {
+        succeeded: succeeded.length,
+        failed: failed.length,
+      }),
+    );
   };
 
   return (
@@ -124,15 +135,25 @@ export function DeleteAutopilotsDialog({
 // ---------------------------------------------------------------------------
 
 function useSetStatus() {
+  const { t } = useT("autopilots");
   const updateAutopilot = useUpdateAutopilot();
   return async (rows: Autopilot[], status: "active" | "paused") => {
-    try {
-      for (const row of rows) {
-        if (row.status === status) continue;
-        await updateAutopilot.mutateAsync({ id: row.id, status });
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+    // Same failure-tolerant shape as AutopilotDeleteDialog.handleDelete
+    // above: every row is attempted independently (runBulk uses
+    // Promise.allSettled) so one 5xx/network failure never strands rows
+    // that would have updated fine — the old sequential for-loop aborted
+    // the whole batch on the first rejection.
+    const targets = rows.filter((row) => row.status !== status);
+    const { succeeded, failed } = await runBulk(targets, (row) =>
+      updateAutopilot.mutateAsync({ id: row.id, status }),
+    );
+    if (failed.length > 0) {
+      toast.error(
+        t(($) => $.actions.status_partial, {
+          succeeded: succeeded.length,
+          failed: failed.length,
+        }),
+      );
     }
   };
 }

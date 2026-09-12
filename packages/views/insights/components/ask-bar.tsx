@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pin, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { ApiError } from "@multica/core/api";
@@ -108,11 +109,21 @@ export function AskBar({ wsId }: { wsId: string }) {
               disabled={!canPin}
               onClick={() => {
                 if (answer.query == null) return;
-                pin.mutate({
-                  name: answeredQuestion.slice(0, 80),
-                  question: answeredQuestion,
-                  query: answer.query,
-                });
+                pin.mutate(
+                  {
+                    name: answeredQuestion.slice(0, 80),
+                    question: answeredQuestion,
+                    query: answer.query,
+                  },
+                  {
+                    onError: (err) =>
+                      toast.error(
+                        err instanceof Error && err.message
+                          ? err.message
+                          : t(($) => $.insights.pin_failed),
+                      ),
+                  },
+                );
               }}
             >
               <Pin aria-hidden="true" />

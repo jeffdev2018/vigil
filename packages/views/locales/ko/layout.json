@@ -10,6 +10,8 @@
     "projects": "프로젝트",
     "goals": "목표",
     "cycles": "사이클",
+    "roadmap": "로드맵",
+    "calendar": "캘린더",
     "autopilots": "오토파일럿",
     "agents": "에이전트",
     "org": "조직",
@@ -17,6 +19,7 @@
     "brain": "Brain",
     "usage": "분석",
     "runtimes": "런타임",
+    "runs": "실행",
     "skills": "스킬",
     "settings": "설정"
   },
@@ -55,6 +58,8 @@
     "invitation_workspace_fallback": "워크스페이스",
     "invitation_join": "참가",
     "invitation_decline": "거절",
+    "invitation_accept_failed": "워크스페이스에 참여할 수 없습니다.",
+    "invitation_decline_failed": "초대를 거절할 수 없습니다.",
     "log_out": "로그아웃",
     "new_issue": "새 이슈",
     "new_issue_shortcut": "C",
@@ -67,6 +72,28 @@
     "discord_card": {
       "title": "Discord 참여하기",
       "dismiss": "닫기"
-    }
+    },
+    "more_nav": "아래에 항목이 더 있습니다"
+  },
+  "history": {
+    "go_back": "뒤로 가기",
+    "go_forward": "앞으로 가기"
+  },
+  "tab_bar": {
+    "pin_tab": "탭 고정",
+    "unpin_tab": "탭 고정 해제",
+    "close_tab": "탭 닫기",
+    "close_other_tabs": "다른 탭 닫기",
+    "open_as_new_window": "새 창에서 열기",
+    "new_tab": "새 탭"
+  },
+  "route_error": {
+    "not_found_title": "이 페이지가 존재하지 않습니다",
+    "not_found_body": "Multica에서 이 주소와 일치하는 항목이 없습니다. 링크를 통해 여기에 왔다면 해당 링크는 페이지가 아니라 다른 사람의 컴퓨터에 있는 파일을 가리키고 있을 가능성이 높습니다.",
+    "go_to_issues": "이슈로 이동",
+    "unexpected_title": "이 탭에서 오류가 발생했습니다",
+    "unexpected_body": "라우트 수준의 렌더링 오류가 발생했지만 데스크톱 셸 전체에 영향을 주기 전에 격리되었습니다. 이 탭을 새로고침하거나 문제가 계속되면 보고서를 보내주세요.",
+    "reload_tab": "탭 새로고침",
+    "report_error": "오류 신고"
   }
 }

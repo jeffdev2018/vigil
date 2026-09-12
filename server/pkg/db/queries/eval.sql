@@ -20,6 +20,11 @@ SELECT * FROM eval_suite WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 
 -- name: GetEvalSuite :one
 SELECT * FROM eval_suite WHERE id = $1;
 
+-- name: GetEvalSuitesByIDs :many
+-- Batch variant of GetEvalSuite for ListEvalRuns/ListBenchmarks, which
+-- otherwise resolve the suite name once per run on the page.
+SELECT * FROM eval_suite WHERE id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: CreateEvalRun :one
 INSERT INTO eval_run (id, workspace_id, suite_id, agent_id, agent_version_id, started_by)
 VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
@@ -44,6 +49,11 @@ WHERE workspace_id = $1 AND benchmark AND id = ANY(sqlc.arg(ids)::uuid[]);
 -- name: GetEvalRun :one
 SELECT * FROM eval_run WHERE id = $1;
 
+-- name: GetEvalRunsByIDs :many
+-- Batch variant of GetEvalRun for ListBenchmarks' baseline-delta lookup,
+-- which otherwise resolves one baseline run per benchmark run on the page.
+SELECT * FROM eval_run WHERE id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: ListEvalRuns :many
 -- Plain runs only: a benchmark (JEF-276) creates one eval_run per candidate,
 -- and listing those here would fill the run history with rows that differ
@@ -67,6 +77,19 @@ FROM eval_run_case rc
 LEFT JOIN eval_case c ON c.id = rc.case_id
 WHERE rc.run_id = $1
 ORDER BY c.created_at ASC;
+
+-- name: ListEvalRunCasesByRunIDs :many
+-- Batch variant of ListEvalRunCases for ListEvalRuns/ListBenchmarks/
+-- BenchmarkPolicySearch, which otherwise list one run's cases at a time for
+-- every run on the page (up to 200 runs, or up to evalMaxSuiteCases for a
+-- policy search). Same columns as ListEvalRunCases (rc.* includes run_id),
+-- so its row type converts directly to db.ListEvalRunCasesRow; group by
+-- run_id in Go after fetching.
+SELECT rc.*, c.title AS case_title
+FROM eval_run_case rc
+LEFT JOIN eval_case c ON c.id = rc.case_id
+WHERE rc.run_id = ANY(sqlc.arg('run_ids')::uuid[])
+ORDER BY rc.run_id, c.created_at ASC;
 
 -- name: GetEvalRunCaseByTask :one
 -- The eval case a run belongs to: its own run, or the retry chain of it.

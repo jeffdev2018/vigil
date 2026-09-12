@@ -10,7 +10,8 @@
     "issues": "이슈",
     "cancelled": "취소됨",
     "recent": "최근 항목",
-    "why": "이유"
+    "why": "이유",
+    "brain": "Brain"
   },
   "commands": {
     "current_theme_aria": "현재 테마",
@@ -40,5 +41,10 @@
     "task_message": "실행 메시지",
     "decision_record": "결정 기록",
     "empty": "관련 출처가 없습니다. 질문을 바꿔 보세요."
+  },
+  "brain": {
+    "capture": "Brain에 캡처: {{text}}",
+    "captured": "캡처에 담았습니다",
+    "capture_failed": "캡처에 실패했습니다"
   }
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
@@ -3296,5 +3297,97 @@ func TestWebhook_UninstallDeletesAllBindings(t *testing.T) {
 	}
 	if !seen[testWorkspaceID] || !seen[uuidToString(wsB.ID)] {
 		t.Errorf("deleted broadcasts must cover both workspaces; saw %v", seen)
+	}
+}
+
+// TestDeleteGitHubInstallation_MissingRowReturns404 is the regression test
+// for the DeleteGitHubInstallation rows-affected fix: the handler used to
+// call the :exec variant of the delete query (discarding the DELETE's
+// rows-affected count) and always answer 204 + publish the deleted event,
+// even when the id/workspace pair matched no row. It now uses :execrows and
+// answers 404 without publishing when nothing was deleted.
+func TestDeleteGitHubInstallation_MissingRowReturns404(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("handler test fixture not initialized (no DB?)")
+	}
+	missingID := uuidToString(dbid.NewV7())
+	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+testWorkspaceID+"/github/installations/"+missingID, nil)
+	req = testutil.WithURLParams(req, "id", testWorkspaceID, "installationId", missingID)
+	testutil.Call(t, testHandler.DeleteGitHubInstallation, req).Want(http.StatusNotFound)
+}
+
+// TestDeleteGitHubInstallation_DeletesExactlyOnce proves the happy path
+// still returns 204 on the first delete, and now correctly reports 404
+// (rather than a phantom second 204) if the same id is deleted again.
+func TestDeleteGitHubInstallation_DeletesExactlyOnce(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("handler test fixture not initialized (no DB?)")
+	}
+	ctx := context.Background()
+	inst, err := testHandler.Queries.CreateGitHubInstallation(ctx, db.CreateGitHubInstallationParams{
+		WorkspaceID:    parseUUID(testWorkspaceID),
+		InstallationID: 91234567,
+		AccountLogin:   "delete-once-acct",
+		AccountType:    "Organization",
+	})
+	if err != nil {
+		t.Fatalf("CreateGitHubInstallation: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM github_installation WHERE id = $1`, inst.ID)
+	})
+
+	installID := uuidToString(inst.ID)
+	req := httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+testWorkspaceID+"/github/installations/"+installID, nil)
+	req = testutil.WithURLParams(req, "id", testWorkspaceID, "installationId", installID)
+	testutil.Call(t, testHandler.DeleteGitHubInstallation, req).Want(http.StatusNoContent)
+
+	req = httptest.NewRequest(http.MethodDelete, "/api/workspaces/"+testWorkspaceID+"/github/installations/"+installID, nil)
+	req = testutil.WithURLParams(req, "id", testWorkspaceID, "installationId", installID)
+	testutil.Call(t, testHandler.DeleteGitHubInstallation, req).Want(http.StatusNotFound)
+}
+
+// TestFetchInstallationAccount_TimesOut is the regression test for the
+// context.WithTimeout fix: fetchInstallationAccount used to call
+// http.DefaultClient.Do with no independent timeout, so a hung GitHub API
+// would block the /api/github/setup redirect until the caller's own
+// context was cancelled. It now bounds the call with
+// githubInstallationFetchTimeout, shortened here so the test doesn't wait
+// out the real 8s default.
+func TestFetchInstallationAccount_TimesOut(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block // never respond within the test's timeout budget
+	}))
+	// httptest.Server.Close blocks until outstanding requests finish, so the
+	// blocked handler goroutine must be released *before* Close is called —
+	// t.Cleanup alone won't guarantee that order across two registrations.
+	t.Cleanup(func() {
+		close(block)
+		srv.Close()
+	})
+
+	oldBase := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = oldBase })
+
+	oldTimeout := githubInstallationFetchTimeout
+	githubInstallationFetchTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { githubInstallationFetchTimeout = oldTimeout })
+
+	done := make(chan struct{})
+	var login string
+	go func() {
+		login, _, _ = fetchInstallationAccount(context.Background(), 1)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if login != "unknown" {
+			t.Errorf("login = %q, want the unknown placeholder on timeout", login)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("fetchInstallationAccount did not return within 2s of its 50ms timeout — timeout not wired in")
 	}
 }

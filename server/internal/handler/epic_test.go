@@ -28,7 +28,7 @@ func epicProject(t *testing.T) string {
 	agentID := dbfx.Agent(t, "epic mika "+uuid.NewString()[:8], handlerTestRuntimeID(t))
 	dbfx.Exec(t, `UPDATE agent SET system_key = $2 WHERE id = $1`, agentID, service.MikaSystemKey)
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM epic_artifact WHERE project_id = $1`, projectID)
 		testPool.Exec(ctx, `DELETE FROM issue_dependency WHERE issue_id IN (SELECT id FROM issue WHERE project_id = $1) OR depends_on_issue_id IN (SELECT id FROM issue WHERE project_id = $1)`, projectID)
@@ -415,5 +415,24 @@ func TestEpicUnknownStateIsReturnedAsData(t *testing.T) {
 	latest := getEpic(t, projectID).Steps[epicKindPRD].Latest
 	if latest == nil || latest.State != "archived" {
 		t.Fatalf("latest = %+v; want the unknown state served as data", latest)
+	}
+}
+
+// TestEpicGenerateRejectsMalformedBody guards a real bug: GenerateProjectEpicStep
+// discarded the request body's Decode error entirely, so a client that sent a
+// non-empty but malformed JSON body (e.g. a typo'd agent_id field) silently
+// fell back to the workspace's default Mika agent — the exact same outcome as
+// sending no body at all — instead of a 400 telling them the body was rejected.
+func TestEpicGenerateRejectsMalformedBody(t *testing.T) {
+	projectID := epicProject(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+projectID+"/epic/steps/"+epicKindPRD+"/generate", strings.NewReader(`{"agent_id": `))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-ID", testUserID)
+	req.Header.Set("X-Workspace-ID", testWorkspaceID)
+	req = testutil.WithURLParams(req, "id", projectID, "kind", epicKindPRD)
+	w := httptest.NewRecorder()
+	testHandler.GenerateProjectEpicStep(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("generate with malformed body: expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }

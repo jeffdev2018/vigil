@@ -19,6 +19,7 @@ import { IssuesPage } from "@multica/views/issues/components";
 import { ProjectsPage } from "@multica/views/projects/components";
 import { GoalsPage } from "@multica/views/goals/components";
 import { CyclesPage } from "@multica/views/cycles/components";
+import { CalendarPage } from "@multica/views/calendar/components";
 import { OrgPage } from "@multica/views/org/components";
 import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
@@ -31,9 +32,11 @@ import {
   ChooseCreateMethodPage,
   ManualCreateAgentPage,
 } from "@multica/views/agents";
-import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@multica/views/squads/components";
+import { SquadsPage } from "@multica/views/squads/components";
+import { SquadDetailPage } from "./pages/squad-detail-page";
 import { InboxPage } from "@multica/views/inbox";
 import { TriagePage } from "@multica/views/triage";
+import { RunsPage } from "@multica/views/runs";
 import { MeetingsPage } from "@multica/views/meetings";
 import { MeetingDetailPage } from "./pages/meeting-detail-page";
 import { PostmortemPage } from "@multica/views/postmortem";
@@ -76,7 +79,9 @@ function DesktopSettingsRoute() {
 
 /**
  * Sets document.title from the deepest matched route's handle.title.
- * The tab system observes document.title via MutationObserver.
+ * document.title only ever feeds the OS window title / TitleSync — the
+ * visible tab-bar label comes from useTabPresentation/useTabTitle (i18n),
+ * not from this or a MutationObserver (see tab-bar.tsx).
  * Pages with dynamic titles (e.g. issue detail) override by setting
  * document.title directly via useDocumentTitle().
  */
@@ -178,6 +183,11 @@ export const appRoutes: RouteObject[] = [
             handle: { title: "Cycle" },
           },
           {
+            path: "calendar",
+            element: <CalendarPage />,
+            handle: { title: "Calendar" },
+          },
+          {
             path: "org",
             element: <OrgPage />,
             handle: { title: "Org" },
@@ -252,11 +262,12 @@ export const appRoutes: RouteObject[] = [
           { path: "squads", element: <SquadsPage />, handle: { title: "Squads" } },
           {
             path: "squads/:id",
-            element: <SquadDetailPageView />,
+            element: <SquadDetailPage />,
             handle: { title: "Squad" },
           },
           { path: "inbox", element: <InboxPage />, handle: { title: "Inbox" } },
           { path: "triage", element: <TriagePage />, handle: { title: "Triage" } },
+          { path: "runs", element: <RunsPage />, handle: { title: "Runs" } },
           {
             path: "meetings",
             element: <MeetingsPage />,

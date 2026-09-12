@@ -13,6 +13,7 @@ import {
   useSidebar,
 } from "@multica/ui/components/ui/sidebar";
 import { ModalRegistry } from "@multica/views/modals/registry";
+import { useT } from "@multica/views/i18n";
 import {
   AppSidebar,
   GlobalShortcuts,
@@ -47,6 +48,7 @@ const toolbarMotion = {
 } as const;
 
 function WindowToolbar() {
+  const { t } = useT("layout");
   const { canGoBack, canGoForward, goBack, goForward } = useTabHistory();
   const navButtonClassName =
     "flex size-7 items-center justify-center rounded-md text-faint-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-30";
@@ -72,8 +74,8 @@ function WindowToolbar() {
             type="button"
             onClick={goBack}
             disabled={!canGoBack}
-            aria-label="Go back"
-            title="Go back"
+            aria-label={t(($) => $.history.go_back)}
+            title={t(($) => $.history.go_back)}
             className={navButtonClassName}
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           >
@@ -83,8 +85,8 @@ function WindowToolbar() {
             type="button"
             onClick={goForward}
             disabled={!canGoForward}
-            aria-label="Go forward"
-            title="Go forward"
+            aria-label={t(($) => $.history.go_forward)}
+            title={t(($) => $.history.go_forward)}
             className={navButtonClassName}
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           >

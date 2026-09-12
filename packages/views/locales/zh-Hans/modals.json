@@ -130,6 +130,7 @@
     "local_on_device": "绑定到 {{device}}",
     "local_this_machine": "本机",
     "local_daemon_offline": "守护进程未运行——启动后才能绑定本地目录。",
+    "local_daemon_dropped": "选择文件夹期间守护进程已离线——请先重新连接，再创建项目。",
     "local_pick": "选择目录…",
     "local_picking": "正在打开选择器…",
     "local_change": "更换目录…",
@@ -241,7 +242,8 @@
       "error_agent_unavailable_fallback": "智能体不可用，请换一个。",
       "error_daemon_version": "该智能体的守护进程 CLI（{{current}}）低于要求的 {{min}}。请升级守护进程后再使用通过智能体创建。",
       "error_unknown": "提交失败，请重试。",
-      "sub_issue_of": "作为 {{identifier}} 的子任务"
+      "sub_issue_of": "作为 {{identifier}} 的子任务",
+      "run_notice": "点击创建会启动 {{name}} 的一次运行：由智能体根据你的描述撰写任务。"
     },
     "scoping_toggle": "用几句话生成草稿",
     "scoping_placeholder": "用几句话描述这个议题…",
@@ -257,6 +259,13 @@
     "title_blocked_by": "选择阻塞此任务的任务",
     "description": "搜索要与当前任务关联的任务",
     "toast_failed": "添加依赖失败",
-    "toast_success": "已关联 {{identifier}}"
+    "toast_success": "已关联 {{identifier}}",
+    "title": "添加关系",
+    "type_labels": {
+      "blocks": "阻碍",
+      "blocked_by": "被阻碍",
+      "related": "相关",
+      "duplicate": "重复"
+    }
   }
 }

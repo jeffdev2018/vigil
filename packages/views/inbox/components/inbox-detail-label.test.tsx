@@ -147,6 +147,19 @@ describe("InboxDetailLabel localized values", () => {
     expect(container.textContent).toContain("8月21日");
     expect(container.textContent).not.toContain("Aug");
   });
+
+  // Regression: confidence_review and run_limit_* are real server-emitted
+  // inbox types (run_confidence.go, run_limit.go notifyRunLimit) that were
+  // missing from InboxItemType/useTypeLabels — the default case's
+  // `typeLabels[item.type] ?? item.type` fell through to the raw wire key.
+  it.each(["confidence_review", "run_limit_warn", "run_limit_exceeded", "run_limit_stopped"] as const)(
+    "renders a localized label instead of the raw wire key for %s",
+    (type) => {
+      const { container } = render(<InboxDetailLabel item={item({ type })} />);
+      expect(container.textContent).not.toBe(type);
+      expect(container.textContent).toBe(en.types[type]);
+    },
+  );
 });
 
 // The triage digest is a workspace-level notice: it has no issue, so its

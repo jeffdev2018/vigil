@@ -10,6 +10,8 @@
     "projects": "Projets",
     "goals": "Objectifs",
     "cycles": "Cycles",
+    "roadmap": "Roadmap",
+    "calendar": "Calendrier",
     "autopilots": "Autopilot",
     "agents": "Agents",
     "org": "Organisation",
@@ -17,6 +19,7 @@
     "brain": "Brain",
     "usage": "Analytics",
     "runtimes": "Runtimes",
+    "runs": "Runs",
     "skills": "Compétences",
     "settings": "Paramètres"
   },
@@ -55,6 +58,8 @@
     "invitation_workspace_fallback": "Workspace",
     "invitation_join": "Rejoindre",
     "invitation_decline": "Décliner",
+    "invitation_accept_failed": "Impossible de rejoindre le workspace.",
+    "invitation_decline_failed": "Impossible de décliner l'invitation.",
     "log_out": "Se déconnecter",
     "new_issue": "Nouvelle issue",
     "new_issue_shortcut": "C",
@@ -67,6 +72,28 @@
     "discord_card": {
       "title": "Rejoignez notre Discord",
       "dismiss": "Ignorer"
-    }
+    },
+    "more_nav": "D'autres entrées plus bas"
+  },
+  "history": {
+    "go_back": "Retour",
+    "go_forward": "Avancer"
+  },
+  "tab_bar": {
+    "pin_tab": "Épingler l'onglet",
+    "unpin_tab": "Dépingler l'onglet",
+    "close_tab": "Fermer l'onglet",
+    "close_other_tabs": "Fermer les autres onglets",
+    "open_as_new_window": "Ouvrir dans une nouvelle fenêtre",
+    "new_tab": "Nouvel onglet"
+  },
+  "route_error": {
+    "not_found_title": "Cette page n'existe pas",
+    "not_found_body": "Rien dans Multica ne correspond à cette adresse. Si vous êtes arrivé·e ici via un lien, il pointe probablement vers un fichier sur l'ordinateur de quelqu'un d'autre plutôt que vers une page.",
+    "go_to_issues": "Aller aux Issues",
+    "unexpected_title": "Une erreur est survenue dans cet onglet",
+    "unexpected_body": "Une erreur de rendu au niveau de la route a été contenue avant qu'elle ne fasse planter l'application. Rechargez cet onglet, ou envoyez le rapport si le problème persiste.",
+    "reload_tab": "Recharger l'onglet",
+    "report_error": "Signaler l'erreur"
   }
 }

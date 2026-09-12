@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestAttentionInboxFollowsDecisionCards(t *testing.T) {
 	var inboxID string
 	dbfx.QueryRow(t, `SELECT id FROM inbox_item WHERE recipient_id = $1 AND type = 'decision_request' AND details->>'decision_id' = $2`,
 		testUserID, created.Decision.ID).Scan(&inboxID)
-	t.Cleanup(func() { testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE id = $1`, inboxID) })
+	t.Cleanup(func() { testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE id = $1`, inboxID) })
 
 	item := attentionItem(listAttention(t), inboxID)
 	if item == nil {

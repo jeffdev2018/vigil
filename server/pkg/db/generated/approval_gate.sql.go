@@ -135,6 +135,56 @@ func (q *Queries) GetApprovalGateEvent(ctx context.Context, arg GetApprovalGateE
 	return i, err
 }
 
+const getApprovalGatesByDecisionIDs = `-- name: GetApprovalGatesByDecisionIDs :many
+SELECT id, workspace_id, task_id, issue_id, gate_type, decision_request_id, summary, details, resolved_action, created_at, expires_at, resolved_at FROM approval_gate_event
+WHERE decision_request_id = ANY($1::uuid[])
+   OR details->>'pending_decision_id' = ANY($2::text[])
+`
+
+type GetApprovalGatesByDecisionIDsParams struct {
+	DecisionIds       []pgtype.UUID `json:"decision_ids"`
+	DecisionIDStrings []string      `json:"decision_id_strings"`
+}
+
+// Batch variant of GetApprovalGateByDecision for ListApprovals' decisionKind,
+// which otherwise resolves one gate per decision on the feed (up to 200).
+// Matches the same two ways the single-row query does; the caller maps each
+// returned row back to the decision id(s) it matched (decision_request_id
+// directly, and/or details.pending_decision_id, parsed in Go since the ->>
+// comparison can't be reversed after the fact from a plain ANY() match).
+func (q *Queries) GetApprovalGatesByDecisionIDs(ctx context.Context, arg GetApprovalGatesByDecisionIDsParams) ([]ApprovalGateEvent, error) {
+	rows, err := q.db.Query(ctx, getApprovalGatesByDecisionIDs, arg.DecisionIds, arg.DecisionIDStrings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ApprovalGateEvent{}
+	for rows.Next() {
+		var i ApprovalGateEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TaskID,
+			&i.IssueID,
+			&i.GateType,
+			&i.DecisionRequestID,
+			&i.Summary,
+			&i.Details,
+			&i.ResolvedAction,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.ResolvedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listApprovalGateEvents = `-- name: ListApprovalGateEvents :many
 SELECT id, workspace_id, task_id, issue_id, gate_type, decision_request_id, summary, details, resolved_action, created_at, expires_at, resolved_at FROM approval_gate_event WHERE task_id = $1 ORDER BY created_at DESC LIMIT 100
 `

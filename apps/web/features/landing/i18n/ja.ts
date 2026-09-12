@@ -3014,11 +3014,9 @@ export function createJaDict(allowSignup: boolean): LandingDict {
         updates:
           "Multica からの製品アップデート、インサイト、イベントへのご招待を受け取ります。",
         unsubscribe:
-          "配信はいつでも停止できます。データの取り扱いとプライバシーの権利について詳しくは、こちらをご確認ください:",
+          "配信はいつでも停止できます。",
         submitConsent:
           "「送信」をクリックすると、ご依頼いただいたコンテンツをお届けするために、Multica, Inc. が情報を保存・処理することに同意したことになります。",
-        privacyLinkLabel: "プライバシーポリシー。",
-        privacyLinkHref: "/about",
       },
       success: {
         title: "ありがとうございます。確かに受け取りました。",

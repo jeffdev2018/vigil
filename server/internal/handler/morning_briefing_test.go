@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -25,8 +26,8 @@ func briefingCall(t *testing.T, h http.HandlerFunc, method, path string) *testut
 
 func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
 	})
 	setBriefingSettings(t, true, 0, "UTC")
 	done := dbfx.Issue(t, "briefing done", testutil.Cols{"status": "done"})
@@ -38,8 +39,8 @@ func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 	dbfx.Exec(t, `UPDATE agent_task_queue SET error = 'tests failed on CI' WHERE id = $1`, task)
 	asked := dbfx.Issue(t, "briefing asked", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, asked)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, asked)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, asked)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, asked)
 	})
 	askDecision(t, asked, decisionBody()).Want(http.StatusCreated)
 
@@ -94,31 +95,52 @@ func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 
 func TestMorningBriefingSchedulerWaitsForTheLocalHour(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
 	})
+	// SendDueMorningBriefings walks every workspace in the database and its
+	// count includes them all. Under `go test ./...` the database is shared
+	// with other packages' test binaries, so that count moves with whatever
+	// workspaces they have enabled at that moment; assert on this workspace's
+	// own ledger instead.
+	sentRows := func() int {
+		return dbfx.Count(t, `SELECT COUNT(*) FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
+	}
+	run := func(now time.Time) {
+		t.Helper()
+		if _, err := testHandler.SendDueMorningBriefings(t.Context(), now); err != nil {
+			t.Fatalf("scheduler at %s: %v", now, err)
+		}
+	}
 	// Disabled: nothing, whatever the hour.
 	setBriefingSettings(t, false, 0, "UTC")
-	if n, _ := testHandler.SendDueMorningBriefings(t.Context(), time.Now()); n != 0 {
-		t.Fatalf("disabled workspace sent %d", n)
+	run(time.Now())
+	if n := sentRows(); n != 0 {
+		t.Fatalf("disabled workspace logged %d sends, want 0", n)
 	}
 	// Enabled at 09:00 Tokyo: 08:00 Tokyo is too early, 09:30 sends, 10:00 is a no-op.
 	setBriefingSettings(t, true, 9, "Asia/Tokyo")
 	tokyo, _ := time.LoadLocation("Asia/Tokyo")
 	day := time.Date(2026, 9, 10, 8, 0, 0, 0, tokyo)
-	if n, _ := testHandler.SendDueMorningBriefings(t.Context(), day); n != 0 {
-		t.Fatalf("08:00 local sent %d, want 0", n)
+	run(day)
+	if n := sentRows(); n != 0 {
+		t.Fatalf("08:00 local logged %d sends, want 0", n)
 	}
-	if n, _ := testHandler.SendDueMorningBriefings(t.Context(), day.Add(90*time.Minute)); n < 1 {
-		t.Fatalf("09:30 local sent %d, want at least this workspace", n)
+	run(day.Add(90 * time.Minute))
+	if n := sentRows(); n != 1 {
+		t.Fatalf("09:30 local logged %d sends, want 1", n)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID); n < 1 {
+		t.Fatal("09:30 local logged a send but delivered no briefing inbox item")
 	}
 	var date string
 	dbfx.QueryRow(t, `SELECT sent_for_date::text FROM morning_briefing_sent WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 1`, testWorkspaceID).Scan(&date)
 	if date != "2026-09-10" {
 		t.Fatalf("sent_for_date = %q, want the Tokyo date", date)
 	}
-	if n, _ := testHandler.SendDueMorningBriefings(t.Context(), day.Add(2*time.Hour)); n != 0 {
-		t.Fatalf("10:00 local sent %d again, want 0", n)
+	run(day.Add(2 * time.Hour))
+	if n := sentRows(); n != 1 {
+		t.Fatalf("10:00 local logged %d sends, want the 09:30 one only", n)
 	}
 	// Workspace deletion purges the log.
 	ws := dbfx.Workspace(t, "Briefing purge", "briefing-purge-"+uuid.NewString())

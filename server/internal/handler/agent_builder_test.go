@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 func TestCreateAgentBuilderSessionCreatesIsolatedHiddenBuilder(t *testing.T) {
@@ -1345,21 +1347,37 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("hold unrelated session lock: %v", err)
 	}
 
-	blocked := make(chan struct{})
+	// Take the waiter's connection here, not inside the goroutine. Under a
+	// parallel `go test ./...` every package's pool dials the same server and
+	// a fresh connection can be refused at max_connections; a Begin failure
+	// swallowed in the goroutine left no waiter at all, and the probe below
+	// then spent its full 10 s to report the wrong cause.
+	waiterConn, err := testPool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire a connection for the unrelated waiter: %v", err)
+	}
+	defer waiterConn.Release()
+	blocked := make(chan error, 1)
 	go func() {
-		defer close(blocked)
-		waiterTx, err := testPool.Begin(context.Background())
+		waiterTx, err := waiterConn.Begin(context.Background())
 		if err != nil {
+			blocked <- fmt.Errorf("begin unrelated waiter tx: %w", err)
 			return
 		}
 		defer waiterTx.Rollback(context.Background())
-		_, _ = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		_, err = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		blocked <- err
 	}()
 
 	// The unrelated waiter is genuinely parked, so a database-wide probe would
 	// fire here.
 	if !waitForWaiterBlockedBy(t, otherPID, 10*time.Second) {
-		t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		select {
+		case err := <-blocked:
+			t.Fatalf("the unrelated waiter finished without blocking (err: %v); this test cannot prove anything", err)
+		default:
+			t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		}
 	}
 	// Attributed to our holder, it must not.
 	if waitForWaiterBlockedBy(t, holderPID, 500*time.Millisecond) {
@@ -1370,8 +1388,47 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("release unrelated lock: %v", err)
 	}
 	select {
-	case <-blocked:
+	case err := <-blocked:
+		if err != nil {
+			t.Fatalf("unrelated waiter after its blocker released: %v", err)
+		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("unrelated waiter did not finish after its blocker released")
+	}
+}
+
+// TestCreateAgentRejectsTooManySkillIDs is the regression test for the
+// missing skill_ids cap: CreateAgent used to run one GetSkillInWorkspace per
+// id (validation loop) then one AddAgentSkill per id inside the open
+// create transaction, with parseUUIDSliceOrBadRequest enforcing no upper
+// bound — an arbitrarily large skill_ids array drove 2N sequential round
+// trips, part of them holding a transaction open. It now rejects a
+// skill_ids array over maxCreateAgentSkillIDs before doing any of that
+// work.
+func TestCreateAgentRejectsTooManySkillIDs(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	tooMany := make([]string, maxCreateAgentSkillIDs+1)
+	for i := range tooMany {
+		tooMany[i] = uuidToString(dbid.NewV7())
+	}
+
+	w := httptest.NewRecorder()
+	testHandler.CreateAgent(w, newRequest(http.MethodPost, "/api/agents", map[string]any{
+		"name":       "Too Many Skills Agent",
+		"runtime_id": testRuntimeID,
+		"skill_ids":  tooMany,
+	}))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("CreateAgent with %d skill_ids: expected 400, got %d: %s", len(tooMany), w.Code, w.Body.String())
+	}
+
+	var count int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM agent WHERE workspace_id = $1 AND name = 'Too Many Skills Agent'`, testWorkspaceID).Scan(&count); err != nil {
+		t.Fatalf("count agents: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("agent was created despite the oversized skill_ids array")
 	}
 }

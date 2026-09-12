@@ -72,6 +72,9 @@ export type InboxItemType =
   // Transition rules (F28): a status change is held for an approver. Filed for
   // every member holding a role the rule accepts as an approver.
   | "transition_approval_requested"
+  // Goal loop (long tasks): an agent asked the team a typed question and
+  // the chain waits for the answer. Filed for the run's accountable human.
+  | "goal_question"
   // Adversarial critic (F25): the policy could not be honoured (no critic on
   // another provider, or the critic run could not be started), or the loop
   // stopped on its round / cost budget. Both are cases where a policy quietly
@@ -80,7 +83,28 @@ export type InboxItemType =
   | "critic_budget"
   // Dated cycles (F29): a cycle ended with unfinished work and no next cycle
   // to roll it into, so it is now planned nowhere. Filed for the project lead.
-  | "cycle_rollover_orphaned";
+  | "cycle_rollover_orphaned"
+  // Native calendar (OS plan, chantier 19): a member was invited to a
+  // scheduled event (filed on create and on a re-invite after it moves), or
+  // gets the fifteen-minute-out reminder.
+  | "calendar_invitation"
+  | "calendar_reminder"
+  // Workspace doctrine (OS plan, chantier 22): a revision is waiting for a
+  // second reviewer (filed for the other owners/admins), or the author is
+  // told how the review went.
+  | "doctrine_review"
+  // An agent (or a member) hit a doctrine rule it could not follow, found two
+  // rules in conflict, or found one too vague to act on. Filed for the
+  // workspace's owners/admins.
+  | "doctrine_report"
+  // Run confidence scoring (JEF-240): a below-threshold delivery is sent to
+  // the workspace's managers for human review.
+  | "confidence_review"
+  // Run limits (server/internal/service/run_limit.go notifyRunLimit): one of
+  // these three per gate/level combination the sweeper can file.
+  | "run_limit_warn"
+  | "run_limit_exceeded"
+  | "run_limit_stopped";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

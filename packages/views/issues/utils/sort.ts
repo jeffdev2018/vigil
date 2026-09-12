@@ -3,6 +3,24 @@ import { PRIORITY_ORDER } from "@multica/core/issues/config";
 import type { SortField, SortDirection } from "@multica/core/issues/stores/view-store";
 import { propertyIdFromViewKey } from "@multica/core/issues/stores/view-store";
 
+// issues.json's display.sort_* keys are named after SORT_OPTIONS' values,
+// except the two `_at`-suffixed fields (created_at/updated_at keep the
+// suffix in the DB but drop it in the locale key: sort_created/sort_updated).
+// Board/list views both build a `t($.display.sort_${...})` selector path
+// from `sortBy` — this is the one mapping, so a field added to SORT_OPTIONS
+// only needs a new display.sort_<key> entry, not a matching ternary in every
+// view.
+export function sortFieldI18nKey(sortBy: SortField): string {
+  switch (sortBy) {
+    case "created_at":
+      return "created";
+    case "updated_at":
+      return "updated";
+    default:
+      return sortBy;
+  }
+}
+
 const PRIORITY_RANK: Record<string, number> = Object.fromEntries(
   PRIORITY_ORDER.map((p, i) => [p, i])
 );

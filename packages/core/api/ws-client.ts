@@ -134,14 +134,24 @@ export class WSClient {
         return;
       }
       this.logger.debug("received", msg.type);
+      // A handler that throws (a payload shape it did not expect, say) must
+      // not take the remaining handlers and the generic listeners down with it.
       const eventHandlers = this.handlers.get(msg.type);
       if (eventHandlers) {
         for (const handler of eventHandlers) {
-          handler(msg.payload, msg.actor_id, msg.actor_type);
+          try {
+            handler(msg.payload, msg.actor_id, msg.actor_type);
+          } catch (err) {
+            this.logger.error("ws: handler failed", msg.type, err);
+          }
         }
       }
       for (const handler of this.anyHandlers) {
-        handler(msg);
+        try {
+          handler(msg);
+        } catch (err) {
+          this.logger.error("ws: listener failed", msg.type, err);
+        }
       }
     };
 

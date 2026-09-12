@@ -121,22 +121,31 @@ func (r *previewRegistry) take(taskID string) (*runPreview, bool) {
 // today the app root is what every dev server answers on.
 const previewHealthPath = "/"
 
-// startRunPreview launches the run script, probes its port, and reports the
-// outcome to the server. It returns once the preview has been declared — the
-// script keeps running in the background until stopRunPreview.
+// startRunPreview registers the preview, then launches the run script, probes
+// its port and reports the outcome in the background. The returned channel
+// closes once the preview has been declared (or skipped); the script keeps
+// running until stopRunPreview.
+//
+// Registration happens before this returns, never in the background: the
+// caller defers stopRunPreview right after, and a stop that ran before a
+// background registration would find nothing, return, and leave the dev server
+// holding its port for the life of the daemon.
 //
 // Everything here is best-effort by design: a preview that could not start is a
 // missing convenience, never a failed run. The agent's work does not depend on
 // the dev server coming up, so a failure is recorded as an `error` preview and
 // the task proceeds.
-func (d *Daemon) startRunPreview(ctx context.Context, task Task, argv []string, workDir, envRoot string, env map[string]string, log *slog.Logger) {
+func (d *Daemon) startRunPreview(ctx context.Context, task Task, argv []string, workDir, envRoot string, env map[string]string, log *slog.Logger) <-chan struct{} {
+	declared := make(chan struct{})
 	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
-		return
+		close(declared)
+		return declared
 	}
 	port, err := previewPortFromEnv(env)
 	if err != nil {
 		log.Warn("run preview: no port block for this run; skipping", "error", err)
-		return
+		close(declared)
+		return declared
 	}
 
 	scheme := "loopback"
@@ -172,20 +181,24 @@ func (d *Daemon) startRunPreview(ctx context.Context, task Task, argv []string, 
 		}
 	}()
 
-	if err := d.probePreviewPort(runCtx, port); err != nil {
-		// A cancelled probe means the RUN ended while the dev server was still
-		// coming up, and stopRunPreview has already reported `stopped`. Writing
-		// `error` on top of it would tell the user their script failed when it
-		// simply ran out of run to serve.
-		if runCtx.Err() != nil {
+	go func() {
+		defer close(declared)
+		if err := d.probePreviewPort(runCtx, port); err != nil {
+			// A cancelled probe means the RUN ended while the dev server was still
+			// coming up, and stopRunPreview has already reported `stopped`. Writing
+			// `error` on top of it would tell the user their script failed when it
+			// simply ran out of run to serve.
+			if runCtx.Err() != nil {
+				return
+			}
+			log.Warn("run preview: the run script never answered", "port", port, "error", err)
+			d.reportPreview(task.ID, port, scheme, "error", previewHealthPath, previewStartError(err, envRoot), log)
 			return
 		}
-		log.Warn("run preview: the run script never answered", "port", port, "error", err)
-		d.reportPreview(task.ID, port, scheme, "error", previewHealthPath, previewStartError(err, envRoot), log)
-		return
-	}
-	log.Info("run preview: ready", "port", port, "scheme", scheme)
-	d.reportPreview(task.ID, port, scheme, "ready", previewHealthPath, "", log)
+		log.Info("run preview: ready", "port", port, "scheme", scheme)
+		d.reportPreview(task.ID, port, scheme, "ready", previewHealthPath, "", log)
+	}()
+	return declared
 }
 
 // stopRunPreview kills the process group and tells the server the preview is

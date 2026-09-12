@@ -10,6 +10,8 @@
     "projects": "项目",
     "goals": "目标",
     "cycles": "周期",
+    "roadmap": "路线图",
+    "calendar": "日历",
     "autopilots": "自动化",
     "agents": "智能体",
     "org": "组织",
@@ -17,6 +19,7 @@
     "brain": "知识库",
     "usage": "统计",
     "runtimes": "运行时",
+    "runs": "运行",
     "skills": "Skills",
     "settings": "设置"
   },
@@ -55,6 +58,8 @@
     "invitation_workspace_fallback": "工作区",
     "invitation_join": "加入",
     "invitation_decline": "拒绝",
+    "invitation_accept_failed": "无法加入工作区。",
+    "invitation_decline_failed": "无法拒绝邀请。",
     "log_out": "退出登录",
     "new_issue": "新建任务",
     "new_issue_shortcut": "C",
@@ -67,6 +72,28 @@
     "discord_card": {
       "title": "加入 Discord",
       "dismiss": "关闭"
-    }
+    },
+    "more_nav": "下方还有更多入口"
+  },
+  "history": {
+    "go_back": "后退",
+    "go_forward": "前进"
+  },
+  "tab_bar": {
+    "pin_tab": "固定标签页",
+    "unpin_tab": "取消固定标签页",
+    "close_tab": "关闭标签页",
+    "close_other_tabs": "关闭其他标签页",
+    "open_as_new_window": "在新窗口中打开",
+    "new_tab": "新建标签页"
+  },
+  "route_error": {
+    "not_found_title": "此页面不存在",
+    "not_found_body": "Multica 中没有与该地址匹配的内容。如果您是通过链接进入此处的,该链接可能指向他人电脑上的文件,而非某个页面。",
+    "go_to_issues": "前往任务",
+    "unexpected_title": "此标签页发生错误",
+    "unexpected_body": "已拦截一个路由级渲染错误,阻止其导致桌面应用整体崩溃。请重新加载此标签页,如果问题持续出现,请发送报告。",
+    "reload_tab": "重新加载标签页",
+    "report_error": "报告错误"
   }
 }

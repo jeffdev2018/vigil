@@ -16,7 +16,8 @@
     "delete": "삭제",
     "no_matches": "일치하는 프로젝트가 없습니다",
     "selected_other": "{{count}}개 선택됨",
-    "clear_selection": "선택 해제"
+    "clear_selection": "선택 해제",
+    "pin_partial": "{{succeeded}}개 고정, {{failed}}개 실패"
   },
   "table": {
     "name": "이름",
@@ -80,7 +81,8 @@
     "toast_link_copied": "링크를 복사했습니다",
     "toast_project_deleted": "프로젝트를 삭제했습니다",
     "toast_move_issue_failed": "이슈를 이동하지 못했습니다",
-    "progress_hint": "완료 및 취소된 이슈를 포함하며 납품 비율이 아닙니다."
+    "progress_hint": "완료 및 취소된 이슈를 포함하며 납품 비율이 아닙니다.",
+    "more_actions_aria": "추가 작업"
   },
   "resources": {
     "section_header": "리소스",
@@ -150,7 +152,8 @@
     "title": "프로젝트 삭제",
     "description": "프로젝트가 삭제됩니다. 이슈는 삭제되지 않지만 프로젝트 연결은 해제됩니다.",
     "confirm": "삭제",
-    "cancel": "취소"
+    "cancel": "취소",
+    "partial": "{{succeeded}}개 삭제, {{failed}}개 실패"
   },
   "picker": {
     "no_project": "프로젝트 없음",
@@ -222,6 +225,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "규칙을 저장하지 못했습니다"
   },
+  "sandbox_policy": {
+    "section": "샌드박스 정책",
+    "description": "이 프로젝트의 에이전트 실행을 제한합니다: 접근 가능한 네트워크 호스트와 민감한 파일 읽기 허용 여부. 워크스페이스, 프로젝트, 이슈 정책이 결합되며 가장 제한적인 정책이 적용됩니다.",
+    "capability_hint": "허용 목록 및 네트워크 차단 모드는 컨테이너 지원 런타임이 필요합니다. 해당 기능이 없는 런타임에서의 실행은 거부되고 장애 조치됩니다 (fail-closed).",
+    "network": "네트워크 접근",
+    "mode": {
+      "unrestricted": "제한 없음",
+      "allowlist": "허용 목록",
+      "none": "네트워크 없음"
+    },
+    "hint": {
+      "unrestricted": "모든 호스트에 접근할 수 있습니다.",
+      "allowlist": "나열된 호스트와 플랫폼 기본 호스트만 접근할 수 있습니다.",
+      "none": "플랫폼에 필요한 것 외에는 네트워크 송신이 없습니다."
+    },
+    "hosts_label": "허용된 호스트",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "한 줄에 하나의 호스트. 플랫폼 기본 호스트는 항상 접근 가능합니다.",
+    "block_sensitive": "민감한 파일 차단",
+    "block_sensitive_help": "에이전트는 .env 파일을 읽어서는 안 됩니다 (최선 노력).",
+    "effective": "이 프로젝트의 유효 값: {{mode}}",
+    "effective_blocked": "민감한 파일 차단됨",
+    "effective_inherited": "워크스페이스 기본값에서 상속됨",
+    "empty": "프로젝트 정책 없음: 워크스페이스 기본값이 적용됩니다.",
+    "save": "정책 저장",
+    "saving": "저장 중...",
+    "reset": "워크스페이스 기본값으로 재설정",
+    "toast_saved": "샌드박스 정책이 저장되었습니다",
+    "toast_reset": "샌드박스 정책이 워크스페이스 기본값으로 재설정되었습니다",
+    "failed": "샌드박스 정책을 저장할 수 없습니다",
+    "load_failed": "샌드박스 정책을 불러올 수 없습니다"
+  },
   "members": {
     "section": "멤버와 역할",
     "description": "여기의 역할은 제한만 합니다. 멤버나 에이전트가 이 프로젝트에서 워크스페이스 역할이 허용하는 것보다 더 많은 권한을 얻지는 않습니다.",
@@ -237,7 +272,12 @@
     "agent": "에이전트",
     "updated": "역할을 갱신했습니다",
     "update_failed": "역할 갱신에 실패했습니다",
-    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다."
+    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다.",
+    "roles": {
+      "viewer": "뷰어",
+      "contributor": "기여자",
+      "admin": "관리자"
+    }
   },
   "review": {
     "section": "에이전트 리뷰",

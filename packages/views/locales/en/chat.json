@@ -31,7 +31,8 @@
     "change_project_context": "Change project context",
     "remove_project_context": "Remove project context",
     "no_projects": "No projects yet",
-    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade"
+    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade",
+    "run_notice": "Sending starts a run of {{name}}; it may take a few minutes."
   },
   "queue": {
     "title_one": "{{count}} queued message",
@@ -247,7 +248,8 @@
     "rename": "Rename chat",
     "archive": "Archive chat",
     "unarchive": "Unarchive chat",
-    "delete": "Delete chat"
+    "delete": "Delete chat",
+    "more_actions_aria": "More actions"
   },
   "voice": {
     "start": "Dictate a message",
@@ -258,7 +260,10 @@
     "error_not_configured": "Transcription is not configured on this server.",
     "error_failed": "The recording could not be transcribed.",
     "listen": "Listen",
-    "stop_listening": "Stop listening"
+    "stop_listening": "Stop listening",
+    "conversation_start": "Conversation mode",
+    "conversation_stop": "End conversation",
+    "conversation_transcribing": "Transcribing…"
   },
   "participants": {
     "add": "Add member",
@@ -269,5 +274,9 @@
     "typing_name": "{{name}} is typing…",
     "typing_count": "{{count}} people are typing…",
     "author_badge": "Sent by {{name}}"
+  },
+  "approvals": {
+    "strip_title_one": "{{count}} pending approval",
+    "strip_title_other": "{{count}} pending approvals"
   }
 }

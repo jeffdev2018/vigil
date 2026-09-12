@@ -19,8 +19,13 @@ declare global {
     ui: {
       attach_file: string;
       toggle_sidebar: string;
+      mobile_sidebar_title: string;
+      mobile_sidebar_description: string;
       copy_code: string;
       plain_text: string;
+      add_reaction: string;
+      loading: string;
+      more_emojis: string;
       error_boundary: {
         title: string;
         description: string;

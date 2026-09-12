@@ -1,0 +1,347 @@
+pack:
+  id: leadership
+  version: 1.0.0
+  title: Direction & leadership team
+  summary: Decisions logged as work items with a named owner, a reversibility call, a weekly briefing and an analyst that prepares options without ever choosing one.
+  description: |
+    Sets up the leadership team's own workspace: a **Decision** work item type,
+    a "Decision owner" and a "Reversible?" property, the two statuses a decision
+    actually waits in, labels for the areas a small company decides about, saved
+    views for what is open and what is waiting, a board-preparation project, an
+    analyst agent that writes decision briefs with alternatives and
+    uncertainties, a weekly briefing autopilot, and a doctrine section that says
+    how a decision is closed here.
+
+    Works with no agent at all: the type, the properties and the views make the
+    decision log usable in the first meeting. Connect the native runtime to let
+    the analyst prepare briefs.
+
+    First week: log the three decisions currently in the air as Decision items,
+    name an owner for each, set "Reversible?", and close one with its rationale
+    written in the item. That single closed decision is the pattern the rest
+    copy.
+  domain: leadership
+  wave: 2
+  author: Multica
+  license: MIT
+  tags: [leadership, decisions, board, briefing]
+  works_without_agents: true
+  metric:
+    label: Decisions closed with a written rationale
+    description: Share of Decision items closed in a month whose item contains the rationale, the alternatives rejected and what would change the call.
+    hint: Type "decision", view "Decision log"; count the closed ones whose description or a comment carries the rationale.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the analyst agent prepare briefs in the browser without a CLI.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: awaiting_decision
+    name: Awaiting decision
+    description: The brief is ready and the named owner has to decide.
+    category: in_review
+    color: "#f59e0b"
+  - key: deferred
+    name: Deferred
+    description: Consciously postponed, with the date or the event that reopens it written in the item.
+    category: blocked
+    color: "#94a3b8"
+
+issue_types:
+  - key: decision
+    name: Decision
+    description: A choice the leadership team has to make and record.
+    color: "#6366f1"
+    icon: gavel
+  - key: briefing
+    name: Briefing item
+    description: Something the team has to read, discuss or prepare — not a decision.
+    color: "#0ea5e9"
+    icon: clipboard-list
+
+labels:
+  - name: strategy
+    description: Direction, positioning, what we stop doing.
+    color: "#6366f1"
+    resource_type: issue
+  - name: budget
+    description: Spend, pricing, runway, fundraising.
+    color: "#f59e0b"
+    resource_type: issue
+  - name: people
+    description: Headcount, roles, organisation, compensation policy.
+    color: "#10b981"
+    resource_type: issue
+  - name: product
+    description: What we build, in which order, for whom.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: risk
+    description: Legal, security, dependency and reputation exposure.
+    color: "#ef4444"
+    resource_type: issue
+  - name: board
+    description: Goes into the next board pack or investor update.
+    color: "#8b5cf6"
+    resource_type: issue
+
+properties:
+  - name: Decision owner
+    type: actor
+    description: The single person who decides. Not the group, not the loudest voice.
+    icon: user-round
+    config: {}
+    issue_types: [decision]
+  - name: "Reversible?"
+    type: select
+    description: How expensive it is to undo. One-way doors get more time and a named dissent.
+    icon: flag
+    config:
+      options:
+        - { name: Reversible, color: "#10b981" }
+        - { name: Costly to undo, color: "#f59e0b" }
+        - { name: One-way door, color: "#ef4444" }
+        - { name: Not yet assessed, color: "#94a3b8" }
+    issue_types: [decision]
+  - name: Binds
+    type: select
+    description: Who has to live with this decision once it is made.
+    icon: user-round
+    config:
+      options:
+        - { name: One team, color: "#10b981" }
+        - { name: The whole company, color: "#f59e0b" }
+        - { name: Customers or partners, color: "#8b5cf6" }
+    issue_types: [decision, briefing]
+
+views:
+  - name: Decision log
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [decision]
+      statusFilters: [backlog, todo, in_progress, awaiting_decision, deferred, done]
+    display: {}
+  - name: Awaiting a decision
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [decision]
+      statusFilters: [awaiting_decision]
+    display: {}
+  - name: Board pack
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [decision, briefing]
+      labelFilters: [board]
+      statusFilters: [todo, in_progress, awaiting_decision]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: deferred
+    enabled: true
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: A decision is not closed without a written rationale
+    attach_point: issue_submit_review
+    natural_language: An issue of type "decision" cannot be submitted for review unless its description or one of its comments states the rationale, the alternatives that were rejected, and what would change the decision.
+  - title: No brief on a decision without a named owner
+    attach_point: agent_run_dispatch
+    natural_language: An agent run must not be dispatched on an issue of type "decision" whose "Decision owner" property is empty.
+
+doctrine: |
+  - Anything that changes a commitment, a budget or a headcount is a Decision item with a named Decision owner before the discussion starts. One owner, not a group.
+  - A decision closes only when the item carries its rationale, the alternatives rejected, and what would change the call. Without that it stays open, whatever was said in the room.
+  - A one-way door is never decided in one sitting: it waits at least a week and someone is asked to write the case against it.
+  - Deferring is a decision too. "Deferred" names the date or the event that reopens it, or it is not deferred, it is forgotten.
+  - The analyst prepares options, evidence and uncertainties. It never picks an option, never commits the company, and never contacts anyone outside the workspace.
+  - What was decided reaches everyone it binds within a working day, in the item and in the weekly briefing. Reopening needs new information, not a new mood.
+
+ownership_rules:
+  - label: board
+    path_pattern: ""
+    referent_agent: Leadership · Analyst
+    priority: 10
+
+permission_profiles: []
+
+skills:
+  - name: leadership-decision-procedure
+    description: How a decision is framed, briefed, decided and recorded here.
+    content: |
+      # Decision procedure
+
+      ## Framing (before any analysis)
+      1. One item, one decision, phrased as a question with a deadline.
+      2. Set the Decision owner. If it is empty, stop and ask for it — do not analyse an ownerless decision.
+      3. Set "Reversible?" and "Binds". "Not yet assessed" is allowed for an hour, not for a week.
+
+      ## The brief (what the analyst produces as a comment)
+      Write it in this order, and nothing else:
+      1. **The question**, in one sentence, as the owner would ask it.
+      2. **Options**, at least two and at most four. For each: what it costs, what it forecloses, who has to do the work.
+      3. **What the evidence says**, with the source and its date. Numbers we made up are labelled as estimates.
+      4. **Uncertainties**: what we do not know, what it would take to know it, and whether it is worth finding out before deciding.
+      5. **The reversibility call**: is this undoable, and at what price.
+
+      Never add a recommendation, a preferred option, a score or a ranking. The owner decides.
+
+      ## Deciding
+      1. The owner writes the decision as a comment: the option chosen, why, what was rejected, and what would change it.
+      2. Submit for review. An owner or admin approves the close; a rejection sends the item to Deferred.
+      3. Announce it to everyone the "Binds" property names, within a working day.
+
+      ## Never
+      - Never mark a decision done yourself.
+      - Never write to anyone outside the workspace.
+      - Never present an estimate as a measurement.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Leadership · Analyst
+    description: Prepares decision briefs — options, evidence, uncertainties — and never chooses.
+    instructions: |
+      You are the analyst of the leadership team. Your only output is a decision brief, written as a comment on a Decision item, in the shape the leadership-decision-procedure skill defines: the question, two to four options with their cost and what they foreclose, what the evidence says with sources and dates, the uncertainties, and the reversibility call.
+
+      You never choose. You do not recommend an option, rank options, score them, or hint at a preference. You do not commit the company to anything, do not change a status to done, do not approve anything, and never contact anyone outside the workspace.
+
+      If the "Decision owner" property is empty, or the item asks for more than one decision, stop and say what is missing instead of writing a brief. If you cannot source a number, say so and label it an estimate; never present an estimate as a measurement. State what you could not establish — an omitted uncertainty is worse than an incomplete brief.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [leadership-decision-procedure]
+    versions: []
+
+projects:
+  - title: Board preparation
+    description: The board pack and the investor update, plus the weekly briefing that feeds them. Every item that will be shown outside the leadership team passes through here.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-written-rationale]
+
+goals:
+  - key: g-written-rationale
+    parent_key: ""
+    title: Every decision closed with its rationale written down
+    description: A decision nobody can reconstruct in six months was not made, it was had.
+    success_measure: Over a quarter, at least 90% of closed Decision items carry the rationale, the rejected alternatives and what would change the call.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Leadership · Weekly briefing
+    description: Disabled after install. Every Monday morning it opens a briefing item listing the decisions closed last week, those awaiting a decision, and those deferred past their reopen date. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Leadership · Analyst
+    execution_mode: create_issue
+    issue_title_template: "Weekly briefing · {{date}}"
+    project: Board preparation
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 7 * * 1"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Leadership · How a decision is written
+    content: |
+      # How a decision is written here
+
+      A closed Decision item must let someone who was not in the room
+      reconstruct the call. Four paragraphs, no template ceremony:
+
+      **Decided.** The option chosen, in one sentence, in the active voice.
+
+      **Because.** The two or three reasons that actually moved the owner. Not
+      the list of everything true about the option.
+
+      **Rejected.** The other options and the single reason each lost. This is
+      the part everyone skips and the part that is worth reading a year later.
+
+      **Would change it.** The fact, number or event that would make us revisit
+      this. If nothing would, say that — a decision with no falsifier is a
+      value, not a decision.
+
+      ## Reversibility
+      - **Reversible** — decide fast, in the meeting, with one owner.
+      - **Costly to undo** — one round of brief and one night.
+      - **One-way door** — a week minimum, a named person writes the case
+        against, and the owner answers it in writing before deciding.
+    tags: [leadership, decisions]
+    pinned: true
+
+issues:
+  - title: "Example · Decide whether we hire a second engineer this quarter"
+    description: |
+      An example Decision item. Question: do we open a second engineering role before the end of the quarter, or hold headcount and buy contractor time?
+
+      Decision owner: the CEO. Reversible? Costly to undo. Binds: the whole company.
+
+      Waiting on a brief: options, runway impact of each, what a hire forecloses, and what we do not know about the pipeline.
+    status: todo
+    priority: high
+    project: Board preparation
+    goal_key: g-written-rationale
+    labels: [people, budget]
+  - title: "Example · Decide the pricing change for the next board pack"
+    description: |
+      An example Decision item, ready to close. The brief compared three price points; the owner picked the middle one because it protects the current cohort while lifting new accounts.
+
+      Rationale, rejected alternatives and the falsifier ("if churn in the first cohort passes 4% in two months, revisit") go in a comment before this is submitted for review.
+    status: awaiting_decision
+    priority: medium
+    project: Board preparation
+    goal_key: ""
+    labels: [strategy, board]
+  - title: "Example · Briefing item — quarterly runway review"
+    description: "An example briefing item. Not a decision: the numbers the team reads before the next planning session. Closed once everyone has read it."
+    status: todo
+    priority: low
+    project: Board preparation
+    goal_key: ""
+    labels: [budget, board]

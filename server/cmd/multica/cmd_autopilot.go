@@ -203,6 +203,7 @@ func init() {
 	autopilotTriggerUpdateCmd.Flags().Int("window-minutes", 0, "New firing band in minutes (0 fires exactly on the cron time; schedule only)")
 	autopilotTriggerUpdateCmd.Flags().String("event-match-criteria", "", "New plain-words routing rule; pass an empty string to clear it (webhook only)")
 	autopilotTriggerUpdateCmd.Flags().String("output", "json", "Output format: table or json")
+	autopilotTriggerUpdateCmd.Flags().Bool("show-secrets", false, "Include live webhook credentials in JSON output (unsafe for logs)")
 
 	// trigger-dry-run
 	autopilotTriggerDryRunCmd.Flags().String("payload-file", "", "JSON file holding the sample event body (webhook triggers; omit for a schedule preview)")
@@ -322,34 +323,44 @@ func redactAutopilotWebhookCredentials(resp map[string]any) {
 		return
 	}
 	for _, raw := range triggers {
-		trigger, ok := raw.(map[string]any)
-		if !ok {
-			continue
+		if trigger, ok := raw.(map[string]any); ok {
+			redactAutopilotTriggerMap(trigger)
 		}
-		_, hasTokenField := trigger["webhook_token"]
-		_, hasPathField := trigger["webhook_path"]
-		_, hasURLField := trigger["webhook_url"]
-		if !hasTokenField && !hasPathField && !hasURLField {
-			continue
-		}
-
-		token := strVal(trigger, "webhook_token")
-		hasToken, _ := trigger["has_webhook_token"].(bool)
-		hasToken = hasToken ||
-			strVal(trigger, "kind") == "webhook" ||
-			token != "" ||
-			strVal(trigger, "webhook_path") != "" ||
-			strVal(trigger, "webhook_url") != ""
-		trigger["has_webhook_token"] = hasToken
-		if hint := webhookTokenHint(token); hint != "" {
-			trigger["webhook_token_hint"] = hint
-		} else {
-			trigger["webhook_token_hint"] = nil
-		}
-		trigger["webhook_token"] = nil
-		trigger["webhook_path"] = nil
-		trigger["webhook_url"] = nil
 	}
+}
+
+// redactAutopilotTriggerResponse redacts a single trigger response map in
+// place — the shape returned by trigger-update/trigger-add/trigger-rotate-url,
+// which is a flat trigger object rather than the {"triggers": [...]} envelope
+// redactAutopilotWebhookCredentials expects.
+func redactAutopilotTriggerResponse(trigger map[string]any) {
+	redactAutopilotTriggerMap(trigger)
+}
+
+func redactAutopilotTriggerMap(trigger map[string]any) {
+	_, hasTokenField := trigger["webhook_token"]
+	_, hasPathField := trigger["webhook_path"]
+	_, hasURLField := trigger["webhook_url"]
+	if !hasTokenField && !hasPathField && !hasURLField {
+		return
+	}
+
+	token := strVal(trigger, "webhook_token")
+	hasToken, _ := trigger["has_webhook_token"].(bool)
+	hasToken = hasToken ||
+		strVal(trigger, "kind") == "webhook" ||
+		token != "" ||
+		strVal(trigger, "webhook_path") != "" ||
+		strVal(trigger, "webhook_url") != ""
+	trigger["has_webhook_token"] = hasToken
+	if hint := webhookTokenHint(token); hint != "" {
+		trigger["webhook_token_hint"] = hint
+	} else {
+		trigger["webhook_token_hint"] = nil
+	}
+	trigger["webhook_token"] = nil
+	trigger["webhook_path"] = nil
+	trigger["webhook_url"] = nil
 }
 
 // relativeTimestamp renders an RFC3339 timestamp as a short, fixed-width-ish
@@ -997,6 +1008,16 @@ func runAutopilotTriggerUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	output, _ := cmd.Flags().GetString("output")
+	showSecrets, _ := cmd.Flags().GetBool("show-secrets")
+	if showSecrets && output != "json" {
+		return fmt.Errorf("--show-secrets requires --output json")
+	}
+	if showSecrets {
+		fmt.Fprintln(os.Stderr, "Warning: --show-secrets exposes live webhook credentials; keep this output out of logs and shared transcripts.")
+	} else {
+		redactAutopilotTriggerResponse(result)
+	}
+
 	if output == "json" {
 		return cli.PrintJSON(os.Stdout, result)
 	}

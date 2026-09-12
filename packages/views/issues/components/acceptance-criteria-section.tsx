@@ -15,6 +15,13 @@ import {
 import type { AcceptanceCriterion } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
@@ -166,18 +173,25 @@ function CriterionRow({
       )}
       {editing ? (
         <div className="flex flex-col gap-1 pl-5">
-          <select
-            aria-label={t(($) => $.acceptance.proof_type)}
+          <Select
+            items={ACCEPTANCE_PROOF_TYPES.filter((p) => p !== "human_validation").map((p) => ({
+              value: p,
+              label: proofTypeLabel(p, t),
+            }))}
             value={proofType}
-            onChange={(e) => setProofType(e.target.value)}
-            className="h-7 rounded-md border bg-background px-2 text-caption"
+            onValueChange={(value) => value && setProofType(value)}
           >
-            {ACCEPTANCE_PROOF_TYPES.filter((p) => p !== "human_validation").map((p) => (
-              <option key={p} value={p}>
-                {proofTypeLabel(p, t)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" aria-label={t(($) => $.acceptance.proof_type)}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ACCEPTANCE_PROOF_TYPES.filter((p) => p !== "human_validation").map((p) => (
+                <SelectItem key={p} value={p}>
+                  {proofTypeLabel(p, t)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             aria-label={t(($) => $.acceptance.ref_placeholder)}
             placeholder={t(($) => $.acceptance.ref_placeholder)}

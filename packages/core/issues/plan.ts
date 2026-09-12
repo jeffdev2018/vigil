@@ -62,18 +62,6 @@ export function useMaterializeIssuePlan(wsId: string) {
   });
 }
 
-export function useSetIssuePlan(wsId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (v: { issueId: string; content: string; steps?: IssuePlanStep[] }) =>
-      api.setIssuePlan(v.issueId, { content: v.content, steps: v.steps }),
-    onSettled: (_data, _err, v) => {
-      qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, v.issueId) });
-      qc.invalidateQueries({ queryKey: issueKeys.planVerifications(wsId, v.issueId) });
-    },
-  });
-}
-
 export const PLAN_FINDING_SEVERITIES = ["critical", "major", "minor", "outdated"] as const;
 
 /** Sort weight: critical first, unknown severities after the known ones. */
@@ -90,9 +78,4 @@ export function sortPlanFindings(findings: PlanFinding[]): PlanFinding[] {
 export function latestPlanVerification(list: PlanVerification[]): PlanVerification | null {
   if (list.length === 0) return null;
   return list.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
-}
-
-/** True only when a reported verification carries a critical finding. */
-export function planVerificationBlocksDone(v: PlanVerification | null): boolean {
-  return v !== null && v.state === "reported" && v.critical_count > 0;
 }

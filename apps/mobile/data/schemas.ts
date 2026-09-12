@@ -217,6 +217,25 @@ const GoalStatusSchema = z
   .enum(["draft", "active", "done", "dropped"])
   .catch("draft");
 
+/**
+ * A list that drops the rows it cannot read instead of failing whole. A
+ * `.catch([])` on `z.array(Row)` guards the ARRAY: one malformed row (an id
+ * missing, an enum the build has never heard of) used to empty the entire
+ * list on screen — the inbox went blank that way once.
+ */
+function tolerantList<T extends z.ZodTypeAny>(row: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .default([])
+    .transform((rows) =>
+      rows.flatMap((item) => {
+        const parsed = row.safeParse(item);
+        return parsed.success ? [parsed.data as z.infer<T>] : [];
+      }),
+    );
+}
+
 export const GoalSchema = z.object({
   id: z.string(),
   workspace_id: z.string().catch(""),
@@ -236,7 +255,7 @@ export const GoalSchema = z.object({
 }).loose();
 
 export const ListGoalsResponseSchema = z.object({
-  goals: z.array(GoalSchema).catch([]).default([]),
+  goals: tolerantList(GoalSchema),
   total: z.number().catch(0).default(0),
 }).loose();
 
@@ -261,10 +280,9 @@ export const OrgUnitSchema = z.object({
   name: z.string().catch(""),
   kind: z.string().optional(),
   owner_id: z.string().optional(),
-  excludes: z
-    .array(z.enum(["untrusted_input", "sensitive_data", "external_effects"]))
-    .catch([])
-    .default([]),
+  excludes: tolerantList(
+    z.enum(["untrusted_input", "sensitive_data", "external_effects"]),
+  ),
   autonomy: z
     .enum(["read_only", "draft", "approve_payload", "auto"])
     .catch("draft"),
@@ -340,7 +358,7 @@ export const OrgStructureSchema = z.object({
 }).loose();
 
 export const OrgStructureListSchema = z.object({
-  structures: z.array(OrgStructureSchema).catch([]).default([]),
+  structures: tolerantList(OrgStructureSchema),
 }).loose();
 
 export interface OrgStructureList {
@@ -467,12 +485,7 @@ const ChatQueuedTaskSchema = z.object({
   content: z.string().optional(),
 }).loose();
 
-const ChatQueuedTasksSchema = z.array(z.unknown()).transform((tasks) =>
-  tasks.flatMap((task) => {
-    const parsed = ChatQueuedTaskSchema.safeParse(task);
-    return parsed.success ? [parsed.data] : [];
-  }),
-);
+const ChatQueuedTasksSchema = tolerantList(ChatQueuedTaskSchema);
 
 // All root fields are optional — server returns an empty object when no
 // task is in flight. Ignore malformed queue rows without discarding a valid
@@ -557,8 +570,25 @@ export const AgentTaskSchema: z.ZodType<AgentTask> = z.object({
   agent_id: z.string().default(""),
   runtime_id: z.string().default(""),
   issue_id: z.string().default(""),
+  // Full TaskStatus union (packages/core/types/agent.ts) — was missing
+  // waiting_local_directory / deferred / paused, so a task genuinely in one
+  // of those states silently rendered as "Queued" (run-row.tsx's
+  // STATUS_LABEL/STATUS_CLASS maps were already keyed for all nine and have
+  // been unreachable for these three since this schema was written). The
+  // Runs fleet page below surfaces exactly these blocked states, so the gap
+  // stops being cosmetic once that page exists.
   status: z
-    .enum(["queued", "dispatched", "running", "completed", "failed", "cancelled"])
+    .enum([
+      "queued",
+      "deferred",
+      "dispatched",
+      "waiting_local_directory",
+      "running",
+      "completed",
+      "failed",
+      "cancelled",
+      "paused",
+    ])
     .catch("queued"),
   priority: z.number().default(0),
   dispatched_at: z.string().nullable().default(null),
@@ -692,6 +722,26 @@ export const PinnedItemSchema: z.ZodType<PinnedItem> = z.object({
 export const PinListSchema = z.array(PinnedItemSchema).default([]);
 export const EMPTY_PIN_LIST: PinnedItem[] = [];
 
+// `details` values are strings from the upstream notification listeners,
+// but newer server paths (goal-loop questions, confidence reviews) send
+// numbers and nested objects. Coerce instead of rejecting: a rejected row
+// used to fail the whole `z.array` and render the inbox empty.
+const InboxDetailsSchema = z
+  .record(z.string(), z.unknown())
+  .nullable()
+  .catch(null)
+  .default(null)
+  .transform((details): Record<string, string> | null =>
+    details
+      ? Object.fromEntries(
+          Object.entries(details).map(([key, value]) => [
+            key,
+            typeof value === "string" ? value : (JSON.stringify(value) ?? ""),
+          ]),
+        )
+      : null,
+  );
+
 const InboxItemSchema: z.ZodType<InboxItem> = z.object({
   id: z.string(),
   workspace_id: z.string().default(""),
@@ -724,10 +774,21 @@ const InboxItemSchema: z.ZodType<InboxItem> = z.object({
   read: z.boolean().default(false),
   archived: z.boolean().default(false),
   created_at: z.string().default(""),
-  details: z.record(z.string(), z.string()).nullable().default(null),
+  details: InboxDetailsSchema,
 }).loose();
 
-export const InboxListSchema = z.array(InboxItemSchema).default([]);
+// One malformed row must not blank the whole inbox: parse row by row and
+// drop only the rows that cannot be read (web's schema is per-row tolerant
+// the same way through `z.unknown()` details).
+export const InboxListSchema = z
+  .array(z.unknown())
+  .default([])
+  .transform((rows) =>
+    rows.flatMap((row) => {
+      const parsed = InboxItemSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  );
 export const EMPTY_INBOX_LIST: InboxItem[] = [];
 
 export const MemberWithUserSchema: z.ZodType<MemberWithUser> = z.object({
@@ -1009,6 +1070,7 @@ export const RunReplaySchema = z.looseObject({
     agent_id: z.string().default(""),
     agent_name: z.string().default(""),
     status: z.string().default(""),
+    failure_reason: z.string().catch("").default(""),
     trust_mode: z.string().default(""),
     effect_mode: z.string().default(""),
     model: z.string().default(""),
@@ -1061,4 +1123,695 @@ export const EMPTY_VOICE_ISSUE_DRAFT: VoiceIssueDraft = {
   title: "",
   description: "",
   suggested_labels: [],
+};
+
+// ---------------------------------------------------------------------------
+// Issue goal loop — GET/PUT /api/issues/{id}/goal, POST .../pause|resume|
+// answer. Mirrors the wire shape of `goalstate.State` in
+// server/pkg/goalstate/goalstate.go. Mobile-only until web's goal-loop panel
+// promotes a schema to core (packages/core/types/issue-goal.ts already
+// defines the strict `IssueGoal` interface with a closed `status` union, but
+// no zod schema exists there yet — this file's `status` and `question.kind`
+// stay free strings on purpose so a status/kind the server adds before this
+// build ships still renders instead of vanishing (root CLAUDE.md "API
+// Response Compatibility"); `apps/mobile/lib/issue-goal-display.ts` supplies
+// the label fallback for an unrecognised value).
+export const IssueGoalQuestionSchema = z.object({
+  kind: z.string().catch("text").default("text"),
+  prompt: z.string().catch("").default(""),
+  options: z.array(z.string()).catch([]).default([]),
+  run_id: z.string().catch("").default(""),
+  asked_at: z.string().catch("").default(""),
+  answer: z.string().optional(),
+  answered_by: z.string().optional(),
+  answered_by_name: z.string().optional(),
+  answered_at: z.string().optional(),
+}).loose();
+
+export const IssueGoalSchema = z.object({
+  id: z.string(),
+  issue_id: z.string(),
+  goal: z.string().catch("").default(""),
+  status: z.string().catch("active").default("active"),
+  continuation: z.number().catch(0).default(0),
+  max_continuations: z.number().catch(0).default(0),
+  no_progress: z.number().catch(0).default(0),
+  last_outcome: z.string().catch("").default(""),
+  last_blocker: z.string().optional(),
+  last_reason: z.string().optional(),
+  next_step: z.string().optional(),
+  evidence: z.array(z.string()).catch([]).default([]),
+  question: IssueGoalQuestionSchema.nullable().optional(),
+  last_run_id: z.string().optional(),
+  chain_root_task_id: z.string().optional(),
+  done_request_id: z.string().optional(),
+  set_by_type: z.string().catch("member").default("member"),
+  updated_at: z.string().catch("").default(""),
+}).loose();
+
+export const IssueGoalResponseSchema = z.object({
+  goal: IssueGoalSchema.nullable(),
+}).loose();
+
+export type IssueGoalQuestion = z.infer<typeof IssueGoalQuestionSchema>;
+export type IssueGoal = z.infer<typeof IssueGoalSchema>;
+export type IssueGoalResponse = z.infer<typeof IssueGoalResponseSchema>;
+
+export const EMPTY_ISSUE_GOAL_RESPONSE: IssueGoalResponse = { goal: null };
+
+// ---------------------------------------------------------------------------
+// Inline approvals — GET /api/approvals[?issue_id=]. The unified feed of
+// every pending human ask: Decision Cards, held status transitions
+// (transition gate, F28) and goal-loop questions. Field shape mirrors
+// `packages/core/approvals/schemas.ts` (ApprovalItemSchema /
+// ApprovalsResponseSchema) exactly; not imported from there because
+// `@multica/core/approvals` only exports its aggregate `./index.ts`, which
+// also re-exports `./queries.ts` — a module that imports web's live `api`
+// singleton (`../api`). That is not "types and pure functions from
+// @multica/core" (apps/mobile/CLAUDE.md import whitelist), so this file
+// keeps its own copy; mirror both by hand if either changes.
+export type ApprovalSource = "decision" | "transition" | "goal_question";
+export type ApprovalKind =
+  | "decision"
+  | "gate"
+  | "plan"
+  | "interview"
+  | "preview"
+  | "watchdog"
+  | "pipeline"
+  | "goal_attach"
+  | "org_assign"
+  | "transition"
+  | "goal_question";
+
+export const ApprovalOptionSchema = z.object({
+  id: z.string().catch(""),
+  label: z.string().catch(""),
+  impact: z.string().catch(""),
+}).loose();
+
+export const ApprovalGateSchema = z.object({
+  id: z.string().catch(""),
+  task_id: z.string().catch(""),
+  gate_type: z.string().catch(""),
+  summary: z.string().catch(""),
+  details: z.record(z.string(), z.unknown()).catch({}),
+  status: z.string().catch("pending"),
+  created_at: z.string().catch(""),
+  expires_at: z.string().nullable().catch(null),
+  resolved_at: z.string().nullable().catch(null),
+}).loose();
+
+export const ApprovalTransitionSchema = z.object({
+  request_id: z.string().catch(""),
+  from_status: z.string().catch(""),
+  to_status: z.string().catch(""),
+  rule_id: z.string().nullable().catch(null),
+  approver_roles: z.array(z.string()).catch([]),
+}).loose();
+
+export const ApprovalGoalQuestionSchema = z.object({
+  kind: z.string().catch("text"),
+  prompt: z.string().catch(""),
+  options: z.array(z.string()).catch([]),
+  run_id: z.string().catch(""),
+  asked_at: z.string().catch(""),
+}).loose();
+
+export const ApprovalItemSchema = z.object({
+  id: z.string().catch(""),
+  source: z.string().catch("decision"),
+  kind: z.string().catch("decision"),
+  issue: z.object({
+    id: z.string().catch(""),
+    identifier: z.string().catch(""),
+    title: z.string().catch(""),
+    status: z.string().catch(""),
+  }).loose().catch({ id: "", identifier: "", title: "", status: "" }),
+  task_id: z.string().catch(""),
+  asked_by: z.object({
+    type: z.string().catch(""),
+    id: z.string().catch(""),
+    name: z.string().catch(""),
+  }).loose().catch({ type: "", id: "", name: "" }),
+  question: z.string().catch(""),
+  options: z.array(ApprovalOptionSchema).catch([]),
+  recommended_option_id: z.string().catch(""),
+  urgency: z.string().catch("normal"),
+  created_at: z.string().catch(""),
+  expires_at: z.string().nullable().catch(null),
+  sla_deadline_at: z.string().nullable().catch(null),
+  can_decide: z.boolean().catch(false),
+  cannot_decide_reason: z.string().catch(""),
+  gate: ApprovalGateSchema.nullable().catch(null),
+  transition: ApprovalTransitionSchema.nullable().catch(null),
+  goal_question: ApprovalGoalQuestionSchema.nullable().catch(null),
+}).loose();
+
+export const RunHaltSchema = z.object({
+  halted: z.boolean().catch(false),
+  reason: z.string().catch(""),
+  halted_by: z.string().catch(""),
+  halted_at: z.string().nullable().catch(null),
+}).loose();
+
+export type ApprovalOption = z.infer<typeof ApprovalOptionSchema>;
+export type ApprovalGate = z.infer<typeof ApprovalGateSchema>;
+export type ApprovalTransition = z.infer<typeof ApprovalTransitionSchema>;
+export type ApprovalGoalQuestion = z.infer<typeof ApprovalGoalQuestionSchema>;
+export type ApprovalItem = z.infer<typeof ApprovalItemSchema>;
+export type RunHalt = z.infer<typeof RunHaltSchema>;
+
+export const EMPTY_RUN_HALT: RunHalt = { halted: false, reason: "", halted_by: "", halted_at: null };
+
+export const ApprovalsResponseSchema = z.object({
+  approvals: z.array(ApprovalItemSchema).catch([]),
+  total: z.number().catch(0),
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+}).loose();
+
+export type ApprovalsResponse = z.infer<typeof ApprovalsResponseSchema>;
+
+export const EMPTY_APPROVALS: ApprovalsResponse = { approvals: [], total: 0, run_halt: EMPTY_RUN_HALT };
+
+// ---------------------------------------------------------------------------
+// Runs fleet (OS plan, chantier 4) — GET /api/runs, POST /api/runs/cancel,
+// POST /api/runs/kill-switch. Field shape mirrors
+// `server/internal/handler/runs.go` (RunResponse / RunsSummary /
+// RunsResponse) and `apps/docs/content/docs/runs.mdx`. Not imported from
+// `@multica/core` for the same reason as the approvals section above: no
+// package there exports this shape as a pure value yet, so this is the
+// mobile-local copy until one does; mirror both by hand if either changes.
+//
+// A run is an AgentTask plus the names, cost and blocker a fleet view needs
+// — the server literally embeds AgentTaskResponse, so RunSchema extends the
+// AgentTaskSchema above rather than repeating its fields.
+export const RunBlockerSchema = z.object({
+  kind: z.string().catch(""),
+  id: z.string().optional(),
+  decision_id: z.string().optional(),
+  summary: z.string().catch(""),
+  since: z.string().nullable().catch(null),
+}).loose();
+export type RunBlocker = z.infer<typeof RunBlockerSchema>;
+
+export const RunIssueRefSchema = z.object({
+  id: z.string().catch(""),
+  identifier: z.string().catch(""),
+  title: z.string().catch(""),
+  status: z.string().catch(""),
+}).loose();
+export type RunIssueRef = z.infer<typeof RunIssueRefSchema>;
+
+// `.and()` rather than `.extend()`: AgentTaskSchema above is annotated
+// `z.ZodType<AgentTask>`, which erases the concrete ZodObject type and
+// its `.extend()` method. `.and()` (ZodIntersection) is declared on the
+// base ZodType interface itself, so it's available regardless of that
+// annotation, and its inferred output is the plain intersection type —
+// exactly `AgentTask & { the fields below }`, same shape `.extend()`
+// would have produced.
+export const RunSchema = AgentTaskSchema.and(
+  z.object({
+    agent_name: z.string().catch(""),
+    issue: RunIssueRefSchema.nullable().catch(null),
+    cost_usd_ticks: z.number().catch(0),
+    // Mirrors packages/core/runs/fleet-schemas.ts: false = cost unknown.
+    cost_known: z.boolean().optional().catch(undefined),
+    duration_ms: z.number().catch(0),
+    silence_ms: z.number().catch(0),
+    blocked_on: RunBlockerSchema.nullable().catch(null),
+  }),
+);
+export type Run = z.infer<typeof RunSchema>;
+
+export const RunsSummarySchema = z.object({
+  active: z.number().catch(0),
+  queued: z.number().catch(0),
+  running: z.number().catch(0),
+  blocked: z.number().catch(0),
+  completed_since: z.number().catch(0),
+  failed_since: z.number().catch(0),
+  cancelled_since: z.number().catch(0),
+  cost_since_usd_ticks: z.number().catch(0),
+  cost_unknown_since: z.number().catch(0).default(0),
+  since: z.string().catch(""),
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+}).loose();
+export type RunsSummary = z.infer<typeof RunsSummarySchema>;
+
+export const EMPTY_RUNS_SUMMARY: RunsSummary = {
+  active: 0,
+  queued: 0,
+  running: 0,
+  blocked: 0,
+  completed_since: 0,
+  failed_since: 0,
+  cancelled_since: 0,
+  cost_since_usd_ticks: 0,
+  cost_unknown_since: 0,
+  since: "",
+  run_halt: EMPTY_RUN_HALT,
+};
+
+export const RunsResponseSchema = z.object({
+  runs: z.array(RunSchema).catch([]),
+  next_cursor: z.string().optional(),
+  summary: RunsSummarySchema.catch(EMPTY_RUNS_SUMMARY),
+}).loose();
+export type RunsResponse = z.infer<typeof RunsResponseSchema>;
+
+export const EMPTY_RUNS_RESPONSE: RunsResponse = {
+  runs: [],
+  summary: EMPTY_RUNS_SUMMARY,
+};
+
+export const RunCancelOutcomeSchema = z.object({
+  task_id: z.string().catch(""),
+  outcome: z.string().catch("error"),
+  error: z.string().optional(),
+}).loose();
+export type RunCancelOutcome = z.infer<typeof RunCancelOutcomeSchema>;
+
+export const CancelRunsResponseSchema = z.object({
+  results: z.array(RunCancelOutcomeSchema).catch([]),
+  cancelled: z.number().catch(0),
+}).loose();
+export type CancelRunsResponse = z.infer<typeof CancelRunsResponseSchema>;
+export const EMPTY_CANCEL_RUNS_RESPONSE: CancelRunsResponse = { results: [], cancelled: 0 };
+
+export const KillSwitchResponseSchema = z.object({
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+  cancelled: z.number().catch(0),
+  results: z.array(RunCancelOutcomeSchema).catch([]),
+}).loose();
+export type KillSwitchResponse = z.infer<typeof KillSwitchResponseSchema>;
+export const EMPTY_KILL_SWITCH_RESPONSE: KillSwitchResponse = {
+  run_halt: EMPTY_RUN_HALT,
+  cancelled: 0,
+  results: [],
+};
+
+// ---------------------------------------------------------------------------
+// Workspace doctrine (OS plan, chantier 22) — GET /api/workspace/doctrine,
+// /versions, /versions/{id}/diff, /reports. Field shape mirrors
+// `server/internal/handler/workspace_doctrine.go` (DoctrineResponse /
+// DoctrineVersionResponse / DoctrineReportResponse / DoctrineDiffLine).
+//
+// Mobile-local rather than @multica/core/api/schemas for the same reason as
+// the approvals and runs sections above: no package there exports this shape
+// yet (the doctrine landed server-first; there is no packages/views
+// implementation to mirror either, so the parity target is the handler).
+// Mirror both by hand if either side changes.
+export const DoctrineVersionSchema = z.object({
+  id: z.string().catch(""),
+  revision: z.number().nullable().catch(null),
+  content: z.string().catch(""),
+  status: z.string().catch("superseded"),
+  note: z.string().catch(""),
+  author_id: z.string().nullable().catch(null),
+  reviewed_by: z.string().nullable().catch(null),
+  reviewed_at: z.string().nullable().catch(null),
+  review_note: z.string().catch(""),
+  restored_from_revision: z.number().nullable().catch(null),
+  created_at: z.string().catch(""),
+  bytes: z.number().catch(0),
+}).loose();
+export type DoctrineVersion = z.infer<typeof DoctrineVersionSchema>;
+
+export const DoctrineSchema = z.object({
+  content: z.string().catch(""),
+  revision: z.number().catch(0),
+  updated_at: z.string().nullable().catch(null),
+  updated_by: z.string().nullable().catch(null),
+  byte_limit: z.number().catch(0),
+  require_review: z.boolean().catch(false),
+  can_publish: z.boolean().catch(false),
+  active_version_id: z.string().nullable().catch(null),
+  pending: DoctrineVersionSchema.nullable().catch(null),
+  open_reports: z.number().catch(0),
+}).loose();
+export type Doctrine = z.infer<typeof DoctrineSchema>;
+
+export const EMPTY_DOCTRINE: Doctrine = {
+  content: "",
+  revision: 0,
+  updated_at: null,
+  updated_by: null,
+  byte_limit: 0,
+  require_review: false,
+  can_publish: false,
+  active_version_id: null,
+  pending: null,
+  open_reports: 0,
+};
+
+export const DoctrineVersionsResponseSchema = z.object({
+  versions: z.array(DoctrineVersionSchema).catch([]),
+  next_cursor: z.string().nullable().catch(null),
+}).loose();
+export type DoctrineVersionsResponse = z.infer<
+  typeof DoctrineVersionsResponseSchema
+>;
+export const EMPTY_DOCTRINE_VERSIONS: DoctrineVersionsResponse = {
+  versions: [],
+  next_cursor: null,
+};
+
+export const DoctrineDiffLineSchema = z.object({
+  // same | add | del. Kept a plain string (not an enum) so an unknown kind
+  // renders untinted instead of taking the diff screen down.
+  kind: z.string().catch("same"),
+  text: z.string().catch(""),
+}).loose();
+export type DoctrineDiffLine = z.infer<typeof DoctrineDiffLineSchema>;
+
+export const DoctrineDiffSchema = z.object({
+  // The diff endpoint blanks `content` on both sides — only the lines carry
+  // the text.
+  from: DoctrineVersionSchema.nullable().catch(null),
+  to: DoctrineVersionSchema.nullable().catch(null),
+  lines: z.array(DoctrineDiffLineSchema).catch([]),
+  added: z.number().catch(0),
+  removed: z.number().catch(0),
+}).loose();
+export type DoctrineDiff = z.infer<typeof DoctrineDiffSchema>;
+export const EMPTY_DOCTRINE_DIFF: DoctrineDiff = {
+  from: null,
+  to: null,
+  lines: [],
+  added: 0,
+  removed: 0,
+};
+
+export const DoctrineReportSchema = z.object({
+  id: z.string().catch(""),
+  doctrine_revision: z.number().catch(0),
+  // conflict | refusal | ambiguity — string, not enum, so a kind added
+  // server-side still renders (root CLAUDE.md API compatibility).
+  kind: z.string().catch(""),
+  summary: z.string().catch(""),
+  passage: z.string().catch(""),
+  reporter_type: z.string().catch("member"),
+  reporter_id: z.string().catch(""),
+  task_id: z.string().nullable().catch(null),
+  issue_id: z.string().nullable().catch(null),
+  // open | acknowledged | dismissed
+  status: z.string().catch("open"),
+  resolved_by: z.string().nullable().catch(null),
+  resolved_at: z.string().nullable().catch(null),
+  resolution_note: z.string().catch(""),
+  created_at: z.string().catch(""),
+}).loose();
+export type DoctrineReport = z.infer<typeof DoctrineReportSchema>;
+
+export const DoctrineReportsResponseSchema = z.object({
+  reports: z.array(DoctrineReportSchema).catch([]),
+}).loose();
+export type DoctrineReportsResponse = z.infer<
+  typeof DoctrineReportsResponseSchema
+>;
+export const EMPTY_DOCTRINE_REPORTS: DoctrineReportsResponse = { reports: [] };
+
+// ---------------------------------------------------------------------------
+// Packs (OS plan, vague B) — GET /api/packs, /api/packs/{id},
+// /api/packs/installed, /api/packs/installed/{id}, and the preview / install
+// / uninstall responses. Field-for-field mirror of
+// `packages/core/packs/schemas.ts` (itself mirroring `PackSummary`,
+// `PackPrerequisite`, `PackContents`, `PackInstallResponse`, `packPreview`
+// and `packUninstallReport` in `server/internal/handler/packs.go`).
+//
+// Copied rather than imported: `@multica/core` exports `./packs` only as the
+// barrel, which pulls the api client, the react-query hooks and every other
+// feature's key factory with it — not on mobile's import whitelist. Same
+// mirror-don't-import rule as `data/realtime/issue-ws-updaters.ts`. Keep the
+// two in step by hand.
+//
+// Leniency is deliberate and matches core: server enums stay `z.string()` so
+// a newer server shipping a new domain, prerequisite kind, source or
+// strategy still renders (root CLAUDE.md "API Compatibility"; every switch
+// on these values has a default branch — see lib/packs-display.ts).
+
+/** Mirrors `transferStrategies`. `skip` is the server default on a first install. */
+export const PACK_STRATEGIES = ["skip", "merge", "rename"] as const;
+export type PackStrategy = (typeof PACK_STRATEGIES)[number];
+
+export const PackMetricSchema = z
+  .object({
+    label: z.string().catch(""),
+    description: z.string().catch(""),
+    hint: z.string().catch(""),
+  })
+  .loose()
+  .catch({ label: "", description: "", hint: "" });
+
+export const PackPrerequisiteSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  optional: z.boolean().catch(false),
+  note: z.string().catch(""),
+  // met | missing | unknown — `unknown` means the server cannot tell.
+  status: z.string().catch("unknown"),
+}).loose();
+export type PackPrerequisite = z.infer<typeof PackPrerequisiteSchema>;
+
+export const PackChangelogRowSchema = z.object({
+  version: z.string().catch(""),
+  note: z.string().catch(""),
+}).loose();
+
+export const PackManifestSchema = z.object({
+  id: z.string().catch(""),
+  version: z.string().catch(""),
+  title: z.string().catch(""),
+  summary: z.string().catch(""),
+  /** Markdown. */
+  description: z.string().catch(""),
+  domain: z.string().catch("other"),
+  wave: z.number().catch(0),
+  author: z.string().catch(""),
+  license: z.string().catch(""),
+  tags: z.array(z.string()).catch([]),
+  works_without_agents: z.boolean().catch(false),
+  metric: PackMetricSchema,
+  prerequisites: z.array(PackPrerequisiteSchema).catch([]),
+  changelog: z.array(PackChangelogRowSchema).catch([]),
+}).loose();
+export type PackManifest = z.infer<typeof PackManifestSchema>;
+
+export const EMPTY_PACK_MANIFEST: PackManifest = {
+  id: "",
+  version: "",
+  title: "",
+  summary: "",
+  description: "",
+  domain: "other",
+  wave: 0,
+  author: "",
+  license: "",
+  tags: [],
+  works_without_agents: false,
+  metric: { label: "", description: "", hint: "" },
+  prerequisites: [],
+  changelog: [],
+};
+
+const PackCountsSchema = z.record(z.string(), z.number()).catch({});
+
+export const PackSummarySchema = z.object({
+  manifest: PackManifestSchema,
+  counts: PackCountsSchema,
+  builtin: z.boolean().catch(false),
+  installed_version: z.string().nullable().catch(null),
+  install_id: z.string().nullable().catch(null),
+  upgrade_available: z.boolean().catch(false),
+  prerequisites: z.array(PackPrerequisiteSchema).catch([]),
+}).loose();
+export type PackSummary = z.infer<typeof PackSummarySchema>;
+
+export const EMPTY_PACK_SUMMARY: PackSummary = {
+  manifest: EMPTY_PACK_MANIFEST,
+  counts: {},
+  builtin: false,
+  installed_version: null,
+  install_id: null,
+  upgrade_available: false,
+  prerequisites: [],
+};
+
+/** `Record<kind, names[]>` — the names a pack would create, per kind. */
+export const PackContentsSchema = z
+  .record(z.string(), z.array(z.string()).catch([]))
+  .catch({});
+export type PackContents = z.infer<typeof PackContentsSchema>;
+
+export const PackCollisionSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  existing_id: z.string().catch(""),
+}).loose();
+export type PackCollision = z.infer<typeof PackCollisionSchema>;
+
+export const PackItemSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  id: z.string().catch(""),
+  action: z.string().catch(""),
+}).loose();
+export type PackItem = z.infer<typeof PackItemSchema>;
+
+export const PackReportSchema = z.object({
+  created: PackCountsSchema,
+  merged: PackCountsSchema,
+  skipped: z.array(PackCollisionSchema).catch([]),
+  warnings: z.array(z.string()).catch([]),
+  items: z.array(PackItemSchema).catch([]),
+}).loose();
+export type PackReport = z.infer<typeof PackReportSchema>;
+
+export const EMPTY_PACK_REPORT: PackReport = {
+  created: {},
+  merged: {},
+  skipped: [],
+  warnings: [],
+  items: [],
+};
+
+/**
+ * One row of the install ledger. `report` and `manifest` stay opaque records
+ * (the ledger keeps the transfer report on an install and the uninstall
+ * report on a removed one); the typed report comes back from the mutations.
+ */
+export const PackInstallSchema = z.object({
+  id: z.string().catch(""),
+  pack_id: z.string().catch(""),
+  pack_version: z.string().catch(""),
+  title: z.string().catch(""),
+  // builtin | upload | workspace
+  source: z.string().catch("builtin"),
+  strategy: z.string().catch("skip"),
+  // installed | failed | removed
+  status: z.string().catch("installed"),
+  run_id: z.string().nullable().catch(null),
+  report: z.record(z.string(), z.unknown()).catch({}),
+  manifest: z.record(z.string(), z.unknown()).catch({}),
+  installed_by: z.string().nullable().catch(null),
+  installed_at: z.string().catch(""),
+  removed_at: z.string().nullable().catch(null),
+  item_count: z.number().catch(0),
+  metric: PackMetricSchema,
+  domain: z.string().catch("other"),
+  /** The catalogue version this install can move to, when newer. */
+  upgrade_to: z.string().nullable().catch(null),
+  bundle_sha256: z.string().catch(""),
+}).loose();
+export type PackInstall = z.infer<typeof PackInstallSchema>;
+
+export const PackCatalogueSchema = z.object({
+  packs: z.array(PackSummarySchema).catch([]),
+  domains: z.array(z.string()).catch([]),
+}).loose();
+export type PackCatalogue = z.infer<typeof PackCatalogueSchema>;
+export const EMPTY_PACK_CATALOGUE: PackCatalogue = { packs: [], domains: [] };
+
+export const PackDetailSchema = z.object({
+  pack: PackSummarySchema,
+  contents: PackContentsSchema,
+  /** The pack.yaml itself — not rendered on the phone. */
+  source: z.string().catch(""),
+}).loose();
+export type PackDetail = z.infer<typeof PackDetailSchema>;
+export const EMPTY_PACK_DETAIL: PackDetail = {
+  pack: EMPTY_PACK_SUMMARY,
+  contents: {},
+  source: "",
+};
+
+export const PackPreviewSchema = z.object({
+  pack: PackSummarySchema,
+  contents: PackContentsSchema,
+  collisions: z.array(PackCollisionSchema).catch([]),
+  problems: z.array(z.string()).catch([]),
+  strategies: z.array(z.string()).catch([...PACK_STRATEGIES]),
+  /** The strategy the server picked: skip on a first install, merge on an upgrade. */
+  strategy: z.string().catch("skip"),
+  installed: PackInstallSchema.nullable().catch(null),
+  /** Empty when installable; otherwise why not (same version, downgrade). */
+  blocked: z.string().catch(""),
+}).loose();
+export type PackPreview = z.infer<typeof PackPreviewSchema>;
+
+export const EMPTY_PACK_PREVIEW: PackPreview = {
+  pack: EMPTY_PACK_SUMMARY,
+  contents: {},
+  collisions: [],
+  problems: [],
+  strategies: [...PACK_STRATEGIES],
+  strategy: "skip",
+  installed: null,
+  blocked: "",
+};
+
+export const PackInstallListSchema = z.object({
+  installs: z.array(PackInstallSchema).catch([]),
+}).loose();
+export type PackInstallList = z.infer<typeof PackInstallListSchema>;
+export const EMPTY_PACK_INSTALL_LIST: PackInstallList = { installs: [] };
+
+export const PackInstallDetailSchema = z.object({
+  install: PackInstallSchema,
+  items: z.array(PackItemSchema).catch([]),
+}).loose();
+export type PackInstallDetail = z.infer<typeof PackInstallDetailSchema>;
+
+export const EMPTY_PACK_INSTALL: PackInstall = {
+  id: "",
+  pack_id: "",
+  pack_version: "",
+  title: "",
+  source: "builtin",
+  strategy: "skip",
+  status: "installed",
+  run_id: null,
+  report: {},
+  manifest: {},
+  installed_by: null,
+  installed_at: "",
+  removed_at: null,
+  item_count: 0,
+  metric: { label: "", description: "", hint: "" },
+  domain: "other",
+  upgrade_to: null,
+  bundle_sha256: "",
+};
+
+export const EMPTY_PACK_INSTALL_DETAIL: PackInstallDetail = {
+  install: EMPTY_PACK_INSTALL,
+  items: [],
+};
+
+export const PackInstallResultSchema = z.object({
+  install: PackInstallSchema,
+  report: PackReportSchema,
+}).loose();
+export type PackInstallResult = z.infer<typeof PackInstallResultSchema>;
+export const EMPTY_PACK_INSTALL_RESULT: PackInstallResult = {
+  install: EMPTY_PACK_INSTALL,
+  report: EMPTY_PACK_REPORT,
+};
+
+export const PackUninstallReportSchema = z.object({
+  removed: PackCountsSchema,
+  kept: z.array(PackItemSchema).catch([]),
+  reasons: z.array(z.string()).catch([]),
+}).loose();
+export type PackUninstallReport = z.infer<typeof PackUninstallReportSchema>;
+
+export const PackUninstallResultSchema = z.object({
+  install: PackInstallSchema,
+  report: PackUninstallReportSchema,
+}).loose();
+export type PackUninstallResult = z.infer<typeof PackUninstallResultSchema>;
+export const EMPTY_PACK_UNINSTALL_RESULT: PackUninstallResult = {
+  install: EMPTY_PACK_INSTALL,
+  report: { removed: {}, kept: [], reasons: [] },
 };

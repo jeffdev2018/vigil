@@ -5,9 +5,26 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
+
+// A CJK sub-task description whose 120-byte cut lands mid-rune must be
+// truncated on a rune boundary, not sliced raw.
+func TestFanoutSubTaskTitleIsUTF8Safe(t *testing.T) {
+	desc := strings.Repeat("中文混合内容ab测试", 30) + "\nsecond line"
+	got := fanoutSubTaskTitle(desc)
+	if !utf8.ValidString(got) {
+		t.Fatalf("fanoutSubTaskTitle produced invalid UTF-8: %q", got)
+	}
+	if len(got) > 120 {
+		t.Fatalf("fanoutSubTaskTitle = %d bytes, want <=120", len(got))
+	}
+	if strings.Contains(got, "second line") {
+		t.Fatalf("title must stop at the first newline: %q", got)
+	}
+}
 
 // Fan-out / fan-in (K38): N sub-tasks become N child issues with their own
 // runs; a second fan-out on the same issue is refused; the barrier waits

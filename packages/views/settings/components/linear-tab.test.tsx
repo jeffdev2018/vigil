@@ -179,6 +179,16 @@ describe("LinearTab", () => {
     expect(screen.getByRole("button", { name: enSettings.linear.reconnect })).toBeTruthy();
   });
 
+  // Regression: the agent picker only renders while disconnected, so the
+  // local agent id stayed empty and Reconnect returned without doing anything.
+  it("reconnects a broken installation with its bound agent", async () => {
+    installationRef.current = connectedInstallation({ status: "broken" });
+    mockStartOAuth.mockResolvedValue("");
+    renderUI(<LinearTab />);
+    await userEvent.setup().click(screen.getByRole("button", { name: enSettings.linear.reconnect }));
+    expect(mockStartOAuth).toHaveBeenCalledWith({ agentId: "agent-1", redirect: "/settings/integrations" });
+  });
+
   it("disconnects only after the confirm dialog is accepted", async () => {
     installationRef.current = connectedInstallation();
     mockDisconnect.mockResolvedValue(undefined);

@@ -146,6 +146,12 @@ export default function IssueDetail() {
           confirmDelete(issue, () =>
             deleteIssue.mutate(issue.id, {
               onSuccess: () => router.back(),
+              onError: () => {
+                Alert.alert(
+                  "Couldn't delete issue",
+                  "Something went wrong. Please try again.",
+                );
+              },
             }),
           );
         }

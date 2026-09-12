@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -186,6 +187,9 @@ func (h *Handler) CreateIssueReviewFlag(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req createReviewFlagRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -212,7 +216,13 @@ func (h *Handler) CreateIssueReviewFlag(w http.ResponseWriter, r *http.Request) 
 			params.TaskID = task.ID
 			// The cap is per task, not per issue: a second run on the same
 			// issue gets its own hundred, and one run cannot bury the review.
-			if n, err := h.Queries.CountReviewFlagsForTask(r.Context(), task.ID); err == nil && n >= reviewFlagsPerTaskCap {
+			n, err := h.Queries.CountReviewFlagsForTask(r.Context(), task.ID)
+			if err != nil {
+				slog.Warn("review flag: count for task failed", "task_id", uuidToString(task.ID), "error", err)
+				writeError(w, http.StatusInternalServerError, "failed to check review flag count")
+				return
+			}
+			if n >= reviewFlagsPerTaskCap {
 				writeErrorCode(w, http.StatusUnprocessableEntity, "too_many_flags",
 					"this run has already recorded the maximum number of review flags")
 				return
@@ -256,11 +266,11 @@ func validateReviewFlagRequest(w http.ResponseWriter, req createReviewFlagReques
 		return out, false
 	}
 	if len(out.Title) > reviewFlagTitleMax {
-		out.Title = out.Title[:reviewFlagTitleMax]
+		out.Title = util.TruncateUTF8Bytes(out.Title, reviewFlagTitleMax)
 	}
 	out.Body = strings.TrimSpace(req.Body)
 	if len(out.Body) > reviewFlagBodyMax {
-		out.Body = out.Body[:reviewFlagBodyMax]
+		out.Body = util.TruncateUTF8Bytes(out.Body, reviewFlagBodyMax)
 	}
 
 	switch strings.ToLower(strings.TrimSpace(req.Severity)) {
@@ -343,6 +353,9 @@ func (h *Handler) SetIssueReviewFlagState(w http.ResponseWriter, r *http.Request
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	flagID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "flagId"), "flag id")

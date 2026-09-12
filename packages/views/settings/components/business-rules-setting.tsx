@@ -43,6 +43,19 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
       },
     );
 
+  const statusLabel = (status: string): string => {
+    switch (status) {
+      case "draft":
+        return t(($) => $.workspace.rules_status_draft);
+      case "active":
+        return t(($) => $.workspace.rules_status_active);
+      case "disabled":
+        return t(($) => $.workspace.rules_status_disabled);
+      default:
+        return status;
+    }
+  };
+
   return (
     <SettingsSection
       title={
@@ -64,7 +77,7 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate font-medium">{r.title}</span>
                     <span className="shrink-0 text-muted-foreground">{attachLabel(r.attach_point)}</span>
-                    <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 uppercase">{r.status}</span>
+                    <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-micro">{statusLabel(r.status)}</span>
                     {canEdit && r.status !== "active" && (
                       <Button type="button" size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => activate(r)}>
                         {t(($) => $.workspace.rules_activate)}

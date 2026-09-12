@@ -108,12 +108,24 @@ func competencyDomainKey(labels []string, paths []string) string {
 }
 
 func (h *Handler) issueDomainKey(ctx context.Context, issue db.Issue) string {
+	return h.issueDomainKeyWith(ctx, issue, h.issueLabelNames(ctx, issue))
+}
+
+// issueLabelNames is the issue's label names, empty when it has none or is
+// not in the database at all.
+func (h *Handler) issueLabelNames(ctx context.Context, issue db.Issue) []string {
 	var labels []string
 	if rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID}); err == nil {
 		for _, l := range rows {
 			labels = append(labels, l.Name)
 		}
 	}
+	return labels
+}
+
+// issueDomainKeyWith takes the labels from the caller so a simulated issue,
+// which no label row points at, can still name its domain.
+func (h *Handler) issueDomainKeyWith(ctx context.Context, issue db.Issue, labels []string) string {
 	paths := service.IssuePaths(issue.Title, issue.Description.String)
 	if tasks, err := h.Queries.ListTasksByIssue(ctx, issue.ID); err == nil {
 		for _, t := range tasks {
@@ -271,18 +283,15 @@ func (h *Handler) PutCompetencySettings(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "min_sample must be between 1 and 1000")
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["competency"] = req
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key (data_residency, doc_drift, drift, ...).
+	raw, _ := json.Marshal(map[string]any{"competency": req})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save competency settings")
 		return
 	}

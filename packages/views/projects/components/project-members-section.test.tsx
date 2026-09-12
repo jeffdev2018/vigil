@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ProjectMemberRole } from "@multica/core/access";
 import { renderWithI18n } from "../../test/i18n";
 
@@ -41,15 +42,19 @@ beforeEach(() => {
   state.set.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectMembersSection", () => {
-  it("never offers a role above the ceiling", () => {
+  it("never offers a role above the ceiling", async () => {
     state.role = "admin";
     state.members = [member({})];
     render();
-    const select = screen.getByRole("combobox", { name: "Project role" });
-    const values = within(select).getAllByRole("option").map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(["__inherit", "viewer", "contributor"]);
-    expect(screen.getByRole("option", { name: "Inherit (contributor)" })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual(["Inherit (Contributor)", "Viewer", "Contributor"]);
+    expect(screen.getByRole("option", { name: "Inherit (Contributor)" })).toBeInTheDocument();
   });
 
   it("marks inherited and overridden roles", () => {
@@ -58,21 +63,52 @@ describe("ProjectMembersSection", () => {
     const rows = screen.getAllByTestId("project-member-row");
     expect(rows[0]).toHaveTextContent("inherited");
     expect(rows[1]).toHaveTextContent("override");
-    expect(rows[1]).toHaveTextContent("viewer");
+    // Roles are shown through the locale, never as the raw enum.
+    expect(rows[1]).toHaveTextContent("Viewer");
+    expect(rows[1]).not.toHaveTextContent("viewer");
     // A plain member with no project admin role sees no select.
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.getByText(/Only workspace owners, admins and project admins/)).toBeInTheDocument();
   });
 
-  it("sets an override and clears it back to inherited", () => {
+  it("sets an override and clears it back to inherited", async () => {
     // The current user is a project admin through their own row.
     state.members = [member({ subject_id: "user-1", name: "Me", ceiling: "admin", effective_role: "admin" }), member({})];
     render();
+    const user = userEvent.setup();
     const selects = screen.getAllByRole("combobox", { name: "Project role" });
-    fireEvent.change(selects[1]!, { target: { value: "viewer" } });
+    await user.click(selects[1]!);
+    await user.click(await screen.findByRole("option", { name: "Viewer" }));
     expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "user-2", role: "viewer" }, expect.anything());
-    fireEvent.change(selects[1]!, { target: { value: "__inherit" } });
+    await user.click(screen.getAllByRole("combobox", { name: "Project role" })[1]!);
+    await user.click(await screen.findByRole("option", { name: "Inherit (Contributor)" }));
     expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "user-2", role: null }, expect.anything());
+  });
+
+  it("keeps the role select for a workspace owner who restricted their own project role", async () => {
+    // Regression: the owner lowered themselves to viewer; the server still
+    // lets a workspace owner manage roles, so the UI must not hide the way back.
+    state.role = "owner";
+    state.members = [member({ subject_id: "member-1", name: "Me", workspace_role: "owner", ceiling: "admin", effective_role: "viewer", source: "override", override: "viewer" })];
+    render();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    await user.click(await screen.findByRole("option", { name: "Inherit (Admin)" }));
+    expect(state.set).toHaveBeenLastCalledWith({ subjectType: "member", subjectId: "member-1", role: null }, expect.anything());
+  });
+
+  it("reports a refused change in the user's language, not the raw server message", async () => {
+    const { toast } = await import("sonner");
+    state.role = "admin";
+    state.members = [member({})];
+    state.set.mockImplementation((_vars: unknown, opts: { onError: (e: Error) => void }) =>
+      opts.onError(new Error("your project role (contributor) does not allow this")),
+    );
+    render();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Project role" }));
+    await user.click(await screen.findByRole("option", { name: "Viewer" }));
+    expect(toast.error).toHaveBeenLastCalledWith("Failed to update the role");
   });
 
   it("labels agents", () => {

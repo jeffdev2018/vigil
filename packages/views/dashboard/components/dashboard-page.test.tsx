@@ -377,11 +377,16 @@ describe("DashboardPage — viewing timezone drives the query key", () => {
       container.querySelectorAll("number-flow-react"),
     );
 
-    expect(flows).toHaveLength(5);
+    // One more than before: the leaderboard's cost cell now animates too
+    // (was a plain `${row.cost.toFixed(2)}` string — P3 audit finding).
+    expect(flows).toHaveLength(6);
     expect(flows.map((flow) => flow.getAttribute("aria-label"))).toEqual(
       expect.arrayContaining(["$0.03", "3K", "12"]),
     );
     expect(container).toHaveTextContent("3h 17m");
+    // Audit UX (sept. 2026): this estimate read as contradicting Budgets'
+    // charged amount for the same period; the tile now says what it measures.
+    expect(container).toHaveTextContent("Estimated from every run's tokens (provider cost when reported), not the amount charged to budgets");
     expect(
       flows.every(
         (flow) =>

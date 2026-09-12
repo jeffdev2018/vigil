@@ -44,6 +44,11 @@ SELECT * FROM pipeline_run WHERE issue_id = $1 ORDER BY started_at DESC LIMIT 1;
 -- name: GetPipelineRunByGateDecision :one
 SELECT * FROM pipeline_run WHERE gate_decision_id = $1 AND status = 'paused';
 
+-- name: GetPipelineRunsByGateDecisionIDs :many
+-- Batch variant of GetPipelineRunByGateDecision for ListApprovals'
+-- decisionKind, which resolves this once per decision on the feed.
+SELECT * FROM pipeline_run WHERE gate_decision_id = ANY(sqlc.arg('decision_ids')::uuid[]) AND status = 'paused';
+
 -- name: CountOpenPipelineRunsForPipeline :one
 SELECT count(*) FROM pipeline_run WHERE pipeline_id = $1 AND status IN ('active', 'paused');
 

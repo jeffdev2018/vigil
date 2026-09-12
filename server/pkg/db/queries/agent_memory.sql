@@ -25,6 +25,13 @@ LIMIT 200;
 SELECT * FROM agent_memory
 WHERE id = $1 AND workspace_id = $2;
 
+-- name: GetAgentMemoriesByIDs :many
+-- Batch variant of GetAgentMemory for checkEvaluationVersions, which
+-- otherwise resolves the candidate plus up to 199 baseline memories one at a
+-- time (JEF-276-adjacent: agent memory evaluation reports).
+SELECT * FROM agent_memory
+WHERE workspace_id = sqlc.arg('workspace_id') AND id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: CreateAgentMemory :one
 -- state is explicit at every call site (JEF-269): 'manual' and 'postmortem'
 -- rows are human-approved at write time, 'run' extraction rows land as
@@ -84,6 +91,20 @@ ON CONFLICT (memory_id, revision) DO NOTHING;
 
 -- name: GetAgentMemoryVersion :one
 SELECT * FROM agent_memory_version WHERE memory_id = $1 AND workspace_id = $2 AND revision = $3;
+
+-- name: GetAgentMemoryVersionsByRevisions :many
+-- Batch variant of GetAgentMemoryVersion for checkEvaluationVersions: the
+-- (memory_id, revision) pairs are zipped positionally the way task_message's
+-- CreateTaskMessages zips its columns, since sqlc only understands the
+-- single-argument unnest signature.
+SELECT v.*
+FROM agent_memory_version v
+JOIN (
+    SELECT
+        unnest(sqlc.arg('memory_ids')::uuid[]) AS memory_id,
+        unnest(sqlc.arg('revisions')::int4[]) AS revision
+) AS want ON v.memory_id = want.memory_id AND v.revision = want.revision
+WHERE v.workspace_id = sqlc.arg('workspace_id');
 
 -- name: ListAgentMemoryVersions :many
 SELECT * FROM agent_memory_version WHERE memory_id = $1 AND workspace_id = $2 AND revision < $3

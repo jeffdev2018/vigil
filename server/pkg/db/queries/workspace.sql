@@ -2,7 +2,7 @@
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
        w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
-       w.postmortem_cost_threshold_usd_ticks
+       w.postmortem_cost_threshold_usd_ticks, w.doctrine_revision, w.doctrine_updated_at, w.doctrine_updated_by
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1
@@ -43,6 +43,14 @@ WHERE id = $1;
 -- name: CreateWorkspace :one
 INSERT INTO workspace (name, slug, description, context, issue_prefix)
 VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: MergeWorkspaceSettings :one
+-- Merges one settings key server-side: a PUT that read the blob, changed a
+-- key and wrote it all back lost the writes of any concurrent PUT.
+UPDATE workspace
+SET settings = COALESCE(settings, '{}'::jsonb) || sqlc.arg('settings')::jsonb, updated_at = now()
+WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: UpdateWorkspace :one
@@ -173,6 +181,11 @@ cleared_user_bindings AS (
 ),
 cleared_binding_tokens AS (
     DELETE FROM channel_binding_token WHERE workspace_id = $1
+),
+cleared_channel_approval_messages AS (
+    -- channel_approval_message carries no FK by repo rule, so the workspace
+    -- DELETE below never reaches it.
+    DELETE FROM channel_approval_message WHERE workspace_id = $1
 ),
 cleared_installations AS (
     DELETE FROM channel_installation WHERE workspace_id = $1

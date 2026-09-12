@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@multica/ui/components/ui/card";
 import { Button } from "@multica/ui/components/ui/button";
-import { api } from "@multica/core/api";
+import { api, ApiError } from "@multica/core/api";
 import { useAuthStore } from "@multica/core/auth";
 import { AppLink } from "../navigation";
 import { useT } from "../i18n";
@@ -125,15 +125,27 @@ export function LarkBindPage({ token }: { token: string | null }) {
 }
 
 function redemptionFailureReason(err: unknown): string {
+  // Status codes are the authoritative signal — a server error MESSAGE can
+  // legitimately contain "invalid"/"403"/etc as prose without meaning the
+  // status the substring match assumed (e.g. "invalid workspace member
+  // reference" would have matched both "invalid" and "workspace member").
+  if (err instanceof ApiError) {
+    if (err.status === 410) return "expired";
+    if (err.status === 409) return "already_bound";
+    if (err.status === 403) return "not_member";
+  }
+  // Fallback for a caller that threw a plain Error (older code path, a
+  // network failure with no status) — kept narrow on purpose so it only
+  // catches the messages the server is documented to send.
   const msg = err instanceof Error ? err.message : "";
   const lower = msg.toLowerCase();
-  if (lower.includes("invalid") || lower.includes("expired") || lower.includes("410")) {
+  if (lower.includes("invalid") || lower.includes("expired")) {
     return "expired";
   }
-  if (lower.includes("already bound") || lower.includes("409")) {
+  if (lower.includes("already bound")) {
     return "already_bound";
   }
-  if (lower.includes("workspace member") || lower.includes("403")) {
+  if (lower.includes("workspace member")) {
     return "not_member";
   }
   return "unknown";

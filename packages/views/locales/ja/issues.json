@@ -1,4 +1,25 @@
 {
+  "inline_run": {
+    "label": "{{name}} の実行",
+    "stop": "停止",
+    "stopping": "停止中...",
+    "queued": "利用可能なエージェントを待っています。",
+    "starting": "エージェントのセッションを準備しています。",
+    "waiting_directory": "別の実行が作業ディレクトリを解放するのを待っています。",
+    "thinking": "思考中",
+    "waiting_response": "エージェントの応答を待っています。",
+    "view_activity": "実行過程を表示",
+    "steps_other": "{{count}} ステップ",
+    "loading": "実行過程を読み込み中...",
+    "load_failed": "実行過程を読み込めませんでした。",
+    "try_again": "再試行",
+    "empty": "実行記録はまだありません。",
+    "show_earlier": "前の {{count}} ステップを表示",
+    "full_log": "完全なログを開く",
+    "message": "エージェントのメッセージ",
+    "error": "エラー",
+    "waiting_result": "ツールの結果を待っています..."
+  },
   "status_catalog_error": {
     "title": "ステータス一覧を読み込めませんでした",
     "hint": "これがないとステータスの絞り込みを適用できないため、課題は表示されません。",
@@ -79,7 +100,9 @@
     "breadcrumb_workspace_fallback": "ワークスペース",
     "empty_title": "まだ課題がありません",
     "empty_hint": "課題を作成して始めましょう。",
-    "move_failed": "課題を移動できませんでした"
+    "move_failed": "課題を移動できませんでした",
+    "empty_run_explainer": "エージェントはブラウザ上のネイティブランタイムで動くか、あなたが接続したコンピュータで動きます。",
+    "empty_run_explainer_link": "エージェントを作成"
   },
   "status": {
     "backlog": "バックログ",
@@ -217,6 +240,7 @@
     "empty": "この表示に一致する課題はありません。",
     "search_placeholder": "タイトルまたは課題 ID を検索…",
     "search_clear": "検索をクリア",
+    "resize_column": "{{label}}列のサイズを変更",
     "load_failed": "課題を読み込めませんでした。",
     "load_failed_retry": "再試行",
     "load_more_failed_retry": "続きの読み込みに失敗しました — 再試行",
@@ -321,7 +345,8 @@
     "empty_column": "課題なし",
     "empty_grouping": "一致する課題がありません",
     "no_value": "値なし",
-    "ordered_by": "{{field}} 順に並べたボード"
+    "ordered_by": "{{field}} 順に並べたボード",
+    "column_menu_aria": "列のオプション"
   },
   "detail": {
     "not_found": "この課題はこのワークスペースに存在しないか、削除されています。",
@@ -471,7 +496,10 @@
       "hint_select": "選択",
       "hint_jump": "移動",
       "hint_close": "閉じる"
-    }
+    },
+    "section_related": "関連",
+    "section_duplicate": "重複",
+    "more_actions_tooltip": "その他の操作"
   },
   "timeline": {
     "loading": "読み込み中..."
@@ -504,6 +532,9 @@
     "show_more_activities_other": "アクティビティをさらに {{count}} 件表示"
   },
   "comment": {
+    "add_reaction": "リアクションを追加",
+    "collapse_thread": "スレッドを折りたたむ",
+    "expand_thread": "スレッドを展開",
     "delete_title": "コメントを削除",
     "delete_desc": "このコメントは完全に削除されます。この操作は元に戻せません。",
     "delete_desc_with_replies": "このコメントとすべての返信が完全に削除されます。この操作は元に戻せません。",
@@ -670,7 +701,38 @@
     "revert_dialog_confirm": "ブランチを戻す",
     "revert_pending": "戻しています…",
     "revert_done": "このターンに戻しました",
-    "revert_failed": "戻す処理が完了しませんでした"
+    "revert_failed": "戻す処理が完了しませんでした",
+    "branch_promote": "昇格",
+    "branch_promote_pending": "昇格中…",
+    "branch_promoted": "昇格済み",
+    "branch_promoted_view_pr": "昇格済み · PR を表示",
+    "branch_discard": "破棄",
+    "branch_discard_pending": "破棄中…",
+    "branch_discarded": "破棄済み",
+    "branch_show_diff": "差分を表示",
+    "branch_hide_diff": "差分を隠す",
+    "branch_diff_loading": "差分を読み込み中…",
+    "branch_promote_dialog_title": "このブランチを昇格しますか？",
+    "branch_promote_dialog_body": "{{branch}} をプッシュしてプルリクエストを作成します。",
+    "branch_promote_dialog_confirm": "プッシュして PR を作成",
+    "branch_discard_dialog_title": "このブランチを破棄しますか？",
+    "branch_discard_dialog_body": "ブランチ {{branch}} とそのワークツリーが削除されます。この操作は取り消せません。",
+    "branch_discard_dialog_confirm": "ブランチを削除",
+    "branch_dialog_cancel": "キャンセル",
+    "branch_action_failed": "ブランチ操作が完了しませんでした",
+    "branch_error_not_promotable": "この実行は昇格できなくなりました — リストを更新しました。",
+    "branch_error_not_discardable": "この実行は破棄できなくなりました — リストを更新しました。",
+    "branch_error_pending": "この実行では別のブランチ操作がすでに進行中です。",
+    "consult": {
+      "answered": "{{model}} に相談 · {{cost}}",
+      "pending": "{{model}} に相談中…",
+      "failed": "{{model}} への相談に失敗しました",
+      "refused": "{{model}} への相談は拒否されました · {{reason}}",
+      "refused_no_reason": "{{model}} への相談は拒否されました",
+      "cost_unreported": "コストは報告されていません",
+      "reason_budget_exceeded": "1日の相談予算を使い切りました",
+      "reason_llm_disabled": "相談用の LLM が設定されていません"
+    }
   },
   "legs": {
     "workflow": "ワークフロー",
@@ -690,9 +752,16 @@
       "fanout": "分散",
       "shard": "シャード",
       "eval": "評価",
+      "benchmark": "ベンチマーク",
       "escalation": "エスカレーション",
-      "other": "工程"
-    }
+      "pr_walkthrough": "ウォークスルー",
+      "epic_step": "エピックのステップ",
+      "other": "工程",
+      "continuation": "継続",
+      "subagent": "サブエージェント"
+    },
+    "total_unknown": "コスト不明",
+    "total_partial_other": "{{cost}} ＋ コスト不明の実行 {{count}} 件"
   },
   "usage_detail": {
     "title": "使用量の内訳",
@@ -777,7 +846,9 @@
     "delete_issue": "課題を削除",
     "add_blocking": "ブロック対象を追加...",
     "add_blocked_by": "ブロック元を追加...",
-    "remove_dependency": "依存関係を解除"
+    "remove_dependency": "依存関係を解除",
+    "remove_dependency_failed": "依存関係を解除できませんでした。",
+    "add_relation": "関連を追加…"
   },
   "pickers": {
     "custom_property": {
@@ -1139,6 +1210,39 @@
       "expired": "期限切れ"
     }
   },
+  "sandbox_override": {
+    "section": "サンドボックスオーバーライド",
+    "description": "この課題のエージェント実行を、ワークスペースとプロジェクトのポリシーよりさらに制限します。3 つのうち最も厳しいものが適用され、フェイルクローズで強制されます。",
+    "capability_hint": "許可リストとネットワークなしのモードにはコンテナ対応ランタイムが必要です。その能力のないランタイムでの実行は拒否され、フェイルオーバーします (フェイルクローズ)。",
+    "none": "オーバーライドなし — プロジェクトのポリシーを継承",
+    "edit": "オーバーライドを編集",
+    "dialog_title": "サンドボックスオーバーライド",
+    "network": "ネットワークアクセス",
+    "mode": {
+      "unrestricted": "制限なし",
+      "allowlist": "許可リスト",
+      "none": "ネットワークなし"
+    },
+    "hint": {
+      "unrestricted": "任意のホストに到達できます。",
+      "allowlist": "リストされたホストとプラットフォーム既定のホストのみ到達可能です。",
+      "none": "プラットフォームが必要とするもの以外のネットワーク egress はありません。"
+    },
+    "hosts_label": "許可するホスト",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "1 行に 1 ホスト。プラットフォーム既定のホストは常に到達可能です。",
+    "block_sensitive": "機密ファイルをブロック",
+    "block_sensitive_help": "エージェントは .env ファイルを読んではいけません (ベストエフォート)。",
+    "effective": "この課題の実効値: {{mode}}",
+    "effective_blocked": "機密ファイルはブロック中",
+    "save": "オーバーライドを保存",
+    "saving": "保存中...",
+    "remove": "オーバーライドを削除",
+    "toast_saved": "サンドボックスオーバーライドを保存しました",
+    "toast_removed": "サンドボックスオーバーライドを削除しました — プロジェクトのポリシーが適用されます",
+    "failed": "サンドボックスオーバーライドを保存できませんでした",
+    "load_failed": "サンドボックスオーバーライドを読み込めませんでした"
+  },
   "decisions": {
     "section": "判断",
     "recommended": "推奨",
@@ -1154,7 +1258,10 @@
     "sla_overdue": "期限超過、エスカレーション待ち",
     "sla_substitute": "期限超過 · 代理担当者にエスカレーション済み",
     "sla_leads": "期限超過 · ワークスペースのリードにエスカレーション済み",
-    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。"
+    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。",
+    "urgency_high": "高",
+    "urgency_normal": "通常",
+    "urgency_low": "低"
   },
   "acceptance": {
     "section": "受け入れ基準",
@@ -1212,7 +1319,13 @@
     "failed_sections": "一部のセクションを読み込めませんでした：{{sections}}。",
     "error": "レビューコックピットを読み込めませんでした。",
     "retry": "再試行",
-    "move_failed": "イシューのステータスを変更できませんでした"
+    "move_failed": "イシューのステータスを変更できませんでした",
+    "changes_label": "何を変更する必要がありますか？",
+    "changes_hint": "依頼は課題へのコメントとして投稿され、その後課題は「進行中」に戻ります。",
+    "changes_cancel": "キャンセル",
+    "changes_send": "依頼を送信",
+    "changes_requested": "変更を依頼しました：コメントを投稿し、課題を「進行中」に戻しました。",
+    "request_changes_failed": "依頼を投稿できませんでした。入力内容は保持されています。もう一度お試しください。"
   },
   "ownership": {
     "section": "提案された担当者",
@@ -1261,6 +1374,7 @@
     "winner": "勝者: {{side}}",
     "winner_tie": "引き分け",
     "open": "対決を開始",
+    "open_hint": "同じイシューに対して2つのエージェントを並行して実行し、結果を比較します。",
     "agent_a": "エージェント A",
     "agent_b": "エージェント B",
     "pick_agent": "エージェントを選択…",
@@ -1286,6 +1400,7 @@
     "start_confirm": "レースを開始",
     "attempt_agent": "試行 {{index}} — エージェント",
     "attempt_model": "試行 {{index}} — モデル",
+    "attempt_runtime": "試行 {{index}} — ランタイム",
     "remove_attempt": "試行 {{index}} を削除",
     "add_attempt": "試行を追加",
     "pick_agent": "エージェントを選択…",
@@ -1294,6 +1409,10 @@
     "note_placeholder": "すべての試行へのメモ（任意）",
     "model": "モデル",
     "default_model": "エージェント既定",
+    "runtime": "ランタイム",
+    "default_runtime": "既定（エージェントのバインド）",
+    "cost": "コスト",
+    "duration": "所要時間",
     "run_status": "実行",
     "diff_stat": "差分",
     "diff_truncated": "差分が大きすぎて保存できません。統計のみ — ブランチを確認してください。",
@@ -1310,7 +1429,13 @@
     "cancel": "キャンセル",
     "failed": "レースのリクエストに失敗しました",
     "error_already_active": "この課題では既にレースが実行中です。",
-    "error_already_settled": "このレースは既に終了しています。"
+    "error_already_settled": "このレースは既に終了しています。",
+    "ask_judge": "ジャッジに判定を依頼",
+    "judging": "判定中…",
+    "recommended": "おすすめ",
+    "judge_score": "ジャッジのスコア",
+    "judge_failed": "ジャッジは判定を出せませんでした。試行を自分で比較してください。",
+    "error_not_judgeable": "ジャッジには完了した試行が 2 件以上必要です。"
   },
   "campaign": {
     "section": "リファクタリングキャンペーン",
@@ -1334,6 +1459,7 @@
     "conflict_hint": "人の対応が必要です。解決するか、シャードをスキップしてキューを進めてください。",
     "skip": "シャード #{{n}} をスキップ",
     "open": "リファクタリングキャンペーンを開始",
+    "open_hint": "同じリファクタリングを複数のブランチで並行実行し、それぞれ個別にマージします。",
     "name": "キャンペーン名",
     "target_branch": "ターゲットブランチ",
     "leader": "リーダーエージェント",
@@ -1347,7 +1473,8 @@
     "add": "シャードを追加",
     "launch": "キャンペーンを開始",
     "cancel": "キャンセル",
-    "failed": "キャンペーンのリクエストに失敗しました"
+    "failed": "キャンペーンのリクエストに失敗しました",
+    "unknown_agent": "不明なエージェント"
   },
   "competency": {
     "section": "この種の課題での成功履歴",
@@ -1484,6 +1611,75 @@
       "none": "アクションなし"
     }
   },
+  "goal_loop": {
+    "section": "ゴール",
+    "intro": "このエージェントに、複数回の実行にわたって目指すゴールを設定します。",
+    "goal_label": "ゴール",
+    "goal_placeholder": "このイシューで達成すべきことは？",
+    "max_continuations": "最大継続回数",
+    "save": "ゴールを保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "save_failed": "ゴールを保存できませんでした",
+    "saved": "ゴールを保存しました",
+    "pause": "一時停止",
+    "resume": "再開",
+    "pause_failed": "ゴールを一時停止できませんでした",
+    "resume_failed": "ゴールを再開できませんでした",
+    "paused": "ゴールを一時停止しました",
+    "resumed": "ゴールを再開しました",
+    "continuation_progress": "継続 {{n}} / {{max}}",
+    "blocker": "妨げ",
+    "reason": "理由",
+    "next_step": "次のステップ",
+    "evidence": "根拠",
+    "evidence_show_all": "すべて表示（{{count}}件）",
+    "evidence_collapse": "折りたたむ",
+    "status": {
+      "active": "進行中",
+      "paused": "一時停止中",
+      "waiting_user": "回答待ち",
+      "satisfied": "ゴール達成",
+      "stopped": "停止"
+    },
+    "outcomes": {
+      "none": "まだ結果なし",
+      "satisfied": "達成",
+      "continued": "継続",
+      "stopped_exhausted": "継続回数の上限に達した",
+      "stopped_stagnation": "進展なく行き詰まった",
+      "stopped_needs_user_input": "あなたの回答が必要",
+      "stopped_external_wait": "外部要因を待機中",
+      "stopped_run_failed": "実行が失敗した",
+      "stopped_judge_unavailable": "判定が利用できなかった",
+      "stopped_paused": "一時停止",
+      "stopped_issue_changed": "イシューが変更された",
+      "stopped_unknown": "停止",
+      "other": "不明な結果"
+    },
+    "badge": {
+      "continued": "ゴール：継続 {{n}}/{{max}}",
+      "satisfied": "ゴール達成",
+      "waiting": "ゴール：回答待ち",
+      "stopped": "ゴール：停止（{{reason}}）"
+    },
+    "question": {
+      "answer_placeholder": "回答を入力…",
+      "answer": "回答する",
+      "answer_failed": "回答を送信できませんでした",
+      "answered": "回答を送信しました",
+      "answered_line": "{{when}}に回答済み",
+      "answered_by_line": "{{by}}が{{when}}に回答済み"
+    },
+    "blockers": {
+      "goal_not_met_yet": "ゴール未達成",
+      "missing_evidence": "証拠が不足",
+      "needs_user_input": "あなたの回答が必要",
+      "external_wait": "外部の要素を待機中",
+      "run_failed": "実行が失敗",
+      "other": "その他"
+    }
+  },
   "eval_promote": {
     "promote": "評価ケースに昇格",
     "added": "評価ラボに追加しました",
@@ -1559,6 +1755,9 @@
     "reject": "却下",
     "note_placeholder": "メモ（任意）",
     "decide_failed": "判断を記録できませんでした。",
+    "cancel_request": "申請を取り消す",
+    "cancelled_toast": "申請を取り消しました。",
+    "cancel_failed": "申請を取り消せませんでした。",
     "pending_toast": "承認に送りました。ステータスはまだ変わっていません。"
   },
   "run_preview": {
@@ -1680,6 +1879,150 @@
     "human_effort": "このクライアントが報告したレビュー作業時間：{{seconds}} 秒（フォーム表示中の自己計測。完了から送信までの経過時間ではありません）。",
     "result_counts": "レビュー済み {{reviewed}} 件中、現在 {{accepted}} 件を承認",
     "correction_counts": "修正依頼 {{corrections}} 件 · 承認後の修正依頼 {{reversals}} 件",
-    "metrics_hint": "異なる証拠スナップショットを一つの結果と数えます。同じ結果の再承認は重複計上せず、後の修正依頼で承認を取り消します。"
+    "metrics_hint": "異なる証拠スナップショットを一つの結果と数えます。同じ結果の再承認は重複計上せず、後の修正依頼で承認を取り消します。",
+    "result_pr": "プルリクエスト",
+    "technical_details": "技術的な詳細"
+  },
+  "approvals": {
+    "kind_gate_git_push": "ブロックされた Git push",
+    "kind_gate_tool": "ブロックされたツール呼び出し",
+    "kind_gate_spend": "ブロックされた支出",
+    "kind_plan": "プラン承認",
+    "kind_interview": "インタビューの質問",
+    "kind_preview": "まず見せて",
+    "kind_watchdog": "ウォッチドッグの判定",
+    "kind_pipeline": "パイプラインステージ",
+    "kind_goal_attach": "目標の添付",
+    "kind_org_assign": "ルーティングされた割り当て",
+    "kind_transition": "ブロックされたステータス変更",
+    "kind_goal_question": "実行からの質問",
+    "kind_decision": "判断",
+    "asked_by": "{{name}} が依頼",
+    "expires_in": "残り{{time}}",
+    "expired": "期限切れ",
+    "details_show": "実行内容を見る",
+    "details_hide": "詳細を隠す",
+    "gate_type": "ゲート",
+    "paths": "パス",
+    "blast_radius": "影響範囲",
+    "dual_approval": "承認 {{have}}/{{need}}",
+    "cannot_decide_policy": "このワークスペースの承認ゲートはオーナーと管理者のみが扱えます。",
+    "cannot_decide_role": "この依頼の承認者ではありません。",
+    "approve": "承認",
+    "reject": "拒否",
+    "note_placeholder": "依頼者へのメモ（任意）",
+    "answer_placeholder": "回答",
+    "send": "送信",
+    "answered": "回答を記録しました",
+    "answer_failed": "回答を記録できませんでした",
+    "pending_banner_other": "{{count}} 件が判断待ち",
+    "run_halt_title": "エージェントは停止中です",
+    "run_halt_body": "停止中はゲート付きのアクションがすべて拒否されます。",
+    "run_halt_by": "{{who}} が {{when}} に停止",
+    "run_halt_reason_prefix": "理由: {{reason}}",
+    "run_halt_unknown_actor": "オーナー",
+    "run_halt_lift": "停止を解除",
+    "run_halt_lift_failed": "停止を解除できませんでした",
+    "run_halt_frozen_count": "{{count}} 件の実行が凍結中",
+    "kind_calendar_proposal": "会議の提案",
+    "kind_autopilot_proposal": "オートパイロットの提案"
+  },
+  "followups": {
+    "section": "フォローアップ",
+    "schedule": "フォローアップを予約",
+    "empty": "予約された起動はありません。",
+    "fires_in": "{{countdown}}後",
+    "scheduled_by": "{{by}} が予約",
+    "cancel": "このフォローアップを取り消す",
+    "cancelled": "フォローアップを取り消しました",
+    "cancel_failed": "フォローアップを取り消せませんでした",
+    "scheduled": "フォローアップを予約しました",
+    "schedule_failed": "フォローアップを予約できませんでした",
+    "budget_reached": "1 日のフォローアップ上限に達しました。",
+    "budget_line": "1 日あたりエージェントごとに最大 {{agent}} 件、ワークスペースごとに最大 {{workspace}} 件。",
+    "quick": {
+      "in_1h": "1 時間後",
+      "tomorrow_9": "明日 9:00",
+      "next_monday_9": "来週月曜 9:00",
+      "custom": "時刻を指定"
+    },
+    "cancel_dialog": {
+      "title": "このフォローアップを取り消しますか？",
+      "description": "{{agent}} はこの課題で起動しません。",
+      "keep": "残す",
+      "confirm": "フォローアップを取り消す"
+    },
+    "dialog": {
+      "title": "フォローアップを予約",
+      "description": "エージェントがメモとともにこの課題に戻ります。",
+      "custom_label": "日時",
+      "agent_label": "エージェント",
+      "agent_placeholder": "どのエージェントが起動しますか？",
+      "note_label": "メモ",
+      "note_placeholder": "何を確認しますか？",
+      "budget_hint": "1 日あたりエージェントごとに最大 {{agent}} 件のフォローアップ。",
+      "cancel": "キャンセル",
+      "confirm": "予約"
+    }
+  },
+  "recurrence": {
+    "section": "繰り返し",
+    "empty": "この課題は一度きりです。",
+    "make_recurring": "繰り返しにする",
+    "edit": "編集",
+    "stop": "繰り返しを停止",
+    "active": "有効",
+    "paused": "停止中 — 次回の予定はありません。",
+    "next_runs": "次回の予定",
+    "next_on": "次回は {{when}}",
+    "in_time": "{{countdown}} 後",
+    "series": "生成された課題",
+    "source": "元の課題",
+    "part_of_series": "シリーズ {{identifier}} の一部",
+    "occurrence_created": "作成 {{when}}",
+    "occurrence_due": "期限 {{when}}",
+    "saved": "繰り返しを保存しました",
+    "save_failed": "繰り返しを保存できませんでした",
+    "stopped": "繰り返しを停止しました",
+    "stop_failed": "繰り返しを停止できませんでした",
+    "forbidden": "繰り返しを変更できるのはメンバーのみです。",
+    "sentence": {
+      "daily": "毎日 {{time}}（{{tz}}）",
+      "weekdays": "平日 {{time}}（{{tz}}）",
+      "weekly": "毎週{{weekday}} {{time}}（{{tz}}）",
+      "monthly": "毎月 {{day}} 日 {{time}}（{{tz}}）",
+      "custom": "カスタム（{{cron}}）",
+      "on_close": "現在の課題が完了したとき"
+    },
+    "dialog": {
+      "title": "繰り返し",
+      "description": "選んだ間隔で、この課題から新しい課題が作成されます。",
+      "preset": {
+        "daily": "毎日",
+        "weekdays": "平日",
+        "weekly": "毎週",
+        "monthly": "毎月",
+        "custom": "カスタム cron",
+        "on_close": "現在の課題が完了したとき"
+      },
+      "time_label": "時刻",
+      "weekday_label": "曜日",
+      "day_label": "日",
+      "cron_label": "cron 式",
+      "timezone_label": "タイムゾーン",
+      "preview": "次回: {{runs}}",
+      "preview_empty": "この式は実行されません。",
+      "preview_unreadable": "この式をプレビューできませんでした。",
+      "enabled_label": "有効",
+      "cancel": "キャンセル",
+      "confirm": "保存"
+    },
+    "stop_dialog": {
+      "title": "この繰り返しを停止しますか？",
+      "description": "新しい課題は作成されません。作成済みの課題はそのまま残ります。",
+      "keep": "続ける",
+      "confirm": "繰り返しを停止"
+    },
+    "badge": "繰り返し"
   }
 }

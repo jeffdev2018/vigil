@@ -14,15 +14,23 @@ import type { SkillActionsContext } from "./skill-list-actions";
 const TEST_RESOURCES = { en: { common: enCommon, skills: enSkills } };
 
 vi.mock("@multica/core/api", () => ({
-  api: { refreshSkill: vi.fn() },
+  api: {
+    refreshSkill: vi.fn(),
+    deleteSkill: vi.fn(),
+    addAgentSkills: vi.fn(),
+    getBaseUrl: () => "https://api.example.com",
+  },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import type { Agent } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { toast } from "sonner";
-import { UpdateSkillsDialog } from "./skill-list-actions";
+import { AddToAgentDialog, DeleteSkillsDialog, UpdateSkillsDialog } from "./skill-list-actions";
 
 const refreshSkill = vi.mocked(api.refreshSkill);
+const deleteSkill = vi.mocked(api.deleteSkill);
+const addAgentSkills = vi.mocked(api.addAgentSkills);
 
 function makeRow(id: string): SkillRow {
   const skill: SkillSummary = {
@@ -137,5 +145,150 @@ describe("UpdateSkillsDialog", () => {
     expect(refreshSkill.mock.calls.map(([id]) => id)).toEqual(["a", "b"]);
     // Partial success keeps the selection: onUpdated only fires on a clean run.
     expect(onUpdated).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DeleteSkillsDialog — batch delete used to be a `for...of` loop that threw
+// out of the whole handler on the first rejection: the dialog stayed open,
+// no cache invalidation ran, and there was no indication which row failed.
+// ---------------------------------------------------------------------------
+
+function renderDeleteDialog(
+  rows: SkillRow[],
+  onOpenChange: (open: boolean) => void,
+  onDeleted?: () => void,
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <I18nProvider locale="en" resources={TEST_RESOURCES}>
+      <QueryClientProvider client={queryClient}>
+        <DeleteSkillsDialog
+          rows={rows}
+          ctx={ctx}
+          open
+          onOpenChange={onOpenChange}
+          onDeleted={onDeleted}
+        />
+      </QueryClientProvider>
+    </I18nProvider>,
+  );
+}
+
+describe("DeleteSkillsDialog", () => {
+  it("deletes every row and closes on a clean run", async () => {
+    deleteSkill.mockResolvedValue({} as never);
+    const onOpenChange = vi.fn();
+    const onDeleted = vi.fn();
+    renderDeleteDialog([makeRow("a"), makeRow("b")], onOpenChange, onDeleted);
+
+    await userEvent.click(screen.getByRole("button", { name: /Delete/ }));
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(deleteSkill.mock.calls.map(([id]) => id).sort()).toEqual(["a", "b"]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and reports a partial toast when one row fails", async () => {
+    deleteSkill.mockImplementation((id: string) =>
+      id === "a"
+        ? Promise.reject(new Error("in use"))
+        : Promise.resolve({} as never),
+    );
+    const onOpenChange = vi.fn();
+    const onDeleted = vi.fn();
+    renderDeleteDialog([makeRow("a"), makeRow("b")], onOpenChange, onDeleted);
+
+    await userEvent.click(screen.getByRole("button", { name: /Delete/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Deleted 1, 1 failed"));
+    // "b" still deleted even though "a" failed.
+    expect(deleteSkill.mock.calls.map(([id]) => id).sort()).toEqual(["a", "b"]);
+    expect(onDeleted).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AddToAgentDialog — same defect: a rejection on agent #2 exited the handler
+// before the cache invalidation for agent #1's already-persisted mutation.
+// ---------------------------------------------------------------------------
+
+function makeAgent(id: string, overrides: Partial<Agent> = {}): Agent {
+  return {
+    id,
+    workspace_id: "ws-1",
+    runtime_id: "rt-1",
+    name: `Agent ${id}`,
+    description: "",
+    instructions: "",
+    avatar_url: null,
+    runtime_mode: "local",
+    runtime_config: {},
+    max_concurrent_tasks: 1,
+    owner_id: "user-1",
+    archived_at: null,
+    custom_args: [],
+    visibility: "private",
+    permission_mode: "private",
+    invocation_targets: [],
+    model: "claude",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    status: "idle",
+    skills: [],
+    archived_by: null,
+    ...overrides,
+  } as Agent;
+}
+
+const skill: SkillSummary = {
+  id: "skill-1",
+  workspace_id: "ws-1",
+  name: "Skill One",
+  description: "",
+  config: { origin: { type: "manual" } },
+  created_by: "user-1",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
+function renderAddDialog(agents: Agent[]) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <I18nProvider locale="en" resources={TEST_RESOURCES}>
+      <QueryClientProvider client={queryClient}>
+        <AddToAgentDialog
+          skills={[skill]}
+          ctx={{ ...ctx, agents }}
+          open
+          onOpenChange={() => {}}
+        />
+      </QueryClientProvider>
+    </I18nProvider>,
+  );
+}
+
+describe("AddToAgentDialog", () => {
+  it("adds the skill to every selected agent and invalidates the cache when one fails", async () => {
+    addAgentSkills.mockImplementation((id: string) =>
+      id === "b"
+        ? Promise.reject(new Error("permission denied"))
+        : Promise.resolve({} as never),
+    );
+    renderAddDialog([makeAgent("a"), makeAgent("b")]);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Agent a/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Agent b/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Add \(2\)/ }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Added to 1, 1 failed"));
+    // Agent "a" was attempted even though "b" failed — no early exit.
+    expect(addAgentSkills.mock.calls.map(([id]) => id).sort()).toEqual(["a", "b"]);
   });
 });

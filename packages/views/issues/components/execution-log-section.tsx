@@ -5,9 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
-import { issueKeys } from "@multica/core/issues/queries";
-import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
+import { legRoleLabelKey, taskLegsOptions, unknownCostLegs, workflowRootOf } from "@multica/core/issues/legs";
+import { taskConsultsOptions, type AgentConsult } from "@multica/core/fleet";
+import { goalLoopOfTask, goalOutcomeLabelKey, issueGoalOptions } from "@multica/core/issues/goal-loop";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { issueTasksOptions } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask, TaskStatus } from "@multica/core/types";
 import { useConfigStore } from "@multica/core/config";
@@ -29,6 +31,7 @@ import { ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../
 import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
+import { compareActiveIssueTasks } from "./active-task-order";
 import {
   formatTokens,
   formatUsd,
@@ -41,6 +44,7 @@ import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
 import { RunPreviewChip } from "../../runs/components/run-preview-chip";
 import { RunRevertAction } from "./run-revert-action";
+import { WorktreeRunBlock } from "./worktree-run-block";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
 
 // Right-panel section that lists every agent run for this issue. Active
@@ -93,19 +97,14 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
   // a `["issues", "tasks"]` prefix-match — no local WS subscriptions
   // needed, and the cache stays fresh even when this component isn't
   // mounted (e.g. user cancels from agent-side, then navigates here).
-  const { data: tasks = [] } = useQuery({
-    queryKey: issueKeys.tasks(issueId),
-    queryFn: () => api.listTasksByIssue(issueId),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
+  const { data: tasks = [] } = useQuery(issueTasksOptions(issueId));
 
   // Bucketing goes through the normalized state (F02): pending (queued,
   // deferred), active (dispatched, running) and blocked
   // (waiting_local_directory) are all "in flight"; an unknown status lands
   // in pending rather than vanishing.
   const activeTasks = useMemo(
-    () => tasks.filter((t) => !isRunSettled(runStateOf(t.status))),
+    () => tasks.filter((t) => !isRunSettled(runStateOf(t.status))).toSorted(compareActiveIssueTasks),
     [tasks],
   );
 
@@ -336,7 +335,7 @@ export function ActiveTaskRow({
 }: {
   task: AgentTask;
   issueId: string;
-  onTranscriptOpenChange?: (open: boolean) => void;
+  onTranscriptOpenChange?: (open: boolean, fromKeyboard?: boolean) => void;
 }) {
   const { t } = useT("issues");
   const [cancelling, setCancelling] = useState(false);
@@ -470,6 +469,7 @@ export function ActiveTaskRow({
         />
       </RowShell>
       <RunPlanBlock task={task} />
+      <TaskConsultLines task={task} />
     </>
   );
 }
@@ -498,6 +498,82 @@ function RunPlanBlock({ task }: { task: AgentTask }) {
   return (
     <div className="pl-8 pr-1 pb-1">
       <RunPlan plan={task.plan} muted={isRunSettled(runStateOf(task.status))} />
+    </div>
+  );
+}
+
+// ─── Consult lines (JEF-12) ────────────────────────────────────────────────
+
+// The questions a run asked the platform's internal LLM mid-run, one line per
+// consult, indented to the row's text column like the run plan. Renders
+// nothing for a run with no consults — which is most runs — so the per-task
+// query's empty list is the everyday path. Cost arrives in pricing ticks
+// (1e10 = 1 USD); NULL means the LLM layer reported no usage, which is a
+// missing figure, never a free call.
+function TaskConsultLines({ task }: { task: AgentTask }) {
+  const wsId = useWorkspaceId();
+  const { data: consults = [] } = useQuery(taskConsultsOptions(wsId, task.id));
+  if (consults.length === 0) return null;
+  return (
+    <div className="space-y-px pl-8 pr-1 pb-1">
+      {consults.map((consult) => (
+        <ConsultLine key={consult.consult_id} consult={consult} />
+      ))}
+    </div>
+  );
+}
+
+// Refusal reasons are stable machine codes; known ones get a localized label,
+// an unknown one (a newer backend added a refusal kind) shows as-is.
+function consultReasonLabel(reason: string, t: ReturnType<typeof useT<"issues">>["t"]): string {
+  switch (reason) {
+    case "consult_budget_exceeded":
+      return t(($) => $.execution_log.consult.reason_budget_exceeded);
+    case "consult_llm_disabled":
+      return t(($) => $.execution_log.consult.reason_llm_disabled);
+    default:
+      return reason;
+  }
+}
+
+function ConsultLine({ consult }: { consult: AgentConsult }) {
+  const { t } = useT("issues");
+  const model = consult.model || "—";
+
+  if (consult.state === "failed") {
+    // The raw error text stays out of the UI (English operator prose, #7411);
+    // the localized line is the whole signal here.
+    return (
+      <div className="truncate text-caption text-destructive">
+        {t(($) => $.execution_log.consult.failed, { model })}
+      </div>
+    );
+  }
+  if (consult.state === "refused") {
+    return (
+      <div className="truncate text-caption text-muted-foreground">
+        {consult.refusal_reason
+          ? t(($) => $.execution_log.consult.refused, { model, reason: consultReasonLabel(consult.refusal_reason, t) })
+          : t(($) => $.execution_log.consult.refused_no_reason, { model })}
+      </div>
+    );
+  }
+  if (consult.state === "pending") {
+    return (
+      <div className="truncate text-caption text-muted-foreground">
+        {t(($) => $.execution_log.consult.pending, { model })}
+      </div>
+    );
+  }
+  // answered — and any state this client predates: a consult the schema let
+  // through reads as a plain line, never an error it isn't.
+  const cost =
+    consult.cost_usd_ticks != null
+      ? formatUsd(consult.cost_usd_ticks * 1e-10)
+      : t(($) => $.execution_log.consult.cost_unreported);
+  return (
+    <div className="truncate text-caption text-muted-foreground">
+      {t(($) => $.execution_log.consult.answered, { model, cost })}
     </div>
   );
 }
@@ -593,7 +669,7 @@ function PastRow({
 
   return (
     <>
-      <RowShell task={task} title={rowTitle}>
+      <RowShell task={task} title={rowTitle} issueId={issueId}>
         <TriggerText text={trigger} />
         <RunPlanCounter task={task} />
         <TaskCommentCoverage task={task} />
@@ -638,6 +714,11 @@ function PastRow({
         </RowActions>
       </RowShell>
       <RunPlanBlock task={task} />
+      <TaskConsultLines task={task} />
+      {/* Worktree branch (JEF-255): the run's branch, its diff, and the
+          promote/discard close-out. Renders nothing for runs without a
+          branch — everything that predates per-run worktrees. */}
+      <WorktreeRunBlock task={task} issueId={issueId} />
     </>
   );
 }
@@ -647,6 +728,7 @@ function PastRow({
 function RowShell({
   task,
   title,
+  issueId,
   children,
 }: {
   task: AgentTask;
@@ -655,6 +737,10 @@ function RowShell({
    *  is swapped out for the action buttons on hover — a title there would
    *  disappear at exactly the moment the pointer arrives. */
   title?: string;
+  /** Only past rows pass this — it is what lets GoalBadge look up the run's
+   *  verdict; a still-running row has no result yet, so the badge would be
+   *  empty regardless. */
+  issueId?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -674,8 +760,39 @@ function RowShell({
       )}
       <LegBadge task={task} />
       <OffPeakBadge task={task} />
+      {issueId && <GoalBadge task={task} issueId={issueId} />}
       {children}
     </div>
+  );
+}
+
+// Goal loop: what this run contributed to the issue's goal, e.g. "Goal:
+// continued 2/8", "Goal met", "Goal: waiting for answer". Absent for any run
+// with no goal_loop verdict (most runs), so the query only fires when there
+// is something to show.
+function GoalBadge({ task, issueId }: { task: AgentTask; issueId: string }) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const verdict = goalLoopOfTask(task);
+  const { data: goal } = useQuery({ ...issueGoalOptions(wsId, issueId), enabled: !!verdict });
+  if (!verdict) return null;
+  const outcomeKey = goalOutcomeLabelKey(verdict.outcome);
+  if (outcomeKey === "none") return null;
+  const title = verdict.reason || verdict.blocker || undefined;
+  let label: string;
+  if (outcomeKey === "continued") {
+    label = t(($) => $.goal_loop.badge.continued, { n: verdict.continuation, max: goal?.max_continuations ?? verdict.continuation });
+  } else if (outcomeKey === "satisfied") {
+    label = t(($) => $.goal_loop.badge.satisfied);
+  } else if (outcomeKey === "stopped_needs_user_input") {
+    label = t(($) => $.goal_loop.badge.waiting);
+  } else {
+    label = t(($) => $.goal_loop.badge.stopped, { reason: t(($) => $.goal_loop.outcomes[outcomeKey as "stopped_unknown"]) });
+  }
+  return (
+    <span className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground" title={title}>
+      {label}
+    </span>
   );
 }
 
@@ -744,15 +861,24 @@ function WorkflowSummary({ tasks }: { tasks: AgentTask[] }) {
   return <WorkflowSummaryLine rootTaskId={root} />;
 }
 
-function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
+// Exported for the Goal section, which reuses this exact formatting for a
+// goal loop's chain cost (same totals endpoint, same root task id).
+export function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
   const { data } = useQuery(taskLegsOptions(wsId, rootTaskId));
   const totals = data?.totals;
   if (!totals || totals.legs < 2) return null;
+  // Legs with no priceable usage are not in the total; saying "$0.00 in
+  // total" for them contradicted the delivery panel's "Cost unavailable".
+  const unknownLegs = unknownCostLegs(totals);
   const parts = [
     t(($) => $.legs.count, { count: totals.legs }),
-    t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
+    unknownLegs >= totals.legs
+      ? t(($) => $.legs.total_unknown)
+      : unknownLegs > 0
+        ? t(($) => $.legs.total_partial, { cost: formatUsd(totals.cost_usd_ticks * 1e-10), count: unknownLegs })
+        : t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
     formatSeconds(totals.duration_seconds),
   ].filter(Boolean);
   return (

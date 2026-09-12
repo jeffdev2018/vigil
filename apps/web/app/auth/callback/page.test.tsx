@@ -347,6 +347,18 @@ describe("CallbackPage", () => {
     });
   });
 
+  it("sends the browser-bound oauth state back with the code", async () => {
+    mockSearchParams.set("state", "next:/invite/abc123,oauth:f00dcafe");
+    renderCallback();
+    await waitFor(() => {
+      expect(mockLoginWithGoogle).toHaveBeenCalledWith(
+        "test-code",
+        expect.stringContaining("/auth/callback"),
+        "f00dcafe",
+      );
+    });
+  });
+
   it("falls through to /onboarding when listMyInvitations errors", async () => {
     mockListMyInvitations.mockRejectedValue(new Error("network"));
     renderCallback();
@@ -380,6 +392,7 @@ describe("CallbackPage", () => {
         expect(mockGoogleLogin).toHaveBeenCalledWith(
           "test-code",
           expect.stringContaining("/auth/callback"),
+          "",
         );
       });
 

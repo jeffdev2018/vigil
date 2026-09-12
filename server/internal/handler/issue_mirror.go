@@ -316,20 +316,38 @@ func (h *Handler) SetIssueMirrorTypeSynced(w http.ResponseWriter, r *http.Reques
 // business rules and the trust dial. Every status-change entry point that runs
 // those must run this one too, or the rule is bypassable.
 func (h *Handler) mirrorsAllowStatus(w http.ResponseWriter, r *http.Request, issue db.Issue, statusKey string) bool {
-	ctx := r.Context()
-	if issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, statusKey) != issuestatus.Done {
-		return true
-	}
-	rows, err := h.Queries.ListIssueMirrorsBySource(ctx, db.ListIssueMirrorsBySourceParams{
-		WorkspaceID: issue.WorkspaceID, SourceIssueID: issue.ID,
-	})
+	open, identifiers, err := h.openMirrorsBlockingDone(r.Context(), issue, statusKey)
 	if err != nil {
 		slog.Warn("mirror gate failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
 		writeError(w, http.StatusInternalServerError, "failed to evaluate open mirrors")
 		return false
 	}
-	if len(rows) == 0 {
+	if len(open) == 0 {
 		return true
+	}
+	writeJSON(w, http.StatusConflict, map[string]any{
+		"code":    ErrCodeOpenMirrors,
+		"error":   openMirrorsMessage(identifiers),
+		"mirrors": open,
+	})
+	return false
+}
+
+func openMirrorsMessage(identifiers []string) string {
+	return fmt.Sprintf("%d mirror issues are still open: %s", len(identifiers), strings.Join(identifiers, ", "))
+}
+
+// openMirrorsBlockingDone lists the mirrors still open when statusKey behaves
+// as done; empty when the move is not into done or nothing is open.
+func (h *Handler) openMirrorsBlockingDone(ctx context.Context, issue db.Issue, statusKey string) ([]IssueMirrorResponse, []string, error) {
+	if issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, statusKey) != issuestatus.Done {
+		return nil, nil, nil
+	}
+	rows, err := h.Queries.ListIssueMirrorsBySource(ctx, db.ListIssueMirrorsBySourceParams{
+		WorkspaceID: issue.WorkspaceID, SourceIssueID: issue.ID,
+	})
+	if err != nil || len(rows) == 0 {
+		return nil, nil, err
 	}
 
 	prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
@@ -356,15 +374,7 @@ func (h *Handler) mirrorsAllowStatus(w http.ResponseWriter, r *http.Request, iss
 			TypeSynced:    row.TypeSynced,
 		})
 	}
-	if len(open) == 0 {
-		return true
-	}
-	writeJSON(w, http.StatusConflict, map[string]any{
-		"code":    ErrCodeOpenMirrors,
-		"error":   fmt.Sprintf("%d mirror issues are still open: %s", len(open), strings.Join(identifiers, ", ")),
-		"mirrors": open,
-	})
-	return false
+	return open, identifiers, nil
 }
 
 // mirrorIssueForLabels is the trigger hook. It runs after a label attach has

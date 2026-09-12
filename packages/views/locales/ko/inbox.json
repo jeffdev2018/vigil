@@ -7,7 +7,8 @@
     "mark_all_read": "모두 읽음으로 표시",
     "archive_all": "모두 보관",
     "archive_all_read": "읽은 항목 모두 보관",
-    "archive_completed": "완료된 항목 보관"
+    "archive_completed": "완료된 항목 보관",
+    "more_actions_aria": "추가 작업"
   },
   "filters": {
     "tooltip": "인박스 필터",
@@ -29,6 +30,7 @@
   },
   "list": {
     "empty": "알림이 없습니다",
+    "empty_hint": "댓글, 할당, 에이전트 업데이트가 이곳에 도착합니다.",
     "mark_done_tooltip": "완료로 표시",
     "archive_tooltip": "보관",
     "time": {
@@ -45,10 +47,13 @@
     "attention_empty": "주의가 필요한 항목이 없습니다.",
     "briefing_title": "오늘 아침 브리핑",
     "retro_title": "주간 회고",
-    "decisions_title": "결정 대기"
+    "decisions_title": "결정 대기",
+    "approval_action_failed": "답변을 기록하지 못했습니다"
   },
   "detail": {
     "select_prompt": "자세히 볼 알림을 선택하세요",
+    "select_prompt_hint": "왼쪽에서 알림을 선택하면 내용을 읽고 바로 처리할 수 있습니다.",
+    "empty_hint": "댓글, 할당, 에이전트 업데이트가 이곳에 도착합니다.",
     "empty": "인박스가 비어 있습니다",
     "original_input": "원본 입력",
     "retry_with_context": "컨텍스트를 유지하여 재시도",
@@ -56,7 +61,9 @@
     "autopilot_quota_exceeded_body": "이 워크스페이스는 현재 기간의 자동화 실행 한도 {{limit}}회에 도달했습니다. 한도가 {{resetAt}}에 초기화될 때까지 이후 자동화 실행은 시작되지 않습니다.",
     "autopilot_quota_upgrade": "업그레이드 옵션 보기",
     "archive": "보관",
-    "unarchive": "보관 해제"
+    "unarchive": "보관 해제",
+    "already_decided": "이미 결정됨",
+    "open_doctrine": "행동 지침 열기"
   },
   "types": {
     "issue_assigned": "할당됨",
@@ -93,6 +100,7 @@
     "trust_promotion_suggested": "신뢰 모드 승격 제안",
     "triage_stale": "분류가 지연되고 있습니다",
     "transition_approval_requested": "승인이 필요합니다",
+    "goal_question": "에이전트의 질문",
     "critic_degraded": "비판 검토를 건너뛰었습니다",
     "critic_budget": "비판 검토를 중단했습니다",
     "cycle_rollover_orphaned": "사이클이 끝났지만 갈 곳 없는 작업이 남았습니다",
@@ -106,7 +114,15 @@
     "residency_policy_blocked": "데이터 레지던시 정책으로 차단됨",
     "linear_alert": "Linear 연결이 끊어졌습니다",
     "code_health_report": "코드 건강 보고서",
-    "doc_drift_report": "에이전트 컨텍스트 드리프트"
+    "doc_drift_report": "에이전트 컨텍스트 드리프트",
+    "calendar_invitation": "이벤트에 초대됨",
+    "calendar_reminder": "곧 시작",
+    "doctrine_review": "행동 지침 검토",
+    "doctrine_report": "행동 지침 신고",
+    "confidence_review": "검토가 필요한 결과물",
+    "run_limit_warn": "실행이 한도에 근접",
+    "run_limit_exceeded": "실행이 한도 초과",
+    "run_limit_stopped": "실행 중단: 한도 도달"
   },
   "labels": {
     "set_status_to": "상태 변경:",

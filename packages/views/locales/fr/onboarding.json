@@ -156,6 +156,13 @@
           "subtitle": "Installez Codex ou Kimi, puis lancez le chat guidé avec Mika depuis Runtimes."
         }
       }
+    },
+    "native": {
+      "loading": "Préparation de votre première exécution…",
+      "error_title": "Impossible de démarrer",
+      "error_body": "Votre première exécution n'a pas pu être créée. Vous pouvez réessayer, ou créer une nouvelle issue et l'assigner à Mika quand vous le souhaitez.",
+      "retry": "Réessayer",
+      "dismiss": "Pas maintenant"
     }
   },
   "step_workspace": {
@@ -200,7 +207,13 @@
     "creation_disabled_lede_resume": "La création de workspace est désactivée sur cette instance, vous allez donc rejoindre votre workspace existant.",
     "template_label": "Partir de",
     "template_scratch": "Partir de zéro",
-    "template_hint": "Un modèle pré-remplit les agents, compétences, projets et plus à partir d'un workspace exporté."
+    "template_hint": "Un modèle pré-remplit les agents, compétences, projets et plus à partir d'un workspace exporté.",
+    "pack_label": "Partir d'un pack",
+    "pack_none": "Aucun pack",
+    "pack_none_hint": "Un espace de travail vide, que vous configurez vous-même.",
+    "pack_no_agents": "Aucun agent requis",
+    "pack_hint": "Un pack installe les statuts, types de tâche, étiquettes, vues, règles et un premier projet pour un métier. Il fonctionne sans aucun agent, et vous pourrez installer ou retirer des packs plus tard depuis Réglages -> Packs.",
+    "pack_seed_failed": "L'espace de travail a été créé, mais le pack n'a pas pu être installé : {{reason}}. Réessayez depuis Réglages -> Packs."
   },
   "step_runtime": {
     "scanning_headline": "Connexion à cet ordinateur…",
@@ -247,6 +260,12 @@
     "cloud_title": "Utiliser un ordinateur cloud",
     "cloud_subtitle": "Nous exécuterons un ordinateur pour vous dans le cloud. Pas encore disponible.",
     "cloud_action": "Bientôt disponible",
+    "native_title": "Exécuter dans le navigateur",
+    "native_subtitle": "Rien à installer — Mika s'exécute sur le runtime propre à Multica.",
+    "native_disabled_subtitle": "Demandez à l'administrateur de configurer un modèle pour le serveur (MULTICA_LLM_API_KEY).",
+    "native_action": "Commencer avec Mika",
+    "native_action_disabled": "Non disponible",
+    "native_badge": "Recommandé",
     "cli_dialog_title": "Connecter depuis le terminal",
     "cli_dialog_description": "Même connexion que pour le bureau, configurée depuis le terminal. À utiliser pour les serveurs, les box de dev distantes ou tout ordinateur headless.",
     "cli_dialog_pick_hint": "Choisissez un ordinateur ci-dessus.",
@@ -273,5 +292,17 @@
     "name": "Mika",
     "role": "Chief of Staff",
     "blurb": "Dites à Mika ce que vous voulez faire. Cela devient une issue, assignée au bon agent."
+  },
+  "getting_started": {
+    "title": "Pour commencer",
+    "dismiss": "Fermer",
+    "row_runtime_native": "Runtime natif prêt",
+    "row_runtime_daemon": "Runtime connecté",
+    "row_runtime_none": "Connecter un runtime",
+    "row_agent": "Créer un agent",
+    "row_issue": "Créer une issue",
+    "row_first_run": "Terminer votre première exécution",
+    "row_first_decision": "Répondre à votre première décision",
+    "optional_suffix": "(optionnel)"
   }
 }

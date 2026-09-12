@@ -30,6 +30,16 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@multica/ui/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -325,6 +335,11 @@ function CloudRuntimeNodeRow({
   const deleteNode = useDeleteCloudRuntimeNode(wsId);
   const powerAction = useCloudRuntimeNodeAction(wsId);
   const refreshStatus = useCloudRuntimeNodeStatus(wsId);
+  // Native confirm() blocks the JS thread and cannot be themed/tested the
+  // way the rest of the app's destructive confirmations are — replaced with
+  // the same controlled AlertDialog pattern used elsewhere (e.g.
+  // twenty-tab.tsx's disconnect confirm).
+  const [pendingAction, setPendingAction] = useState<"reboot" | "delete" | null>(null);
   const status = node.status.toLowerCase();
   const transitioning = isCloudRuntimeNodePending(node.status);
   // A node the fleet is already moving takes no further power action until it
@@ -426,11 +441,7 @@ function CloudRuntimeNodeRow({
                 size="sm"
                 className="h-7 w-7 p-0 text-muted-foreground"
                 disabled={busy}
-                onClick={() => {
-                  if (!confirm(t(($) => $.cloud_runtime.power.reboot.confirm)))
-                    return;
-                  runPower("reboot");
-                }}
+                onClick={() => setPendingAction("reboot")}
                 aria-label={t(($) => $.cloud_runtime.power.reboot.label)}
                 title={t(($) => $.cloud_runtime.power.reboot.label)}
               >
@@ -444,19 +455,7 @@ function CloudRuntimeNodeRow({
             size="sm"
             className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
             disabled={deleteNode.isPending}
-            onClick={() => {
-              if (!confirm(t(($) => $.cloud_runtime.delete_confirm))) return;
-              deleteNode.mutate(node.instance_id, {
-                onSuccess: () =>
-                  toast.success(t(($) => $.cloud_runtime.toast_deleted)),
-                onError: (err) =>
-                  toast.error(
-                    err instanceof Error
-                      ? err.message
-                      : t(($) => $.cloud_runtime.toast_delete_failed),
-                  ),
-              });
-            }}
+            onClick={() => setPendingAction("delete")}
             aria-label={t(($) => $.cloud_runtime.delete)}
           >
             {deleteNode.isPending ? (
@@ -472,6 +471,53 @@ function CloudRuntimeNodeRow({
           {node.instance_id}
         </div>
       )}
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction === "reboot"
+                ? t(($) => $.cloud_runtime.power.reboot.label)
+                : t(($) => $.cloud_runtime.delete)}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction === "reboot"
+                ? t(($) => $.cloud_runtime.power.reboot.confirm)
+                : t(($) => $.cloud_runtime.delete_confirm)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t(($) => $.cloud_runtime.cancel)}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingAction === "reboot") {
+                  runPower("reboot");
+                } else if (pendingAction === "delete") {
+                  deleteNode.mutate(node.instance_id, {
+                    onSuccess: () =>
+                      toast.success(t(($) => $.cloud_runtime.toast_deleted)),
+                    onError: (err) =>
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : t(($) => $.cloud_runtime.toast_delete_failed),
+                      ),
+                  });
+                }
+                setPendingAction(null);
+              }}
+            >
+              {pendingAction === "reboot"
+                ? t(($) => $.cloud_runtime.power.reboot.label)
+                : t(($) => $.cloud_runtime.delete)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

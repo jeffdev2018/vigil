@@ -115,6 +115,55 @@ func (q *Queries) DeleteAgentMemory(ctx context.Context, arg DeleteAgentMemoryPa
 	return result.RowsAffected(), nil
 }
 
+const getAgentMemoriesByIDs = `-- name: GetAgentMemoriesByIDs :many
+SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state, status, revision, reviewed_by, reviewed_at, expires_at, source_review FROM agent_memory
+WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+`
+
+type GetAgentMemoriesByIDsParams struct {
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	Ids         []pgtype.UUID `json:"ids"`
+}
+
+// Batch variant of GetAgentMemory for checkEvaluationVersions, which
+// otherwise resolves the candidate plus up to 199 baseline memories one at a
+// time (JEF-276-adjacent: agent memory evaluation reports).
+func (q *Queries) GetAgentMemoriesByIDs(ctx context.Context, arg GetAgentMemoriesByIDsParams) ([]AgentMemory, error) {
+	rows, err := q.db.Query(ctx, getAgentMemoriesByIDs, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentMemory{}
+	for rows.Next() {
+		var i AgentMemory
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.Content,
+			&i.Source,
+			&i.SourceTaskID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.Status,
+			&i.Revision,
+			&i.ReviewedBy,
+			&i.ReviewedAt,
+			&i.ExpiresAt,
+			&i.SourceReview,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAgentMemory = `-- name: GetAgentMemory :one
 SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state, status, revision, reviewed_by, reviewed_at, expires_at, source_review FROM agent_memory
 WHERE id = $1 AND workspace_id = $2
@@ -250,6 +299,63 @@ func (q *Queries) GetAgentMemoryVersion(ctx context.Context, arg GetAgentMemoryV
 		&i.SourceReview,
 	)
 	return i, err
+}
+
+const getAgentMemoryVersionsByRevisions = `-- name: GetAgentMemoryVersionsByRevisions :many
+SELECT v.memory_id, v.workspace_id, v.agent_id, v.revision, v.content, v.status, v.source, v.source_task_id, v.reviewed_by, v.reviewed_at, v.created_at, v.updated_at, v.expires_at, v.restored_from_revision, v.source_review
+FROM agent_memory_version v
+JOIN (
+    SELECT
+        unnest($1::uuid[]) AS memory_id,
+        unnest($2::int4[]) AS revision
+) AS want ON v.memory_id = want.memory_id AND v.revision = want.revision
+WHERE v.workspace_id = $3
+`
+
+type GetAgentMemoryVersionsByRevisionsParams struct {
+	MemoryIds   []pgtype.UUID `json:"memory_ids"`
+	Revisions   []int32       `json:"revisions"`
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+}
+
+// Batch variant of GetAgentMemoryVersion for checkEvaluationVersions: the
+// (memory_id, revision) pairs are zipped positionally the way task_message's
+// CreateTaskMessages zips its columns, since sqlc only understands the
+// single-argument unnest signature.
+func (q *Queries) GetAgentMemoryVersionsByRevisions(ctx context.Context, arg GetAgentMemoryVersionsByRevisionsParams) ([]AgentMemoryVersion, error) {
+	rows, err := q.db.Query(ctx, getAgentMemoryVersionsByRevisions, arg.MemoryIds, arg.Revisions, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentMemoryVersion{}
+	for rows.Next() {
+		var i AgentMemoryVersion
+		if err := rows.Scan(
+			&i.MemoryID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.Revision,
+			&i.Content,
+			&i.Status,
+			&i.Source,
+			&i.SourceTaskID,
+			&i.ReviewedBy,
+			&i.ReviewedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ExpiresAt,
+			&i.RestoredFromRevision,
+			&i.SourceReview,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAgentMemories = `-- name: ListAgentMemories :many

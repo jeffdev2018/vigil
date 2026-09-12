@@ -1,12 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CircleHelp,
   Hash,
   MessageSquare,
+  Plus,
   Sparkles,
   Workflow,
   X,
@@ -17,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@multica/ui/components/ui/tooltip";
+import { Button } from "@multica/ui/components/ui/button";
 import { NumberFlow } from "@multica/ui/components/ui/number-flow";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -56,6 +58,8 @@ const RECENT_SKELETON_ROWS = 4;
 interface ActivityTabProps {
   agent: Agent;
   showPerformance?: boolean;
+  /** When present, the empty "Now" section offers to assign the first issue. */
+  onAssignWork?: () => void;
 }
 
 /**
@@ -71,7 +75,7 @@ interface ActivityTabProps {
  * the workspace 7d activity buckets for the trend), so opening this tab
  * adds no extra fetches once the page is hydrated.
  */
-export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps) {
+export function ActivityTab({ agent, showPerformance = true, onAssignWork }: ActivityTabProps) {
   const wsId = useWorkspaceId();
 
   const { data: snapshot = [] } = useQuery(agentTaskSnapshotOptions(wsId));
@@ -175,7 +179,7 @@ export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps)
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} />
+      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} onAssignWork={onAssignWork} />
       {showPerformance && (
         <Last30dSection activity={activity} avgDurationMs={avgDurationMs} />
       )}
@@ -288,10 +292,12 @@ function NowSection({
   tasks,
   issueMap,
   agent,
+  onAssignWork,
 }: {
   tasks: AgentTask[];
   issueMap: Map<string, Issue>;
   agent: Agent;
+  onAssignWork?: () => void;
 }) {
   const { t } = useT("agents");
   return (
@@ -304,7 +310,15 @@ function NowSection({
       }
     >
       {tasks.length === 0 ? (
-        <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+        <div className="flex flex-wrap items-center gap-3">
+          <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+          {onAssignWork && (
+            <Button type="button" variant="outline" size="sm" onClick={onAssignWork}>
+              <Plus aria-hidden="true" className="size-3.5" />
+              {t(($) => $.detail.assign_work)}
+            </Button>
+          )}
+        </div>
       ) : (
         <TaskList
           tasks={tasks}
@@ -517,6 +531,12 @@ function TaskRow({
   const timeAgo = useTimeAgo();
   const paths = useWorkspacePaths();
   const [cancelling, setCancelling] = useState(false);
+  const cancelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+    };
+  }, []);
   const cfg = taskStatusConfig[task.status] ?? taskStatusConfig.queued!;
   const Icon = cfg.icon;
   const hasIssue = task.issue_id !== "";
@@ -540,7 +560,18 @@ function TaskRow({
       await api.cancelTaskById(task.id);
       // No manual invalidate needed — the task:cancelled WS event flows
       // through useRealtimeSync's `task:` prefix path which already
-      // invalidates snapshot + per-agent + per-issue task lists.
+      // invalidates snapshot + per-agent + per-issue task lists, at which
+      // point this row's status flips out of the active set and the button
+      // disappears on its own. If that event never arrives (a dropped WS
+      // message, a disconnect right after the request), nothing else was
+      // resetting `cancelling` — the button stayed disabled forever with
+      // no way to tell whether the cancel actually went through. A local
+      // deadline resets it so the row is interactive again and the user
+      // can check status or retry, instead of depending solely on a
+      // message that already got lost once.
+      cancelTimeoutRef.current = setTimeout(() => {
+        setCancelling(false);
+      }, 15_000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t(($) => $.tab_body.activity.cancel_failed_toast));
       setCancelling(false);
@@ -814,7 +845,13 @@ function Sep() {
 type AgentsT = ReturnType<typeof useT<"agents">>["t"];
 type TimeAgoFn = (dateStr: string) => string;
 
-function taskStatusLabel(status: AgentTask["status"], t: AgentsT): string {
+// Exported for reuse anywhere a run/task carries this same status wire
+// vocabulary (e.g. run-replay-dialog.tsx) — one status→label mapping
+// instead of a parallel one per surface. Loosened to `string` at the
+// boundary since not every caller has AgentTask's narrowed type (run
+// replay's RunReplay["run"]["status"] is a plain string); the switch stays
+// exhaustive over the known statuses either way.
+export function taskStatusLabel(status: AgentTask["status"] | string, t: AgentsT): string {
   switch (status) {
     case "queued":
       return t(($) => $.tab_body.activity.status.queued);

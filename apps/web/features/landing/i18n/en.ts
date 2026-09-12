@@ -3514,11 +3514,9 @@ export function createEnDict(allowSignup: boolean): LandingDict {
       updates:
         "I’d like to receive product updates, insights, and event invitations from Multica.",
       unsubscribe:
-        "You can unsubscribe from our communications at any time. For more details on how we handle your data and privacy rights, please review our",
+        "You can unsubscribe from our communications at any time.",
       submitConsent:
         "By clicking “Submit,” you consent to allow Multica, Inc. to store and process your information for the purpose of delivering the requested content.",
-      privacyLinkLabel: "Privacy Policy.",
-      privacyLinkHref: "/about",
     },
     success: {
       title: "Thanks — we got it.",

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -40,7 +41,9 @@ func defaultProjectReviewConfig(projectID string) ProjectReviewConfigResponse {
 
 func projectReviewConfigToResponse(cfg db.ProjectReviewConfig) ProjectReviewConfigResponse {
 	resp := defaultProjectReviewConfig(uuidToString(cfg.ProjectID))
-	_ = json.Unmarshal(cfg.Checklist, &resp.Checklist)
+	if err := json.Unmarshal(cfg.Checklist, &resp.Checklist); err != nil {
+		slog.Warn("project review config: bad checklist json", "project_id", uuidToString(cfg.ProjectID), "error", err)
+	}
 	if resp.Checklist == nil {
 		resp.Checklist = []string{}
 	}
@@ -103,6 +106,11 @@ type putProjectReviewConfigRequest struct {
 func (h *Handler) PutProjectReviewConfig(w http.ResponseWriter, r *http.Request) {
 	project, ok := h.loadProjectForReviewConfig(w, r)
 	if !ok {
+		return
+	}
+	// Same gate as the other project writes: a viewer reads the policy,
+	// only a contributor or admin changes it.
+	if !h.requireProjectWrite(w, r, project.ID) {
 		return
 	}
 	var req putProjectReviewConfigRequest

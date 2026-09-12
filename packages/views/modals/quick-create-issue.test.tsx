@@ -142,6 +142,7 @@ const mockRuntimesData = vi.hoisted(
 let mockUploadIdSeq = 0;
 
 vi.mock("@tanstack/react-query", () => ({
+  queryOptions: <T,>(options: T) => options,
   useQuery: ({ queryKey }: { queryKey: string[] }) => {
     // Workspace-scoped query keys carry the wsId as `queryKey[1]`; the
     // discriminator is at `queryKey[2]` (e.g. ["workspaces", wsId, "squads"]).
@@ -493,10 +494,11 @@ import enModals from "../locales/en/modals.json";
 import enEditor from "../locales/en/editor.json";
 import enProjects from "../locales/en/projects.json";
 import enIssues from "../locales/en/issues.json";
+import enAgents from "../locales/en/agents.json";
 import { AgentCreatePanel } from "./quick-create-issue";
 
 const TEST_RESOURCES = {
-  en: { common: enCommon, modals: enModals, editor: enEditor, projects: enProjects, issues: enIssues },
+  en: { common: enCommon, modals: enModals, editor: enEditor, projects: enProjects, issues: enIssues, agents: enAgents },
 };
 
 function renderPanel(props: React.ComponentProps<typeof AgentCreatePanel>) {
@@ -510,8 +512,10 @@ function renderPanel(props: React.ComponentProps<typeof AgentCreatePanel>) {
 describe("AgentCreatePanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQuickCreateStore.lastActorType = null;
-    mockQuickCreateStore.lastActorId = null;
+    // A prior explicit pick: the panel no longer falls back to the first
+    // visible agent, so the suite seeds the choice a returning user has.
+    mockQuickCreateStore.lastActorType = "agent";
+    mockQuickCreateStore.lastActorId = "agent-1";
     mockQuickCreateStore.lastProjectId = null;
     mockCreateSettingsStore.quickCreateFields = ["project"];
     mockQuickCreateStore.keepOpen = false;
@@ -556,6 +560,31 @@ describe("AgentCreatePanel", () => {
     mockSetKeepOpen.mockImplementation((value: boolean) => {
       mockQuickCreateStore.keepOpen = value;
     });
+  });
+
+  // Audit UX (sept. 2026): Create starts a real, billed run. An agent the user
+  // never picked must not be one ⌘+Enter away, and a picked one must say who
+  // runs, where, and roughly at what cost before the click.
+  it("does not preselect an agent the user never picked", async () => {
+    mockQuickCreateStore.lastActorType = null;
+    mockQuickCreateStore.lastActorId = null;
+    renderPanel({ onClose: vi.fn(), isExpanded: false, setIsExpanded: vi.fn() });
+
+    expect(screen.getByRole("button", { name: /^Create$/i })).toBeDisabled();
+    expect(screen.queryByTestId("agent-create-run-notice")).not.toBeInTheDocument();
+    fireEvent.keyDown(screen.getByDisplayValue("Persisted draft prompt"), { key: "Enter", metaKey: true });
+    await act(async () => {});
+    expect(mockQuickCreateIssue).not.toHaveBeenCalled();
+  });
+
+  it("says which agent will run, on which runtime and at what cost before Create", () => {
+    renderPanel({ onClose: vi.fn(), isExpanded: false, setIsExpanded: vi.fn() });
+
+    const notice = screen.getByTestId("agent-create-run-notice");
+    expect(notice).toHaveTextContent("Create starts a run of Bohan");
+    // No priced history in this fixture: an honest "unknown", never "$0.00".
+    expect(notice).toHaveTextContent("cost unknown");
+    expect(notice).not.toHaveTextContent("$0.00");
   });
 
   it("loads the persisted prompt draft when no transient prompt is provided", () => {

@@ -1,0 +1,66 @@
+{
+  "title": "Runs",
+  "subtitle": "Every run of the workspace's agents, newest first",
+  "summary": {
+    "queued": "Queued",
+    "running": "Running",
+    "blocked": "Blocked",
+    "completed_since": "Completed today",
+    "failed_since": "Failed today",
+    "cancelled_since": "Cancelled today",
+    "cost_since": "Cost today",
+    "cost_since_partial_one": "{{cost}} + {{count}} run of unknown cost",
+    "cost_since_partial_other": "{{cost}} + {{count}} runs of unknown cost"
+  },
+  "halt": {
+    "kill_switch": "Kill switch",
+    "kill_switch_dialog_title": "Halt the fleet and cancel every run?",
+    "kill_switch_dialog_body": "No run will be claimed and every gated action in flight will be refused. Every run that is not already over will be cancelled.",
+    "kill_switch_reason_label": "Reason",
+    "kill_switch_reason_placeholder": "Why are you stopping the fleet?",
+    "kill_switch_confirm": "Halt and cancel",
+    "kill_switch_cancel": "Cancel",
+    "kill_switch_failed": "Could not activate the kill switch",
+    "kill_switch_toast_one": "Fleet halted · {{count}} run cancelled",
+    "kill_switch_toast_other": "Fleet halted · {{count}} runs cancelled"
+  },
+  "filters": {
+    "state_in_flight": "In flight",
+    "state_finished": "Finished",
+    "state_all": "All",
+    "agent_all": "All agents",
+    "runtime_all": "All runtimes",
+    "issue_placeholder": "Issue id or identifier"
+  },
+  "list": {
+    "empty_title": "No runs yet",
+    "empty_description": "Runs appear here once an agent starts working an issue, a chat turn, or an autopilot trigger.",
+    "loading": "Loading runs",
+    "load_error": "Could not load the runs",
+    "load_more": "Load more",
+    "cancel_failed": "Could not cancel the run"
+  },
+  "row": {
+    "silent": "Silent",
+    "silent_tooltip": "No activity reported for {{duration}}",
+    "blocked_on": "Blocked on",
+    "cancel_aria": "Cancel this run",
+    "cancel_tooltip": "Cancel",
+    "transcript_tooltip": "View transcript",
+    "cost_unknown": "—",
+    "cost_unknown_tooltip": "Cost unknown: this run recorded no usage that could be priced"
+  },
+  "cancel_dialog": {
+    "title_one": "Cancel this run?",
+    "title_other": "Cancel {{count}} runs?",
+    "body": "Each run is cancelled on its own — the daemon picks it up on its next poll.",
+    "keep": "Keep running",
+    "confirm": "Cancel",
+    "toast": "{{cancelled}} cancelled · {{alreadyOver}} already over · {{failed}} failed"
+  },
+  "bulk": {
+    "cancel_selected": "Cancel selected",
+    "selected_count_one": "{{count}} selected",
+    "selected_count_other": "{{count}} selected"
+  }
+}

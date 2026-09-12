@@ -108,7 +108,7 @@ export function IssueTypesTab() {
   const [editing, setEditing] = useState<IssueTypeEntry | null>(null);
   const [pendingArchive, setPendingArchive] = useState<IssueTypeEntry | null>(null);
 
-  const { data: types = [], isLoading } = useQuery(issueTypeListOptions(wsId));
+  const { data: types = [], isLoading, isError, refetch } = useQuery(issueTypeListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const currentUser = useAuthStore((s) => s.user);
   const myRole = useMemo(() => {
@@ -188,6 +188,15 @@ export function IssueTypesTab() {
         {isLoading ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">
             {t(($) => $.issue_types.loading)}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-surface-border bg-card px-4 py-12 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.issue_types.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.issue_types.retry)}
+            </Button>
           </div>
         ) : order.length === 0 ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">

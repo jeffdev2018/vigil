@@ -24,7 +24,8 @@ it("launches frozen replay/holdout cases and reuses the request identity after a
   await user.click(screen.getByRole("button", { name: "Run a connected comparison" }));
   await screen.findByText("claude · fixture · low");
   expect((screen.getByRole("button", { name: "Start four runs" }) as HTMLButtonElement).disabled).toBe(true);
-  await user.selectOptions(screen.getAllByLabelText("Check type")[0]!, "json");
+  await user.click(screen.getAllByRole("combobox", { name: "Check type" })[0]!);
+  await user.click(await screen.findByRole("option", { name: "Structured JSON" }));
   const prompts = screen.getAllByLabelText("Test prompt"), answers = screen.getAllByLabelText("Expected answer");
   await user.type(prompts[0]!, "Original question"); await user.type(prompts[1]!, "Independent question");
   await user.type(answers[0]!, '"answer"'); await user.type(answers[1]!, "answer");

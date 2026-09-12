@@ -54,18 +54,16 @@ func (h *Handler) PutWorkflowLimits(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, workflowLimitsRangeMessage(minLegs, maxLegs))
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["workflow_limits"] = req
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side: a read-modify-write of the whole blob lost the
+	// writes of any concurrent settings PUT.
+	patch := map[string]any{}
+	patch["workflow_limits"] = req
+	raw, _ := json.Marshal(patch)
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the workflow limits")
 		return
 	}

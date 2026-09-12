@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -192,14 +193,29 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 	if tag := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tag"))); tag != "" {
 		params.Tag = pgtype.Text{String: tag, Valid: true}
 	}
-	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
-		params.Search = pgtype.Text{String: search, Valid: true}
-	}
 
-	rows, err := h.Queries.ListWorkspaceNotes(r.Context(), params)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
-		return
+	var rows []db.WorkspaceNote
+	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+		// The same ranked engine as /api/workspace/notes/search, so MCP
+		// note_list and the search endpoint agree; best match first.
+		hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{
+			WorkspaceID: workspaceID, Query: search, Tag: params.Tag.String, IncludeArchived: params.IncludeArchived, Limit: params.PageLimit,
+		})
+		if err != nil {
+			slog.Error("brain list search failed", "workspace_id", uuidToString(workspaceID), "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
+		for _, hit := range hits {
+			rows = append(rows, hit.Note)
+		}
+	} else {
+		var err error
+		rows, err = h.Queries.ListWorkspaceNotes(r.Context(), params)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
 	}
 	items := make([]WorkspaceNoteResponse, 0, len(rows))
 	for _, n := range rows {
@@ -270,7 +286,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req CreateWorkspaceNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -322,6 +338,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(note.ID)
 
 	// Undo (K69): a note a run wrote can be removed again.
 	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", note.ID, map[string]any{}, map[string]any{"title": note.Title}, true)
@@ -341,7 +358,7 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateWorkspaceNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -419,6 +436,7 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(updated.ID)
 	// Undo (K69): title, content, tags and pin state as they were before the run's edit.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID,
 		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned},

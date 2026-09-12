@@ -115,7 +115,11 @@ export function AgentDetailInspector({
     enabled:
       canEdit &&
       profileDraft.name.length > 0 &&
-      profileDraft.description.length <= AGENT_DESCRIPTION_MAX_LENGTH,
+      // Code points, not UTF-16 units — matches the CharCounter shown below
+      // the textarea (line ~234) so a description with astral characters
+      // (emoji, etc.) never shows "under the limit" while autosave silently
+      // refuses to fire because .length counted surrogate pairs as 2.
+      [...profileDraft.description].length <= AGENT_DESCRIPTION_MAX_LENGTH,
     isEqual: profileDraftsEqual,
   });
 

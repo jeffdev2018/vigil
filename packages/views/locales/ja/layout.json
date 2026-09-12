@@ -10,6 +10,8 @@
     "projects": "プロジェクト",
     "goals": "ゴール",
     "cycles": "サイクル",
+    "roadmap": "ロードマップ",
+    "calendar": "カレンダー",
     "autopilots": "オートパイロット",
     "agents": "エージェント",
     "org": "組織",
@@ -17,6 +19,7 @@
     "brain": "Brain",
     "usage": "分析",
     "runtimes": "ランタイム",
+    "runs": "実行",
     "skills": "スキル",
     "settings": "設定"
   },
@@ -55,6 +58,8 @@
     "invitation_workspace_fallback": "ワークスペース",
     "invitation_join": "参加",
     "invitation_decline": "辞退",
+    "invitation_accept_failed": "ワークスペースに参加できませんでした。",
+    "invitation_decline_failed": "招待を辞退できませんでした。",
     "log_out": "ログアウト",
     "new_issue": "新規課題",
     "new_issue_shortcut": "C",
@@ -67,6 +72,28 @@
     "discord_card": {
       "title": "Discord に参加",
       "dismiss": "閉じる"
-    }
+    },
+    "more_nav": "下にさらに項目があります"
+  },
+  "history": {
+    "go_back": "戻る",
+    "go_forward": "進む"
+  },
+  "tab_bar": {
+    "pin_tab": "タブをピン留め",
+    "unpin_tab": "タブのピン留めを解除",
+    "close_tab": "タブを閉じる",
+    "close_other_tabs": "他のタブを閉じる",
+    "open_as_new_window": "新しいウィンドウで開く",
+    "new_tab": "新しいタブ"
+  },
+  "route_error": {
+    "not_found_title": "このページは存在しません",
+    "not_found_body": "Multica内にこのアドレスに一致するものはありません。リンクからここに来た場合、そのリンクはページではなく他の人のコンピューター上のファイルを指している可能性があります。",
+    "go_to_issues": "課題へ移動",
+    "unexpected_title": "このタブでエラーが発生しました",
+    "unexpected_body": "ルートレベルのレンダリングエラーを検知し、デスクトップアプリ全体への影響を防ぎました。このタブを再読み込みするか、問題が続く場合はレポートを送信してください。",
+    "reload_tab": "タブを再読み込み",
+    "report_error": "エラーを報告"
   }
 }

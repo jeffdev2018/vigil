@@ -320,7 +320,7 @@ function ConfigField({
  */
 function PublishAndInstall({ wsId, canManage }: { wsId: string; canManage: boolean }) {
   const { t } = useT("settings");
-  const { data, isLoading } = useQuery(pluginPackagesOptions(wsId));
+  const { data, isLoading, isError, refetch } = useQuery(pluginPackagesOptions(wsId));
   const publishMutation = usePublishPluginPackage(wsId);
   const deleteMutation = useDeletePluginPackage(wsId);
   const previewMutation = usePreviewPlugin(wsId);
@@ -400,6 +400,15 @@ function PublishAndInstall({ wsId, canManage }: { wsId: string; canManage: boole
         {isLoading ? (
           <div className="border-t border-surface-border px-4 py-4">
             <Skeleton className="h-16 w-full" aria-label={t(($) => $.plugins.loading)} />
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-start gap-2 border-t border-surface-border px-4 py-4">
+            <p role="alert" className="text-caption text-destructive">
+              {t(($) => $.plugins.publish.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.budgets.retry)}
+            </Button>
           </div>
         ) : packages.length === 0 ? (
           <p className="border-t border-surface-border px-4 py-6 text-caption text-muted-foreground">

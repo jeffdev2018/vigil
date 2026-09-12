@@ -72,6 +72,11 @@ describe("GoalsPage", () => {
     expect(rows[0]?.textContent).toContain("Ada");
     expect(rows[0]?.textContent).toContain("ARR x2");
     expect(rows[1]?.textContent).toContain("1 / 4 done");
+    // The track must stay visible on the light canvas: plain bg-muted is
+    // ~0.02 L away from the page background and disappears at 0 %.
+    const bar = screen.getAllByRole("progressbar")[0]!;
+    expect(bar.className).toContain("bg-muted-foreground/20");
+    expect(bar.firstElementChild?.className).toContain("bg-primary");
   });
 
   it("shows the empty state without goals", () => {
@@ -85,7 +90,7 @@ describe("GoalsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add sub-goal" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Ship v2" } });
-    expect((within(dialog).getByLabelText("Parent goal") as HTMLSelectElement).value).toBe("root");
+    expect(within(dialog).getByRole("combobox", { name: "Parent goal" }).textContent).toContain("Grow revenue");
     fireEvent.click(within(dialog).getByRole("button", { name: "Create goal" }));
     expect(state.created[0]).toMatchObject({ title: "Ship v2", parent_goal_id: "root", status: "draft", owner_id: null });
   });

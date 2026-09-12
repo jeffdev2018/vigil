@@ -447,6 +447,12 @@ func (s *RedisLocalSkillImportStore) PopPending(ctx context.Context, runtimeID s
 }
 
 func (s *RedisLocalSkillImportStore) PopPendingBatch(ctx context.Context, runtimeID string, limit int) ([]*RuntimeLocalSkillImportRequest, error) {
+	if limit <= 0 {
+		// int64(limit)-1 would be -1, and Redis ZRANGE treats -1 as "last
+		// element" — a limit of 0 would return the whole pending set instead
+		// of none, violating this method's own "limit" contract.
+		return nil, nil
+	}
 	pendingKey := localSkillImportPendingKey(runtimeID)
 
 	// Fetch up to limit candidate IDs from the sorted set.

@@ -327,11 +327,16 @@ func (q *Queries) DeleteOrgStructure(ctx context.Context, arg DeleteOrgStructure
 }
 
 const getLatestOrgRoutingForIssue = `-- name: GetLatestOrgRoutingForIssue :one
-SELECT id, workspace_id, structure_id, unit_id, kind, issue_id, actor_type, actor_id, details, created_at FROM org_flow WHERE issue_id = $1 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1
+SELECT id, workspace_id, structure_id, unit_id, kind, issue_id, actor_type, actor_id, details, created_at FROM org_flow WHERE workspace_id = $1 AND issue_id = $2 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestOrgRoutingForIssue(ctx context.Context, issueID pgtype.UUID) (OrgFlow, error) {
-	row := q.db.QueryRow(ctx, getLatestOrgRoutingForIssue, issueID)
+type GetLatestOrgRoutingForIssueParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+}
+
+func (q *Queries) GetLatestOrgRoutingForIssue(ctx context.Context, arg GetLatestOrgRoutingForIssueParams) (OrgFlow, error) {
+	row := q.db.QueryRow(ctx, getLatestOrgRoutingForIssue, arg.WorkspaceID, arg.IssueID)
 	var i OrgFlow
 	err := row.Scan(
 		&i.ID,
@@ -523,7 +528,7 @@ func (q *Queries) ListLiveOrgStructures(ctx context.Context) ([]OrgStructure, er
 }
 
 const listOpenIssuesRoutedToUnit = `-- name: ListOpenIssuesRoutedToUnit :many
-SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id, i.cycle_id, i.issue_type FROM issue i
+SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id, i.cycle_id, i.issue_type, i.recurrence_id FROM issue i
 WHERE i.workspace_id = $1 AND NOT (i.status = ANY($3::text[]))
   AND i.id IN (SELECT f.issue_id FROM org_flow f WHERE f.structure_id = $2 AND f.unit_id = $4::text AND f.kind = 'routing')
 LIMIT 200
@@ -588,6 +593,7 @@ func (q *Queries) ListOpenIssuesRoutedToUnit(ctx context.Context, arg ListOpenIs
 			&i.DelegateID,
 			&i.CycleID,
 			&i.IssueType,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -782,7 +788,7 @@ func (q *Queries) ListOrgStructures(ctx context.Context, workspaceID pgtype.UUID
 }
 
 const listRecentTasksForProject = `-- name: ListRecentTasksForProject :many
-SELECT q.id, q.agent_id, q.issue_id, q.status, q.priority, q.dispatched_at, q.started_at, q.completed_at, q.result, q.error, q.created_at, q.context, q.runtime_id, q.session_id, q.work_dir, q.trigger_comment_id, q.chat_session_id, q.autopilot_run_id, q.attempt, q.max_attempts, q.parent_task_id, q.failure_reason, q.trigger_summary, q.force_fresh_session, q.is_leader_task, q.wait_reason, q.initiator_user_id, q.handoff_note, q.prepare_lease_expires_at, q.squad_id, q.runtime_mcp_overlay, q.escalation_for_task_id, q.fire_at, q.originator_user_id, q.runtime_connected_apps, q.coalesced_comment_ids, q.delivered_comment_ids, q.chat_input_task_id, q.chat_finalize_deferred_at, q.originator_source, q.delegated_from_task_id, q.retry_of_task_id, q.rerun_of_task_id, q.rule_version_id, q.trigger_evidence_kind, q.trigger_evidence_ref_id, q.accountable_user_id, q.session_rollout_missing, q.retired_session_id, q.quick_actions_disabled, q.regenerate_quick_actions_for, q.branch_name, q.durable_work_dir, q.channel_context_revision, q.last_activity_at, q.permission_profile_id, q.failover_history, q.routing_decision, q.pause_requested_at, q.resumed_by_task_id, q.last_checkpoint_seq, q.checkpoint_attempts, q.checkpointed_at, q.touched_paths, q.drift_reason, q.preempted_at, q.preempted_by_task_id, q.review_of_task_id, q.task_class, q.routing, q.safe_mode, q.model_key_id, q.confidence, q.leg_role, q.workflow_root_task_id, q.dispatch_lane, q.checkpoint_sha, q.turn_seq, q.a2a_depth, q.run_group_id, q.model_override, q.diff_stat, q.diff_unified, q.memory_context FROM agent_task_queue q JOIN issue i ON i.id = q.issue_id
+SELECT q.id, q.agent_id, q.issue_id, q.status, q.priority, q.dispatched_at, q.started_at, q.completed_at, q.result, q.error, q.created_at, q.context, q.runtime_id, q.session_id, q.work_dir, q.trigger_comment_id, q.chat_session_id, q.autopilot_run_id, q.attempt, q.max_attempts, q.parent_task_id, q.failure_reason, q.trigger_summary, q.force_fresh_session, q.is_leader_task, q.wait_reason, q.initiator_user_id, q.handoff_note, q.prepare_lease_expires_at, q.squad_id, q.runtime_mcp_overlay, q.escalation_for_task_id, q.fire_at, q.originator_user_id, q.runtime_connected_apps, q.coalesced_comment_ids, q.delivered_comment_ids, q.chat_input_task_id, q.chat_finalize_deferred_at, q.originator_source, q.delegated_from_task_id, q.retry_of_task_id, q.rerun_of_task_id, q.rule_version_id, q.trigger_evidence_kind, q.trigger_evidence_ref_id, q.accountable_user_id, q.session_rollout_missing, q.retired_session_id, q.quick_actions_disabled, q.regenerate_quick_actions_for, q.branch_name, q.durable_work_dir, q.channel_context_revision, q.last_activity_at, q.permission_profile_id, q.failover_history, q.routing_decision, q.pause_requested_at, q.resumed_by_task_id, q.last_checkpoint_seq, q.checkpoint_attempts, q.checkpointed_at, q.touched_paths, q.drift_reason, q.preempted_at, q.preempted_by_task_id, q.review_of_task_id, q.task_class, q.routing, q.safe_mode, q.model_key_id, q.confidence, q.leg_role, q.workflow_root_task_id, q.dispatch_lane, q.checkpoint_sha, q.turn_seq, q.a2a_depth, q.run_group_id, q.model_override, q.diff_stat, q.diff_unified, q.memory_context, q.comment_thread_id, q.runtime_pinned, q.promoted_at, q.promote_pr_url, q.discarded_at, q.halt_frozen_at FROM agent_task_queue q JOIN issue i ON i.id = q.issue_id
 WHERE i.workspace_id = $1 AND i.project_id = $2 AND q.status IN ('completed', 'failed')
 ORDER BY q.created_at DESC LIMIT 1
 `
@@ -886,6 +892,12 @@ func (q *Queries) ListRecentTasksForProject(ctx context.Context, arg ListRecentT
 			&i.DiffStat,
 			&i.DiffUnified,
 			&i.MemoryContext,
+			&i.CommentThreadID,
+			&i.RuntimePinned,
+			&i.PromotedAt,
+			&i.PromotePrUrl,
+			&i.DiscardedAt,
+			&i.HaltFrozenAt,
 		); err != nil {
 			return nil, err
 		}

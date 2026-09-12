@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronRight,
   Cloud,
@@ -56,10 +56,12 @@ import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
 import {
   buildRuntimeMachines,
+  capitalize,
   machineCliSignInNeeded,
   type RuntimeMachine,
 } from "./runtime-machines";
 import { HealthDot, HealthIcon, useHealthLabel } from "./shared";
+import { useNowTick } from "./use-now-tick";
 import { useT, useTimeAgo } from "../../i18n";
 import { daemonRuntimesDocsHref } from "./runtime-docs";
 
@@ -76,14 +78,6 @@ export interface RuntimesPageProps {
   cloudRuntimeEnabled?: boolean;
 }
 
-function useNowTick(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 export function RuntimesPage({
   localDaemonId,
@@ -92,6 +86,7 @@ export function RuntimesPage({
   bootstrapping,
   cloudRuntimeEnabled = false,
 }: RuntimesPageProps = {}) {
+  const { t } = useT("runtimes");
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const wsId = useWorkspaceId();
@@ -135,6 +130,10 @@ export function RuntimesPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        cloudMachineTitle: (provider) =>
+          t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
+        localMachineTitle: t(($) => $.machine.this_machine),
+        unknownMachineTitle: t(($) => $.machine.unknown_machine),
       }),
     [
       runtimes,
@@ -144,6 +143,7 @@ export function RuntimesPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      t,
     ],
   );
   const orphanProfileRuntimes = useMemo(() => {
@@ -153,10 +153,10 @@ export function RuntimesPage({
       return pendingRuntimeFromProfile({
         profile,
         createdAt: Number.isFinite(createdAt) ? createdAt : 0,
-        fallbackMachineName: "Unassigned",
+        fallbackMachineName: t(($) => $.machine.unassigned),
       });
     });
-  }, [machines, runtimeProfiles]);
+  }, [machines, runtimeProfiles, t]);
 
   if (isAuthLoading || runtimesLoading || profilesLoading) {
     return <RuntimesPageSkeleton />;
@@ -475,11 +475,11 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body font-medium">
+        <span title={machine.title} className="block truncate text-body font-medium">
           {machine.title}
         </span>
         <span className="mt-1 flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-          <span className="truncate">
+          <span className="truncate" title={machine.daemonId ?? undefined}>
             {machine.subtitle ??
               (machine.section === "cloud"
                 ? t(($) => $.machine.metrics.cloud_worker)

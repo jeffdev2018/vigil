@@ -30,7 +30,8 @@
     "change_project_context": "プロジェクトコンテキストを変更",
     "remove_project_context": "プロジェクトコンテキストを削除",
     "no_projects": "プロジェクトがまだありません",
-    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です"
+    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です",
+    "run_notice": "送信すると {{name}} の実行が始まります。数分かかる場合があります。"
   },
   "queue": {
     "title_other": "キュー内のメッセージ {{count}} 件",
@@ -243,7 +244,8 @@
     "rename": "名前を変更",
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
-    "unarchive": "アーカイブを解除"
+    "unarchive": "アーカイブを解除",
+    "more_actions_aria": "その他の操作"
   },
   "voice": {
     "start": "音声でメッセージを入力",
@@ -254,7 +256,10 @@
     "error_not_configured": "このサーバーでは文字起こしが設定されていません。",
     "error_failed": "録音を文字起こしできませんでした。",
     "listen": "読み上げ",
-    "stop_listening": "読み上げを停止"
+    "stop_listening": "読み上げを停止",
+    "conversation_start": "会話モード",
+    "conversation_stop": "会話を終了",
+    "conversation_transcribing": "文字起こし中…"
   },
   "participants": {
     "add": "メンバーを追加",
@@ -265,5 +270,8 @@
     "typing_name": "{{name}} が入力中…",
     "typing_count": "{{count}} 人が入力中…",
     "author_badge": "{{name}} が送信"
+  },
+  "approvals": {
+    "strip_title_other": "承認待ち {{count}}件"
   }
 }

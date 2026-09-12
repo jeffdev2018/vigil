@@ -14,6 +14,13 @@ import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentMember } from "@multica/core/permissions";
 import { Badge } from "@multica/ui/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 const ROLE_ORDER: ProjectRole[] = ["viewer", "contributor", "admin"];
@@ -28,6 +35,19 @@ const INHERIT = "__inherit";
  */
 export function ProjectMembersSection({ projectId }: { projectId: string }) {
   const { t } = useT("projects");
+  // Roles are server enums: shown through the locale, never raw.
+  const roleLabel = (role: string) => {
+    switch (role) {
+      case "viewer":
+        return t(($) => $.members.roles.viewer);
+      case "contributor":
+        return t(($) => $.members.roles.contributor);
+      case "admin":
+        return t(($) => $.members.roles.admin);
+      default:
+        return role;
+    }
+  };
   const wsId = useWorkspaceId();
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const currentMember = useCurrentMember(wsId);
@@ -47,7 +67,8 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
       { subjectType: m.subject_type, subjectId: m.subject_id, role: value === INHERIT ? null : (value as ProjectRole) },
       {
         onSuccess: () => toast.success(t(($) => $.members.updated)),
-        onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.members.update_failed)),
+        // The server's refusal is English prose: the toast stays in the user's language.
+        onError: () => toast.error(t(($) => $.members.update_failed)),
       },
     );
 
@@ -90,23 +111,29 @@ export function ProjectMembersSection({ projectId }: { projectId: string }) {
                         <td className="px-2 py-1 font-mono text-caption text-muted-foreground">{m.workspace_role}</td>
                         <td className="px-2 py-1">
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="font-mono">{m.effective_role}</Badge>
+                            <Badge variant="secondary">{roleLabel(m.effective_role)}</Badge>
                             <Badge variant="outline">
                               {m.source === "override" ? t(($) => $.members.override) : t(($) => $.members.inherited)}
                             </Badge>
                             {canEdit && (
-                              <select
-                                aria-label={t(($) => $.members.columns.role)}
-                                className="h-7 rounded-md border bg-background px-2 text-caption"
+                              <Select
+                                items={[
+                                  { value: INHERIT, label: t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) }) },
+                                  ...options.map((r) => ({ value: r, label: roleLabel(r) })),
+                                ]}
                                 value={m.override ?? INHERIT}
-                                disabled={setRole.isPending}
-                                onChange={(e) => change(m, e.target.value)}
+                                onValueChange={(value) => value !== null && change(m, value)}
                               >
-                                <option value={INHERIT}>{t(($) => $.members.inherit_option, { role: m.ceiling })}</option>
-                                {options.map((r) => (
-                                  <option key={r} value={r}>{r}</option>
-                                ))}
-                              </select>
+                                <SelectTrigger size="sm" aria-label={t(($) => $.members.columns.role)} disabled={setRole.isPending}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={INHERIT}>{t(($) => $.members.inherit_option, { role: roleLabel(m.ceiling) })}</SelectItem>
+                                  {options.map((r) => (
+                                    <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             )}
                           </div>
                         </td>

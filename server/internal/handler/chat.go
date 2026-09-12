@@ -511,9 +511,10 @@ type SetChatSessionPinnedRequest struct {
 }
 
 // SetChatSessionPinned pins or unpins a chat so it sticks to the top of the
-// caller's conversation list. Pin state is per-session and, since sessions are
-// per-creator, inherently per-user. It never bumps updated_at (see the SQL) so
-// an unpinned chat does not jump the activity-sorted list.
+// conversation list. Pin state lives on the shared session row, so with
+// multiplayer participants (K31) it is the creator's call, like rename and
+// archive. It never bumps updated_at (see the SQL) so an unpinned chat does
+// not jump the activity-sorted list.
 func (h *Handler) SetChatSessionPinned(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -530,6 +531,9 @@ func (h *Handler) SetChatSessionPinned(w http.ResponseWriter, r *http.Request) {
 
 	session, ok := h.gatePublicChatSessionForUser(w, r, userID, workspaceID, sessionID)
 	if !ok {
+		return
+	}
+	if !requireChatSessionCreator(w, session, userID) {
 		return
 	}
 

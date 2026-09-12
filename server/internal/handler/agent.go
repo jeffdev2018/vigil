@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -43,6 +45,22 @@ const (
 	maxAgentConversationStarterLabel  = 80
 	maxAgentConversationStarterLength = 4000
 )
+
+// maxCreateAgentSkillIDs bounds CreateAgent's skill_ids: the request does one
+// GetSkillInWorkspace per id to validate, then one AddAgentSkill per id
+// inside the create transaction — 2N sequential round trips, part of them
+// holding a transaction open. parseUUIDSliceOrBadRequest itself has no upper
+// bound (it's shared by ~19 unrelated call sites with their own size
+// expectations), so the cap lives here instead.
+const maxCreateAgentSkillIDs = 100
+
+// validAgentStatuses mirrors the agent.status CHECK constraint
+// (migrations/001_init.up.sql). UpdateAgent must reject anything outside it
+// before writing, or an invalid value reaches Postgres as a 500 with a raw
+// constraint-violation message instead of a clean 400.
+var validAgentStatuses = map[string]bool{
+	"idle": true, "working": true, "blocked": true, "error": true, "offline": true,
+}
 
 type AgentConversationStarter struct {
 	Label  string `json:"label"`
@@ -163,7 +181,9 @@ const runtimeConfigGatewayTokenMask = "***"
 func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 	var rc any
 	if a.RuntimeConfig != nil {
-		json.Unmarshal(a.RuntimeConfig, &rc)
+		if err := json.Unmarshal(a.RuntimeConfig, &rc); err != nil {
+			slog.Warn("failed to unmarshal agent runtime_config", "agent_id", uuidToString(a.ID), "error", err)
+		}
 	}
 	if rc == nil {
 		rc = map[string]any{}
@@ -363,6 +383,8 @@ type TaskIssueStatusData struct {
 }
 
 type AgentTaskResponse struct {
+	CancelledByCommentChange bool `json:"cancelled_by_comment_change,omitempty"`
+
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`
 	RuntimeID            string                 `json:"runtime_id"`
@@ -392,12 +414,18 @@ type AgentTaskResponse struct {
 	// credential used only by the local daemon's write-only Remote MCP broker.
 	// It is never injected into the agent process.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`
-	// WorkspaceContext is the workspace-level system prompt set in workspace
-	// settings (`workspace.context` DB column). Injected into the agent brief
-	// as `## Workspace Context` so every agent running in this workspace —
-	// regardless of issue / chat / autopilot / quick-create — sees the same
-	// shared context. Empty when the workspace owner hasn't set it.
+	// WorkspaceContext is the workspace doctrine: the governing document the
+	// workspace's owners write for every agent (`workspace.context` DB
+	// column). Injected into the agent brief as `## Workspace Doctrine` so
+	// every agent running in this workspace — regardless of issue / chat /
+	// autopilot / quick-create — is bound by the same rules. Empty when the
+	// workspace owner hasn't written one.
 	WorkspaceContext string `json:"workspace_context,omitempty"`
+	// WorkspaceDoctrineRevision is the doctrine's revision number
+	// (`workspace.doctrine_revision`). The brief names it so a report an
+	// agent files can be read against the exact text it ran under. Zero for
+	// a workspace whose doctrine predates the revision ledger.
+	WorkspaceDoctrineRevision int32 `json:"workspace_doctrine_revision,omitempty"`
 	// IssueStatuses is the workspace's ACTIVE CUSTOM status catalog (MUL-6460),
 	// injected into the agent brief so agents can see and use statuses beyond
 	// the seven built-ins. Built-ins are omitted: their keys, names, and
@@ -445,6 +473,10 @@ type AgentTaskResponse struct {
 	// daemon reads it off the claim to decide whether to measure the run's
 	// diff; empty for every ordinary run.
 	RunGroupID string `json:"run_group_id,omitempty"`
+	// ModelOverride (JEF-12) lets one task run on a different model than its
+	// agent's default; the daemon's model cascade reads it before agent.model.
+	// Empty for ordinary runs.
+	ModelOverride string `json:"model_override,omitempty"`
 	// Run confidence (JEF-240): the self-assessed score persisted after a
 	// successful run — score, rationale, model, the threshold that applied and
 	// whether the run landed below it. Empty for unscored runs (disabled LLM,
@@ -560,6 +592,17 @@ type AgentTaskResponse struct {
 	// Populated on both terminal paths — a failed run can still have committed
 	// partial work, and that is when the pointer matters most.
 	BranchName string `json:"branch_name,omitempty"`
+	// Promote / discard (JEF-255). PromotedAt and DiscardedAt are the run's
+	// terminal facts — null until the daemon's result lands; PromotePRURL is
+	// the pull request the server opened after the push, empty when no VCS
+	// provider covers the remote. PendingBranchAction is "promote"/"discard"
+	// while a request is in flight and "" otherwise; hydrated in one batched
+	// query per issue list, so surfaces that never render the buttons may
+	// leave it empty.
+	PromotedAt          *string `json:"promoted_at"`
+	DiscardedAt         *string `json:"discarded_at"`
+	PromotePRURL        string  `json:"promote_pr_url"`
+	PendingBranchAction string  `json:"pending_branch_action"`
 	// Turn checkpoints (F09). CheckpointSHA is the git commit recording what
 	// this worktree run delivered; TurnSeq is its position among the
 	// conversation's checkpointed turns. Revertable is the derived affordance:
@@ -610,11 +653,14 @@ type AgentTaskResponse struct {
 	QuickCreateSourceContext json.RawMessage      `json:"quick_create_source_context,omitempty"` // immutable historical context for source-context quick-create
 	HandoffNote              string               `json:"handoff_note,omitempty"`                // legacy assignment handoff instruction retained for installed clients; rendered by the daemon only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue, for the resuming agent.
-	HandoffPacket         *HandoffPacketResponse `json:"handoff_packet,omitempty"`
-	SquadID               string                 `json:"squad_id,omitempty"`                // for quick-create tasks where the picker was a squad; Agent is still the resolved leader
-	SquadName             string                 `json:"squad_name,omitempty"`              // display name for the picker squad
-	ParentIssueID         string                 `json:"parent_issue_id,omitempty"`         // for quick-create tasks opened from "Add sub issue" — UUID of the parent issue the new issue should be filed under
-	ParentIssueIdentifier string                 `json:"parent_issue_identifier,omitempty"` // human-readable identifier (e.g. MUL-123) of the quick-create parent issue, resolved on claim for prompt context
+	HandoffPacket *HandoffPacketResponse `json:"handoff_packet,omitempty"`
+	// Goal (goal loop): the issue's goal and chain state, for the resuming
+	// agent; rendered by the daemon in the per-turn prompt.
+	Goal                  *goalstate.State `json:"goal,omitempty"`
+	SquadID               string           `json:"squad_id,omitempty"`                // for quick-create tasks where the picker was a squad; Agent is still the resolved leader
+	SquadName             string           `json:"squad_name,omitempty"`              // display name for the picker squad
+	ParentIssueID         string           `json:"parent_issue_id,omitempty"`         // for quick-create tasks opened from "Add sub issue" — UUID of the parent issue the new issue should be filed under
+	ParentIssueIdentifier string           `json:"parent_issue_identifier,omitempty"` // human-readable identifier (e.g. MUL-123) of the quick-create parent issue, resolved on claim for prompt context
 	// RequestingUserName + RequestingUserProfileDescription mirror the user
 	// the agent is acting on behalf of (see daemon/types.go). v1 sources them
 	// from the runtime owner so they're populated for daemon runtimes and
@@ -640,7 +686,7 @@ type AgentTaskResponse struct {
 	InitiatorID    string `json:"initiator_id,omitempty"`    // user UUID (member) or agent UUID
 	InitiatorName  string `json:"initiator_name,omitempty"`  // display name of the initiator
 	InitiatorEmail string `json:"initiator_email,omitempty"` // member email; empty for agent initiators
-	Kind           string `json:"kind"`                      // discriminator: "comment" | "autopilot" | "chat" | "quick_create" | "direct" — used by the activity row to label tasks that have no linked issue
+	Kind           string `json:"kind"`                      // source discriminator: "comment" | "autopilot" | "chat" | "quick_create" | "direct" — quick-create remains stable after its result issue is linked
 	// Attribution is the resolved accountable-human provenance for this run
 	// (MUL-4302 §9): the source label + precise flag, the initiator (accountable)
 	// and originator refs, the evidence pointer, and lineage. Always present (the
@@ -903,6 +949,18 @@ type TaskAgentData struct {
 	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
+// visibleTaskHistory omits unused assignee fallbacks created by older versions.
+// Dispatch only begins preparation, so a fallback cancelled before StartTask
+// is still unused. Keep started fallbacks and ordinary cancellations visible,
+// and retain the underlying scheduling records for audit.
+func visibleTaskHistory(tasks []db.AgentTaskQueue) []db.AgentTaskQueue {
+	return slices.DeleteFunc(tasks, func(task db.AgentTaskQueue) bool {
+		return task.EscalationForTaskID.Valid &&
+			!task.StartedAt.Valid &&
+			(task.Status == "deferred" || task.Status == "cancelled")
+	})
+}
+
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded
 // in because the row itself doesn't carry one (workspace lives on the agent
 // / issue / chat session) — we ask the caller to resolve it once and pass it
@@ -910,9 +968,15 @@ type TaskAgentData struct {
 // derivation; pass "" only on daemon-facing paths that genuinely don't have
 // it, in which case RelativeWorkDir falls back to the existing WorkDir.
 func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
+	var cancellation struct {
+		TaskID string `json:"comment_change_cancelled_task_id"`
+	}
+	_ = json.Unmarshal(t.Context, &cancellation)
 	var result any
 	if t.Result != nil {
-		json.Unmarshal(t.Result, &result)
+		if err := json.Unmarshal(t.Result, &result); err != nil {
+			slog.Warn("failed to unmarshal agent task result", "task_id", uuidToString(t.ID), "error", err)
+		}
 	}
 	failureReason := ""
 	if t.FailureReason.Valid {
@@ -943,6 +1007,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		}
 	}
 	return AgentTaskResponse{
+		// Task-scoped provenance must not transfer through copied retry context.
+		CancelledByCommentChange: t.Status == "cancelled" && cancellation.TaskID != "" && cancellation.TaskID == uuidToString(t.ID),
+
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),
 		RuntimeID:              uuidToString(t.RuntimeID),
@@ -964,6 +1031,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		Routing:                json.RawMessage(t.Routing),
 		DispatchLane:           t.DispatchLane,
 		RunGroupID:             uuidToString(t.RunGroupID),
+		ModelOverride:          t.ModelOverride.String,
 		LegRole:                t.LegRole,
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),
@@ -978,6 +1046,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		PreemptedAt:            timestampToPtr(t.PreemptedAt),
 		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
+		PromotedAt:             timestampToPtr(t.PromotedAt),
+		DiscardedAt:            timestampToPtr(t.DiscardedAt),
+		PromotePRURL:           t.PromotePrUrl,
 		CheckpointSHA:          t.CheckpointSha.String,
 		TurnSeq:                int4ToPtr(t.TurnSeq),
 		Revertable:             taskRevertable(t),
@@ -995,9 +1066,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		RelativeWorkDir:        relativeWorkDir(workDir, workspaceID, uuidToString(t.ID)),
 		DurableWorkDir:         durableWorkDir,
 		RelativeDurableWorkDir: relativeWorkDir(durableWorkDir, "", ""),
-		// Surface task source so the UI can distinguish issue-linked tasks
-		// from chat-spawned or autopilot-spawned ones; all three may arrive
-		// with issue_id = "" once a task has no linked issue.
+		// Surface the stable task source. A successful quick-create gains an
+		// issue link for navigation but retains its quick_create kind.
 		ChatSessionID:  uuidToString(t.ChatSessionID),
 		AutopilotRunID: uuidToString(t.AutopilotRunID),
 		Kind:           computeTaskKind(t),
@@ -1144,12 +1214,10 @@ func basename(p string) string {
 	return p
 }
 
-// computeTaskKind picks the source-discriminator string the activity UI uses
-// to choose how to render a task row. Computed from the existing FK shape so
-// no extra DB lookup is needed: chat / autopilot / comment-on-issue (any
-// triggered task with both an issue_id and trigger_comment_id) / quick_create
-// (no linked source — the agent is creating the issue itself) / direct
-// (assignee-driven task on an existing issue).
+// computeTaskKind picks the stable source-discriminator string task UIs use.
+// Chat and autopilot have dedicated FKs; quick-create must inspect its context
+// because completion links the newly created issue back onto the task. The
+// remaining issue tasks split into comment-triggered and direct runs.
 func computeTaskKind(t db.AgentTaskQueue) string {
 	if uuidToString(t.ChatSessionID) != "" {
 		return "chat"
@@ -1157,6 +1225,14 @@ func computeTaskKind(t db.AgentTaskQueue) string {
 	if uuidToString(t.AutopilotRunID) != "" {
 		return "autopilot"
 	}
+	var contextKind struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(t.Context, &contextKind) == nil && contextKind.Type == service.QuickCreateContextType {
+		return "quick_create"
+	}
+	// Preserve the historical classification for issue-less rows from before
+	// quick-create stored a typed context.
 	if uuidToString(t.IssueID) == "" {
 		return "quick_create"
 	}
@@ -1191,6 +1267,10 @@ func (h *Handler) loadAgentRuntimeAvailability(ctx context.Context, agents []db.
 		return result, nil
 	}
 
+	// Read directly rather than through RuntimeLookup: this resolves rows for a
+	// list of agents instead of resolving a runtime a caller asked for, so it
+	// has no honest source label on multica_agent_runtime_lookup_total yet. See
+	// the exception noted on service.RuntimeLookup (MUL-6884).
 	runtimes, err := h.Queries.GetAgentRuntimes(ctx, runtimeIDs)
 	if err != nil {
 		return nil, err
@@ -1650,6 +1730,10 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		allowlist = nil
 	}
 
+	if len(req.SkillIDs) > maxCreateAgentSkillIDs {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("at most %d skill_ids per request", maxCreateAgentSkillIDs))
+		return
+	}
 	skillUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SkillIDs, "skill_ids")
 	if !ok {
 		return
@@ -1736,7 +1820,11 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	if runtime.Status == "online" {
 		h.TaskService.ReconcileAgentStatus(r.Context(), created.ID)
-		created, _ = h.Queries.GetAgent(r.Context(), created.ID)
+		if refreshed, err := h.Queries.GetAgent(r.Context(), created.ID); err == nil {
+			created = refreshed
+		} else {
+			slog.Warn("agent: post-reconcile reload failed", "error", err, "agent_id", uuidToString(created.ID))
+		}
 	}
 
 	resp := h.agentToResponse(created)
@@ -2162,6 +2250,10 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if req.Status != nil {
+		if !validAgentStatuses[*req.Status] {
+			writeError(w, http.StatusBadRequest, "status must be one of: idle, working, blocked, error, offline")
+			return
+		}
 		params.Status = pgtype.Text{String: *req.Status, Valid: true}
 	}
 	if req.MaxConcurrentTasks != nil {
@@ -2398,9 +2490,25 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Invocation targets (MUL-3963): replace wholesale when the owner touched
 	// permission. Done after the row update so a permission_mode flip and its
-	// targets land together.
+	// targets land together. The delete-then-insert-loop runs inside its own
+	// transaction so a DB error mid-loop can't leave the agent's invocation
+	// targets partially cleared with no rollback.
 	if replacePermissionTargets {
-		if err := h.replaceInvocationTargets(r.Context(), updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+		tx, err := h.TxStarter.Begin(r.Context())
+		if err != nil {
+			slog.Warn("update agent: begin invocation targets transaction failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update invocation targets")
+			return
+		}
+		func() {
+			defer tx.Rollback(r.Context())
+			qtx := h.Queries.WithTx(tx)
+			if err = replaceInvocationTargetsWithQueries(r.Context(), qtx, updated.ID, parseUUID(requestUserID(r)), resolvedPerm.targets); err != nil {
+				return
+			}
+			err = tx.Commit(r.Context())
+		}()
+		if err != nil {
 			slog.Warn("update agent: persist invocation targets failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 			writeError(w, http.StatusInternalServerError, "failed to update invocation targets: "+err.Error())
 			return
@@ -2732,7 +2840,7 @@ func (h *Handler) CancelAgentTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cancelled, err := h.TaskService.CancelTasksForAgent(r.Context(), parseUUID(id))
+	cancelled, err := h.TaskService.CancelTasksForAgent(r.Context(), agent.ID)
 	if err != nil {
 		slog.Warn("cancel agent tasks failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 		writeError(w, http.StatusInternalServerError, "failed to cancel tasks")
@@ -2775,6 +2883,7 @@ func (h *Handler) ListAgentTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tasks = visibleTaskHistory(tasks)
 	resp := make([]AgentTaskResponse, len(tasks))
 	var taskIDs []pgtype.UUID
 	if includeUsage {
@@ -3079,4 +3188,8 @@ type SandboxSpec struct {
 	Mode         string   `json:"mode"`
 	Image        string   `json:"image,omitempty"`
 	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// BlockSensitiveFiles (JEF-256) is the merged sandbox policy's .env read
+	// block; the daemon enforces it per provider as a best effort on top of
+	// whatever network confinement Mode asks for.
+	BlockSensitiveFiles bool `json:"block_sensitive_files,omitempty"`
 }

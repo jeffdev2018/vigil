@@ -9,6 +9,7 @@ import { projectListOptions } from "@multica/core/projects/queries";
 import { propertyListOptions } from "@multica/core/properties/queries";
 import type { Cycle, CycleWriteRequest } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import {
@@ -19,6 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 const FIELD_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
@@ -68,12 +76,22 @@ function initialForm(target: CycleFormTarget): FormState {
 }
 
 // An empty capacity field means "not declared", which is a real value distinct
-// from zero — so it maps to null, never to 0.
+// from zero — so it maps to null, never to 0. A negative number is neither:
+// it is invalid input, so it is rejected explicitly (capacityInvalid below)
+// rather than silently mapped to null, which used to save the field as
+// "not declared" instead of surfacing the typo.
 function capacityValue(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const n = Number(trimmed);
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
+function capacityInvalid(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  const n = Number(trimmed);
+  return !Number.isFinite(n) || n < 0;
 }
 
 function toRequest(f: FormState, mode: CycleFormTarget["mode"]): CycleWriteRequest {
@@ -116,9 +134,12 @@ export function CycleFormDialog({
 
   const datesOutOfOrder =
     !!form.start_date && !!form.end_date && form.end_date < form.start_date;
+  const humanCapacityInvalid = capacityInvalid(form.human_capacity);
+  const agentCapacityInvalid = capacityInvalid(form.agent_capacity);
   const complete =
     !!form.name.trim() && !!form.start_date && !!form.end_date &&
-    (target.mode === "edit" || !!form.project_id) && !datesOutOfOrder;
+    (target.mode === "edit" || !!form.project_id) && !datesOutOfOrder &&
+    !humanCapacityInvalid && !agentCapacityInvalid;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -148,17 +169,25 @@ export function CycleFormDialog({
           {target.mode === "create" && (
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.project)}
-              <select
-                className={FIELD_CLASS}
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.form.project_placeholder) },
+                  ...projects.map((p) => ({ value: p.id, label: p.title })),
+                ]}
                 value={form.project_id}
-                onChange={(e) => set("project_id", e.target.value)}
+                onValueChange={(value) => value !== null && set("project_id", value)}
                 required
               >
-                <option value="">{t(($) => $.form.project_placeholder)}</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full" aria-label={t(($) => $.form.project)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.form.project_placeholder)}</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
           )}
 
@@ -209,8 +238,12 @@ export function CycleFormDialog({
                 type="number"
                 min={0}
                 value={form.human_capacity}
+                aria-invalid={humanCapacityInvalid}
                 onChange={(e) => set("human_capacity", e.target.value)}
               />
+              {humanCapacityInvalid && (
+                <p role="alert" className="text-destructive">{t(($) => $.form.capacity_negative)}</p>
+              )}
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.agent_capacity)}
@@ -218,33 +251,44 @@ export function CycleFormDialog({
                 type="number"
                 min={0}
                 value={form.agent_capacity}
+                aria-invalid={agentCapacityInvalid}
                 onChange={(e) => set("agent_capacity", e.target.value)}
               />
+              {agentCapacityInvalid && (
+                <p role="alert" className="text-destructive">{t(($) => $.form.capacity_negative)}</p>
+              )}
             </label>
           </div>
           <p className="text-caption text-muted-foreground">{t(($) => $.form.capacity_hint)}</p>
 
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.form.load_property)}
-            <select
-              className={FIELD_CLASS}
+            <Select
+              items={[
+                { value: "", label: t(($) => $.form.load_property_none) },
+                ...numberProperties.map((p) => ({ value: p.id, label: p.name })),
+              ]}
               value={form.load_property_id}
-              onChange={(e) => set("load_property_id", e.target.value)}
+              onValueChange={(value) => value !== null && set("load_property_id", value)}
             >
-              <option value="">{t(($) => $.form.load_property_none)}</option>
-              {numberProperties.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full" aria-label={t(($) => $.form.load_property)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.form.load_property_none)}</SelectItem>
+                {numberProperties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span>{t(($) => $.form.load_property_hint)}</span>
           </label>
 
           <label className="flex items-start gap-2 text-caption text-muted-foreground">
-            <input
-              type="checkbox"
+            <Checkbox
               className="mt-0.5"
               checked={form.rollover}
-              onChange={(e) => set("rollover", e.target.checked)}
+              onCheckedChange={(checked) => set("rollover", checked === true)}
             />
             <span>{t(($) => $.form.rollover)}</span>
           </label>

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // Natural-language event routing for webhook triggers. One LLM call decides
@@ -46,7 +48,7 @@ func (h *Handler) webhookEventMatchesCriteria(ctx context.Context, criteria, pro
 	}
 	payload := string(envelope.EventPayload)
 	if len(payload) > webhookRoutingPayloadCap {
-		payload = payload[:webhookRoutingPayloadCap] + "…"
+		payload = util.TruncateUTF8Bytes(payload, webhookRoutingPayloadCap) + "…"
 	}
 	var user strings.Builder
 	user.WriteString("## Event\nName: ")

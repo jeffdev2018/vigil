@@ -44,6 +44,7 @@ import type {
 } from "../surface/use-issue-group-branches";
 import { useDragSettle } from "./use-drag-settle";
 import { useBoardDragPan } from "./use-board-drag-pan";
+import { sortFieldI18nKey } from "../utils/sort";
 import { useT } from "../../i18n";
 import {
   type DragMoveUpdates,
@@ -319,7 +320,7 @@ function BoardViewImpl({
     },
     [setIssuePropertyMutation, t, unsetIssuePropertyMutation],
   );
-  const sortFieldKey = sortBy === "created_at" ? "created" : sortBy;
+  const sortFieldKey = sortFieldI18nKey(sortBy);
   const sortPropertyId = propertyIdFromViewKey(sortBy);
   const sortLabel = sortBy !== "position"
     ? t(($) => $.board.ordered_by, {
@@ -694,7 +695,12 @@ function BoardViewImpl({
         onPointerUp={pan.onPointerUp}
         onPointerCancel={pan.onPointerCancel}
         onLostPointerCapture={pan.onLostPointerCapture}
-        className="flex flex-1 min-h-0 gap-4 overflow-x-auto p-2"
+        // The board owns its horizontal overflow: `min-w-0` keeps it inside
+        // its pane, columns are fixed-width and `shrink-0`, and the thumb uses
+        // the hover-strength token so the cut-off column reads as scrollable
+        // instead of clipped on narrow windows.
+        className="flex min-w-0 flex-1 min-h-0 gap-4 overflow-x-auto overscroll-x-contain p-2 pb-3 [scrollbar-color:var(--scrollbar-thumb-hover)_var(--scrollbar-track)] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb-hover)]"
+        data-testid="board-scroller"
       >
         {groups.length === 0 ? (
           groupBranches?.isError ? (

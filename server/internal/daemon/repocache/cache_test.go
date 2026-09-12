@@ -394,6 +394,26 @@ func TestBareDirName(t *testing.T) {
 	}
 }
 
+// repoNameFromURL's result is filepath.Join'd straight onto a WorkDir; "."
+// or ".." would resolve to that directory itself or its parent instead of a
+// repo-named subdirectory underneath it.
+func TestRepoNameFromURLRejectsDotAndDotDot(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ input, want string }{
+		{"https://example.com/..", "repo"},
+		{"https://example.com/.", "repo"},
+		{"..", "repo"},
+		{".", "repo"},
+		{"https://example.com/../", "repo"},
+		{"https://example.com/my-repo", "my-repo"},
+	}
+	for _, tt := range tests {
+		if got := repoNameFromURL(tt.input); got != tt.want {
+			t.Errorf("repoNameFromURL(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 // TestBareDirNameDistinctsSegmentBoundaryColliders covers the collision class
 // that a naive path-flattening-with-dashes scheme would miss: two repos whose
 // path segments differ only at a segment boundary flatten to the same string

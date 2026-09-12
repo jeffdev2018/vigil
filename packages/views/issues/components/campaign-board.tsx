@@ -10,6 +10,13 @@ import { agentListOptions } from "@multica/core/workspace/queries";
 import { campaignProgress, campaignShardSkippable, issueCampaignOptions, useCreateCampaign, useSkipCampaignShard, type CampaignMergeStatus } from "@multica/core/issues/campaign";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
@@ -44,7 +51,7 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
   const emptyRow = { description: "", assignee_id: "", branch_name: "" };
   const [rows, setRows] = useState([emptyRow]);
   const fail = (e: unknown) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.campaign.failed));
-  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? id.slice(0, 8);
+  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? t(($) => $.campaign.unknown_agent);
   const active = campaign?.status === "running" || campaign?.status === "merging";
   const valid = name.trim() !== "" && target.trim() !== "" && leader !== "" && rows.length > 0 && rows.every((r) => r.description.trim() !== "" && r.assignee_id !== "");
   if (!campaign && (!canManage || agents.length === 0)) return null;
@@ -97,19 +104,43 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
             <div className="flex gap-1">
               <Input aria-label={t(($) => $.campaign.name)} placeholder={t(($) => $.campaign.name)} value={name} onChange={(e) => setName(e.target.value)} />
               <Input aria-label={t(($) => $.campaign.target_branch)} placeholder={t(($) => $.campaign.target_branch)} value={target} onChange={(e) => setTarget(e.target.value)} />
-              <select aria-label={t(($) => $.campaign.leader)} className="rounded-md border border-input bg-transparent px-2 py-1" value={leader} onChange={(e) => setLeader(e.target.value)}>
-                <option value="">{t(($) => $.campaign.leader)}</option>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.campaign.leader) },
+                  ...agents.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                value={leader}
+                onValueChange={(value) => value !== null && setLeader(value)}
+              >
+                <SelectTrigger size="sm" aria-label={t(($) => $.campaign.leader)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.campaign.leader)}</SelectItem>
+                  {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             {rows.map((r, i) => (
               <div key={i} className="flex gap-1">
                 <Input aria-label={t(($) => $.campaign.shard, { n: i + 1 })} placeholder={t(($) => $.campaign.shard_placeholder)} value={r.description} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, description: e.target.value } : x)))} />
                 <Input aria-label={t(($) => $.campaign.branch, { n: i + 1 })} placeholder={t(($) => $.campaign.branch_placeholder)} className="w-48" value={r.branch_name} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, branch_name: e.target.value } : x)))} />
-                <select aria-label={t(($) => $.campaign.assignee, { n: i + 1 })} className="rounded-md border border-input bg-transparent px-2 py-1" value={r.assignee_id} onChange={(e) => setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: e.target.value } : x)))}>
-                  <option value="">{t(($) => $.campaign.pick_agent)}</option>
-                  {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <Select
+                  items={[
+                    { value: "", label: t(($) => $.campaign.pick_agent) },
+                    ...agents.map((a) => ({ value: a.id, label: a.name })),
+                  ]}
+                  value={r.assignee_id}
+                  onValueChange={(value) => value !== null && setRows(rows.map((x, n) => (n === i ? { ...x, assignee_id: value } : x)))}
+                >
+                  <SelectTrigger size="sm" aria-label={t(($) => $.campaign.assignee, { n: i + 1 })}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{t(($) => $.campaign.pick_agent)}</SelectItem>
+                    {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <button type="button" aria-label={t(($) => $.campaign.remove, { n: i + 1 })} className="text-muted-foreground hover:text-destructive" onClick={() => setRows(rows.filter((_, n) => n !== i))}>×</button>
               </div>
             ))}
@@ -120,7 +151,14 @@ export function CampaignBoard({ issueId, canManage = true }: { issueId: string; 
             </div>
           </form>
         ) : (
-          <button type="button" className="self-start text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>{t(($) => $.campaign.open)}</button>
+          <button
+            type="button"
+            className="self-start text-muted-foreground hover:text-foreground"
+            title={t(($) => $.campaign.open_hint)}
+            onClick={() => setOpen(true)}
+          >
+            {t(($) => $.campaign.open)}
+          </button>
         )
       )}
     </div>

@@ -890,7 +890,7 @@ function RuntimesVisual() {
               </div>
             </div>
 
-            {/* Token summary cards — same as real TokenCard */}
+            {/* Token summary cards — same as real KpiCard */}
             <div className="grid grid-cols-4 gap-2">
               {[
                 { label: "Input", value: formatTokens(totals.input) },

@@ -180,6 +180,7 @@ multica runtime activity <runtime-id>
 | `agent`、`skill`、`squad` | エージェント、スキル、スクワッドを管理 |
 | `autopilot` | オートパイロット、トリガー、実行履歴を管理 |
 | `workspace` | ワークスペースの作成、表示、切り替えとメンバーの招待 |
+| `pack` | 機能パックのインストール、更新、削除、エクスポート |
 | `repo` | ワークスペースのリポジトリを管理し、ローカルにチェックアウト |
 | `daemon`、`runtime` | ローカルデーモンの起動と停止。ランタイムの表示と管理 |
 | `attachment` | 添付ファイルのアップロードとダウンロード |
@@ -274,6 +275,7 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | | `skills list/set/add <agent-id>` | 紐付けられたスキルを管理 | `--skill-ids`（`set` は全置換、`add` は追加） |
 | | `mcp list/add/enable/disable/remove <agent-id>` | ワークスペース MCP サーバーをこのエージェントに割り当て | server id は `workspace mcp list` から取得。ライブラリの項目はここで追加するまで機能しません。`disable` は割り当てを残したまま送信を停止します |
 | `autopilot` | `list/get/create/update/delete` | オートパイロットを管理 | `create`: `--title`、`--agent`、`--mode`（いずれも必須）、`--project`、`--subscriber`（繰り返し可） |
+| | `export <id>` / `import <DAEMON.md>` | オートパイロットを DAEMON.md として書き出し、または取り込み | `import`: `--strategy`（`fail`、`overwrite`、`rename`）、`--preview` |
 | | `trigger <id>` | 手動で 1 回トリガー | |
 | | `runs <id>` | 実行履歴を表示 | |
 | | `trigger-add/trigger-update/trigger-delete/trigger-rotate-url` | スケジュールと webhook のトリガーを管理 | |

@@ -180,6 +180,7 @@ See [Daemon and runtimes](/daemon-runtimes) for how it works and for custom prof
 | `agent`, `skill`, `squad` | Manage agents, skills, and squads |
 | `autopilot` | Manage automations, triggers, and run history |
 | `workspace` | Create, view, and switch workspaces, and invite members |
+| `pack` | Install, upgrade, remove and export function packs |
 | `repo` | Manage workspace repositories and check them out locally |
 | `daemon`, `runtime` | Start and stop the local daemon; view and manage runtimes |
 | `attachment` | Upload or download attachments |
@@ -282,10 +283,13 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `skills list/set/add <agent-id>` | Manage attached skills | `--skill-ids` (`set` replaces the full list, `add` appends) |
 | | `mcp list/add/enable/disable/remove <agent-id>` | Assign workspace MCP servers to this agent | Take the server id from `workspace mcp list`. A library entry does nothing until it is added here; `disable` stops sending it without dropping the assignment |
 | `autopilot` | `list/get/create/update/delete` | Manage automations | `create`: `--title`, `--agent`, `--mode` (all required), `--project`, `--subscriber` (repeatable) |
+| | `export <id>` / `import <DAEMON.md>` | Export an autopilot as DAEMON.md, or import one | `import`: `--strategy` (`fail`, `overwrite`, `rename`), `--preview` |
 | | `trigger <id>` | Trigger a run manually | |
 | | `runs <id>` | View run history | |
 | | `trigger-add/trigger-update/trigger-delete/trigger-rotate-url` | Manage schedule and webhook triggers | |
 | `workspace` | `list/get/create/update/switch` | Manage workspaces; `switch` sets the current profile's default workspace | |
+| | `export` / `import <bundle.zip>` | Export the workspace configuration as a bundle, or import one | `export`: `--include-issues`, `--include-notes`, `--template`, `--name`, `--out`; `import`: `--strategy` (`rename`, `merge`, `skip`), `--preview` |
+| `pack` | `list/show/preview/install/installed/items/uninstall/download/preview-file/install-file/export` | Browse the pack catalogue, install, upgrade or uninstall a pack, upload your own, export the workspace as a pack | `list`: `--domain`; `install`/`install-file`: `--strategy`, `--force`; `export`: `--id`, `--version`, `--title`, `--summary`, `--domain`, `--metric-label`, `--metric-description`, `--include-issues`, `--include-notes`, `--out` |
 | | `mcp list/add/update/remove` | Manage the workspace's MCP server library | Writes are owner/admin. A server added here is assigned to no agent — give it to one with `multica agent mcp add`. `list` shows names and transports only; the stored entry is write-only and never returned. `--server-config-file` / `--server-config-stdin` keep tokens out of shell history |
 | | `member list/invite <email>` | View members, send invites | `invite`: `--role` (member or admin, default member) |
 | | `halt` | Hold every agent in this workspace (owner/admin only) | `--reason` |

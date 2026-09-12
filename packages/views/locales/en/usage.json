@@ -17,7 +17,8 @@
     "run_time_label": "Run time · {{days}}D",
     "run_time_hint": "Across {{tasks}} runs",
     "tasks_label": "Runs · {{days}}D",
-    "tasks_hint": "{{failed}} failed"
+    "tasks_hint": "{{failed}} failed",
+    "cost_hint": "Estimated from every run's tokens (provider cost when reported), not the amount charged to budgets"
   },
   "dim": {
     "label": "Dimension",
@@ -134,24 +135,30 @@
     "hint": "{{count}} closed · mean ${{mean}}",
     "floor": "some usage unpriced",
     "none": "None in this period",
-    "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
+    "empty": "No issue closed or pull request merged with a run in the last {{days}} days.",
+    "load_error": "Could not load the cost per deliverable.",
+    "retry": "Retry"
   },
   "agent_roi": {
     "title": "ROI per agent · {{days}}D",
     "headline": "{{best}} closed {{count}} issues at {{cost}}/issue vs {{cost2}} for {{second}}",
     "headline_single": "{{best}} closed {{count}} issues at {{cost}}/issue",
     "empty": "No agent activity in the last {{days}} days.",
+    "load_error": "Could not load agent ROI.",
+    "retry": "Retry",
     "agent": "Agent",
     "issues": "Issues closed",
     "prs": "PRs merged",
     "cost": "Cost",
     "cost_per_issue": "Cost / issue",
     "none": "no issue closed",
-    "floor": "floor"
+    "floor": "floor",
+    "floor_hint": "This total is a minimum: some of this agent's runs used a model with no known price."
   },
   "scorecards": {
     "title": "Agent scorecards · {{days}}D",
     "scope_note": "Workspace-wide, all projects · UTC days",
+    "load_error": "Could not load the agent scorecards.",
     "agent": "Agent",
     "runs": "Runs",
     "accepted": "Accepted",
@@ -159,12 +166,15 @@
     "reopened": "Reopened",
     "no_intervention": "No human",
     "mean_cost": "Mean cost",
-    "low_sample": "(few runs)"
+    "low_sample": "(few runs)",
+    "retry": "Retry"
   },
   "autopilot_quota": {
     "title": "Autopilot runs this period: {{used}} / {{limit}}",
+    "load_error": "Could not load the autopilot quota.",
     "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
-    "reached": "Limit reached — autopilots will not fire until the period resets."
+    "reached": "Limit reached — autopilots will not fire until the period resets.",
+    "retry": "Retry"
   },
   "workflow_outcomes": {
     "title": "Workflow outcomes",
@@ -200,6 +210,32 @@
     "too_many_series": "{{count}} categories — shown as a table.",
     "move_up": "Move up",
     "move_down": "Move down",
-    "remove": "Remove"
+    "remove": "Remove",
+    "pin_failed": "Could not pin this answer.",
+    "reorder_failed": "Could not reorder this card.",
+    "remove_failed": "Could not remove this card."
+  },
+  "velocity": {
+    "title": "Velocity",
+    "kpi_member_cycle": "Member cycle time · {{days}}D",
+    "kpi_agent_cycle": "Agent cycle time · {{days}}D",
+    "kpi_throughput": "Issues closed · {{days}}D",
+    "throughput_hint": "{{member}} by members · {{agent}} by agents",
+    "closed_hint": "{{count}} closed",
+    "no_closed": "Nothing closed in this period",
+    "days_unit": "d",
+    "legend_member": "Members",
+    "legend_agent": "Agents",
+    "throughput_title": "Weekly throughput",
+    "throughput_empty": "No closed issues in this period.",
+    "tooltip_total": "Total",
+    "cost_title": "Cost per closed issue",
+    "cost_series": "Mean cost",
+    "cost_caption": "Issues closed with agent runs — cost covers those runs only.",
+    "cost_empty": "No issue closed with an agent run in this period.",
+    "empty_title": "No velocity yet",
+    "empty_body": "Once members or agents close issues, cycle time and weekly throughput for the last {{days}} days will appear here.",
+    "load_error": "Could not load velocity.",
+    "retry": "Retry"
   }
 }

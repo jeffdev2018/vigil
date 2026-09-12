@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Watchdog, WatchdogVerdict } from "@multica/core/issues/watchdog";
 import { renderWithI18n } from "../../test/i18n";
@@ -61,10 +62,15 @@ describe("WatchdogSection", () => {
     state.review.mockReset();
   });
 
+  // Base UI Select portals its popup onto document.body.
+  afterEach(() => cleanup());
+
   it("offers the form when no watchdog exists and saves the chosen agent and owner", async () => {
     render();
     await screen.findByTestId("watchdog-form");
-    fireEvent.change(screen.getByLabelText("Watchdog agent"), { target: { value: "a2" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Watchdog agent" }));
+    await user.click(await screen.findByRole("option", { name: "Auditor" }));
     fireEvent.change(screen.getByLabelText("Rest (minutes)"), { target: { value: "45" } });
     fireEvent.click(screen.getByText("Save watchdog"));
     expect(state.save).toHaveBeenCalledWith({ agent_id: "a2", owner_id: undefined, instructions: "", rest_minutes: 45, enabled: true }, expect.anything());

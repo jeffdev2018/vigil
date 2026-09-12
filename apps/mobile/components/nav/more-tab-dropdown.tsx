@@ -54,6 +54,9 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { triageStatsOptions } from "@/data/queries/triage";
 import { postmortemStatsOptions } from "@/data/queries/postmortem";
+import { doctrineOptions } from "@/data/queries/doctrine";
+import { packCatalogueOptions } from "@/data/queries/packs";
+import { brainCapturesOptions } from "@/data/queries/brain";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -79,7 +82,7 @@ interface NavItem {
    * triage counts the pending queue and postmortems count the drafts,
    * exactly like the inbox count next to them — work waiting on a human.
    */
-  badge?: "triage" | "postmortem";
+  badge?: "triage" | "postmortem" | "doctrine" | "packs" | "brain";
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -104,7 +107,42 @@ const NAV_ITEMS: NavItem[] = [
     path: "/more/postmortems",
     badge: "postmortem",
   },
+  // Workspace doctrine (OS plan, chantier 22). Badge counts the open
+  // reports — the same "work waiting on a human" reading as triage and
+  // postmortems, and the same number the server puts on `open_reports`.
+  {
+    label: "Doctrine",
+    icon: "text.book.closed",
+    path: "/more/doctrine",
+    badge: "doctrine",
+  },
+  // Packs (OS plan, vague B): the function setup catalogue. Badge counts
+  // the installed packs a newer version is available for — "work waiting on
+  // a human" like the others, and the same number web puts on
+  // `upgrade_available`.
+  {
+    label: "Packs",
+    icon: "shippingbox",
+    path: "/more/packs",
+    badge: "packs",
+  },
+  // Workspace Brain (OS plan, vague B): the capture inbox and the shared
+  // notes. Badge counts the raw captures — "work waiting on a human" like
+  // triage and postmortems, and the same `raw_count` the server sends with
+  // every capture list, so the badge shares the inbox's cache entry.
+  {
+    label: "Brain",
+    icon: "brain",
+    path: "/more/brain",
+    badge: "brain",
+  },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
+  // Native calendar (OS plan, chantier 19).
+  { label: "Calendar", icon: "calendar", path: "/more/calendar" },
+  // Runs fleet (OS plan, chantier 4) — every run of the workspace, cancel
+  // + kill switch. No badge: unlike triage/postmortems there's no
+  // always-visible count to keep warm for it (see use-runs-realtime.ts).
+  { label: "Runs", icon: "bolt.horizontal.circle", path: "/more/runs" },
   { label: "Runtimes", icon: "desktopcomputer", path: "/more/runtimes" },
   { label: "Agents", icon: "cpu", path: "/more/agents" },
 ];
@@ -211,7 +249,11 @@ export function MoreTabDropdownAnchor({
  * cleared queue costs no visual noise. Truncated at 99+ like the tab-bar
  * badges in `lib/unread-counts.ts`.
  */
-function NavBadge({ kind }: { kind: "triage" | "postmortem" }) {
+function NavBadge({
+  kind,
+}: {
+  kind: "triage" | "postmortem" | "doctrine" | "packs" | "brain";
+}) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   // Both queries are declared unconditionally (hooks cannot be conditional)
   // and gated by `enabled` on the branch that is not this row's kind, so a
@@ -226,7 +268,34 @@ function NavBadge({ kind }: { kind: "triage" | "postmortem" }) {
     enabled: !!wsId && kind === "postmortem",
     select: (stats) => stats.draft,
   });
-  const count = (kind === "triage" ? triage.data : postmortem.data) ?? 0;
+  const doctrine = useQuery({
+    ...doctrineOptions(wsId),
+    enabled: !!wsId && kind === "doctrine",
+    select: (d) => d.open_reports,
+  });
+  const packs = useQuery({
+    ...packCatalogueOptions(wsId),
+    enabled: !!wsId && kind === "packs",
+    select: (catalogue) =>
+      catalogue.packs.filter((p) => p.upgrade_available === true).length,
+  });
+  // Same query the Brain inbox mounts, so opening the screen costs no second
+  // request: `raw_count` rides along with every capture list.
+  const brain = useQuery({
+    ...brainCapturesOptions(wsId, "raw"),
+    enabled: !!wsId && kind === "brain",
+    select: (data) => data.raw_count,
+  });
+  const count =
+    (kind === "triage"
+      ? triage.data
+      : kind === "postmortem"
+        ? postmortem.data
+        : kind === "doctrine"
+          ? doctrine.data
+          : kind === "packs"
+            ? packs.data
+            : brain.data) ?? 0;
   if (count <= 0) return null;
   return (
     <View className="rounded-full bg-secondary px-1.5 py-0.5">

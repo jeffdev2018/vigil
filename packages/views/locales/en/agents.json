@@ -45,7 +45,9 @@
   },
   "empty": {
     "title": "No agents yet",
-    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime."
+    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime.",
+    "description_run_explainer": "Agents run in the browser on the native runtime — or on a computer you connect.",
+    "description_run_explainer_link": "See runtimes"
   },
   "no_matches": {
     "title": "No matches",
@@ -111,6 +113,7 @@
     "set_access_skipped": "{{count}} skipped (not owned by you).",
     "set_access_dialog_confirm": "Apply",
     "set_access_bulk_partial": "Applied to {{succeeded}}; {{failed}} failed (kept in current state).",
+    "bulk_partial": "{{succeeded}} succeeded, {{failed}} failed.",
     "agent_archived_toast": "Agent archived",
     "archive_failed_toast": "Failed to archive agent",
     "agent_restored_toast": "Agent restored",
@@ -132,6 +135,8 @@
     "cancel_dialog_keep": "Keep them",
     "cancel_dialog_confirm": "Cancel all runs",
     "archive_dialog_title": "Archive \"{{name}}\"?",
+    "archive_dialog_title_bulk_one": "Archive {{count}} agent?",
+    "archive_dialog_title_bulk_other": "Archive {{count}} agents?",
     "archive_dialog_description": "The agent won't be assignable or mentionable, and any active runs will be cancelled. All history is preserved and you can restore it later.",
     "archive_dialog_cancel": "Cancel",
     "archive_dialog_confirm": "Archive"
@@ -277,7 +282,9 @@
     "managed_by_runtime_title": "Model selection is managed by this runtime.",
     "managed_by_runtime_hint": "Configure the model on the runtime host (e.g. Hermes reads it from its own config file).",
     "discovery_failed": "discovery failed",
-    "clear_full": "Clear selection (use provider default)"
+    "clear_full": "Clear selection (use provider default)",
+    "custom_label": "Custom",
+    "provider_fallback_label": "Model"
   },
   "tabs": {
     "overview": "Overview",
@@ -447,6 +454,7 @@
     "create_failed_toast": "Failed to create agent",
     "skill_attach_failed_toast": "Agent created, but failed to attach skills: {{error}}",
     "squad_join_failed_toast": "Agent \"{{name}}\" was created but couldn't join the squad: {{error}}. You can add it manually from Members.",
+    "squad_join_unknown_error": "Unknown error",
     "instructions": {
       "label": "Instructions",
       "placeholder_blank": "Click to write instructions…",
@@ -731,6 +739,7 @@
       "assigned_hint": "Workspace skills travel with the agent. Turn one off temporarily without removing it.",
       "runtime_title": "Inherited from runtime",
       "runtime_hint": "Discovered automatically from {{runtime}} and available whenever this agent runs there.",
+      "runtime_hint_unset": "Discovered automatically from the assigned runtime and available whenever this agent runs there.",
       "workspace_badge": "Workspace",
       "inherited_badge": "Inherited",
       "refresh_action": "Refresh",
@@ -1046,6 +1055,7 @@
   "live_peek": {
     "current_issue_label": "Now on",
     "no_current_issue": "No issue",
+    "issue_load_error": "Couldn't load this issue",
     "last_activity_label": "Last seen",
     "no_recent_activity": "No recent activity",
     "failed_indicator": "Failed"
@@ -1386,5 +1396,14 @@
     "safe_hint": "Safe mode holds every Multica write for your approval and asks the agent to describe external actions instead of doing them; the held payloads are the proof.",
     "safe_started": "Safe replay started",
     "safe_failed": "Could not start the safe replay"
+  },
+  "run_details": {
+    "details": "Runs on {{runtime}} · {{cost}}",
+    "details_auto": "Runs on {{runtime}} or another runtime picked automatically · {{cost}}",
+    "runtime_unknown": "a runtime you cannot see",
+    "cost_average_one": "≈ {{cost}} per run (its last priced run)",
+    "cost_average_other": "≈ {{cost}} per run (average of its last {{count}} priced runs)",
+    "cost_loading": "estimating cost…",
+    "cost_unknown": "cost unknown (no priced run yet)"
   }
 }

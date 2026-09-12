@@ -665,6 +665,11 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		projectID = parsed
 	}
+	// K60: same gate as POST /issues — a sub-issue filed into a project the
+	// caller can only view is still a write on that project.
+	if !h.requireProjectWrite(w, r, projectID) {
+		return errSourceContextResponseWritten
+	}
 	// Transition rules (F28): same gate as POST /issues — a sub-issue filed
 	// straight into a governed category goes through the rules too.
 	if !h.transitionAllowsCreate(w, r, workspaceID, projectID, status) {
@@ -822,6 +827,10 @@ func (h *Handler) prepareAgentCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: parsed, WorkspaceID: workspaceID}); err != nil {
 			return nil, sourceContextBadRequest("project not found")
+		}
+		// K60: same gate as the manual path above.
+		if !h.requireProjectWrite(w, r, parsed) {
+			return nil, errSourceContextResponseWritten
 		}
 		projectID = parsed
 	}

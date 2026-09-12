@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -33,6 +34,11 @@ import (
 // githubAPIBase is the base URL for GitHub's REST API. Mutable so tests can
 // point App-authenticated calls at an httptest server without touching GitHub.
 var githubAPIBase = "https://api.github.com"
+
+// githubInstallationFetchTimeout bounds fetchInstallationAccount's outbound
+// call. Mutable so tests can shorten it instead of waiting out the real
+// timeout against a deliberately slow test server.
+var githubInstallationFetchTimeout = 8 * time.Second
 
 const (
 	githubReturnToGitHub       = "github"
@@ -526,7 +532,7 @@ func (h *Handler) GitHubSetupCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, settingsURL+"&github_error=bad_installation_id", http.StatusFound)
 		return
 	}
-	wsUUID, err := parseStrictUUID(workspaceID)
+	wsUUID, err := util.ParseUUID(workspaceID)
 	if err != nil {
 		http.Redirect(w, r, settingsURL+"&github_error=bad_workspace", http.StatusFound)
 		return
@@ -542,7 +548,7 @@ func (h *Handler) GitHubSetupCallback(w http.ResponseWriter, r *http.Request) {
 	// the row so the workspace owner sees the connection on next reload.
 	connectedBy := pgtype.UUID{}
 	if userID := requestUserID(r); userID != "" {
-		if u, err := parseStrictUUID(userID); err == nil {
+		if u, err := util.ParseUUID(userID); err == nil {
 			connectedBy = u
 		}
 	}
@@ -608,9 +614,9 @@ func (h *Handler) consumePendingGitHubInstallation(ctx context.Context, inst db.
 // placeholder. The next `installation` webhook delivery from GitHub will
 // upsert the row with the real account info — see handleInstallationEvent.
 //
-// The HTTP call is synchronous (no independent timeout — that's a pre-
-// existing wart of the install path), but we deliberately do NOT let a
-// failure abort the setup callback: a network blip here just leaves the
+// The HTTP call is synchronous, bounded by its own timeout below, but we
+// deliberately do NOT let a failure abort the setup callback: a network blip
+// or timeout here just leaves the
 // "unknown" placeholder in place, and the frontend re-queries on the
 // realtime broadcast emitted by the webhook handler, so the UI converges
 // without a manual refresh.
@@ -618,6 +624,10 @@ func fetchInstallationAccount(ctx context.Context, installationID int64) (login,
 	login = "unknown"
 	accountType = "User"
 	avatar = nil
+	// Bound the outbound call so an unresponsive GitHub API can't hang the
+	// /api/github/setup redirect until the caller's own context is cancelled.
+	ctx, cancel := context.WithTimeout(ctx, githubInstallationFetchTimeout)
+	defer cancel()
 	endpoint := fmt.Sprintf("%s/app/installations/%d", strings.TrimRight(githubAPIBase, "/"), installationID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -945,11 +955,16 @@ func (h *Handler) DeleteGitHubInstallation(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if err := h.Queries.DeleteGitHubInstallation(r.Context(), db.DeleteGitHubInstallationParams{
+	rows, err := h.Queries.DeleteGitHubInstallation(r.Context(), db.DeleteGitHubInstallationParams{
 		ID:          idUUID,
 		WorkspaceID: wsUUID,
-	}); err != nil {
+	})
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove installation")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "installation not found")
 		return
 	}
 	h.publish(protocol.EventGitHubInstallationDeleted, workspaceID, "system", "", map[string]any{
@@ -1008,8 +1023,11 @@ func (h *Handler) ListPullRequestsForIssue(w http.ResponseWriter, r *http.Reques
 // open issue detail page re-queries its PR list and picks up the fresh CI /
 // mergeability state. Runs on a background pipeline goroutine.
 func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UUID) {
+	// The pipeline cannot observe a failure here (onApplied returns nothing),
+	// so every skipped step is logged.
 	pr, err := h.Queries.GetGitHubPullRequestByID(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but pull request read failed; skipping follow-ups", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	// CI auto-fix (K49): the snapshot says the checks are red.
@@ -1027,6 +1045,7 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	h.staleReviewFlagsForHead(ctx, pr.WorkspaceID, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but linked issues read failed; skipping the realtime update", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	linked := make([]string, 0, len(issueIDs))
@@ -1950,14 +1969,6 @@ func (h *Handler) advanceIssueToDone(ctx context.Context, issue db.Issue, worksp
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-func parseStrictUUID(s string) (pgtype.UUID, error) {
-	var u pgtype.UUID
-	if err := u.Scan(s); err != nil {
-		return pgtype.UUID{}, err
-	}
-	return u, nil
-}
 
 func coalesce(a, fallback string) string {
 	if strings.TrimSpace(a) == "" {

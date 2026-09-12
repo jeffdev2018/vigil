@@ -203,6 +203,48 @@ func TestListShareLinks_RequiresOwnerAdmin(t *testing.T) {
 	}
 }
 
+// TestRevokeShareLink_UnknownLinkReturns404 guards a real bug: RevokeShareLink
+// only checked the sqlc :exec query's error, never whether the workspace-scoped
+// UPDATE actually matched a row, so revoking a non-existent or foreign-workspace
+// linkId returned a misleading 204 instead of 404 — mirroring DeleteScimToken's
+// :execrows + rows==0 pattern.
+func TestRevokeShareLink_UnknownLinkReturns404(t *testing.T) {
+	clearShareLinksForTestWorkspace(t)
+	link := createTestShareLink(t, testWorkspaceID, "member", 0, 0)
+
+	// A random UUID that is not a real share link id.
+	req := newRequest("DELETE", "/api/workspaces/"+testWorkspaceID+"/share-links/"+uuid.NewString(), nil)
+	req = withURLParams(req, "id", testWorkspaceID, "linkId", uuid.NewString())
+	w := httptest.NewRecorder()
+	testHandler.RevokeShareLink(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("revoke unknown link: expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// The real link revokes fine (still 204 for a row that exists, matching
+	// the pre-fix behavior for a genuine hit).
+	req2 := newRequest("DELETE", "/api/workspaces/"+testWorkspaceID+"/share-links/"+link.Code, nil)
+	req2 = withURLParams(req2, "id", testWorkspaceID, "linkId", uuidToString(link.ID))
+	w2 := httptest.NewRecorder()
+	testHandler.RevokeShareLink(w2, req2)
+	if w2.Code != http.StatusNoContent {
+		t.Fatalf("revoke real link: expected 204, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	// A different workspace's linkId (cross-tenant): still 404, not 204 —
+	// the WHERE clause is workspace-scoped, so nothing outside the caller's
+	// own workspace should ever report success.
+	otherWs := dbfx.Workspace(t, "revoke cross-ws", "revoke-cross-"+uuid.NewString())
+	otherLink := createTestShareLink(t, otherWs, "member", 0, 0)
+	req3 := newRequest("DELETE", "/api/workspaces/"+testWorkspaceID+"/share-links/"+otherLink.Code, nil)
+	req3 = withURLParams(req3, "id", testWorkspaceID, "linkId", uuidToString(otherLink.ID))
+	w3 := httptest.NewRecorder()
+	testHandler.RevokeShareLink(w3, req3)
+	if w3.Code != http.StatusNotFound {
+		t.Fatalf("revoke another workspace's link: expected 404, got %d: %s", w3.Code, w3.Body.String())
+	}
+}
+
 func TestCreateShareLink_InvalidatesOldLink(t *testing.T) {
 	clearShareLinksForTestWorkspace(t)
 

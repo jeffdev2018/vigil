@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/multica-ai/multica/server/internal/service"
 )
 
@@ -30,6 +32,7 @@ type WorkflowLeg struct {
 	InputTokens     int64   `json:"input_tokens"`
 	OutputTokens    int64   `json:"output_tokens"`
 	CostUsdTicks    int64   `json:"cost_usd_ticks"`
+	CostKnown       bool    `json:"cost_known"`
 	DurationSeconds float64 `json:"duration_seconds"`
 	CreatedAt       *string `json:"created_at"`
 	CompletedAt     *string `json:"completed_at"`
@@ -38,8 +41,11 @@ type WorkflowLeg struct {
 // WorkflowLegTotals is what the whole workflow cost — every leg counted, which
 // is the figure a single run's usage cannot express.
 type WorkflowLegTotals struct {
-	Legs            int     `json:"legs"`
-	CostUsdTicks    int64   `json:"cost_usd_ticks"`
+	Legs         int   `json:"legs"`
+	CostUsdTicks int64 `json:"cost_usd_ticks"`
+	// UnknownCostLegs counts the legs whose usage could not be priced; the
+	// total leaves them out, so a client must not present it as complete.
+	UnknownCostLegs int     `json:"unknown_cost_legs"`
 	InputTokens     int64   `json:"input_tokens"`
 	OutputTokens    int64   `json:"output_tokens"`
 	DurationSeconds float64 `json:"duration_seconds"`
@@ -67,6 +73,23 @@ func (h *Handler) GetTaskLegs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := WorkflowLegsResponse{RootTaskID: uuidToString(root), Legs: make([]WorkflowLeg, 0, len(rows))}
+	// Cost is priced per usage slice (runCostOf), not from the leg's summed
+	// reported ticks: a leg that reported tokens but no provider cost is not free.
+	taskIDs := make([]pgtype.UUID, 0, len(rows))
+	for _, row := range rows {
+		taskIDs = append(taskIDs, row.ID)
+	}
+	usage := map[string][]TaskUsageData{}
+	if len(taskIDs) > 0 {
+		urows, err := h.Queries.ListTaskUsageForTasks(r.Context(), taskIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load the workflow usage")
+			return
+		}
+		for _, u := range urows {
+			appendTaskUsage(usage, u.TaskID, u.Provider, u.Model, u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens, u.CostUsdTicks)
+		}
+	}
 	for _, row := range rows {
 		role := row.LegRole
 		if role == "" {
@@ -84,12 +107,16 @@ func (h *Handler) GetTaskLegs(w http.ResponseWriter, r *http.Request) {
 			Model:           row.Model,
 			InputTokens:     row.InputTokens,
 			OutputTokens:    row.OutputTokens,
-			CostUsdTicks:    row.CostUsdTicks,
 			DurationSeconds: row.DurationSeconds,
 			CreatedAt:       timestampToPtr(row.CreatedAt),
 			CompletedAt:     timestampToPtr(row.CompletedAt),
 		})
-		resp.Totals.CostUsdTicks += row.CostUsdTicks
+		leg := &resp.Legs[len(resp.Legs)-1]
+		leg.CostUsdTicks, leg.CostKnown = runCostOf(usage[leg.TaskID])
+		if !leg.CostKnown {
+			resp.Totals.UnknownCostLegs++
+		}
+		resp.Totals.CostUsdTicks += leg.CostUsdTicks
 		resp.Totals.InputTokens += row.InputTokens
 		resp.Totals.OutputTokens += row.OutputTokens
 		resp.Totals.DurationSeconds += row.DurationSeconds

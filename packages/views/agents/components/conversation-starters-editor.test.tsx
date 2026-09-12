@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@multica/core/i18n/react";
 import type { AgentConversationStarter } from "@multica/core/types";
@@ -51,6 +52,43 @@ describe("ConversationStartersEditor preview", () => {
     expect(
       screen.queryByText(/These are the built-in defaults/),
     ).toBeNull();
+  });
+
+  // Audit finding (P3): rows used key={index}, an unstable key across
+  // add/remove in the middle of the list. With three rows, focusing the
+  // last row's input then removing the FIRST row used to drop focus
+  // entirely (React unmounted the DOM node holding it, since its old index
+  // no longer existed) instead of keeping it on the row that logically
+  // shifted up. Stable per-row ids fix that.
+  it("keeps focus on a later row's input when an earlier row is removed", () => {
+    function Wrapper() {
+      const [value, setValue] = useState<AgentConversationStarter[]>([
+        { label: "First", prompt: "p1" },
+        { label: "Second", prompt: "p2" },
+        { label: "Third", prompt: "p3" },
+      ]);
+      return <ConversationStartersEditor value={value} onChange={setValue} />;
+    }
+    render(
+      <I18nProvider
+        locale="en"
+        resources={{ en: { agents: enAgents, chat: enChat } }}
+      >
+        <Wrapper />
+      </I18nProvider>,
+    );
+
+    const thirdInput = screen.getByDisplayValue("Third");
+    thirdInput.focus();
+    expect(document.activeElement).toBe(thirdInput);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove suggestion 1" }),
+    );
+
+    expect(screen.queryByDisplayValue("First")).toBeNull();
+    const survivingThirdInput = screen.getByDisplayValue("Third");
+    expect(document.activeElement).toBe(survivingThirdInput);
   });
 
   it("keeps previewing the defaults while a row is still half-filled", () => {

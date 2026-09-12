@@ -14,7 +14,8 @@
     "edit": "사이클 편집",
     "delete": "사이클 삭제",
     "no_project": "사이클을 계획할 프로젝트를 선택하세요.",
-    "loading": "사이클 불러오는 중"
+    "loading": "사이클 불러오는 중",
+    "load_error": "사이클을 불러올 수 없습니다"
   },
   "status": {
     "upcoming": "예정",
@@ -46,7 +47,32 @@
     "close_confirm": "사이클 종료",
     "cancel": "취소",
     "close_error": "사이클을 종료하지 못했습니다",
-    "closed_on": "{{date}} 종료"
+    "closed_on": "{{date}} 종료",
+    "empty_issues_title": "이 사이클에 이슈가 없습니다",
+    "empty_issues_hint": "새 이슈를 만들거나 기존 이슈를 이 사이클에 할당하세요.",
+    "empty_issues_new_button": "새 이슈"
+  },
+  "actors": {
+    "title": "액터별 캐파",
+    "empty": "아직 선언된 액터별 캐파가 없습니다.",
+    "empty_hint": "이 사이클에서 각 사람이나 에이전트가 맡을 수 있는 양을 선언하세요.",
+    "add": "액터 추가",
+    "actor_label": "액터",
+    "actor_placeholder": "사람 또는 에이전트 선택",
+    "points_label": "포인트",
+    "remove": "액터 제거",
+    "save": "캐파 저장",
+    "error": "캐파를 저장할 수 없습니다",
+    "points_invalid": "포인트는 0에서 10000 사이의 정수여야 합니다."
+  },
+  "velocity": {
+    "title": "벨로시티",
+    "loading": "벨로시티 불러오는 중",
+    "empty": "이 사이클에서 완료된 작업이 아직 없습니다.",
+    "empty_hint": "사람과 에이전트가 이슈를 완료하면 여기에 벨로시티가 표시됩니다.",
+    "other": "미할당 또는 스쿼드 작업",
+    "done_value": "{{points}} 완료",
+    "history_title": "지난 사이클"
   },
   "form": {
     "create_title": "새 사이클",
@@ -69,7 +95,8 @@
     "create": "사이클 만들기",
     "save": "저장",
     "error": "사이클을 저장하지 못했습니다",
-    "date_order": "종료일은 시작일과 같거나 그 이후여야 합니다."
+    "date_order": "종료일은 시작일과 같거나 그 이후여야 합니다.",
+    "capacity_negative": "용량은 0 이상이어야 합니다."
   },
   "delete_dialog": {
     "title": "이 사이클을 삭제할까요?",

@@ -7,6 +7,7 @@ import type {
   MemberWithUser,
 } from "@multica/core/types";
 import { runtimeDisplayLabel } from "@multica/core/runtimes";
+import { humanizeIdentifier } from "@multica/core/utils";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useT } from "../../i18n";
 import { VisibilityBadge } from "./visibility-badge";
@@ -111,8 +112,9 @@ export function AgentOverviewSummary({
               <span
                 key={skill.id}
                 className="max-w-full truncate rounded-md border border-surface-border bg-surface-hover px-2 py-1 text-caption text-muted-foreground"
+                title={skill.name}
               >
-                {skill.name}
+                {humanizeIdentifier(skill.name)}
               </span>
             ))
           ) : (

@@ -51,6 +51,16 @@ describe("KeyboardShortcutsTab", () => {
     expect(screen.getByRole("img", { name: "Ctrl+9" })).toBeInTheDocument();
   });
 
+  // Cmd/Ctrl+click opening a link in a new tab was undiscoverable — no
+  // affordance said so anywhere in the app (UX audit). Document it among
+  // the other fixed, non-rebindable shortcuts.
+  it("documents Cmd/Ctrl+click for opening a link in a new tab", () => {
+    renderWithI18n(<KeyboardShortcutsTab />);
+
+    expect(screen.getByText("Open a link in a new tab")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Ctrl+Click" })).toBeInTheDocument();
+  });
+
   it("records a shortcut and applies it immediately", () => {
     renderWithI18n(<KeyboardShortcutsTab />);
     const recorder = screen.getByRole("button", {

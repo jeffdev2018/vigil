@@ -48,6 +48,40 @@ func (q *Queries) CountIssueLabels(ctx context.Context, issueID pgtype.UUID) (in
 	return count, err
 }
 
+const countIssueLabelsByIssueIDs = `-- name: CountIssueLabelsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM issue_to_label
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssueLabelsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssueLabels for DryRunBusinessRule, which otherwise
+// calls the single-issue count once per issue in the review page (up to 100).
+// An issue with zero labels has no row here; the caller defaults to 0.
+func (q *Queries) CountIssueLabelsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssueLabelsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssueLabelsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssueLabelsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssueLabelsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countIssuePullRequests = `-- name: CountIssuePullRequests :one
 SELECT COUNT(*) FROM issue_vcs_pull_request WHERE issue_id = $1
 `
@@ -57,6 +91,38 @@ func (q *Queries) CountIssuePullRequests(ctx context.Context, issueID pgtype.UUI
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countIssuePullRequestsByIssueIDs = `-- name: CountIssuePullRequestsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM issue_vcs_pull_request
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssuePullRequestsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssuePullRequests; see CountIssueLabelsByIssueIDs.
+func (q *Queries) CountIssuePullRequestsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssuePullRequestsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssuePullRequestsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssuePullRequestsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssuePullRequestsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countWorkspaceAgents = `-- name: CountWorkspaceAgents :one
@@ -401,7 +467,7 @@ func (q *Queries) ListRecentTriageItemsForRules(ctx context.Context, workspaceID
 }
 
 const listWorkspaceIssuesInReview = `-- name: ListWorkspaceIssuesInReview :many
-SELECT issue.id, issue.workspace_id, issue.title, issue.description, issue.status, issue.priority, issue.assignee_type, issue.assignee_id, issue.creator_type, issue.creator_id, issue.parent_issue_id, issue.acceptance_criteria, issue.context_refs, issue.position, issue.due_date, issue.created_at, issue.updated_at, issue.number, issue.project_id, issue.origin_type, issue.origin_id, issue.first_executed_at, issue.start_date, issue.metadata, issue.stage, issue.properties, issue.revision, issue.last_activity_at, issue.reopen_count, issue.completed_at, issue.contract_risk, issue.contract_revision, issue.goal_id, issue.delegate_type, issue.delegate_id, issue.cycle_id, issue.issue_type FROM issue
+SELECT issue.id, issue.workspace_id, issue.title, issue.description, issue.status, issue.priority, issue.assignee_type, issue.assignee_id, issue.creator_type, issue.creator_id, issue.parent_issue_id, issue.acceptance_criteria, issue.context_refs, issue.position, issue.due_date, issue.created_at, issue.updated_at, issue.number, issue.project_id, issue.origin_type, issue.origin_id, issue.first_executed_at, issue.start_date, issue.metadata, issue.stage, issue.properties, issue.revision, issue.last_activity_at, issue.reopen_count, issue.completed_at, issue.contract_risk, issue.contract_revision, issue.goal_id, issue.delegate_type, issue.delegate_id, issue.cycle_id, issue.issue_type, issue.recurrence_id FROM issue
 WHERE issue.workspace_id = $1
   AND (issue.status = 'in_review' OR issue.status IN (SELECT s.key FROM issue_status s WHERE s.workspace_id = $1 AND s.category = 'in_review'))
 ORDER BY issue.updated_at DESC
@@ -455,6 +521,7 @@ func (q *Queries) ListWorkspaceIssuesInReview(ctx context.Context, workspaceID p
 			&i.DelegateID,
 			&i.CycleID,
 			&i.IssueType,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}

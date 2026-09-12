@@ -298,6 +298,7 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
   const { isCompact, state, openMobile, setOpenMobile } = useSidebar()
+  const { t } = useTranslation("ui")
 
   if (collapsible === "none") {
     return (
@@ -331,8 +332,8 @@ function Sidebar({
           side={side}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{t(($) => $.mobile_sidebar_title)}</SheetTitle>
+            <SheetDescription>{t(($) => $.mobile_sidebar_description)}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: Connect a computer, create your first agent, and have it complete its first task.
+description: Run your first agent in the browser or on a computer you connect, and watch it complete its first task.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -16,9 +16,19 @@ Sign in on the web ([multica.ai](https://multica.ai)) or with [Multica Desktop](
 - **Desktop**: can connect this computer automatically.
 - **Web**: connect from the command line in the next step.
 
-## 2. Connect a computer
+## 2. Choose where agents run
 
-Agents execute work on the computers you connect. Open **Configure → Runtimes** at the bottom of the sidebar:
+Agents need a runtime: something that claims an issue and works on it. You have two kinds, and the first one needs nothing installed.
+
+### Run in the browser (nothing to install)
+
+Every workspace has a **native runtime**: an agent loop that runs inside the Multica server, with the tools to read and write issues, comments, notes and the goal loop. When your deployment has a model configured for it, the onboarding's runtime step offers **Run in the browser** first; pick it and your first agent, Mika, is created on it and your first run starts right away.
+
+On a self-hosted server the operator enables it by setting `MULTICA_LLM_API_KEY` (or `MULTICA_LLM_BASE_URL`); until then the card explains what is missing, and an issue handed to a browser agent is refused with a clear inbox note instead of waiting in silence. See [Native runtime](/native-runtime) for what it can and cannot do — it has no shell and no repository, so code work needs a computer.
+
+### Connect a computer
+
+For work that needs a shell, a repository or a coding CLI, connect a computer. Open **Configure → Runtimes** at the bottom of the sidebar:
 
 - **With Desktop**: Desktop automatically registers this computer as a runtime and detects the installed AI coding tools. For a tool you just installed, click **Refresh** to detect it again.
 - **With Web, or to add another computer**: click **Add a computer** in the top right, then run the two commands from the dialog in a terminal on the target computer:
@@ -39,7 +49,7 @@ Agents execute work on the computers you connect. Open **Configure → Runtimes*
 
   `multica setup` opens a browser to complete sign-in, then leaves the daemon running in the background. Once the daemon is online, the dialog usually detects the computer within a minute.
 
-**Success check**: an online computer appears in the runtime list.
+**Success check**: the getting-started card on the issues page ticks *Runtime ready* — with *browser* or the computer's name — and an online runtime appears in the runtime list.
 
 ![Add a computer dialog: two commands and the waiting-for-detection notice](/images/docs/quickstart-add-computer.webp)
 

@@ -35,7 +35,11 @@ export function HighlightText({ text, query }: { text: string; query: string }) 
     <>
       {parts.map((part, i) =>
         part.highlight ? (
-          <mark key={i} className="bg-yellow-200 dark:bg-yellow-900/60 text-inherit rounded-sm">
+          // Reuses the same find-match tokens as the in-page find highlight
+          // (packages/ui/styles/base.css ::highlight(multica-find)) so a
+          // search match reads consistently whether painted via <mark> here
+          // or the Custom Highlight API there.
+          <mark key={i} className="bg-find-match text-find-match-foreground rounded-sm">
             {part.text}
           </mark>
         ) : (

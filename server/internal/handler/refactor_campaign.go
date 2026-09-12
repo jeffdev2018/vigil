@@ -120,6 +120,9 @@ func (h *Handler) CreateRefactorCampaign(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	leaderID, ok := parseUUIDOrBadRequest(w, req.LeaderAgentID, "leader_agent_id")
 	if !ok {
 		return
@@ -229,6 +232,9 @@ func (h *Handler) SkipCampaignShard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	if shard.MergeStatus == "merged" || shard.MergeStatus == "skipped" || shard.MergeStatus == "rebasing" {
 		writeError(w, http.StatusConflict, "a "+shard.MergeStatus+" shard cannot be skipped")
 		return
@@ -295,6 +301,7 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 	}
 	shards, err := h.Queries.ListCampaignShards(ctx, c.ID)
 	if err != nil {
+		slog.Warn("campaign: list shards failed", "campaign_id", uuidToString(c.ID), "error", err)
 		return c
 	}
 	var head *db.ListCampaignShardsRow
@@ -332,6 +339,7 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 	}
 	child, err := h.Queries.GetIssue(ctx, shard.ChildIssueID)
 	if err != nil {
+		slog.Warn("campaign: get child issue failed", "campaign_id", uuidToString(c.ID), "shard_id", uuidToString(shard.ID), "error", err)
 		return c
 	}
 	// Merge through the platform first (K42 debt); an agent run only when
@@ -339,6 +347,7 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 	switch outcome, detail := h.mergeShardViaAPI(ctx, child); outcome {
 	case mergeOutcomeMerged:
 		if _, err := h.Queries.SetCampaignShardMergeStatus(ctx, db.SetCampaignShardMergeStatusParams{ID: shard.ID, MergeStatus: "merged", Blockers: []byte("[]")}); err != nil {
+			slog.Warn("campaign: set shard merged status failed", "shard_id", uuidToString(shard.ID), "error", err)
 			return c
 		}
 		if c.Status != "merging" {
@@ -365,6 +374,7 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 		slog.Warn("campaign: stamp leg failed", "task_id", uuidToString(task.ID), "error", serr)
 	}
 	if _, err := h.Queries.SetCampaignShardMergeStatus(ctx, db.SetCampaignShardMergeStatusParams{ID: shard.ID, MergeStatus: "rebasing", MergeTaskID: task.ID, Blockers: []byte("[]")}); err != nil {
+		slog.Warn("campaign: set shard rebasing status failed", "shard_id", uuidToString(shard.ID), "error", err)
 		return c
 	}
 	if c.Status != "merging" {

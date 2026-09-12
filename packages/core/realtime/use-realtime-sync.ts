@@ -10,6 +10,8 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { deliveryKeys } from "../issues/delivery";
+import { goalKeys } from "../issues/goal-loop";
 import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
 import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
@@ -35,6 +37,9 @@ import {
 } from "../agents/queries";
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
+import { calendarEventKeys } from "../calendar-events/queries";
+import { doctrineKeys } from "../doctrine/queries";
+import { invalidatePackTargets } from "../packs/mutations";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { epicKeys } from "../projects/epic";
@@ -44,6 +49,9 @@ import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
 import { wecomKeys } from "../wecom/queries";
 import { telegramKeys } from "../telegram/queries";
+import { runHaltKeys } from "../run-halt/queries";
+import { onboardingChecklistKeys } from "../onboarding/checklist";
+import { runKeys } from "../runs/fleet-queries";
 import {
   onIssueCreated,
   onIssueUpdated,
@@ -62,7 +70,9 @@ import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueD
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
-import { onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onBrainCaptureChanged, onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onFollowupChanged } from "../followups/ws-updaters";
+import { onIssueRecurrenceChanged } from "../recurrence/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -144,6 +154,8 @@ import type {
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
   MeetingEventPayload,
+  CalendarChangedPayload,
+  FollowupChangedPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -770,18 +782,32 @@ export interface RealtimeSyncStores {
 // per streamed chunk, and a 5 s resolution is far below any liveness threshold.
 const RUN_ACTIVITY_TOUCH_MIN_MS = 5_000;
 
+// Throttles the call itself, not just the write: without this, a run
+// streaming several chunks/second with the timeline open still pays a
+// getQueriesData + findIndex scan of every open task list on every chunk,
+// even though the RUN_ACTIVITY_TOUCH_MIN_MS check below would refuse to
+// write on almost all of those calls anyway.
+const lastRunActivityTouchMs = new Map<string, number>();
+
 function touchCachedRunActivity(qc: QueryClient, taskId: string) {
   const now = new Date();
+  const nowMs = now.getTime();
+  const lastTouch = lastRunActivityTouchMs.get(taskId);
+  if (lastTouch !== undefined && nowMs - lastTouch < RUN_ACTIVITY_TOUCH_MIN_MS) return;
+
+  let touched = false;
   for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
     if (!Array.isArray(tasks)) continue;
     const idx = tasks.findIndex((t) => t?.id === taskId);
     if (idx === -1) continue;
     const previous = tasks[idx]?.last_activity_at;
-    if (previous && now.getTime() - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
+    if (previous && nowMs - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
     const next = tasks.slice();
     next[idx] = { ...tasks[idx]!, last_activity_at: now.toISOString() };
     qc.setQueryData<AgentTask[]>(key, next);
+    touched = true;
   }
+  if (touched) lastRunActivityTouchMs.set(taskId, nowMs);
 }
 
 /**
@@ -859,6 +885,9 @@ export function useRealtimeSync(
           // per-squad members-status cache without refetching the static squad
           // list summary.
           invalidateSquadMemberStatusQueries(qc, wsId);
+          // Getting-started checklist (OS plan, chantier 5): an agent
+          // create flips `agent_created`.
+          qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         }
       },
       member: () => {
@@ -909,6 +938,15 @@ export function useRealtimeSync(
       // can never reach it, and staleTime: Infinity means navigating away and
       // back does not heal it either. Without this the banner never appears for
       // the approver, and never clears for the requester.
+      // approval:asked|decided (OS plan, chantier 3): an ask appeared or was
+      // settled somewhere — the feed behind every inline card is stale, and
+      // so are the projections it was derived from.
+      approval: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: ["approvals", wsId] });
+        qc.invalidateQueries({ queryKey: inboxKeys.decisions(wsId) });
+      },
       issue_transition: () => {
         const wsId = getCurrentWsId();
         if (!wsId) return;
@@ -1102,6 +1140,16 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: reviewFlagKeys.all(wsId) });
       },
+      // Fleet halt (K05 / m169 / OS chantier 4). `run_halt:changed` carries
+      // `{run_halt, cancelled?}` — refetched via invalidate rather than
+      // setQueryData so the banner, the settings toggle and the Runs page
+      // header always read the one query the server just wrote.
+      run_halt: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: runHaltKeys.all(wsId) });
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
+      },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
@@ -1119,6 +1167,9 @@ export function useRealtimeSync(
         if (!wsId) return;
         qc.invalidateQueries({ queryKey: agentTaskSnapshotKeys.list(wsId) });
         qc.invalidateQueries({ queryKey: workspaceWorkingAgentsKeys.all(wsId) });
+        // Getting-started checklist (OS plan, chantier 5): a task lifecycle
+        // event is what flips `first_run_completed`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         // The Table working-agent shortcut derives an assignee set from the
         // projection above. Refresh its server-owned graph alongside that set
         // so rows/groups/facets cannot remain on an old task transition while
@@ -1155,6 +1206,10 @@ export function useRealtimeSync(
         // open composer's chips (e.g. an agent finishing its run becomes
         // triggerable again mid-typing).
         qc.invalidateQueries({ queryKey: issueKeys.commentTriggerPreviewAll() });
+        // Runs fleet page (OS plan, chantier 4): any task:* lifecycle event
+        // can move a row between active/terminal or change its blocker, so
+        // the whole runs prefix is invalidated alongside the other lists.
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
         // Issue-trigger previews (assign/status/create/batch) are deliberately
         // NOT invalidated here. Unlike comment triggers, the assign source
         // (create / assignee change) cancels existing tasks before enqueuing, so
@@ -1207,6 +1262,17 @@ export function useRealtimeSync(
       "agent_memory:created",
       "agent_memory:updated",
       "agent_memory:deleted",
+      // brain_capture:changed needs its `change` field to decide whether the
+      // note and search projections move with the inbox, and the prefix path
+      // hands handlers no payload — so it takes the specific route below.
+      "brain_capture:changed",
+      // followup:changed needs its issue_id to refresh that issue's list, and
+      // the prefix path hands handlers no payload — specific route below.
+      "followup:changed",
+      // issue_recurrence:changed carries no issue payload to merge and its
+      // "issue_recurrence" prefix has no refreshMap entry, so the prefix path
+      // would drop it silently — specific route below.
+      "issue_recurrence:changed",
       // cross_review:rework / escalated raise a notice signal in addition to
       // the invalidation, so they skip the prefix path to avoid handling the
       // same frame twice.
@@ -1224,6 +1290,30 @@ export function useRealtimeSync(
       const prefix = msg.type.split(":")[0] ?? "";
       const refresh = refreshMap[prefix];
       if (refresh) debouncedRefresh(prefix, refresh);
+    });
+
+    const unsubFollowup = ws.on("followup:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      // ws.on hands every handler `unknown` (see ws-client.ts) — the map
+      // types the frame, it does not narrow the callback.
+      const payload = p as Partial<FollowupChangedPayload> | undefined;
+      onFollowupChanged(qc, wsId, typeof payload?.issue_id === "string" ? payload.issue_id : undefined);
+    });
+
+    // The rule is shared by the series, so this refetches the workspace's
+    // recurrence entries rather than the one issue the frame names.
+    const unsubIssueRecurrence = ws.on("issue_recurrence:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      onIssueRecurrenceChanged(qc, wsId);
+    });
+
+    const unsubBrainCapture = ws.on("brain_capture:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      const change = (p as { change?: unknown } | undefined)?.change;
+      onBrainCaptureChanged(qc, wsId, typeof change === "string" ? change : undefined);
     });
 
     // --- Specific event handlers (granular cache updates) ---
@@ -1253,7 +1343,12 @@ export function useRealtimeSync(
       const { issue } = p as IssueCreatedPayload;
       if (!issue) return;
       const wsId = getCurrentWsId();
-      if (wsId) onIssueCreated(qc, wsId, issue);
+      if (wsId) {
+        onIssueCreated(qc, wsId, issue);
+        // Getting-started checklist (OS plan, chantier 5): flips
+        // `issue_created`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
+      }
     });
 
     // issue:aux_changed carries an answer given outside the web app — a decision
@@ -1265,8 +1360,16 @@ export function useRealtimeSync(
       const { issue_id } = p as { issue_id?: string };
       const wsId = getCurrentWsId();
       if (!wsId) return;
-      if (issue_id) qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
-      else qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+      if (issue_id) {
+        qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
+        // The goal loop also publishes this event on every change (a
+        // continuation, a pause/resume, an answer given from outside the web
+        // app) so the card refreshes live without a dedicated event type.
+        qc.invalidateQueries({ queryKey: goalKeys.issue(wsId, issue_id) });
+      } else {
+        qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+        qc.invalidateQueries({ queryKey: goalKeys.all(wsId) });
+      }
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {
@@ -1372,6 +1475,43 @@ export function useRealtimeSync(
     const unsubMeetingCreated = ws.on("meeting:created", handleMeetingEvent);
     const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
     const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
+
+    // Native calendar (OS plan, chantier 19). Invalidate only — the payload
+    // is a change hint (create, update, status change, or a participant's
+    // response), same choice as meetings above. The list and agenda queries
+    // are keyed by from/to, so every window currently open is stale; the
+    // detail query is keyed by event_id when the frame names one.
+    const unsubCalendarChanged = ws.on("calendar:changed", (p) => {
+      const payload = (p ?? {}) as CalendarChangedPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: calendarEventKeys.all(wsId) });
+      if (payload.event_id) {
+        qc.invalidateQueries({ queryKey: calendarEventKeys.detail(wsId, payload.event_id) });
+      }
+    });
+
+    // Workspace doctrine (OS plan, chantier 22). Invalidate only — the payload
+    // is a change hint (published, proposed, approved/rejected, a report filed
+    // or resolved), same choice as the calendar above. The version ledger, the
+    // diffs and the report lists are all keyed under the same workspace root,
+    // so one invalidation covers whichever block is on screen.
+    const unsubDoctrineChanged = ws.on("doctrine:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: doctrineKeys.all(wsId) });
+    });
+
+    // Packs (OS plan, vague B). Invalidate only, same choice as the doctrine
+    // above. An install rewrites the catalogue's install state AND every
+    // collection the bundle touched (agents, skills, projects, goals,
+    // autopilots, the org chart, issues, the doctrine), so this reuses the
+    // mutation's own target list rather than keeping a second copy of it.
+    const unsubPackChanged = ws.on("pack:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      invalidatePackTargets(qc, wsId);
+    });
 
     // Review rework loop (JEF-238): a request_changes verdict sent the task
     // back to the worker, or the cycle cap escalated to a human. Refresh the
@@ -1608,10 +1748,20 @@ export function useRealtimeSync(
       }
     });
 
+    // delivery:changed — the acceptance criteria or the reported result of an
+    // issue moved; the delivery panel and its task list refetch.
+    const unsubDeliveryChanged = ws.on("delivery:changed", (p) => {
+      const { issue_id } = (p ?? {}) as { issue_id?: string };
+      const wsId = getCurrentWsId();
+      if (!issue_id || !wsId) return;
+      qc.invalidateQueries({ queryKey: deliveryKeys.detail(wsId, issue_id) });
+      qc.invalidateQueries({ queryKey: ["issues", "tasks", wsId, issue_id] });
+    });
+
     const unsubMemberAdded = ws.on("member:added", (p) => {
-      const { member, workspace_name } = p as MemberAddedPayload;
+      const { member, workspace_name } = p as Partial<MemberAddedPayload>;
       const myUserId = authStore.getState().user?.id;
-      if (member.user_id === myUserId) {
+      if (member?.user_id === myUserId) {
         qc.invalidateQueries({ queryKey: workspaceKeys.list() });
         qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
         onToast?.(
@@ -2116,6 +2266,12 @@ export function useRealtimeSync(
       unsubMeetingCreated();
       unsubMeetingUpdated();
       unsubMeetingDeleted();
+      unsubCalendarChanged();
+      unsubDoctrineChanged();
+      unsubPackChanged();
+      unsubBrainCapture();
+      unsubFollowup();
+      unsubIssueRecurrence();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();
@@ -2134,6 +2290,7 @@ export function useRealtimeSync(
       unsubWsDeleted();
       unsubMemberRemoved();
       unsubMemberAdded();
+      unsubDeliveryChanged();
       unsubInvitationCreated();
       unsubInvitationAccepted();
       unsubInvitationDeclined();

@@ -48,14 +48,16 @@ Do not tell a user their daemon is capped at three runs a day.
 ## Importing
 
 ```bash
-# strategy: fail (default) | overwrite | rename
-curl -X POST "$MULTICA_API_URL/api/autopilots/import" \
-  -H "Content-Type: application/json" \
-  -d "{\"markdown\": $(jq -Rs . < DAEMON.md), \"strategy\": \"overwrite\"}"
+# parse only, no write — reports the frontmatter, the resolved agent and line errors
+multica autopilot import DAEMON.md --preview
 
-# parse only, no write — returns the frontmatter, the body, and line errors
-curl -X POST "$MULTICA_API_URL/api/autopilots/import/preview" ...
+# strategy: fail (default) | overwrite | rename
+multica autopilot import DAEMON.md --strategy overwrite
 ```
+
+Over HTTP the same two steps are `POST /api/autopilots/import` and
+`POST /api/autopilots/import/preview`, with `{markdown, strategy}` as a JSON
+body or the file in a multipart `file` field.
 
 Three things about import worth knowing before you use it:
 

@@ -61,9 +61,18 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
     transition_approval_requested: t(($) => $.types.transition_approval_requested),
+    goal_question: t(($) => $.types.goal_question),
     critic_degraded: t(($) => $.types.critic_degraded),
     critic_budget: t(($) => $.types.critic_budget),
     cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
+    calendar_invitation: t(($) => $.types.calendar_invitation),
+    calendar_reminder: t(($) => $.types.calendar_reminder),
+    doctrine_review: t(($) => $.types.doctrine_review),
+    doctrine_report: t(($) => $.types.doctrine_report),
+    confidence_review: t(($) => $.types.confidence_review),
+    run_limit_warn: t(($) => $.types.run_limit_warn),
+    run_limit_exceeded: t(($) => $.types.run_limit_exceeded),
+    run_limit_stopped: t(($) => $.types.run_limit_stopped),
   };
 }
 

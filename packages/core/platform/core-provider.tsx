@@ -151,8 +151,8 @@ export function CoreProvider({
   }, []);
 
   // I18nProvider wraps everything else: server and client must use the same
-  // (locale, resources) to avoid hydration mismatch. Language switching goes
-  // through window.location.reload(), never client-side changeLanguage.
+  // (locale, resources) to avoid hydration mismatch. After boot, the Settings
+  // switcher changes language in place through applyLocale.
   const tree = (
     <QueryProvider>
       <AuthInitializer

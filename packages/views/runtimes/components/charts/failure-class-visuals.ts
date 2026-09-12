@@ -1,6 +1,12 @@
 import { FAILURE_CLASSES, type FailureClass } from "@multica/core/dashboard";
 import type { ChartConfig } from "@multica/ui/components/ui/chart";
 import { useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
+
+// Re-exported for existing importers (e.g. daily-errors-chart.tsx) — the
+// implementation now lives in ./chart-label so every chart in this
+// directory can use it without importing failure-specific code.
+export { labelOf };
 
 // The design system ships five `--chart-*` tokens and they are a single-hue
 // blue ramp, so there is no seven-hue categorical palette to borrow here —
@@ -64,23 +70,6 @@ export function formatRate(failed: number, total: number): string {
   if (total <= 0) return "—";
   const pct = (failed / total) * 100;
   return `${pct >= 10 || pct === 0 ? Math.round(pct) : pct.toFixed(1)}%`;
-}
-
-/**
- * Translated label for a Recharts series name.
- *
- * Recharts passes the `dataKey` through as the tooltip item's `name`, so a
- * formatter that echoes it renders the raw class id ("rate_limit"). Look it
- * up in the same config that drives the legend, and fall back to the key
- * itself if the config ever loses an entry.
- */
-export function labelOf(
-  config: ChartConfig,
-  name: string | number | undefined,
-): string {
-  const key = String(name ?? "");
-  const label = config[key]?.label;
-  return typeof label === "string" ? label : key;
 }
 
 /** Translated Recharts config for the failure-class series. */

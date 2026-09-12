@@ -23,14 +23,24 @@ import (
 type Outcome string
 
 const (
-	OutcomeDropped       Outcome = "dropped"
-	OutcomeNeedsBinding  Outcome = "needs_binding"
-	OutcomeIngested      Outcome = "ingested"
-	OutcomeFreshPending  Outcome = "fresh_pending"
-	OutcomeChatStarted   Outcome = "chat_started"
-	OutcomeIssueUsage    Outcome = "issue_usage"
-	OutcomeAgentOffline  Outcome = "agent_offline"
-	OutcomeAgentArchived Outcome = "agent_archived"
+	OutcomeDropped      Outcome = "dropped"
+	OutcomeNeedsBinding Outcome = "needs_binding"
+	OutcomeIngested     Outcome = "ingested"
+	OutcomeFreshPending Outcome = "fresh_pending"
+	OutcomeChatStarted  Outcome = "chat_started"
+	OutcomeIssueUsage   Outcome = "issue_usage"
+	OutcomeCaptured     Outcome = "captured"
+	OutcomeCaptureUsage Outcome = "capture_usage"
+	// OutcomeScheduled — /schedule filed a paused autopilot proposal.
+	OutcomeScheduled Outcome = "scheduled"
+	// OutcomeScheduleUsage — /schedule was sent with nothing to schedule, or
+	// with a sentence the model could not read as one.
+	OutcomeScheduleUsage Outcome = "schedule_usage"
+	// OutcomeScheduleUnavailable — /schedule needs a model the workspace has
+	// not configured.
+	OutcomeScheduleUnavailable Outcome = "schedule_unavailable"
+	OutcomeAgentOffline        Outcome = "agent_offline"
+	OutcomeAgentArchived       Outcome = "agent_archived"
 )
 
 // DropReason enumerates the drop-audit categories. Values match the legacy
@@ -58,11 +68,12 @@ type Result struct {
 	ChannelRouteRevision int64
 	// Sender is the platform-native sender id (e.g. Lark open_id), so the
 	// replier can target a binding prompt back to the sender.
-	Sender          string
-	IssueID         pgtype.UUID
-	IssueNumber     int32
-	IssueIdentifier string
-	IssueTitle      string
+	Sender             string
+	IssueID            pgtype.UUID
+	IssueNumber        int32
+	IssueIdentifier    string
+	IssueWorkspaceSlug string
+	IssueTitle         string
 	// IssueDuplicate marks an /issue command that did not create a new issue
 	// because the shared duplicate guard found the active IssueID above.
 	// Repliers render this as a business conflict, never as an internal error.
@@ -76,6 +87,18 @@ type Result struct {
 	// review it. A refusal (blocked source) sets neither field — that
 	// channel was deliberately silenced.
 	IssueHeld bool
+	// CaptureID is the Brain capture a /capture command filed. Set only with
+	// OutcomeCaptured; repliers confirm it so the member knows where the
+	// thought went.
+	CaptureID pgtype.UUID
+	// AutopilotID, ScheduleTitle and ScheduleSummary describe the paused
+	// autopilot a /schedule command proposed. Set only with
+	// OutcomeScheduled. ScheduleSummary is the schedule in words — cron,
+	// timezone and the first firing instant — composed once by the proposer
+	// so every platform's reply says the same thing.
+	AutopilotID     pgtype.UUID
+	ScheduleTitle   string
+	ScheduleSummary string
 	// runScheduled reports whether this ingest scheduled a normal chat run.
 	// It is Router-internal state: repliers must continue to use Outcome.
 	runScheduled bool
@@ -416,6 +439,34 @@ type ResolverSet struct {
 type IssueCreator interface {
 	Create(ctx context.Context, p service.IssueCreateParams, opts service.IssueCreateOpts) (service.IssueCreateResult, error)
 	PublishAttachmentsChanged(ctx context.Context, issue db.Issue, actorID pgtype.UUID)
+}
+
+// CaptureCreator files a Brain capture for the /capture command. It is the
+// narrow subset of the API's own capture path the Router needs, so a capture
+// typed in a chat gets the same audit trail, realtime event and suggestion as
+// one made in the app. Parameters stay primitive on purpose: the
+// implementation lives in the HTTP layer and must not depend on this package.
+type CaptureCreator interface {
+	CreateChannelCapture(ctx context.Context, workspaceID, creatorUserID pgtype.UUID, content, rawURL string) (pgtype.UUID, error)
+}
+
+// ChannelAutopilotProposal is what a /schedule command produced: a paused
+// autopilot nobody has activated yet.
+type ChannelAutopilotProposal struct {
+	AutopilotID pgtype.UUID
+	Title       string
+	// Summary is the schedule in words: cron, timezone and the first run.
+	Summary string
+}
+
+// AutopilotProposer files a paused autopilot for the /schedule command. Like
+// CaptureCreator it is the narrow subset of the API's own path the Router
+// needs, implemented in the HTTP layer so a schedule typed in a chat gets the
+// same drafting, validation, audit and events as one made in the app.
+// ErrAutopilotModelUnavailable and ErrAutopilotNotUnderstood are replies, not
+// failures; anything else is an error the Router surfaces.
+type AutopilotProposer interface {
+	ProposeChannelAutopilot(ctx context.Context, workspaceID, agentID, memberUserID pgtype.UUID, text string) (ChannelAutopilotProposal, error)
 }
 
 // TaskEnqueuer is the narrow subset of service.TaskService the Router needs to

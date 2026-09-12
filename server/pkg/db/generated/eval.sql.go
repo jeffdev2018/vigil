@@ -441,6 +441,47 @@ func (q *Queries) GetEvalRunCaseByTask(ctx context.Context, arg GetEvalRunCaseBy
 	return i, err
 }
 
+const getEvalRunsByIDs = `-- name: GetEvalRunsByIDs :many
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE id = ANY($1::uuid[])
+`
+
+// Batch variant of GetEvalRun for ListBenchmarks' baseline-delta lookup,
+// which otherwise resolves one baseline run per benchmark run on the page.
+func (q *Queries) GetEvalRunsByIDs(ctx context.Context, ids []pgtype.UUID) ([]EvalRun, error) {
+	rows, err := q.db.Query(ctx, getEvalRunsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalRun{}
+	for rows.Next() {
+		var i EvalRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SuiteID,
+			&i.AgentID,
+			&i.AgentVersionID,
+			&i.Status,
+			&i.Score,
+			&i.StartedBy,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Benchmark,
+			&i.RuntimeID,
+			&i.Model,
+			&i.BaselineRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEvalSuite = `-- name: GetEvalSuite :one
 SELECT id, workspace_id, name, case_ids, created_by, created_at, updated_at FROM eval_suite WHERE id = $1
 `
@@ -458,6 +499,40 @@ func (q *Queries) GetEvalSuite(ctx context.Context, id pgtype.UUID) (EvalSuite, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getEvalSuitesByIDs = `-- name: GetEvalSuitesByIDs :many
+SELECT id, workspace_id, name, case_ids, created_by, created_at, updated_at FROM eval_suite WHERE id = ANY($1::uuid[])
+`
+
+// Batch variant of GetEvalSuite for ListEvalRuns/ListBenchmarks, which
+// otherwise resolve the suite name once per run on the page.
+func (q *Queries) GetEvalSuitesByIDs(ctx context.Context, ids []pgtype.UUID) ([]EvalSuite, error) {
+	rows, err := q.db.Query(ctx, getEvalSuitesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalSuite{}
+	for rows.Next() {
+		var i EvalSuite
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.CaseIds,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasRunningEvalRunForSuite = `-- name: HasRunningEvalRunForSuite :one
@@ -600,6 +675,68 @@ func (q *Queries) ListEvalRunCases(ctx context.Context, runID pgtype.UUID) ([]Li
 	return items, nil
 }
 
+const listEvalRunCasesByRunIDs = `-- name: ListEvalRunCasesByRunIDs :many
+SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, rc.task_class, rc.cost_usd_ticks, rc.duration_seconds, c.title AS case_title
+FROM eval_run_case rc
+LEFT JOIN eval_case c ON c.id = rc.case_id
+WHERE rc.run_id = ANY($1::uuid[])
+ORDER BY rc.run_id, c.created_at ASC
+`
+
+type ListEvalRunCasesByRunIDsRow struct {
+	RunID           pgtype.UUID        `json:"run_id"`
+	CaseID          pgtype.UUID        `json:"case_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Status          string             `json:"status"`
+	Score           pgtype.Int4        `json:"score"`
+	Detail          string             `json:"detail"`
+	SettledAt       pgtype.Timestamptz `json:"settled_at"`
+	TaskClass       string             `json:"task_class"`
+	CostUsdTicks    pgtype.Int8        `json:"cost_usd_ticks"`
+	DurationSeconds pgtype.Int4        `json:"duration_seconds"`
+	CaseTitle       pgtype.Text        `json:"case_title"`
+}
+
+// Batch variant of ListEvalRunCases for ListEvalRuns/ListBenchmarks/
+// BenchmarkPolicySearch, which otherwise list one run's cases at a time for
+// every run on the page (up to 200 runs, or up to evalMaxSuiteCases for a
+// policy search). Same columns as ListEvalRunCases (rc.* includes run_id),
+// so its row type converts directly to db.ListEvalRunCasesRow; group by
+// run_id in Go after fetching.
+func (q *Queries) ListEvalRunCasesByRunIDs(ctx context.Context, runIds []pgtype.UUID) ([]ListEvalRunCasesByRunIDsRow, error) {
+	rows, err := q.db.Query(ctx, listEvalRunCasesByRunIDs, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEvalRunCasesByRunIDsRow{}
+	for rows.Next() {
+		var i ListEvalRunCasesByRunIDsRow
+		if err := rows.Scan(
+			&i.RunID,
+			&i.CaseID,
+			&i.IssueID,
+			&i.TaskID,
+			&i.Status,
+			&i.Score,
+			&i.Detail,
+			&i.SettledAt,
+			&i.TaskClass,
+			&i.CostUsdTicks,
+			&i.DurationSeconds,
+			&i.CaseTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEvalRuns = `-- name: ListEvalRuns :many
 SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE workspace_id = $1 AND NOT benchmark ORDER BY started_at DESC LIMIT 200
 `
@@ -681,7 +818,7 @@ SET runtime_id = $1,
     leg_role   = 'benchmark',
     task_class = $2
 WHERE id = $3 AND status = 'queued'
-RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at
 `
 
 type PinBenchmarkReplayTaskParams struct {
@@ -785,6 +922,12 @@ func (q *Queries) PinBenchmarkReplayTask(ctx context.Context, arg PinBenchmarkRe
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
 	)
 	return i, err
 }

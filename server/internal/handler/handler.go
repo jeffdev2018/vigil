@@ -33,6 +33,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
+	"github.com/multica-ai/multica/server/internal/integrations/twenty"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
@@ -146,6 +147,7 @@ type Config struct {
 	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
 	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
 	//   - LLMRoutingModel  -> MULTICA_LLM_ROUTING_MODEL (small fast model for webhook event routing; empty = default model)
+	//   - ConsultModel     -> MULTICA_CONSULT_MODEL (model for POST /api/consult; empty = llm.FallbackModel)
 	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
 	//   - TTSBaseURL       -> MULTICA_TTS_BASE_URL (OpenAI-compatible /v1/audio/speech)
 	//   - TTSAPIKey        -> MULTICA_TTS_API_KEY
@@ -154,6 +156,15 @@ type Config struct {
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
+	// ConsultModel pins the model POST /api/consult calls (JEF-12).
+	// MULTICA_CONSULT_MODEL; empty falls back to llm.FallbackModel — NOT to
+	// LLMDefaultModel, so a deployment's default-model change cannot silently
+	// reprice in-task consults.
+	ConsultModel string
+	// JudgeModel pins the model POST /api/run-groups/{id}/judge calls
+	// (JEF-234 follow-up). MULTICA_JUDGE_MODEL; empty falls back to
+	// llm.FallbackModel, same rule as ConsultModel.
+	JudgeModel string
 	// LLMEmbeddingModel enables the embeddings surface (K47). Empty is the
 	// default and a supported steady state: the shared repo index then ranks
 	// lexically and no code text is ever sent to the embeddings upstream.
@@ -197,6 +208,14 @@ type RuntimeProfileRefreshNotifier interface {
 	NotifyRuntimeProfilesChanged(workspaceID, profileID string)
 }
 
+// DaemonRunHaltNotifier pushes a workspace-scoped "halt changed" hint to
+// connected daemons so in-flight task watchers re-poll their control status
+// immediately (JEF-257). Satisfied by both *daemonws.Hub (single-node) and
+// *daemonws.RelayNotifier (multi-node, fans out through Redis).
+type DaemonRunHaltNotifier interface {
+	NotifyRunHaltChanged(workspaceID string)
+}
+
 type WorkspaceSetRefreshNotifier interface {
 	NotifyWorkspacesChanged(userID string)
 }
@@ -235,6 +254,7 @@ type Handler struct {
 	DaemonProfileRefresh   RuntimeProfileRefreshNotifier
 	DaemonWorkspaceRefresh WorkspaceSetRefreshNotifier
 	DaemonRuntimeGone      RuntimeGoneNotifier
+	DaemonRunHalt          DaemonRunHaltNotifier
 	Bus                    *events.Bus
 	TaskService            *service.TaskService
 	BudgetService          *service.BudgetService
@@ -244,6 +264,13 @@ type Handler struct {
 	// NativeAgents runs the in-server agent runtime (tool-calling loop over
 	// the internal LLM layer). Driven by the native_agent_tick scheduler job.
 	NativeAgents *service.NativeAgentService
+	// GoalLoop judges settled issue runs and drives the continuation chain
+	// (long tasks). Shared by the native runtime and the daemon path.
+	GoalLoop *service.GoalLoopService
+	// internalRouter is the server's own router, handed over once built, so
+	// the MCP server can dispatch a tool call to the handler that owns the
+	// operation.
+	internalRouter http.Handler
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
@@ -322,6 +349,12 @@ type Handler struct {
 	// the composio HTTP handlers return 503 in that case. Wired in
 	// cmd/server/router.go after handler.New.
 	Composio *composio.Service
+	// Twenty CRM integration (OS plan, chantier 2). Nil when
+	// MULTICA_TWENTY_SECRET_KEY is unset; the handlers then answer 503.
+	Twenty *twenty.Service
+	// CalendarSync mirrors scheduled events to a member's Google Calendar and
+	// imports theirs, through Composio; nil when Composio is off.
+	CalendarSync CalendarExternalSync
 	// ChannelSupervisor owns the per-installation supervisor goroutines
 	// that hold the §4.4 WS lease and drive each channel.Channel
 	// (MUL-3620 generalized the Feishu-only Hub into this channel-agnostic
@@ -398,6 +431,10 @@ type Handler struct {
 	// PRMerger (K42) merges a shard's pull request through the platform API;
 	// nil means the built-in GitHub App / VCS connection merger.
 	PRMerger PullRequestMerger
+	// BranchPRCreator (JEF-255) opens the pull request for a promoted run
+	// branch; nil means the built-in VCS-connection creator (which reports ""
+	// when no provider covers the pushed remote).
+	BranchPRCreator BranchPullRequestCreator
 	// Push (K64) delivers mobile notifications through Expo; nil disables push.
 	Push push.Sender
 	// DigestSenders (K64) post the morning digest into a chat, keyed by
@@ -438,9 +475,22 @@ type Handler struct {
 	// Config); when unconfigured its Enabled() reports false and callers fall
 	// back silently.
 	LLM *llm.Client
+	// ConsultLLM is the LLM seam for POST /api/consult (JEF-12): same client
+	// as LLM in production, an interface so handler tests can stub it. Read
+	// through consultLLM() — it falls back to LLM when unset.
+	ConsultLLM ConsultLLM
+	// JudgeLLM is the LLM seam for POST /api/run-groups/{id}/judge (JEF-234
+	// follow-up): same client as LLM in production, an interface so handler
+	// tests can stub it. Read through judgeLLM() — it falls back to LLM.
+	JudgeLLM ConsultLLM
 	// STT transcribes audio for voice memos and meetings. Always non-nil;
 	// Enabled() is false when MULTICA_STT_* is unset.
 	STT *stt.Client
+	// BrainEmbedder keeps one vector per live note for ranked Brain search
+	// (OS plan, vague B). Nil or disabled: search ranks lexically.
+	BrainEmbedder service.NoteEmbedder
+	// Recurrence spawns the occurrences of recurring issues (table stakes).
+	Recurrence *service.RecurrenceService
 	// TTS synthesizes speech for "read this aloud". Always non-nil;
 	// Enabled() is false when MULTICA_TTS_* is unset, and the client falls
 	// back to the browser's own speechSynthesis.
@@ -515,10 +565,12 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	var daemonProfileRefresh RuntimeProfileRefreshNotifier
 	var daemonWorkspaceRefresh WorkspaceSetRefreshNotifier
 	var daemonRuntimeGone RuntimeGoneNotifier
+	var daemonRunHalt DaemonRunHaltNotifier
 	if daemonHub != nil {
 		daemonProfileRefresh = daemonHub
 		daemonWorkspaceRefresh = daemonHub
 		daemonRuntimeGone = daemonHub
+		daemonRunHalt = daemonHub
 	}
 
 	llmClient := llm.New(llm.Config{
@@ -528,6 +580,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		EmbeddingModel: cfg.LLMEmbeddingModel,
 		MaxRetries:     cfg.LLMMaxRetries,
 	})
+	brainEmbedder := service.NewBrainEmbedder(queries, llmClient)
 	// Report the effective retry policy so an operator can confirm from the
 	// boot log alone what a misbehaving upstream will cost, instead of inferring
 	// it from an env var whose semantics used to be unguessable (MUL-6364).
@@ -581,12 +634,16 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		DaemonProfileRefresh:         daemonProfileRefresh,
 		DaemonWorkspaceRefresh:       daemonWorkspaceRefresh,
 		DaemonRuntimeGone:            daemonRuntimeGone,
+		DaemonRunHalt:                daemonRunHalt,
 		Bus:                          bus,
 		TaskService:                  taskSvc,
 		BudgetService:                budgetSvc,
 		PluginService:                service.NewPluginService(queries, txStarter),
 		IssueService:                 issueSvc,
-		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, llmClient, bus),
+		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
+		BrainEmbedder:                brainEmbedder,
+		Recurrence:                   service.NewRecurrenceService(queries, issueSvc),
+		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),
@@ -609,10 +666,18 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			Timeout: cfg.CloudTimeout,
 		}),
 		LLM: llmClient,
-		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
-		TTS: tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
-		cfg: cfg,
+		// Agent consult (JEF-12) shares the same internal LLM client; the field
+		// is an interface so tests can stub the whole consult path.
+		ConsultLLM: llmClient,
+		// The run-group judge (JEF-234 follow-up) shares the same client; the
+		// field is an interface so tests can stub the whole judge path.
+		JudgeLLM: llmClient,
+		STT:      stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
+		TTS:      tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
+		cfg:      cfg,
 	}
+	h.NativeAgents.NoteEmbedder = brainEmbedder
+	h.NativeAgents.Goal = h.GoalLoop
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
 	// The default passthrough scheduler reports sweeper-race recoveries so the
 	// daemon:register refresh fires even without the production batched wiring.
@@ -640,6 +705,14 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	taskSvc.OnTaskCancelled = h.afterTaskCancelled
 	// Validated routing (JEF-275): a refused trigger reaches a human.
 	taskSvc.OnRoutingBlocked = h.onRoutingBlocked
+	// Native onboarding (OS plan, chantier 5): routing refuses a native-bound
+	// trigger while the server has no model, instead of queuing it in silence.
+	taskSvc.NativeRuntimeAvailable = h.NativeAgents.Available
+	// Native calendar (chantier 19): the run's calendar tools go through the
+	// same handlers as the API.
+	h.NativeAgents.Calendar = calendarToolAdapter{h: h}
+	h.NativeAgents.Doctrine = doctrineToolAdapter{h: h}
+	h.NativeAgents.Autopilots = autopilotToolAdapter{h: h}
 	return h
 }
 

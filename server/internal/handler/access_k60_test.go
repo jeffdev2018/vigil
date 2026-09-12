@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -17,10 +18,12 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // K60: project roles only restrict the workspace role and are inherited by
@@ -86,6 +89,34 @@ func TestProjectRoles(t *testing.T) {
 	if m := find("member", memberID); m.Source != "inherited" || m.EffectiveRole != "contributor" {
 		t.Fatalf("cleared: %+v", m)
 	}
+}
+
+// TestProjectRolesWorkspaceOwnerCannotLockThemselvesOut is the regression for
+// the audit finding "a workspace owner who restricts their own project role
+// is locked out of the project's administration, even through the API".
+// The workspace role is the authority that grants every ceiling, so a
+// workspace owner or admin always keeps managing the roles of a project.
+func TestProjectRolesWorkspaceOwnerCannotLockThemselvesOut(t *testing.T) {
+	project := dbfx.Project(t, "roles lockout "+uuid.NewString()[:6])
+	proj := func(req *http.Request, more ...string) *http.Request {
+		return testutil.WithURLParams(req, append([]string{"id", project}, more...)...)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM project_member_role WHERE project_id = $1`, project)
+	})
+	owner, err := testHandler.Queries.GetMemberByUserAndWorkspace(context.Background(), db.GetMemberByUserAndWorkspaceParams{UserID: parseUUID(testUserID), WorkspaceID: parseUUID(testWorkspaceID)})
+	if err != nil {
+		t.Fatalf("owner member: %v", err)
+	}
+	ownerID := uuidToString(owner.ID)
+	testutil.Call(t, testHandler.SetProjectMemberRole, proj(newRequest(http.MethodPut, "/x", map[string]any{"role": "contributor"}), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	// Below project admin, the owner still changes their own role...
+	testutil.Call(t, testHandler.SetProjectMemberRole, proj(newRequest(http.MethodPut, "/x", map[string]any{"role": "viewer"}), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	// ...while the restriction holds on the project itself...
+	testutil.Call(t, testHandler.UpdateProject, proj(newRequest(http.MethodPut, "/x", map[string]any{"title": "renamed"}))).Want(http.StatusForbidden)
+	// ...until they clear it.
+	testutil.Call(t, testHandler.ClearProjectMemberRole, proj(newRequest(http.MethodDelete, "/x", nil), "subjectType", "member", "subjectId", ownerID)).Want(http.StatusOK)
+	testutil.Call(t, testHandler.UpdateProject, proj(newRequest(http.MethodPut, "/x", map[string]any{"title": "renamed"}))).Want(http.StatusOK)
 }
 
 func scimRequest(method, path, token string, body any) *http.Request {
@@ -199,9 +230,52 @@ func TestScimProvisioning(t *testing.T) {
 	testutil.Call(t, testHandler.CreateScimToken, ws(newRequestAs(member, http.MethodPost, "/x", nil))).Want(http.StatusForbidden)
 }
 
+type failingBeginTxStarter struct{}
+
+func (failingBeginTxStarter) Begin(context.Context) (pgx.Tx, error) {
+	return nil, errors.New("injected begin failure")
+}
+
+// A deprovisioning whose membership removal fails must not answer success:
+// the identity provider would stop retrying while the member row survives.
+func TestScimDeprovisionFailureIsReported(t *testing.T) {
+	ctx := context.Background()
+	ws := func(req *http.Request) *http.Request {
+		return testutil.WithURLParams(req, "id", testWorkspaceID)
+	}
+	var tok ScimTokenResponse
+	testutil.Call(t, testHandler.CreateScimToken, ws(newRequest(http.MethodPost, "/x", nil))).Want(http.StatusCreated).JSON(&tok)
+	t.Cleanup(func() { testPool.Exec(ctx, `DELETE FROM scim_token WHERE workspace_id = $1`, testWorkspaceID) })
+	user := dbfx.User(t, "scim failing", "scim-failing-"+uuid.NewString()[:6]+"@example.test")
+	member := dbfx.Member(t, testWorkspaceID, user, "member")
+
+	original := testHandler.TxStarter
+	t.Cleanup(func() { testHandler.TxStarter = original })
+	testHandler.TxStarter = failingBeginTxStarter{}
+
+	scim := middleware.SCIMBearerOnly(testHandler.Queries)
+	call := func(handler http.HandlerFunc, req *http.Request) *testutil.Response {
+		return testutil.Call(t, scim(http.HandlerFunc(handler)).ServeHTTP, testutil.WithURLParams(req, "id", member))
+	}
+	call(testHandler.ScimDeleteUser, scimRequest(http.MethodDelete, "/scim/v2/Users/"+member, tok.Token, nil)).Want(http.StatusInternalServerError)
+	call(testHandler.ScimPatchUser, scimRequest(http.MethodPatch, "/scim/v2/Users/"+member, tok.Token, map[string]any{"Operations": []map[string]any{{"op": "replace", "path": "active", "value": false}}})).Want(http.StatusInternalServerError)
+	call(testHandler.ScimReplaceUser, scimRequest(http.MethodPut, "/scim/v2/Users/"+member, tok.Token, map[string]any{"active": false})).Want(http.StatusInternalServerError)
+	if dbfx.Count(t, `SELECT COUNT(*) FROM member WHERE id = $1`, member) != 1 {
+		t.Fatal("the failed removal left the membership in place")
+	}
+}
+
 // fakeOIDCProvider answers discovery, JWKS and the token endpoint, signing an
 // id_token for the email it was told to vouch for.
 func fakeOIDCProvider(t *testing.T, clientID string, email string) *httptest.Server {
+	t.Helper()
+	return fakeOIDCProviderWithClaims(t, clientID, jwt.MapClaims{"email": email, "email_verified": true})
+}
+
+// fakeOIDCProviderWithClaims serves discovery, JWKS and a token endpoint whose
+// id_token carries `extra` on top of iss/aud/sub/nonce/exp/iat, so a test can
+// shape the identity claims (or leave one out) and pin what the callback does.
+func fakeOIDCProviderWithClaims(t *testing.T, clientID string, extra jwt.MapClaims) *httptest.Server {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -221,7 +295,11 @@ func fakeOIDCProvider(t *testing.T, clientID string, email string) *httptest.Ser
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{"iss": srv.URL, "aud": clientID, "sub": "idp-user", "email": email, "email_verified": true, "nonce": nonce, "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix()})
+			claims := jwt.MapClaims{"iss": srv.URL, "aud": clientID, "sub": "idp-user", "nonce": nonce, "exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix()}
+			for k, v := range extra {
+				claims[k] = v
+			}
+			tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 			tok.Header["kid"] = "k1"
 			signed, _ := tok.SignedString(key)
 			_ = json.NewEncoder(w).Encode(map[string]any{"id_token": signed, "access_token": "x", "token_type": "Bearer"})
@@ -273,6 +351,13 @@ func TestSSOEnforcementAndOIDCLogin(t *testing.T) {
 	res = testutil.Call(t, testHandler.VerifyCode, testutil.JSONRequest(http.MethodPost, "/auth/verify-code", map[string]string{"email": email, "code": "123456"})).Want(http.StatusForbidden)
 	if !strings.Contains(res.Body.String(), "sso_required") {
 		t.Fatalf("code login refused with the workspace to use: %s", res.Body.String())
+	}
+	// The SSO policy check runs before the code is consumed: a valid code
+	// refused only because of workspace policy must stay usable.
+	var used bool
+	dbfx.QueryRow(t, `SELECT used FROM verification_code WHERE email = $1`, email).Scan(&used)
+	if used {
+		t.Fatal("a code rejected only by SSO enforcement must not be marked used")
 	}
 	// The OIDC flow signs the user in and provisions the membership.
 	var start struct {

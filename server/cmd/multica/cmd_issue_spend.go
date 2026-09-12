@@ -155,6 +155,9 @@ func resolveRunArg(ctx context.Context, client *cli.APIClient, cmd *cobra.Comman
 }
 
 func runIssueSpendTokenRequest(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	// Validate the amount before any network round trip, so a malformed
 	// --amount can never reach the spend path.
 	amount, _ := cmd.Flags().GetString("amount")
@@ -267,6 +270,9 @@ func waitForSpendGate(ctx context.Context, client *cli.APIClient, runID, gateID 
 }
 
 func runIssueSpendTokenVerify(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	token := strings.TrimSpace(mustString(cmd, "token"))
 	if token == "" {
 		return fmt.Errorf("--token is required: pass the token `spend-token request` returned")
@@ -299,6 +305,9 @@ func runIssueSpendTokenVerify(cmd *cobra.Command, args []string) error {
 }
 
 func runIssueBudgetStatus(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	client, err := newAPIClient(cmd)
 	if err != nil {
 		return err

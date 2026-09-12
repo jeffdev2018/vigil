@@ -20,6 +20,13 @@ SELECT * FROM agent_effect
 WHERE decision_id = $1
 ORDER BY created_at ASC, id ASC;
 
+-- name: ListAgentEffectsForDecisions :many
+-- Batch variant of ListAgentEffectsForDecision for ListApprovals'
+-- decisionKind, which only needs to know whether any row exists per decision.
+SELECT * FROM agent_effect
+WHERE decision_id = ANY(sqlc.arg('decision_ids')::uuid[])
+ORDER BY created_at ASC, id ASC;
+
 -- name: SetAgentEffectsDecision :execrows
 UPDATE agent_effect SET decision_id = $2
 WHERE task_id = $1 AND status = 'pending' AND decision_id IS NULL;
@@ -46,6 +53,12 @@ ORDER BY created_at DESC, id DESC;
 
 -- name: GetAgentEffect :one
 SELECT * FROM agent_effect WHERE id = $1 AND workspace_id = $2;
+
+-- name: ListAgentEffectsByIDs :many
+-- Batch variant of GetAgentEffect for undoEffects' final refetch, which
+-- otherwise issues one GetAgentEffect per touched row.
+SELECT * FROM agent_effect
+WHERE workspace_id = $1 AND id = ANY(sqlc.arg('ids')::uuid[]);
 
 -- name: MarkAgentEffectReversed :one
 UPDATE agent_effect

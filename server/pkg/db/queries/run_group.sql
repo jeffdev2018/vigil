@@ -37,6 +37,15 @@ SET status = 'abandoned', settled_at = now()
 WHERE id = $1 AND status = 'running'
 RETURNING *;
 
+-- name: SetRunGroupJudgement :one
+-- Stores the LLM judge's verdict (JEF-234 follow-up). No CAS: judging changes
+-- nothing about the race itself, so a re-judge simply overwrites the previous
+-- judgement — including a stored 'failed' one.
+UPDATE run_group
+SET judgement = $2
+WHERE id = $1
+RETURNING *;
+
 -- name: ListRunGroupTasks :many
 -- The attempts of one group, oldest first so the columns in the compare view
 -- keep the order the user composed them in.
@@ -69,3 +78,30 @@ SELECT count(*) FROM run_group WHERE issue_id = $1 AND status = 'running';
 -- Workspace teardown. Attempts themselves live on agent_task_queue and are
 -- purged by the task sweep; this drops the group rows that scoped them.
 DELETE FROM run_group WHERE workspace_id = $1;
+
+-- name: ListRunGroupAttemptMetricsForIssue :many
+-- Per-attempt comparison metrics (JEF-234) for every run-group attempt on one
+-- issue: which runtime ran it (custom_name wins for display, as in the runtime
+-- API), what it cost, how long it took. Keyed by task_id so the handler folds
+-- rows into the attempts it already loaded; one read for every group of the
+-- issue instead of one per group.
+--
+-- cost_usd_ticks sums task_usage per attempt; a row that reported no provider
+-- price contributes NULL, and SUM over NULLs is NULL, so COALESCE pins the
+-- "no usage reported" case to 0. duration_seconds is 0 while the attempt has
+-- not completed: a running attempt has no finite duration, and the queue wait
+-- before started_at only counts once the run is done.
+SELECT
+    atq.id AS task_id,
+    atq.runtime_id,
+    COALESCE(NULLIF(r.custom_name, ''), r.name, '') AS runtime_name,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::bigint AS cost_usd_ticks,
+    (CASE WHEN atq.completed_at IS NOT NULL
+          THEN GREATEST(EXTRACT(EPOCH FROM (atq.completed_at - COALESCE(atq.started_at, atq.created_at)))::bigint, 0)
+          ELSE 0 END)::bigint AS duration_seconds
+FROM agent_task_queue atq
+LEFT JOIN agent_runtime r ON r.id = atq.runtime_id
+LEFT JOIN task_usage tu ON tu.task_id = atq.id
+WHERE atq.run_group_id IS NOT NULL AND atq.issue_id = $1
+GROUP BY atq.id, atq.runtime_id, r.name, r.custom_name
+ORDER BY atq.created_at ASC, atq.id ASC;

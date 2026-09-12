@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { baselineFromQuery } from "./baseline";
+import { createIssueViewStore } from "../issues/stores/view-store";
 import { propertyFilterValueKey } from "../types";
 
 // The property-filter branch of baselineFromQuery: saved-view members must
@@ -109,5 +110,32 @@ describe("baselineFromQuery type filters", () => {
   it("keeps a custom type key it has never heard of", () => {
     const baseline = baselineFromQuery({ typeFilters: ["spike", 7, "", null] });
     expect(baseline.raw.typeFilters).toEqual(["spike"]);
+  });
+});
+
+// Goals (JEF-395) were the one dimension the baseline never read: opening a
+// saved view left the goal filter untouched, and the active-filter count
+// treated a view-fixed goal as a user addition.
+describe("baselineFromQuery goal filters", () => {
+  it("fixes the view's goals and a reset returns to them", () => {
+    const baseline = baselineFromQuery({ goalFilters: ["goal-1", "goal-2"] });
+    expect([...baseline.goal]).toEqual(["goal-1", "goal-2"]);
+
+    const store = createIssueViewStore("test:baseline-goal");
+    store.getState().toggleGoalFilter("goal-9");
+    store.getState().resetFiltersTo(baseline.raw);
+    expect(store.getState().goalFilters).toEqual(["goal-1", "goal-2"]);
+  });
+
+  it("keeps a view saved without goals valid, with no goal fixed", () => {
+    const baseline = baselineFromQuery({ cycleFilters: ["c1"] });
+    expect(baseline.goal.size).toBe(0);
+    expect(baseline.raw.goalFilters).toEqual([]);
+    expect(baseline.raw.cycleFilters).toEqual(["c1"]);
+  });
+
+  it("drops a non-string member a hand-edited query smuggled in", () => {
+    const baseline = baselineFromQuery({ goalFilters: ["goal-1", 7, null] });
+    expect(baseline.raw.goalFilters).toEqual(["goal-1"]);
   });
 });

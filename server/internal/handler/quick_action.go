@@ -569,7 +569,11 @@ func (h *Handler) CreateQuickAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	count, err := h.Queries.CountActiveQuickActions(r.Context(), wsUUID)
-	if err == nil && count >= maxActiveQuickActionsPerWorkspace {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check active quick action count")
+		return
+	}
+	if count >= maxActiveQuickActionsPerWorkspace {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("a workspace can have at most %d active quick actions; archive one first", maxActiveQuickActionsPerWorkspace))
 		return
 	}
@@ -697,7 +701,11 @@ func (h *Handler) UpdateQuickAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if *req.Status == "active" && existing.Status != "active" {
 			count, err := h.Queries.CountActiveQuickActions(r.Context(), wsUUID)
-			if err == nil && count >= maxActiveQuickActionsPerWorkspace {
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to check active quick action count")
+				return
+			}
+			if count >= maxActiveQuickActionsPerWorkspace {
 				writeError(w, http.StatusBadRequest, fmt.Sprintf("a workspace can have at most %d active quick actions", maxActiveQuickActionsPerWorkspace))
 				return
 			}
@@ -849,6 +857,11 @@ func buildQuickActionBody(qa db.QuickAction, target quickActionTarget) string {
 func (h *Handler) RunQuickAction(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	// K60: may-invoke-this-agent (canInvokeAgent below) and may-write-this-
+	// project answer different questions; both gates are needed.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	userID, ok := requireUserID(w, r)

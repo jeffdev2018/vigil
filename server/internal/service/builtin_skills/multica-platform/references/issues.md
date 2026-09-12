@@ -276,6 +276,14 @@ multica issue runs <issue-id> --active --output json     # in-flight runs on thi
 multica issue runs <issue-id> --siblings --output json   # ...and across the sub-issue family
 ```
 
+Comment replies stay with the directly replied-to agent or the thread owner;
+they never schedule a delayed run for the issue assignee. Waiting for an offline
+or busy agent does not change the recipient. Explicitly @-mention another agent to
+involve it. New top-level comments without a target still route to the assignee.
+Issue and agent run history omit unused assignee fallbacks from older versions;
+cancelled fallbacks are hidden even if dispatched, provided execution never
+started. Ordinary cancellations and fallbacks that started remain visible.
+
 `--active` drops the execution history and returns only `queued` / `dispatched`
 / `running` / `waiting_local_directory` runs. `--siblings` widens the same read
 to the issue's family — its parent (or itself, when it has no parent) plus every
@@ -390,15 +398,15 @@ them first, and attach a proof as you satisfy each one:
 ```bash
 multica criteria list <issue-id>
 multica criteria prove <issue-id> <criterion-id> --type test --ref "npm test -- export"
-multica criteria prove <issue-id> <criterion-id> --type url --ref "https://ci.example/run/42"
 multica criteria prove <issue-id> <criterion-id> --type human_validation
 ```
 
 `test`, `file`, `screenshot` and `url` proofs need a `--ref` naming what
 proves it. A `human_validation` from a run only marks the criterion as
 waiting for the human: their own click satisfies it, not your claim. If the
-issue has no criteria yet and the task states some, set them with
-`multica criteria set <issue-id> --text "..." --text "..."` before starting.
+issue has no criteria yet and the task states some, set them with `multica
+criteria set <issue-id> --text "..." --text "..."` before starting (refuses
+with no --text at all; pass --clear to wipe the list).
 
 ## Sub-issues: todo starts work now, backlog parks it
 
@@ -488,3 +496,4 @@ once. Stage them instead — see "Stages: order sub-issues into barrier groups".
 `references/undo-and-show-me-first.md` — the undo journal and the `202` "show
 me first" contract: queued for approval, not done, not an error.
 `references/goals.md` — proposing a workspace goal from a run.
+`references/wakeups.md` — making an issue repeat, or waking its agent once.

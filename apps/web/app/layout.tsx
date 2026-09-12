@@ -6,8 +6,8 @@ import { Toaster } from "@multica/ui/components/ui/sonner";
 import { cn } from "@multica/ui/lib/utils";
 import { WebProviders } from "@/components/web-providers";
 import { RESOURCES } from "@multica/views/locales";
+import { HTML_LANG } from "@multica/core/i18n";
 import { getRequestLocale } from "@/lib/request-locale";
-import { HTML_LANG } from "@/lib/html-lang";
 import { SITE_TITLE, TITLE_TEMPLATE } from "@/platform/document-title";
 import {
   resolveBrowserApiBaseUrl,

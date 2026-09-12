@@ -17,7 +17,7 @@ Because there is no daemon and no CLI to install, the native runtime is always a
 
 The native runtime seeds one `agent_runtime` row per workspace (`runtime_mode = 'native'`, provider `native`) and appears in runtime pickers and lists like any other runtime — nothing in the UI marks it specially today.
 
-A scheduled job, `native_agent_tick`, runs every 10 seconds and, for each workspace's native runtime, claims queued runs through the same eligibility path a daemon poll uses. Each claimed run executes in its own goroutine with a 10-minute timeout, independent of the tick itself. Within a run, the tool-calling loop is capped at 12 turns, and each tool result is capped at 8&nbsp;KB before it goes back to the model.
+A scheduled job, `native_agent_tick`, runs every 10 seconds and, for each workspace's native runtime, claims queued runs through the same eligibility path a daemon poll uses. Each claimed run executes in its own goroutine with a 10-minute timeout, independent of the tick itself. Within a run, the tool-calling loop is capped at 12 turns, and each tool result is capped at 8&nbsp;KB before it goes back to the model. The brief (issue, previous run summaries, comments) is capped at about 4,000 estimated tokens, not bytes, so a brief written in Japanese is bounded like one written in English. When the conversation itself grows past about 24,000 estimated tokens, the results of older tool calls are trimmed to a stub (tool, size, head) without any model call; past about 48,000 the model is asked, without tools, to summarize what it did, learned and still has to do, and the run continues from that note. Both steps leave a `Context compacted` / `Context summarized` line in the transcript.
 
 <Callout type="info">
 The native runtime shares one global concurrency ceiling of 8 runs across all workspaces on the server, not a per-workspace limit.
@@ -36,14 +36,50 @@ The tool-calling loop can only call a small, deliberately closed set of tools:
 | `transition_issue` | Changes the issue's status through the same gated path as the UI. |
 | `create_sub_issue` | Creates a sub-issue under the run's issue. |
 | `create_issue` | Creates a new top-level issue, assigned to the agent itself by default. |
+| `schedule_followup` | Wakes this issue's agent once more, later, at a chosen instant, carrying a note. |
+| `cancel_followup` | Cancels a follow-up on this issue that has not fired yet. |
+| `list_followups` | Lists the follow-ups already waiting on this issue. |
+| `propose_autopilot` | Proposes a recurring automation from a sentence; it is created paused behind a Decision Card. |
 
 Any issue ID the model supplies is re-validated against the run's workspace before use — a tool never trusts an issue reference out of model output alone.
+
+### Follow-ups: waiting instead of looping
+
+When the next step depends on a *time* rather than on more work — a deploy that lands at 9, a build that takes an hour — a run can put the issue down and pick it up later. `schedule_followup {when, note}` files one deferred run of the same agent on the same issue. `when` is an RFC 3339 instant or `+<minutes>` from now, and it must land between **1 minute and 30 days** away; the note becomes the trigger the next run — and the next person — reads.
+
+A follow-up shows on the issue, in the runs list as a run blocked on *deferred* whose blocker summary is the note you wrote, and in the [calendar agenda](/calendar#scheduled-wake-ups). Anyone who can see the issue can cancel it before it fires, from the app or with `multica issue followup-cancel`.
+
+**There is a budget.** By default an agent may schedule 20 follow-ups a day and a workspace 200, counted over the last 24 hours at schedule time. Spending it refuses the call and names the bound, so a run cannot turn a wake-up into a loop. A workspace can move both limits between 1 and 1000 in its settings under `followups`.
+
+`propose_autopilot` is the other half of the same idea: when the work should repeat rather than happen once, a run proposes a schedule and a person activates it. See [Autopilots](/autopilots#from-a-sentence).
+
+
+## Sub-agents
+
+A run may hand one bounded piece of its task to a sub-agent with the `delegate` tool: what to do and what to report, plus optional context. The sub-agent runs in-process with a fresh context and the same tools minus `delegate` and `ask_user`, at most 8 turns, 4 state-changing calls and 5 minutes; it is its own run on the issue (a `subagent` leg of the parent's workflow, so its transcript, tokens and cost show with the parent's). A run may start 6 sub-agents, 3 at a time, and their state-changing calls count against the run's own budget of 10.
+
+A sub-agent's report must cite a receipt `[rN]` for every action it claims; receipts are its actual tool calls, numbered in order. The parent gets the report with the receipts, the citations that match no call (`unverified_citations`) and the calls the report never mentions (`uncited_receipts`), so a claim without a receipt reads as a claim, not a fact.
 
 ## Guardrails
 
 - **Gated status transitions.** `transition_issue` goes through the same transition-rule decision the HTTP handlers use, with the agent as the actor — an agent carries no workspace role, so it cannot inherit an owner's or admin's transition rights. Depending on the workspace's rules the move is applied immediately, denied with a reason returned to the model, or held as a pending approval request while the status stays unchanged.
 - **No silent status changes on creation.** `create_issue` and `create_sub_issue` always create the issue in its default status; they never land it on a status that the workspace's rules would otherwise gate. Any transition after creation still goes through `transition_issue`.
 - **No self-triggered run loop.** `create_issue` never enqueues a run for the issue it creates, so a native run cannot cascade into creating work that immediately re-triggers itself.
+- **Budgets end on a status, not a cut.** The last turn, and the first turn after a spent budget (10 state-changing tool calls per run), is a wrap-up turn: no tools are offered and the model is asked for a short closing status — what it did, what remains, what blocked it. That status is the run's final answer.
+- **Identical calls are refused.** The same tool called with the same arguments gets a warning on the third call and a refusal on the fifth, which triggers the wrap-up.
+
+## Long tasks: the goal loop
+
+A run on an issue rarely finishes the issue. After a run on an issue settles — on the native runtime or on a daemon runtime alike — the server asks the model a second, tool-less question: does the closing status meet the issue's goal? The goal is the definition of done a member wrote on the issue's goal card, or, without one, the issue's title, description and acceptance criteria. The answer is typed — `satisfied`, or one of `goal_not_met_yet`, `missing_evidence`, `needs_user_input`, `run_failed`, `external_wait` — with a line of evidence and a suggested next step. It lands in the run transcript as a `Goal check` line, in the run's result under `goal_loop`, and on the issue's goal state.
+
+- `goal_not_met_yet` and `missing_evidence` queue the next run on the same issue as a **continuation** leg of the previous one, with a handoff note carrying the previous status and the blocker, up to 8 continuations after the first run. The follow-up run reads the goal state in its prompt: goal, iteration, blocker, next step, the evidence gathered so far.
+- Two continuations in a row that end on the same status stop the chain as stagnation.
+- `satisfied` moves the issue to done through the workspace's transition rules, with the agent as the actor: a rule that requires approval files a request instead. `propose_done: false` in the setting records the verdict without moving the issue.
+- `needs_user_input` — or the agent's own `ask_user` tool (`POST /api/issues/{id}/goal/question` for a CLI run) — raises an inbox item for the people accountable for the issue and a comment with the question and its options. The chain waits; an answer on the goal card queues the follow-up run with it.
+- `external_wait` and `run_failed` stop the chain and post a comment, because the next step is a person's.
+- A human who reassigns or closes the issue while a run is in flight stops the chain; a human-triggered run (a comment, a new assignment) starts a new chain.
+
+The state lives on the issue (`GET /api/issues/{id}/goal`), not in memory: a server restart between two runs loses nothing. Members write the goal and its ceiling (`PUT`), pause and resume the chain (`POST .../pause`, `.../resume`) and answer questions (`POST .../answer`). The workspace setting `goal_loop` holds `max_continuations` (up to 20, `0` turns the judge off) and `propose_done`.
 
 ## LLM requirement
 

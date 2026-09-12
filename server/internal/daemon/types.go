@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
@@ -75,18 +76,28 @@ type SandboxSpec struct {
 	Mode         string   `json:"mode"`
 	Image        string   `json:"image,omitempty"`
 	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// BlockSensitiveFiles (JEF-256) mirrors handler.SandboxSpec: the merged
+	// sandbox policy asks the run to not read .env files. Enforced per
+	// provider where the CLI allows it (Claude deny rules), advisory
+	// elsewhere; container mode remains the hard boundary.
+	BlockSensitiveFiles bool `json:"block_sensitive_files,omitempty"`
 }
 
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
-	ID                   string                 `json:"id"`
-	AgentID              string                 `json:"agent_id"`
-	RuntimeID            string                 `json:"runtime_id"`
-	IssueID              string                 `json:"issue_id"`
-	WorkspaceID          string                 `json:"workspace_id"`
-	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
-	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
+	ID              string `json:"id"`
+	AgentID         string `json:"agent_id"`
+	RuntimeID       string `json:"runtime_id"`
+	IssueID         string `json:"issue_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	WorkspaceSlug   string `json:"workspace_slug,omitempty"`
+	IssueIdentifier string `json:"issue_identifier,omitempty"`
+	// ModelOverride (JEF-12) mirrors agent_task_queue.model_override: a
+	// per-task model pin that outranks the agent's configured model and the
+	// daemon-wide env tier in the daemon's model cascade. Empty on a server
+	// predating the field, which reads as "no override".
+	ModelOverride        string                 `json:"model_override,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
 	// McpGateway (K77) is the per-tool policy the daemon enforces on every MCP
 	// server of the run. Nil on a server too old to send it: the daemon then
@@ -120,11 +131,16 @@ type Task struct {
 	// the local MCP server presents to the agent as tools. Resolved by the
 	// server at claim time; the daemon never reads plugin state itself.
 	PluginHookTools []PluginHookTool `json:"plugin_hook_tools,omitempty"`
-	// WorkspaceContext mirrors workspace.context (the per-workspace system
-	// prompt set in Settings → General). Server populates this on every claim
-	// regardless of task kind so the daemon can inject `## Workspace Context`
-	// into the brief. Empty when the owner hasn't set one.
+	// WorkspaceContext mirrors workspace.context: the workspace doctrine, the
+	// governing document its owners write for every agent. Server populates
+	// this on every claim regardless of task kind so the daemon can inject
+	// `## Workspace Doctrine` into the brief. Empty when the owner hasn't
+	// written one.
 	WorkspaceContext string `json:"workspace_context,omitempty"`
+	// WorkspaceDoctrineRevision mirrors workspace.doctrine_revision, rendered
+	// in the doctrine heading so a run and a report name the same text. Zero
+	// on a server predating the revision ledger.
+	WorkspaceDoctrineRevision int32 `json:"workspace_doctrine_revision,omitempty"`
 	// IssueStatuses mirrors the claim payload's active CUSTOM status catalog
 	// (MUL-6460): key/name/category/description per status, already in catalog
 	// order. Rendered into the brief's status-command line; empty (including on
@@ -202,6 +218,8 @@ type Task struct {
 	HandoffNote                   string                        `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
 	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
+	// Goal (goal loop): the issue's goal and chain state; rendered in the per-turn prompt.
+	Goal *goalstate.State `json:"goal,omitempty"`
 	// ResumeFromCheckpointSeq (K20): non-zero when this run continues an interrupted one.
 	ResumeFromCheckpointSeq int64 `json:"resume_from_checkpoint_seq,omitempty"`
 

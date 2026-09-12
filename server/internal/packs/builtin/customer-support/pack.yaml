@@ -1,0 +1,393 @@
+pack:
+  id: customer-support
+  version: 1.0.0
+  title: Customer support
+  summary: Tickets from paying customers with an SLA tier on every one, refunds and escalations that wait for a human approval, and an agent that drafts replies but never sends them.
+  description: |
+    Sets up an external support desk: a **Ticket** work item plus separate
+    **Bug report** and **Refund request** items, the statuses a customer
+    conversation really sits in (waiting on the customer, escalated, awaiting
+    refund approval), an SLA tier property that says how fast the first reply
+    is owed, a sentiment property so the desk sees anger before it churns, a
+    refund amount, saved views for the queue and for the approvals, an agent
+    that drafts every reply for a person to send, an agent that turns repeated
+    questions into canned answers, and a doctrine section with the promises
+    the desk makes.
+
+    Works with no agent at all: the SLA tier, the views and the canned-answer
+    note make a two-person desk usable on day one. Connect the native runtime
+    to let the drafter work.
+  domain: support
+  wave: 2
+  author: Multica
+  license: MIT
+  tags: [support, tickets, sla, refunds, customers]
+  works_without_agents: true
+  metric:
+    label: First-response delay against SLA
+    description: Median time between a customer ticket arriving and the first reply actually sent to the customer, compared with the promise of its SLA tier.
+    hint: View "Support queue"; per SLA tier, compare each ticket's created time with the first comment marked as sent. The CSAT proxy is the share of tickets closed with no reopen inside seven days.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the reply drafter work without a CLI on anyone's machine.
+    - kind: channel
+      name: Support email or shared inbox
+      optional: true
+      note: Tickets arrive as issues instead of being retyped by hand.
+    - kind: integration
+      name: Billing or payment provider
+      optional: true
+      note: A refund request can carry the real charge instead of a number typed from memory.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: waiting_on_customer
+    name: Waiting on customer
+    description: The desk asked the customer something and the SLA clock is paused until they answer.
+    category: blocked
+    color: "#f59e0b"
+  - key: escalated
+    name: Escalated
+    description: Handed to engineering, finance or a manager, and still owned by the desk.
+    category: in_progress
+    color: "#ef4444"
+  - key: awaiting_approval
+    name: Awaiting approval
+    description: A refund, credit or goodwill gesture is drafted and waiting for someone who can authorise it.
+    category: in_review
+    color: "#8b5cf6"
+
+issue_types:
+  - key: ticket
+    name: Ticket
+    description: A question, complaint or request from a paying customer.
+    color: "#3b82f6"
+    icon: message-circle
+  - key: bug_report
+    name: Bug report
+    description: A customer hit something that is genuinely broken and engineering has to see it.
+    color: "#ef4444"
+    icon: bug
+  - key: refund_request
+    name: Refund request
+    description: Money has to move back to the customer.
+    color: "#10b981"
+    icon: briefcase-business
+labels:
+  - name: billing
+    description: Invoices, charges, subscriptions, tax.
+    color: "#10b981"
+    resource_type: issue
+  - name: how-to
+    description: The product works; the customer did not know how. Candidate for a canned answer.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: bug
+    description: Reproduced and confirmed broken.
+    color: "#ef4444"
+    resource_type: issue
+  - name: churn-risk
+    description: The customer said, in any words, that they are considering leaving.
+    color: "#f97316"
+    resource_type: issue
+  - name: feature-request
+    description: Not a fault; the customer wants something we do not do. Route it, do not promise it.
+    color: "#8b5cf6"
+    resource_type: issue
+  - name: answer-gap
+    description: Asked more than twice and still has no canned answer.
+    color: "#eab308"
+    resource_type: issue
+
+properties:
+  - name: SLA tier
+    type: select
+    description: The first-response promise this customer bought. Set it before touching anything else.
+    icon: clock-3
+    config:
+      options:
+        - { name: "Enterprise — 1 hour", color: "#ef4444" }
+        - { name: "Business — 4 hours", color: "#f59e0b" }
+        - { name: "Standard — 1 business day", color: "#0ea5e9" }
+        - { name: "Free — best effort", color: "#94a3b8" }
+    issue_types: [ticket, bug_report, refund_request]
+  - name: Customer mood
+    type: select
+    description: How the customer is writing, not how bad the problem is. Anger and severity are different queues.
+    icon: heart
+    config:
+      options:
+        - { name: Calm, color: "#10b981" }
+        - { name: Frustrated, color: "#f59e0b" }
+        - { name: Angry, color: "#ef4444" }
+        - { name: "Ready to leave", color: "#7c3aed" }
+    issue_types: [ticket, bug_report, refund_request]
+  - name: Refund amount
+    type: number
+    description: Amount to be returned, in the workspace currency. Required on a refund request before it can be approved.
+    icon: briefcase-business
+    config: {}
+    issue_types: [refund_request]
+
+views:
+  - name: Support queue
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [ticket, bug_report, refund_request]
+      statusFilters: [todo, in_progress, escalated]
+    display: {}
+  - name: Waiting on the customer
+    scope_type: workspace
+    visibility: workspace
+    query:
+      statusFilters: [waiting_on_customer]
+    display: {}
+  - name: Refunds and gestures to approve
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [refund_request, ticket]
+      statusFilters: [awaiting_approval]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: in_progress
+    enabled: true
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: No reply reaches a customer without a person sending it
+    attach_point: issue_submit_review
+    natural_language: An agent may write a draft reply as a comment, but it must never mark a ticket as answered or closed; only a member can, and only after the reply has actually been sent to the customer.
+  - title: A refund is approved by an owner or admin, never by the desk alone
+    attach_point: issue_submit_review
+    natural_language: An issue of type "refund_request" cannot leave the Awaiting approval status unless an owner or admin approved it, and it must carry a Refund amount and the reason for the refund.
+
+doctrine: |
+  - The SLA tier is set before anything else on a ticket. A ticket with no tier is treated as the strictest tier the desk sells.
+  - Every reply is sent by a person. Agents draft; the send button belongs to a human, always.
+  - The first reply says something true and specific. "We are looking into it" is allowed once, with a named owner and a time.
+  - The SLA clock pauses only on Waiting on customer. Escalated is not a pause: the desk still owns the conversation.
+  - No refund, credit or goodwill gesture without an owner's or admin's approval on the issue, with the amount and the reason written down.
+  - A question asked three times becomes a canned answer in the Brain that week. The desk is judged on the questions it stopped receiving.
+  - Never promise a feature, a date or a fix on someone else's behalf. Label it feature-request and route it.
+
+ownership_rules:
+  - label: how-to
+    referent_agent: Support · Reply drafter
+    priority: 10
+  - label: answer-gap
+    referent_agent: Support · Knowledge gardener
+    priority: 20
+
+skills:
+  - name: support-procedure
+    description: How the desk answers a customer, escalates a bug and handles a refund.
+    content: |
+      # Customer support procedure
+
+      ## Every ticket, first
+      1. Set SLA tier and Customer mood. If you cannot tell the tier, use the strictest one and say so in a comment.
+      2. Read the whole thread, including anything the customer wrote before. Answer the question they asked, not the one that is easier.
+      3. Search the Brain note "Support · Canned answers" before writing a word. If an answer exists, reuse it and adapt only the specifics.
+
+      ## Drafting a reply
+      4. Write the reply as a comment that starts with "Draft reply:". Never send it, never mail the customer, never post it anywhere outside the issue.
+      5. State what is true, what you do not know, and the next concrete step with a time. No apologies stacked on apologies.
+      6. If the answer needs information you do not have, do not guess: ask the person who owns the area, in a comment, and set Waiting on customer only if the missing piece is the customer's.
+      7. Never promise a fix date, a price change or a feature. If the customer wants one, label the issue feature-request and say it has been passed on.
+
+      ## A bug report
+      8. Reproduce it or state plainly that you could not. Write the steps, the expected result and what actually happened.
+      9. Add the label bug only once it is reproduced. Escalate to engineering and set Escalated; the desk still owns the customer.
+      10. Post an update to the customer at least every second business day while it is escalated, drafted the same way.
+
+      ## A refund request
+      11. Set the Refund amount and write the reason: what the customer paid for, what they did not get.
+      12. Check the Brain for the refund policy. If the case is inside the policy, say which clause; if it is outside, say so.
+      13. Set Awaiting approval and stop. Do not tell the customer the refund is approved before an owner or admin has approved it on the issue.
+
+      ## Closing
+      14. Close only after the customer has confirmed, or after two chase attempts with no answer. Say which of the two it was.
+      15. If the same question has now come up three times, add the label answer-gap so it becomes a canned answer.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Support · Reply drafter
+    description: Classifies tickets, finds the canned answer, drafts every reply for a person to send. Sends nothing.
+    instructions: |
+      You draft replies for a customer support desk. On every ticket you set SLA tier and Customer mood first, then look for an existing canned answer in the Brain, then write the reply as a comment starting with "Draft reply:". You never send a message to a customer, never close a ticket, never approve a refund and never promise a fix, a date, a price or a feature — if the customer asks for one, you label the issue feature-request and say it has been passed on. When a customer says in any words that they are thinking of leaving, add the churn-risk label and hand the ticket to a person as your first action rather than drafting. When the ticket is a refund request, you fill in the amount and the reason, set Awaiting approval and stop. Follow the support-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 3
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [support-procedure]
+    versions: []
+  - name: Support · Knowledge gardener
+    description: Spots questions the desk keeps answering by hand and drafts the canned answer for them.
+    instructions: |
+      You keep the desk's canned answers useful. You read closed tickets, group the ones that were really the same question, and for any group of three or more you draft a canned answer in the Brain note "Support · Canned answers": the question in the customer's words, the answer in ours, and what to check before reusing it. You mark the tickets involved with the answer-gap label so a person can see where the draft came from. You never edit a published canned answer without leaving the old text in the note under "Replaced"; you never reply to a customer; you never close a ticket. When two closed tickets contradict each other, you do not pick a winner — you write both and ask a person which one is the policy. Follow the support-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [support-procedure]
+    versions: []
+
+projects:
+  - title: Customer support
+    description: Every customer ticket, bug report and refund request the desk handles.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-first-response-sla]
+
+goals:
+  - key: g-first-response-sla
+    parent_key: ""
+    title: Every customer hears back inside their SLA
+    description: The desk's promise, per tier, and the reason a tier is worth paying for.
+    success_measure: 95% of tickets get their first sent reply inside the promise of their SLA tier over a month, and under 5% of closed tickets reopen within seven days.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Support · SLA breach watch
+    description: Disabled after install. Every hour it lists tickets whose SLA promise is about to be missed and drafts the holding reply for a person to send. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Support · Reply drafter
+    execution_mode: create_issue
+    issue_title_template: "SLA watch · tickets at risk"
+    project: Customer support
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 * * * *"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+  - title: Support · Weekly canned-answer gap review
+    description: Disabled after install. Every Friday it groups the week's closed tickets, finds the questions answered by hand three times or more, and drafts a canned answer for each. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Support · Knowledge gardener
+    execution_mode: create_issue
+    issue_title_template: "Canned-answer gaps · this week"
+    project: Customer support
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 15 * * 5"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Support · Canned answers
+    content: |
+      # Canned answers
+
+      One section per question the desk answers more than twice. Each entry:
+      the question in the customer's words, the answer in ours, and what to
+      check before reusing it. Replace an answer by moving the old text under
+      "Replaced" with the date — nobody should wonder what we used to say.
+
+      ## "Why was I charged twice this month?"
+      Check first: the invoice list for the account, and whether a plan change
+      happened mid-cycle.
+      Answer: a mid-cycle plan change bills the remainder of the old plan and
+      the start of the new one on the same day, so two lines appear. Send both
+      invoice numbers and the dates they cover. If the two lines are the same
+      amount for the same period, it is a genuine double charge — open a refund
+      request instead of sending this answer.
+
+      ## "Can you delete my account and all my data?"
+      Check first: whether the account is on a paid plan with time left.
+      Answer: confirm what will be deleted, what we must keep and for how long,
+      and that deletion cannot be undone. Ask for a written confirmation from
+      the account's owner before anything is deleted. Never delete on the
+      strength of one email.
+
+      ## Refund policy
+      Inside policy: a failed charge, a double charge, or a paid feature that
+      did not work for the period billed. Outside policy: a change of mind
+      after the period has been used. Either way the amount and the reason go
+      on the issue, and an owner or admin approves it.
+    tags: [support, canned-answer]
+    pinned: true
+
+issues:
+  - title: "Example · Charged twice for the November invoice"
+    description: "An example refund request. The customer changed plan mid-cycle and sees two charges. Set the SLA tier from the account, fill in the Refund amount, say which policy clause applies, then set Awaiting approval and stop."
+    status: todo
+    priority: high
+    project: Customer support
+    goal_key: ""
+    labels: [billing]
+  - title: "Example · Export fails on files over 50 MB"
+    description: "An example bug report. Reproduce it, write the steps and what actually happens, add the bug label only once reproduced, then escalate to engineering. The desk keeps the customer updated every second business day."
+    status: todo
+    priority: medium
+    project: Customer support
+    goal_key: ""
+    labels: [bug]
+  - title: "Example · \"If this is not fixed by Friday we are switching\""
+    description: "An example churn-risk ticket. First action is not a draft: set Customer mood to Ready to leave, add churn-risk, and hand it to a person. Never promise the Friday date on engineering's behalf."
+    status: todo
+    priority: urgent
+    project: Customer support
+    goal_key: ""
+    labels: [churn-risk]

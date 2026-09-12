@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 // Canonical layer for the walkthrough settings shape and the ingest
 // normalisation. The handler suite covers the endpoints and the completion
@@ -115,5 +119,21 @@ func TestNormalizeGroupsDropsPathlessFiles(t *testing.T) {
 	}})
 	if len(out[0].Files) != 1 || out[0].Files[0].Path != "real.go" {
 		t.Fatalf("files = %+v", out[0].Files)
+	}
+}
+
+// clip is used on free-text agent answer fields — a CJK rationale over the
+// byte budget must not come back as invalid UTF-8.
+func TestClipIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试😀", 100)
+	got := clip(long, 50)
+	if !utf8.ValidString(got) {
+		t.Fatalf("clip produced invalid UTF-8: %q", got)
+	}
+	if len(got) > 50 {
+		t.Fatalf("clip = %d bytes, want <=50", len(got))
+	}
+	if clip("short", 50) != "short" {
+		t.Fatalf("clip altered a short string")
 	}
 }

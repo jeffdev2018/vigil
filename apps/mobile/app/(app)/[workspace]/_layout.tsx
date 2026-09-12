@@ -6,16 +6,22 @@ import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
 import { useInboxRealtime } from "@/data/realtime/use-inbox-realtime";
+import { useApprovalsRealtime } from "@/data/realtime/use-approvals-realtime";
 import { useIssuesRealtime } from "@/data/realtime/use-issues-realtime";
 import { useMyIssuesRealtime } from "@/data/realtime/use-my-issues-realtime";
 import { useChatSessionsRealtime } from "@/data/realtime/use-chat-sessions-realtime";
 import { useProjectsRealtime } from "@/data/realtime/use-projects-realtime";
 import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
 import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
+import { useCalendarRealtime } from "@/data/realtime/use-calendar-realtime";
+import { useDoctrineRealtime } from "@/data/realtime/use-doctrine-realtime";
+import { usePacksRealtime } from "@/data/realtime/use-packs-realtime";
+import { useBrainRealtime } from "@/data/realtime/use-brain-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
 import { useNewIssueDraftResetOnWorkspaceChange } from "@/data/stores/new-issue-draft-store";
+import { useNewEventDraftResetOnWorkspaceChange } from "@/data/stores/new-event-draft-store";
 import { useNewProjectDraftResetOnWorkspaceChange } from "@/data/stores/new-project-draft-store";
 import { useChatSessionPickerResetOnWorkspaceChange } from "@/data/stores/chat-session-picker-store";
 
@@ -38,9 +44,9 @@ import { useChatSessionPickerResetOnWorkspaceChange } from "@/data/stores/chat-s
  *     to avoid the large blank area below their content.
  *   - `sheetGrabberVisible: true` — surfaces the iOS native drag handle
  *     so users discover the gesture.
- *   - `contentStyle.height: "100%"` — safety net against the same
- *     zero-size class of bugs above; ensures the sheet body fills the
- *     allotted detent.
+ *   - `contentStyle.flex: 1` — safety net against the same zero-size
+ *     class of bugs above; ensures the sheet body fills the allotted
+ *     detent.
  *   - `headerShown: false` — every sheet body draws its own header (title
  *     + optional right action). The native Stack header would double up.
  */
@@ -75,6 +81,9 @@ export const unstable_settings = { anchor: "(tabs)" } as const;
  */
 function RealtimeSubscriptions() {
   useInboxRealtime();
+  // Inline approvals: pending asks feed both the inbox and any open issue's
+  // timeline — see use-approvals-realtime.ts for why it mounts listing-level.
+  useApprovalsRealtime();
   useIssuesRealtime();
   useMyIssuesRealtime();
   useChatSessionsRealtime();
@@ -83,6 +92,21 @@ function RealtimeSubscriptions() {
   // Triage + postmortem: both feed an always-mounted badge in the More
   // popover, so they stay subscribed for the whole workspace session.
   useTriageRealtime();
+  // Native calendar (OS plan, chantier 19): the Agenda screen and any open
+  // calendar_invitation/calendar_reminder inbox notification both care.
+  useCalendarRealtime();
+  // Workspace doctrine (OS plan, chantier 22): the open-reports badge in the
+  // More popover must stay fresh from anywhere in the workspace.
+  useDoctrineRealtime();
+  // Packs (OS plan, vague B): the "update available" badge in the More
+  // popover, and a pack installed from web/desktop rewrites this
+  // workspace's statuses, labels, agents and projects under the user's feet.
+  usePacksRealtime();
+  // Workspace Brain (OS plan, vague B): the raw-capture badge in the More
+  // popover must stay fresh from anywhere in the workspace, and a capture
+  // can arrive from the CLI, an MCP client, a chat bot or an agent run
+  // while the user is on another screen.
+  useBrainRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -120,6 +144,7 @@ export default function WorkspaceLayout() {
   // changes — a draft picked under workspace A (assignee id, draft
   // session id, etc.) is invalid in workspace B and must not leak.
   useNewIssueDraftResetOnWorkspaceChange(matched?.id ?? null);
+  useNewEventDraftResetOnWorkspaceChange(matched?.id ?? null);
   useNewProjectDraftResetOnWorkspaceChange(matched?.id ?? null);
   useChatSessionPickerResetOnWorkspaceChange(matched?.id ?? null);
 
@@ -185,7 +210,7 @@ export default function WorkspaceLayout() {
         {/* Issue-detail formSheet pickers. All share the same sheet config:
             explicit numeric detents to dodge expo/expo#42904+#42965 (the
             `fitToContents` zero-size / padding bugs on iOS 26 + Expo 55),
-            iOS native grabber, and contentStyle.height=100% as a safety
+            iOS native grabber, and contentStyle.flex=1 as a safety
             net against the same zero-size class of bugs. */}
         <Stack.Screen
           name="issue/[id]/picker/status"
@@ -242,6 +267,16 @@ export default function WorkspaceLayout() {
           options={SHEET_OPTIONS}
         />
         <Stack.Screen name="issue/[id]/runs" options={SHEET_OPTIONS} />
+        {/* Scheduled wake-ups (JEF-373). Both are forms with a keyboard, so
+            formSheet per the container table in apps/mobile/CLAUDE.md
+            Lesson 5. The autopilot sheet is reached by `router.replace`
+            from the follow-up sheet, not stacked on top of it. */}
+        <Stack.Screen name="issue/[id]/followup" options={SHEET_OPTIONS} />
+        <Stack.Screen name="issue/[id]/autopilot" options={SHEET_OPTIONS} />
+        {/* Recurring issues (OS plan, table stakes). A form with a
+            keyboard (the custom-cron box), so formSheet per the container
+            table in apps/mobile/CLAUDE.md Lesson 5. */}
+        <Stack.Screen name="issue/[id]/recurrence" options={SHEET_OPTIONS} />
         {/* Run replay (k70). A modal, not a formSheet: it is a content view
             whose link chips push another replay on top, so it needs a back
             stack. Pushed from RunRow inside the runs formSheet. */}
@@ -316,6 +351,16 @@ export default function WorkspaceLayout() {
           name="new-issue-picker/due-date"
           options={SHEET_OPTIONS}
         />
+        {/* New-event draft formSheet picker — stacked on top of `new-event`
+            (a modal), same relationship as new-issue-picker/* → new-issue. */}
+        <Stack.Screen
+          name="new-event-picker/participants"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Participants",
+          }}
+        />
         {/* New-project draft formSheet pickers — same pattern as
             new-issue-picker/*. Stacked on top of `project/new` (a modal). */}
         <Stack.Screen
@@ -383,9 +428,71 @@ export default function WorkspaceLayout() {
           name="more/meetings"
           options={{ title: "Meetings", headerBackTitle: "Back" }}
         />
+        {/* Calendar (OS plan, chantier 19): agenda of events, issues due,
+            cycles and meetings for the coming/previous fortnight. */}
+        <Stack.Screen
+          name="more/calendar"
+          options={{ title: "Calendar", headerBackTitle: "Back" }}
+        />
+        {/* Workspace doctrine (OS plan, chantier 22): read the governing
+            document, review a pending proposal, clear the reports agents
+            filed against it. Writing it stays on web/desktop. */}
+        <Stack.Screen
+          name="more/doctrine"
+          options={{ title: "Doctrine", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="more/doctrine-version/[id]"
+          options={{ title: "Changes", headerBackTitle: "Doctrine" }}
+        />
+        {/* Packs (OS plan, vague B): the catalogue + the install ledger, and
+            one pushed screen per pack (its description is markdown of
+            arbitrary length, and the install is a two-step preview/apply
+            flow). Uploading and exporting a pack.yaml stay on web/desktop. */}
+        <Stack.Screen
+          name="more/packs"
+          options={{ title: "Packs", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="more/pack/[id]"
+          options={{ title: "Pack", headerBackTitle: "Packs" }}
+        />
+        {/* Workspace Brain (OS plan, vague B): the capture inbox and the
+            shared notes. The two detail screens are pushed rather than
+            presented, because both bodies are text of arbitrary length; the
+            three write flows are formSheets per the container table in
+            apps/mobile/CLAUDE.md Lesson 5 (a form with a keyboard, and a
+            long searchable list). */}
+        <Stack.Screen
+          name="more/brain"
+          options={{ title: "Brain", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]"
+          options={{ title: "Capture", headerBackTitle: "Brain" }}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]/organize"
+          options={SHEET_OPTIONS}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]/merge"
+          options={SHEET_OPTIONS}
+        />
+        <Stack.Screen
+          name="brain/note/[id]"
+          options={{ title: "Note", headerBackTitle: "Brain" }}
+        />
+        <Stack.Screen name="brain/note/new" options={SHEET_OPTIONS} />
         <Stack.Screen
           name="meeting/[id]"
           options={{ title: "Meeting", headerBackTitle: "Meetings" }}
+        />
+        {/* Runs fleet (OS plan, chantier 4): every run of the workspace,
+            newest first, with cancel and the owner/admin kill switch. */}
+        <Stack.Screen
+          name="more/runs"
+          options={{ title: "Runs", headerBackTitle: "Back" }}
         />
         {/* Runtimes. Read-only: every runtime action targets the machine the
             daemon runs on, not a phone. */}
@@ -417,6 +524,20 @@ export default function WorkspaceLayout() {
             headerLeft: () => <ModalCloseButton />,
           }}
         />
+        {/* New Event (OS plan, chantier 19) — modal like new-issue: its
+            participants picker pushes a sibling formSheet on top. */}
+        <Stack.Screen
+          name="new-event"
+          options={{
+            title: "New Event",
+            presentation: "modal",
+            headerLeft: () => <ModalCloseButton />,
+          }}
+        />
+        {/* Calendar event detail — participants + responses, Accept /
+            Tentative / Decline, Cancel for the creator. Same SHEET_OPTIONS
+            as inbox/[id] (a content view, no keyboard, own body header). */}
+        <Stack.Screen name="calendar-event/[id]" options={SHEET_OPTIONS} />
         {/* Voice-dictated issue draft (K36). A modal like new-issue: it is a
             two-step flow with its own keyboard, not a picker sheet. */}
         <Stack.Screen

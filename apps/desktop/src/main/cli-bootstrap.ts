@@ -2,7 +2,7 @@ import { app } from "electron";
 import { execFile } from "child_process";
 import { createHash } from "crypto";
 import { createReadStream, createWriteStream, existsSync } from "fs";
-import { chmod, mkdir, rename, rm } from "fs/promises";
+import { chmod, lstat, mkdir, rename, rm } from "fs/promises";
 import { join, dirname } from "path";
 import { pipeline } from "stream/promises";
 import { tmpdir } from "os";
@@ -120,6 +120,19 @@ async function installFresh(): Promise<string> {
     if (!existsSync(extractedBin)) {
       throw new Error(
         `archive ${assetName} did not contain ${binaryName()} at its root`,
+      );
+    }
+    // Defense in depth: `tar -xf` has no anti path-traversal option applied
+    // here, so a maliciously crafted archive could plant a symlink at this
+    // exact path pointing outside workDir. The checksum above already
+    // guarantees this archive matches the official release, so this only
+    // matters if that release itself were compromised — but the check is
+    // one lstat, so there is no reason not to have it before we chmod +x
+    // and execute whatever ends up at `target`.
+    const extractedStat = await lstat(extractedBin);
+    if (extractedStat.isSymbolicLink()) {
+      throw new Error(
+        `archive ${assetName} placed a symlink at ${binaryName()} instead of a real file — refusing to install`,
       );
     }
 

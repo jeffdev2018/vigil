@@ -130,6 +130,19 @@ export function MentionSuggestionBar({
     enabled: isChat && !!wsId && !!userId,
   });
 
+  // Hoisted out of the `rows` memo so renderItem (component scope) can
+  // also read it — used both to filter squads by their leader's runtime
+  // binding and to dim a squad row whose leader isn't runtime-bound.
+  const runnableAgentIds = useMemo(
+    () =>
+      new Set(
+        agents
+          .filter((agent) => !agent.archived_at && isAgentRuntimeBound(agent))
+          .map((agent) => agent.id),
+      ),
+    [agents],
+  );
+
   const rows = useMemo<Row[]>(() => {
     const q = query.trim().toLowerCase();
 
@@ -169,19 +182,16 @@ export function MentionSuggestionBar({
     // assignee can never act on; web hides them, mobile must too.
     const myRole =
       members.find((m) => m.user_id === userId)?.role ?? null;
-    const runnableAgentIds = new Set(
-      agents
-        .filter(
-          (agent) =>
-            !agent.archived_at && isAgentRuntimeBound(agent),
-        )
-        .map((agent) => agent.id),
-    );
+    // Runtime binding does NOT hard-filter: an agent/squad with no bound
+    // runtime still appears, dimmed + disabled with a "Needs runtime" /
+    // "Leader needs runtime" badge (renderItem below), mirroring web
+    // (mention-suggestion.tsx:765-767) and the sibling pickers
+    // (assignee-picker-body.tsx, mention-picker-body.tsx). Filtering it
+    // out here left that disabled branch dead code.
     const matchedAgents = [...agents]
       .filter(
         (a) =>
           !a.archived_at &&
-          isAgentRuntimeBound(a) &&
           (!q || a.name.toLowerCase().includes(q)) &&
           canAssignAgentToIssue(a, { userId, role: myRole }).allowed,
       )
@@ -189,12 +199,7 @@ export function MentionSuggestionBar({
     // Archived squads are filtered out — matching web (mention-suggestion.tsx:428).
     // A re-activated squad re-appears on the next list refetch.
     const matchedSquads = [...squads]
-      .filter(
-        (s) =>
-          !s.archived_at &&
-          runnableAgentIds.has(s.leader_id) &&
-          (!q || s.name.toLowerCase().includes(q)),
-      )
+      .filter((s) => !s.archived_at && (!q || s.name.toLowerCase().includes(q)))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const out: Row[] = [];
@@ -339,8 +344,12 @@ export function MentionSuggestionBar({
             );
           }
           if (item.kind === "squad") {
+            const leaderRuntimeBound = runnableAgentIds.has(
+              item.squad.leader_id,
+            );
             return (
               <Pressable
+                disabled={!leaderRuntimeBound}
                 onPress={() =>
                   onSelect({
                     type: "squad",
@@ -348,13 +357,19 @@ export function MentionSuggestionBar({
                     name: item.squad.name,
                   })
                 }
-                className="flex-row items-center gap-3 px-3 py-2 active:bg-secondary"
+                className={cn(
+                  "flex-row items-center gap-3 px-3 py-2 active:bg-secondary",
+                  !leaderRuntimeBound && "opacity-50",
+                )}
               >
                 <ActorAvatar type="squad" id={item.squad.id} size={28} />
                 <Text className="flex-1 text-sm text-foreground">
                   {item.squad.name}
                 </Text>
-                <Badge label="Squad" tone="outline" />
+                <Badge
+                  label={leaderRuntimeBound ? "Squad" : "Leader needs runtime"}
+                  tone="outline"
+                />
               </Pressable>
             );
           }

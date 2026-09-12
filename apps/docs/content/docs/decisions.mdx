@@ -54,19 +54,61 @@ is pending is refused.
 
 ## Where you answer
 
-- **The issue itself** — the **Decisions** section lists every card on it,
-  pending ones first.
-- **Inbox → Decisions waiting for you** — up to five pending cards across
-  every issue you can see, ordered like the [Attention Inbox](/inbox#needs-your-attention)
-  (risk, then SLA deadline) with the total past five, answered inline without
-  opening the issue.
-- **Mobile** — the same list under **Inbox → Decisions**, answered with a
-  swipe: right reveals "Answer `<recommended option>`", left reveals
-  "Options" and opens the full list, and free text goes through a prompt.
-  Nothing sends until you tap or confirm — the swipe only reveals the action.
+Every ask a human must settle — a Decision Card, an approval gate a run is
+waiting on (git push, sensitive tool call, spend), a status change held by a
+transition rule, a question from the goal loop — is one **approval**, and it
+is decidable wherever you meet it:
 
-Only a human can answer a card; an agent that tries is refused, the mirror
-image of who is allowed to ask.
+- **The issue's timeline** — a pending ask sits in the timeline at the moment
+  it was asked, with its buttons, and a bar above the timeline names how many
+  wait and jumps to each. Answered asks stay in the **Decisions** section as
+  history.
+- **Inbox** — the row of a `decision_request`, `transition_approval_requested`
+  or `goal_question` item carries the same card: decide from the list or the
+  detail pane without opening the issue. **Inbox → Decisions waiting for you**
+  keeps the five most pressing across every issue you can see, ordered like
+  the [Attention Inbox](/inbox#needs-your-attention).
+- **Chat** — while chatting with an agent, the asks that agent filed appear
+  above the composer.
+- **Mobile** — the same cards in the issue timeline and the inbox detail, plus
+  the swipe list under **Inbox → Decisions**.
+- **Chat channels** — the ask is posted to the workspace's digest channels
+  the moment it is filed (Decision Cards, held transitions and goal
+  questions alike): Slack, Lark (Feishu) and Telegram get it with
+  Approve / Deny buttons; DingTalk and WeCom get it as a message with a
+  link that opens the issue, since their inbound button events could not
+  be verified. A click answers it and the posted message is rewritten
+  with the outcome on Slack, Telegram and Lark, or followed by a short
+  note on DingTalk and WeCom; a refused click gets a sentence saying why
+  (account not linked, already decided, not an approver).
+
+Only a human can answer; an agent that tries is refused, the mirror image of
+who is allowed to ask.
+
+### Approval gates in the card
+
+A card behind a gate shows what the run would do before you decide: the gate
+type, the tool's arguments (secrets masked), the paths it touches, the blast
+radius the agent's trust dial allows, and, under dual approval, how many of
+the required approvals are in. It counts down to the gate's expiry: a gate
+nobody answered within the workspace's timeout (**Settings → Approval
+gates**) is denied and its card is answered by the server, so it leaves every
+inbox and timeline instead of lingering.
+
+**Settings → Approval gates → Who may settle a gate** reserves gates to
+owners and admins (`owner_admin`) or leaves them to any member who can see
+the issue (`any_member`, the default). A member who may not decide still sees
+the ask, marked with the reason, because "who can settle this" is part of
+"why is this run waiting". Held status changes follow their own rule's
+approver roles.
+
+### Halting the fleet
+
+**Settings → Approval gates → Halt agents** stops new runs from being claimed
+and refuses every gated action of the runs in flight, with a reason. The
+halt shows as a banner on the issues list and every issue, naming who set it
+and why; owners and admins lift it from the banner. Every refused ask says
+the halt is the cause.
 
 ## CLI
 

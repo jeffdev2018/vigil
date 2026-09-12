@@ -348,12 +348,18 @@ func (h *Handler) GetPluginIssue(w http.ResponseWriter, r *http.Request) {
 // drifting copy of them. Widening this set later is additive; getting the side
 // effects wrong now is not.
 func (h *Handler) PatchPluginIssue(w http.ResponseWriter, r *http.Request) {
-	caller, _, ok := h.pluginCaller(w, r, plugincontract.ScopeIssuesWrite)
+	caller, actor, ok := h.pluginCaller(w, r, plugincontract.ScopeIssuesWrite)
 	if !ok {
 		return
 	}
 	issue, ok := h.pluginIssueForUser(w, r, caller, chi.URLParam(r, "issue_ref"))
 	if !ok {
+		return
+	}
+	// K60: a member acting through the plugin bridge is judged by their own
+	// project role, same as the ordinary issue-write endpoint.
+	if actor.Type == "member" && !h.projectWriteAllowedForActor(r, issue.ProjectID, "member", actor.Member.ID, actor.Member.Role) {
+		publicapiv1.WriteProblem(w, r, http.StatusForbidden, "forbidden", "your project role does not allow this")
 		return
 	}
 
@@ -534,6 +540,12 @@ func (h *Handler) CreatePluginComment(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.pluginIssueForUser(w, r, caller, chi.URLParam(r, "issue_ref"))
 	if !ok {
+		return
+	}
+	// K60: same gate as PatchPluginIssue — a member acting through the plugin
+	// bridge is judged by their own project role.
+	if actor.Type == "member" && !h.projectWriteAllowedForActor(r, issue.ProjectID, "member", actor.Member.ID, actor.Member.Role) {
+		publicapiv1.WriteProblem(w, r, http.StatusForbidden, "forbidden", "your project role does not allow this")
 		return
 	}
 

@@ -61,17 +61,20 @@ const (
 	// (ref_id = workspace.id — one inbox per workspace). The least
 	// authenticated material in the product, so it is created gated.
 	SourceEmail = "email"
+	// SourceTwenty: signed webhooks from the workspace's Twenty CRM
+	// (ref_id = workspace.id — one connection per workspace). Created gated
+	// like email: a CRM event is a prompt for a human, not an order.
+	SourceTwenty = "twenty"
 )
 
 // Item states. pending is the only state that occupies the queue; dropped is
 // the audit state for inbound material that produced no issue and no queue
 // entry (issue limit reached, recent duplicate, source blocked).
 const (
-	StatePending    = "pending"
-	StateAccepted   = "accepted"
-	StateDismissed  = "dismissed"
-	StateMerged     = "merged"
-	StateSuperseded = "superseded"
-	StateExpired    = "expired"
-	StateDropped    = "dropped"
+	StatePending   = "pending"
+	StateAccepted  = "accepted"
+	StateDismissed = "dismissed"
+	StateMerged    = "merged"
+	StateExpired   = "expired"
+	StateDropped   = "dropped"
 )

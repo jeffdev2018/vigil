@@ -15,7 +15,7 @@ const abandonRunGroup = `-- name: AbandonRunGroup :one
 UPDATE run_group
 SET status = 'abandoned', settled_at = now()
 WHERE id = $1 AND status = 'running'
-RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at
+RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement
 `
 
 // Same CAS, and deliberately no winner: an abandoned group kept nothing.
@@ -32,6 +32,7 @@ func (q *Queries) AbandonRunGroup(ctx context.Context, id pgtype.UUID) (RunGroup
 		&i.AttemptCount,
 		&i.CreatedAt,
 		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }
@@ -54,7 +55,7 @@ const createRunGroup = `-- name: CreateRunGroup :one
 
 INSERT INTO run_group (id, workspace_id, issue_id, created_by, attempt_count)
 VALUES ($1, $2, $3, $5::uuid, $4)
-RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at
+RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement
 `
 
 type CreateRunGroupParams struct {
@@ -89,12 +90,13 @@ func (q *Queries) CreateRunGroup(ctx context.Context, arg CreateRunGroupParams) 
 		&i.AttemptCount,
 		&i.CreatedAt,
 		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }
 
 const getRunGroup = `-- name: GetRunGroup :one
-SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at FROM run_group WHERE id = $1
+SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement FROM run_group WHERE id = $1
 `
 
 func (q *Queries) GetRunGroup(ctx context.Context, id pgtype.UUID) (RunGroup, error) {
@@ -110,12 +112,13 @@ func (q *Queries) GetRunGroup(ctx context.Context, id pgtype.UUID) (RunGroup, er
 		&i.AttemptCount,
 		&i.CreatedAt,
 		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }
 
 const getRunGroupInWorkspace = `-- name: GetRunGroupInWorkspace :one
-SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at FROM run_group WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement FROM run_group WHERE id = $1 AND workspace_id = $2
 `
 
 type GetRunGroupInWorkspaceParams struct {
@@ -138,12 +141,75 @@ func (q *Queries) GetRunGroupInWorkspace(ctx context.Context, arg GetRunGroupInW
 		&i.AttemptCount,
 		&i.CreatedAt,
 		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }
 
+const listRunGroupAttemptMetricsForIssue = `-- name: ListRunGroupAttemptMetricsForIssue :many
+SELECT
+    atq.id AS task_id,
+    atq.runtime_id,
+    COALESCE(NULLIF(r.custom_name, ''), r.name, '') AS runtime_name,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::bigint AS cost_usd_ticks,
+    (CASE WHEN atq.completed_at IS NOT NULL
+          THEN GREATEST(EXTRACT(EPOCH FROM (atq.completed_at - COALESCE(atq.started_at, atq.created_at)))::bigint, 0)
+          ELSE 0 END)::bigint AS duration_seconds
+FROM agent_task_queue atq
+LEFT JOIN agent_runtime r ON r.id = atq.runtime_id
+LEFT JOIN task_usage tu ON tu.task_id = atq.id
+WHERE atq.run_group_id IS NOT NULL AND atq.issue_id = $1
+GROUP BY atq.id, atq.runtime_id, r.name, r.custom_name
+ORDER BY atq.created_at ASC, atq.id ASC
+`
+
+type ListRunGroupAttemptMetricsForIssueRow struct {
+	TaskID          pgtype.UUID `json:"task_id"`
+	RuntimeID       pgtype.UUID `json:"runtime_id"`
+	RuntimeName     string      `json:"runtime_name"`
+	CostUsdTicks    int64       `json:"cost_usd_ticks"`
+	DurationSeconds int64       `json:"duration_seconds"`
+}
+
+// Per-attempt comparison metrics (JEF-234) for every run-group attempt on one
+// issue: which runtime ran it (custom_name wins for display, as in the runtime
+// API), what it cost, how long it took. Keyed by task_id so the handler folds
+// rows into the attempts it already loaded; one read for every group of the
+// issue instead of one per group.
+//
+// cost_usd_ticks sums task_usage per attempt; a row that reported no provider
+// price contributes NULL, and SUM over NULLs is NULL, so COALESCE pins the
+// "no usage reported" case to 0. duration_seconds is 0 while the attempt has
+// not completed: a running attempt has no finite duration, and the queue wait
+// before started_at only counts once the run is done.
+func (q *Queries) ListRunGroupAttemptMetricsForIssue(ctx context.Context, issueID pgtype.UUID) ([]ListRunGroupAttemptMetricsForIssueRow, error) {
+	rows, err := q.db.Query(ctx, listRunGroupAttemptMetricsForIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRunGroupAttemptMetricsForIssueRow{}
+	for rows.Next() {
+		var i ListRunGroupAttemptMetricsForIssueRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.RuntimeID,
+			&i.RuntimeName,
+			&i.CostUsdTicks,
+			&i.DurationSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRunGroupTasks = `-- name: ListRunGroupTasks :many
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue WHERE run_group_id = $1 ORDER BY created_at ASC, id ASC
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue WHERE run_group_id = $1 ORDER BY created_at ASC, id ASC
 `
 
 // The attempts of one group, oldest first so the columns in the compare view
@@ -242,6 +308,12 @@ func (q *Queries) ListRunGroupTasks(ctx context.Context, runGroupID pgtype.UUID)
 			&i.DiffStat,
 			&i.DiffUnified,
 			&i.MemoryContext,
+			&i.CommentThreadID,
+			&i.RuntimePinned,
+			&i.PromotedAt,
+			&i.PromotePrUrl,
+			&i.DiscardedAt,
+			&i.HaltFrozenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -254,7 +326,7 @@ func (q *Queries) ListRunGroupTasks(ctx context.Context, runGroupID pgtype.UUID)
 }
 
 const listRunGroupTasksForIssue = `-- name: ListRunGroupTasksForIssue :many
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue
 WHERE run_group_id IS NOT NULL AND issue_id = $1
 ORDER BY created_at ASC, id ASC
 `
@@ -355,6 +427,12 @@ func (q *Queries) ListRunGroupTasksForIssue(ctx context.Context, issueID pgtype.
 			&i.DiffStat,
 			&i.DiffUnified,
 			&i.MemoryContext,
+			&i.CommentThreadID,
+			&i.RuntimePinned,
+			&i.PromotedAt,
+			&i.PromotePrUrl,
+			&i.DiscardedAt,
+			&i.HaltFrozenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -367,7 +445,7 @@ func (q *Queries) ListRunGroupTasksForIssue(ctx context.Context, issueID pgtype.
 }
 
 const listRunGroupsForIssue = `-- name: ListRunGroupsForIssue :many
-SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at FROM run_group WHERE issue_id = $1 ORDER BY created_at DESC
+SELECT id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement FROM run_group WHERE issue_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRunGroupsForIssue(ctx context.Context, issueID pgtype.UUID) ([]RunGroup, error) {
@@ -389,6 +467,7 @@ func (q *Queries) ListRunGroupsForIssue(ctx context.Context, issueID pgtype.UUID
 			&i.AttemptCount,
 			&i.CreatedAt,
 			&i.SettledAt,
+			&i.Judgement,
 		); err != nil {
 			return nil, err
 		}
@@ -416,7 +495,7 @@ UPDATE agent_task_queue
 SET diff_stat = $2::jsonb,
     diff_unified = NULLIF(COALESCE($3::text, ''), '')
 WHERE id = $1
-RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at
 `
 
 type RecordTaskDiffParams struct {
@@ -516,6 +595,45 @@ func (q *Queries) RecordTaskDiff(ctx context.Context, arg RecordTaskDiffParams) 
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
+	)
+	return i, err
+}
+
+const setRunGroupJudgement = `-- name: SetRunGroupJudgement :one
+UPDATE run_group
+SET judgement = $2
+WHERE id = $1
+RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement
+`
+
+type SetRunGroupJudgementParams struct {
+	ID        pgtype.UUID `json:"id"`
+	Judgement []byte      `json:"judgement"`
+}
+
+// Stores the LLM judge's verdict (JEF-234 follow-up). No CAS: judging changes
+// nothing about the race itself, so a re-judge simply overwrites the previous
+// judgement — including a stored 'failed' one.
+func (q *Queries) SetRunGroupJudgement(ctx context.Context, arg SetRunGroupJudgementParams) (RunGroup, error) {
+	row := q.db.QueryRow(ctx, setRunGroupJudgement, arg.ID, arg.Judgement)
+	var i RunGroup
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.CreatedBy,
+		&i.Status,
+		&i.WinnerTaskID,
+		&i.AttemptCount,
+		&i.CreatedAt,
+		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }
@@ -524,7 +642,7 @@ const settleRunGroup = `-- name: SettleRunGroup :one
 UPDATE run_group
 SET status = 'settled', winner_task_id = $2, settled_at = now()
 WHERE id = $1 AND status = 'running'
-RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at
+RETURNING id, workspace_id, issue_id, created_by, status, winner_task_id, attempt_count, created_at, settled_at, judgement
 `
 
 type SettleRunGroupParams struct {
@@ -549,6 +667,7 @@ func (q *Queries) SettleRunGroup(ctx context.Context, arg SettleRunGroupParams) 
 		&i.AttemptCount,
 		&i.CreatedAt,
 		&i.SettledAt,
+		&i.Judgement,
 	)
 	return i, err
 }

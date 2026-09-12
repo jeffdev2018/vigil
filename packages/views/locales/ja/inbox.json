@@ -7,7 +7,8 @@
     "mark_all_read": "すべて既読にする",
     "archive_all": "すべてアーカイブ",
     "archive_all_read": "既読の項目をすべてアーカイブ",
-    "archive_completed": "完了した項目をアーカイブ"
+    "archive_completed": "完了した項目をアーカイブ",
+    "more_actions_aria": "その他の操作"
   },
   "filters": {
     "tooltip": "インボックスを絞り込む",
@@ -29,6 +30,7 @@
   },
   "list": {
     "empty": "通知はありません",
+    "empty_hint": "コメント、割り当て、エージェントの更新がここに届きます。",
     "mark_done_tooltip": "完了にする",
     "archive_tooltip": "アーカイブ",
     "time": {
@@ -45,10 +47,13 @@
     "attention_empty": "対応が必要なものはありません。",
     "briefing_title": "今朝のブリーフィング",
     "retro_title": "週次レトロ",
-    "decisions_title": "判断待ち"
+    "decisions_title": "判断待ち",
+    "approval_action_failed": "回答を記録できませんでした"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
+    "select_prompt_hint": "左の通知を選ぶと内容を確認して対応できます。",
+    "empty_hint": "コメント、割り当て、エージェントの更新がここに届きます。",
     "empty": "インボックスは空です",
     "original_input": "元の入力",
     "retry_with_context": "コンテキストを保持して再試行",
@@ -56,7 +61,9 @@
     "autopilot_quota_exceeded_body": "このワークスペースは現在の期間の自動化実行上限 {{limit}} 回に達しました。実行枠が {{resetAt}} にリセットされるまで、以降の自動化は開始されません。",
     "autopilot_quota_upgrade": "アップグレード方法を見る",
     "archive": "アーカイブ",
-    "unarchive": "アーカイブ解除"
+    "unarchive": "アーカイブ解除",
+    "already_decided": "すでに判断済み",
+    "open_doctrine": "行動指針を開く"
   },
   "types": {
     "issue_assigned": "割り当て済み",
@@ -93,6 +100,7 @@
     "trust_promotion_suggested": "信頼モードの昇格提案",
     "triage_stale": "トリアージが滞っています",
     "transition_approval_requested": "承認が必要です",
+    "goal_question": "エージェントからの質問",
     "critic_degraded": "批評レビューをスキップしました",
     "critic_budget": "批評レビューを停止しました",
     "cycle_rollover_orphaned": "サイクル終了時に行き先のない作業が残りました",
@@ -106,7 +114,15 @@
     "residency_policy_blocked": "データ所在地ポリシーによりブロック",
     "linear_alert": "Linear が切断されています",
     "code_health_report": "コードヘルスレポート",
-    "doc_drift_report": "エージェントコンテキストのずれ"
+    "doc_drift_report": "エージェントコンテキストのずれ",
+    "calendar_invitation": "イベントに招待されました",
+    "calendar_reminder": "まもなく開始",
+    "doctrine_review": "行動指針のレビュー",
+    "doctrine_report": "行動指針の報告",
+    "confidence_review": "レビューが必要な成果物",
+    "run_limit_warn": "実行が上限に近づいています",
+    "run_limit_exceeded": "実行が上限を超えました",
+    "run_limit_stopped": "実行停止:上限に到達"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

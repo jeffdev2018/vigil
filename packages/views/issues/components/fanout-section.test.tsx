@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FanoutBatch } from "@multica/core/issues/fanout";
 import { renderWithI18n } from "../../test/i18n";
@@ -36,16 +37,25 @@ beforeEach(() => {
   state.start.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("FanoutSection", () => {
   it("launches a fan-out with a leader and assigned sub-tasks", async () => {
     render();
     fireEvent.click(await screen.findByText("Fan out to specialists"));
-    fireEvent.change(screen.getByLabelText("Leader agent"), { target: { value: "lead" } });
+    await pickOption("Leader agent", "Lead");
     fireEvent.change(screen.getByLabelText("Sub-task 1"), { target: { value: "Write the changelog" } });
-    fireEvent.change(screen.getByLabelText("Assignee of sub-task 1"), { target: { value: "a" } });
+    await pickOption("Assignee of sub-task 1", "Alpha");
     fireEvent.click(screen.getByRole("button", { name: "Add a sub-task" }));
     fireEvent.change(screen.getByLabelText("Sub-task 2"), { target: { value: "Tag the release" } });
-    fireEvent.change(screen.getByLabelText("Assignee of sub-task 2"), { target: { value: "b" } });
+    await pickOption("Assignee of sub-task 2", "Beta");
     fireEvent.click(screen.getByRole("button", { name: "Launch fan-out" }));
     expect(state.start).toHaveBeenCalledWith({ leader_agent_id: "lead", sub_tasks: [{ description: "Write the changelog", assignee_id: "a" }, { description: "Tag the release", assignee_id: "b" }] }, expect.anything());
   });

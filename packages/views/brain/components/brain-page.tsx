@@ -8,39 +8,60 @@ import {
   ArchiveRestore,
   Bot,
   BrainCircuit,
+  Inbox,
   Loader2,
   Pin,
   PinOff,
   Plus,
   Search,
   Sparkles,
+  Trash2,
   User,
   X,
 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { ApiError } from "@multica/core/api";
-import type { WorkspaceNote } from "@multica/core/types";
-import { brainNotesOptions } from "@multica/core/brain/queries";
+import type { WorkspaceNote, WorkspaceNoteSearchHit } from "@multica/core/types";
+import {
+  brainNotesOptions,
+  noteSearchOptions,
+  useBrainRawCount,
+} from "@multica/core/brain/queries";
+import { renderSnippet } from "@multica/core/brain/snippet";
 import {
   useCreateWorkspaceNote,
+  useDeleteWorkspaceNote,
   useSetWorkspaceNoteArchived,
   useUpdateWorkspaceNote,
 } from "@multica/core/brain/mutations";
 import { Button } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@multica/ui/components/ui/alert-dialog";
 import { cn } from "@multica/ui/lib/utils";
-import { AppLink } from "../../navigation";
+import { AppLink, useNavigation } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
+import { useDebouncedValue } from "../../common/use-debounced-value";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../../layout/collection-page";
 import { RichContent } from "../../rich-content";
+import { CaptureInbox } from "./capture-inbox";
 
 type BrainT = ReturnType<typeof useT<"brain">>["t"];
 
@@ -52,18 +73,48 @@ function parseTags(raw: string): string[] {
     .filter((tag) => tag !== "");
 }
 
+/**
+ * The Brain has two halves of the same loop: capture first (the inbox), sort
+ * later (the notes). They are tabs rather than panes because the phone-sized
+ * end of the responsive range cannot carry three columns, and because sorting
+ * is a different sitting from capturing.
+ */
 export function BrainPage() {
   const wsId = useWorkspaceId();
   const { t } = useT("brain");
+  const { searchParams } = useNavigation();
 
+  const [tab, setTab] = useState<"inbox" | "notes">("inbox");
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
   const [archived, setArchived] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const notesQuery = useQuery(brainNotesOptions(wsId, { search, tag, archived }));
-  const items = useMemo(() => notesQuery.data?.items ?? [], [notesQuery.data]);
+  // A capture card and the command palette both link here with ?note=<id>.
+  const linkedNoteId = searchParams.get("note");
+  useEffect(() => {
+    if (!linkedNoteId) return;
+    setTab("notes");
+    setSelectedId(linkedNoteId);
+  }, [linkedNoteId]);
+
+  const rawCount = useBrainRawCount(wsId);
+  const notesQuery = useQuery(brainNotesOptions(wsId, { search: "", tag, archived }));
+
+  // A non-empty query goes to the ranked endpoint (lexical + vector, fused),
+  // which returns hits with a snippet. An empty one is the plain list.
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
+  const searchQuery = useQuery(
+    noteSearchOptions(wsId, debouncedSearch, { tag, archived }),
+  );
+  const searching = debouncedSearch !== "";
+
+  const items = useMemo<WorkspaceNote[]>(
+    () =>
+      searching ? (searchQuery.data?.notes ?? []) : (notesQuery.data?.items ?? []),
+    [notesQuery.data, searchQuery.data, searching],
+  );
   const tags = notesQuery.data?.tags ?? [];
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
@@ -83,6 +134,7 @@ export function BrainPage() {
             label={t(($) => $.create.new)}
             variant="default"
             onClick={() => {
+              setTab("notes");
               setCreating(true);
               setSelectedId(null);
             }}
@@ -90,65 +142,143 @@ export function BrainPage() {
         }
       />
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-        <div className="relative min-w-0 flex-1 md:max-w-xs">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t(($) => $.search_placeholder)}
-            aria-label={t(($) => $.search_placeholder)}
-            className="h-8 pl-7 text-caption"
-          />
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          <TagChip
-            label={t(($) => $.filter.all_tags)}
-            active={tag === ""}
-            onClick={() => setTag("")}
-          />
-          {tags.map((candidate) => (
-            <TagChip
-              key={candidate}
-              label={candidate}
-              active={tag === candidate}
-              onClick={() => setTag(tag === candidate ? "" : candidate)}
-            />
-          ))}
-        </div>
-        <label className="ml-auto flex shrink-0 items-center gap-1.5 text-caption text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={archived}
-            onChange={(e) => setArchived(e.target.checked)}
-            className="size-3.5 accent-primary"
-          />
-          {t(($) => $.filter.show_archived)}
-        </label>
+      <div className="flex shrink-0 items-center gap-1 border-b px-4 py-1.5">
+        <TabButton
+          label={t(($) => $.tabs.inbox)}
+          icon={Inbox}
+          active={tab === "inbox"}
+          badge={rawCount.data ?? 0}
+          badgeLabel={t(($) => $.tabs.inbox_badge, { count: rawCount.data ?? 0 })}
+          onClick={() => setTab("inbox")}
+        />
+        <TabButton
+          label={t(($) => $.tabs.notes)}
+          icon={BrainCircuit}
+          active={tab === "notes"}
+          onClick={() => setTab("notes")}
+        />
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <NoteList
-          items={items}
-          isLoading={notesQuery.isLoading}
-          isError={notesQuery.isError}
-          isFiltered={search !== "" || tag !== ""}
-          selectedId={selectedId}
-          onSelect={(id) => {
-            setSelectedId(id);
-            setCreating(false);
-          }}
-        />
-        {creating ? (
-          <NoteCreate wsId={wsId} onDone={() => setCreating(false)} />
-        ) : (
-          <NoteDetail note={selected} wsId={wsId} />
-        )}
-      </div>
+      {tab === "inbox" ? (
+        <CaptureInbox wsId={wsId} />
+      ) : (
+        <>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
+            <div className="relative min-w-0 flex-1 md:max-w-xs">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t(($) => $.search_placeholder)}
+                aria-label={t(($) => $.search_placeholder)}
+                className="h-8 pl-7 text-caption"
+              />
+            </div>
+            {searching && searchQuery.data?.vector === true ? (
+              <Badge
+                variant="secondary"
+                className="text-micro"
+                title={t(($) => $.search.semantic_hint)}
+              >
+                {t(($) => $.search.semantic)}
+              </Badge>
+            ) : null}
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <TagChip
+                label={t(($) => $.filter.all_tags)}
+                active={tag === ""}
+                onClick={() => setTag("")}
+              />
+              {tags.map((candidate) => (
+                <TagChip
+                  key={candidate}
+                  label={candidate}
+                  active={tag === candidate}
+                  onClick={() => setTag(tag === candidate ? "" : candidate)}
+                />
+              ))}
+            </div>
+            <label className="ml-auto flex shrink-0 items-center gap-1.5 text-caption text-muted-foreground">
+              <Checkbox
+                checked={archived}
+                onCheckedChange={(checked) => setArchived(checked === true)}
+              />
+              {t(($) => $.filter.show_archived)}
+            </label>
+          </div>
+
+          <div className="flex min-h-0 flex-1">
+            <NoteList
+              items={items}
+              hits={searching ? (searchQuery.data?.notes ?? []) : undefined}
+              isLoading={searching ? searchQuery.isLoading : notesQuery.isLoading}
+              isError={searching ? searchQuery.isError : notesQuery.isError}
+              isFiltered={searching || tag !== ""}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                setSelectedId(id);
+                setCreating(false);
+              }}
+              onCreate={() => {
+                setCreating(true);
+                setSelectedId(null);
+              }}
+            />
+            {creating ? (
+              <NoteCreate wsId={wsId} onDone={() => setCreating(false)} />
+            ) : (
+              <NoteDetail note={selected} wsId={wsId} onDeleted={() => setSelectedId(null)} />
+            )}
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  label,
+  icon: Icon,
+  active,
+  badge,
+  badgeLabel,
+  onClick,
+}: {
+  label: string;
+  icon: typeof Inbox;
+  active: boolean;
+  badge?: number;
+  badgeLabel?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-2 py-1 text-caption transition-colors",
+        // Same rule as the chips: the active tab keeps its weight and text
+        // colour under hover, which only moves the background.
+        active
+          ? "bg-accent font-medium text-foreground"
+          : "text-muted-foreground hover:bg-accent",
+      )}
+    >
+      <Icon aria-hidden="true" className="size-3.5" />
+      {label}
+      {typeof badge === "number" && badge > 0 ? (
+        <span
+          aria-label={badgeLabel}
+          className="rounded-full bg-primary px-1.5 font-mono text-micro tabular-nums text-primary-foreground"
+        >
+          {badge}
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -182,21 +312,30 @@ function TagChip({
 
 function NoteList({
   items,
+  hits,
   isLoading,
   isError,
   isFiltered,
   selectedId,
   onSelect,
+  onCreate,
 }: {
   items: WorkspaceNote[];
+  /** Present only in search mode: the same notes, with their snippet. */
+  hits?: WorkspaceNoteSearchHit[];
   isLoading: boolean;
   isError: boolean;
   isFiltered: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onCreate: () => void;
 }) {
   const { t } = useT("brain");
   const timeAgo = useTimeAgo();
+  const snippets = useMemo(
+    () => new Map((hits ?? []).map((hit) => [hit.id, hit])),
+    [hits],
+  );
 
   if (isLoading) {
     return (
@@ -231,6 +370,14 @@ function NoteList({
           description={t(($) =>
             isFiltered ? $.list.empty_search_description : $.list.empty_description,
           )}
+          actions={
+            isFiltered ? undefined : (
+              <Button size="sm" onClick={onCreate}>
+                <Plus aria-hidden="true" className="size-3.5" />
+                {t(($) => $.create.new)}
+              </Button>
+            )
+          }
         />
       </div>
     );
@@ -275,6 +422,10 @@ function NoteList({
                   {note.title}
                 </span>
               </span>
+              <Snippet
+                snippet={snippets.get(note.id)?.snippet ?? ""}
+                heading={snippets.get(note.id)?.passage_heading ?? ""}
+              />
               <span className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
                 <SourceBadge note={note} />
                 {(note.tags ?? []).map((noteTag) => (
@@ -294,6 +445,32 @@ function NoteList({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * A ranked-search snippet, after the heading of the section it comes from
+ * (`Section · excerpt`). The server hands us the note's own text with
+ * `<mark>` inserted and nothing escaped, so `renderSnippet` escapes the whole
+ * string and revives only those two markers — a note containing `<script>`
+ * renders as the characters the author typed. The heading is plain text. See
+ * packages/core/brain/snippet.test.ts for the matrix.
+ */
+function Snippet({ snippet, heading }: { snippet: string; heading: string }) {
+  if (snippet === "" && heading === "") return null;
+  return (
+    <span className="line-clamp-2 text-caption text-muted-foreground">
+      {heading !== "" ? (
+        <span className="text-foreground">
+          {heading}
+          {snippet !== "" ? " · " : ""}
+        </span>
+      ) : null}
+      <span
+        className="[&_mark]:bg-warning/30 [&_mark]:text-foreground"
+        dangerouslySetInnerHTML={{ __html: renderSnippet(snippet) }}
+      />
+    </span>
   );
 }
 
@@ -334,7 +511,15 @@ function SourceBadge({ note }: { note: WorkspaceNote }) {
   );
 }
 
-function NoteDetail({ note, wsId }: { note: WorkspaceNote | null; wsId: string }) {
+function NoteDetail({
+  note,
+  wsId,
+  onDeleted,
+}: {
+  note: WorkspaceNote | null;
+  wsId: string;
+  onDeleted: () => void;
+}) {
   const { t } = useT("brain");
   if (!note) {
     return (
@@ -345,15 +530,30 @@ function NoteDetail({ note, wsId }: { note: WorkspaceNote | null; wsId: string }
       </aside>
     );
   }
-  return <NoteDetailBody key={note.id} note={note} wsId={wsId} />;
+  return <NoteDetailBody key={note.id} note={note} wsId={wsId} onDeleted={onDeleted} />;
 }
 
-function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
+function NoteDetailBody({
+  note,
+  wsId,
+  onDeleted,
+}: {
+  note: WorkspaceNote;
+  wsId: string;
+  onDeleted: () => void;
+}) {
   const { t } = useT("brain");
   const update = useUpdateWorkspaceNote(wsId);
   const setArchived = useSetWorkspaceNoteArchived(wsId);
+  const remove = useDeleteWorkspaceNote(wsId);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [editing, setEditing] = useState(false);
+  // The revision the draft was opened on. `note.revision` keeps moving while
+  // the editor is open (a realtime update refetches the note), and sending
+  // the moved value made the server accept a save built on stale fields — a
+  // concurrent edit was silently overwritten instead of answering 409.
+  const [editRevision, setEditRevision] = useState(note.revision);
   const [title, setTitle] = useState(note.title);
   const [tagsRaw, setTagsRaw] = useState((note.tags ?? []).join(", "));
   const [content, setContent] = useState(note.content);
@@ -376,7 +576,7 @@ function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
           title,
           content,
           tags: parseTags(tagsRaw),
-          revision: note.revision,
+          revision: editRevision,
         },
       });
       toast.success(t(($) => $.detail.saved_toast));
@@ -384,7 +584,7 @@ function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
     } catch (err) {
       handleWriteError(err, t);
     }
-  }, [content, note.id, note.revision, t, tagsRaw, title, update]);
+  }, [content, editRevision, note.id, t, tagsRaw, title, update]);
 
   const handleTogglePin = useCallback(async () => {
     try {
@@ -409,7 +609,25 @@ function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
     }
   }, [isArchived, note.id, setArchived, t]);
 
-  const busy = update.isPending || setArchived.isPending;
+  // The server narrows who may delete (a workspace admin, or the note's
+  // author) and says so in the 403 body — surface that text rather than a
+  // generic failure, since the user cannot tell from the UI which rule bit.
+  const handleDelete = useCallback(async () => {
+    setConfirmDelete(false);
+    try {
+      await remove.mutateAsync(note.id);
+      toast.success(t(($) => $.note_delete.deleted_toast));
+      onDeleted();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        toast.error(err.message || t(($) => $.note_delete.error));
+        return;
+      }
+      toast.error(t(($) => $.note_delete.error));
+    }
+  }, [note.id, onDeleted, remove, t]);
+
+  const busy = update.isPending || setArchived.isPending || remove.isPending;
 
   return (
     <aside className="flex min-w-0 flex-1 flex-col border-l">
@@ -471,8 +689,21 @@ function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
                   <Archive aria-hidden="true" className="size-3.5" />
                 )}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="sm" onClick={() => {
+                  setEditRevision(note.revision);
+                  setEditing(true);
+                }}>
                 {t(($) => $.detail.edit)}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                disabled={busy}
+                onClick={() => setConfirmDelete(true)}
+                aria-label={t(($) => $.note_delete.action)}
+              >
+                <Trash2 aria-hidden="true" className="size-3.5" />
               </Button>
             </>
           )}
@@ -514,6 +745,23 @@ function NoteDetailBody({ note, wsId }: { note: WorkspaceNote; wsId: string }) {
           </>
         )}
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t(($) => $.note_delete.title)}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(($) => $.note_delete.description, { title: note.title })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t(($) => $.note_delete.cancel)}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDelete()}>
+              {t(($) => $.note_delete.confirm)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }

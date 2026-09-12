@@ -1,0 +1,58 @@
+---
+title: 运行
+description: 工作区所有运行汇总在一页 —— 排队中、进行中、等待某人处理或已结束的，各自花费多少，以及能让整支队伍停下来的紧急停止开关。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+运行是智能体工作的单位：一次运行就是一个智能体在一个运行时上处理一个任务（或一次聊天往返、一次自动驾驶触发）。此前只能按任务逐个查看。**运行**展示的是整支队伍。
+
+## 页面内容
+
+侧边栏中的**运行**（在*AI 团队*下）会按最新优先列出工作区智能体发起的每一次运行，页头让你一眼看清全局：有多少在排队、多少在进行中、多少被人卡住，以及自午夜（UTC）以来完成、失败或取消了多少次，加上今天启动的一切所花费的成本。
+
+每一行显示智能体和任务、运行的状态和已运行时长、上报用量时的成本，以及——最关键的一列——**它被什么卡住了**：
+
+- 一个**审批关卡**（git push、敏感工具调用、支出），并附有指向该请求的链接；
+- 该运行发起的一张 **Decision Card**；
+- 一个**目标问题**，或其任务上一次**被搁置的状态变更**；
+- 另一次运行占用的**本地目录**、一次**暂停**，或一次**延迟**。
+
+点击卡住的原因，会打开可以[就地裁定](/decisions#where-you-answer)的请求。一段时间没有上报活动的进行中运行会被标记为静默。
+
+筛选器可按状态（进行中、已完成、全部）、智能体、任务或运行时缩小列表范围；列表按游标分页，因此再长的历史记录也不会一次性全部加载。
+
+## 停止运行
+
+选中若干行并点击**取消**即可停止。每一次运行都会单独上报一行结果——已取消、已经结束、未找到——所以取消四十次运行时，即便第三个无法停止，也不会就此中断，而是照实上报。取消操作会在守护进程下一次轮询时送达，随后终止信号才会发给智能体进程。
+
+**紧急停止开关**（所有者和管理员可用）一次操作按顺序做两件事：先**停止整支队伍**——不再接手任何运行，进行中的每一个受关卡管控的动作都会被拒绝——然后**取消**所有尚未结束的运行。它会要求填写原因，该原因会以横幅显示在每一个任务上，直到某位所有者或管理员解除停止为止；解除可以从横幅、运行页面或**设置 → 工作区**中进行。两个动作都会被审计记录（`runs.kill_switch`、`run_halt.changed`）。
+
+<Callout title="停止不会做什么">
+仅仅停止并不会让任何已经在运行的东西停下来：它只是拒绝新的接手和受关卡管控的动作。这正是它可以放心一直开着的原因。紧急停止开关等于停止加上取消。
+</Callout>
+
+## CLI
+
+```bash
+multica runs list                 # runs in flight
+multica runs list --terminal      # finished runs
+multica runs list --agent <id> --limit 20 --output json
+multica runs cancel <run-id> [run-id...]
+```
+
+紧急停止开关刻意没有对应的命令：这是一个应当由人在应用里做出的决定。
+
+## API
+
+- `GET /api/runs?state=active|terminal|all&status=&agent_id=&issue_id=&runtime_id=&since=&cursor=&limit=` —— `{runs, next_cursor, summary}`。每次运行都带有 `agent_name`、`issue{id, identifier, title, status}`、`usage[]`、`cost_usd_ticks`、`duration_ms`、`silence_ms` 和 `blocked_on{kind, id, decision_id, summary, since}`。
+- `POST /api/runs/cancel {task_ids}` —— `{cancelled, results[{task_id, outcome, error?}]}`。
+- `POST /api/runs/kill-switch {reason}` —— 仅限所有者和管理员；`{run_halt, cancelled, results}`。
+- `GET/PUT /api/run-halt` —— 单独读取或设置停止状态。
+
+成员只能看到自己有权查看的智能体的运行；私有智能体的运行不会出现在其列表中。`task:*` 和 `run_halt:changed` 事件会让打开的页面保持最新。
+
+## 下一步
+
+- [决策](/decisions) —— 解决运行被什么卡住的问题。
+- [原生运行时](/native-runtime) —— 运行可能在其中等待的目标循环。

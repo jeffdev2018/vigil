@@ -321,8 +321,8 @@ func (b *qwenpawBackend) Execute(ctx context.Context, prompt string, opts ExecOp
 			select {
 			case pr := <-promptDone:
 				if pr.stopReason == "cancelled" {
-					duration := time.Since(startTime)
-					b.cfg.Logger.Info("qwenpaw prompt cancelled", "stopReason", pr.stopReason, "duration", duration.Round(time.Millisecond).String())
+					finalStatus = "aborted"
+					finalError = "qwenpaw cancelled the prompt"
 				}
 				c.mergeUsage(pr.usage)
 			default:

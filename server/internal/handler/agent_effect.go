@@ -35,7 +35,13 @@ import (
 const (
 	AuditAgentEffectReversed = "agent_effect.reversed"
 	AuditUndoSettings        = "undo.settings_updated"
-	InboxTypeUndoBreaker     = "agent_undo_breaker"
+	// AuditAgentEffectModeUpdated is distinct from AuditUndoSettings: a
+	// per-agent apply/preview toggle (agent_effect_preview.go) is not the
+	// same event as a workspace's undo window/breaker threshold, and mixing
+	// them under one audit kind made an admin filtering by kind see both
+	// shapes with no way to tell them apart without inspecting the payload.
+	AuditAgentEffectModeUpdated = "agent.effect_mode_updated"
+	InboxTypeUndoBreaker        = "agent_undo_breaker"
 )
 
 // effectActor is the run behind a task-token request: the only writes the
@@ -348,10 +354,21 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 	if report.Reversed > 0 && agentID.Valid {
 		report.Breaker = h.checkUndoBreaker(ctx, wsID, agentID, userID, settings)
 	}
-	// Fresh rows so the client sees reversed_at / reverse_error without a refetch.
+	// Fresh rows so the client sees reversed_at / reverse_error without a
+	// refetch. One batched query instead of one GetAgentEffect per row.
+	ids := make([]pgtype.UUID, len(rows))
+	for i, eff := range rows {
+		ids[i] = eff.ID
+	}
+	byID := map[pgtype.UUID]db.AgentEffect{}
+	if refetched, err := h.Queries.ListAgentEffectsByIDs(ctx, db.ListAgentEffectsByIDsParams{WorkspaceID: wsID, Ids: ids}); err == nil {
+		for _, e := range refetched {
+			byID[e.ID] = e
+		}
+	}
 	fresh := make([]db.AgentEffect, 0, len(rows))
 	for _, eff := range rows {
-		if e, err := h.Queries.GetAgentEffect(ctx, db.GetAgentEffectParams{ID: eff.ID, WorkspaceID: wsID}); err == nil {
+		if e, ok := byID[eff.ID]; ok {
 			fresh = append(fresh, e)
 		}
 	}
@@ -360,10 +377,7 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
+	return util.TruncateUTF8Bytes(s, n)
 }
 
 // reverseEffect applies the inverse of one journaled effect.

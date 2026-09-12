@@ -40,6 +40,19 @@ func (h *Handler) issueTriggerWriteProbe(r *http.Request, actorType, actorID str
 	}
 }
 
+// issueTriggerWriteProbeCtx is issueTriggerWriteProbe without a request. The
+// self-loop guard reads X-Task-ID, which only an agent's own run sends, so
+// with no request there is no self-loop to guard against.
+func (h *Handler) issueTriggerWriteProbeCtx(ctx context.Context, actorType, actorID string, issue db.Issue) service.IssueTriggerProbe {
+	return service.IssueTriggerProbe{
+		CanAccessAgent: nil, // allow-all; gate lives at the write boundary
+		IsSelfLoop:     func() bool { return false },
+		SuppressActiveSelfAssignment: func(agentID pgtype.UUID) bool {
+			return h.shouldSuppressActiveSelfAssignment(ctx, actorType, actorID, issue.ID, agentID)
+		},
+	}
+}
+
 // issueTriggerPreviewProbe mirrors the real write-time gates for the read-only
 // preview: the private-agent gate (so preview never leaks a private agent's
 // readiness to a member who cannot see it — matching validateAssigneePair /
@@ -72,7 +85,7 @@ func (h *Handler) shouldSuppressActiveSelfAssignment(ctx context.Context, actorT
 	if actorType != "agent" || actorID == "" || actorID != uuidToString(targetAgentID) {
 		return false
 	}
-	active, err := h.hasActiveTaskForIssueAndAgent(ctx, issueID, targetAgentID)
+	active, err := h.Queries.HasActiveTaskForIssueAndAgent(ctx, db.HasActiveTaskForIssueAndAgentParams{IssueID: issueID, AgentID: targetAgentID})
 	return active || err != nil
 }
 

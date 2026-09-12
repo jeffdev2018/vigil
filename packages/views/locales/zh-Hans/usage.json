@@ -17,7 +17,8 @@
     "run_time_label": "耗时 · {{days}}天",
     "run_time_hint": "共 {{tasks}} 次运行",
     "tasks_label": "运行数 · {{days}}天",
-    "tasks_hint": "失败 {{failed}} 个"
+    "tasks_hint": "失败 {{failed}} 个",
+    "cost_hint": "根据所有运行的 token 估算（有上报时采用供应商成本），并非计入预算的金额"
   },
   "dim": {
     "label": "维度",
@@ -134,24 +135,30 @@
     "hint": "{{count}} 个已关闭 · 平均 ${{mean}}",
     "floor": "部分用量未定价",
     "none": "此期间没有",
-    "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。"
+    "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。",
+    "load_error": "无法加载每项交付成果的成本。",
+    "retry": "重试"
   },
   "agent_roi": {
     "title": "各智能体 ROI · {{days}} 天",
     "headline": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}；{{second}} 为 {{cost2}}",
     "headline_single": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}",
     "empty": "最近 {{days}} 天内没有智能体活动。",
+    "load_error": "无法加载智能体投资回报率。",
+    "retry": "重试",
     "agent": "智能体",
     "issues": "已关闭议题",
     "prs": "已合并 PR",
     "cost": "成本",
     "cost_per_issue": "每议题成本",
     "none": "没有关闭议题",
-    "floor": "下限"
+    "floor": "下限",
+    "floor_hint": "此总额为下限：该智能体的部分运行使用了价格未知的模型。"
   },
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",
     "scope_note": "覆盖整个工作区的所有项目 · 按 UTC 日期统计",
+    "load_error": "无法加载智能体成绩单。",
     "agent": "智能体",
     "runs": "运行",
     "accepted": "已接受",
@@ -159,12 +166,15 @@
     "reopened": "重新打开",
     "no_intervention": "无人工",
     "mean_cost": "平均成本",
-    "low_sample": "（运行较少）"
+    "low_sample": "（运行较少）",
+    "retry": "重试"
   },
   "autopilot_quota": {
     "title": "本期自动化运行次数：{{used}} / {{limit}}",
+    "load_error": "无法加载自动驾驶配额。",
     "near_limit": "接近上限——达到上限后自动化将不再触发。",
-    "reached": "已达上限——在本期重置前自动化不会触发。"
+    "reached": "已达上限——在本期重置前自动化不会触发。",
+    "retry": "重试"
   },
   "workflow_outcomes": {
     "title": "工作流结果",
@@ -200,6 +210,32 @@
     "too_many_series": "共 {{count}} 个类别 — 以表格显示。",
     "move_up": "上移",
     "move_down": "下移",
-    "remove": "删除"
+    "remove": "删除",
+    "pin_failed": "无法固定此回答。",
+    "reorder_failed": "无法重新排序此卡片。",
+    "remove_failed": "无法删除此卡片。"
+  },
+  "velocity": {
+    "title": "速率",
+    "kpi_member_cycle": "成员周期时间 · {{days}}天",
+    "kpi_agent_cycle": "智能体周期时间 · {{days}}天",
+    "kpi_throughput": "已关闭议题 · {{days}}天",
+    "throughput_hint": "成员 {{member}} 个 · 智能体 {{agent}} 个",
+    "closed_hint": "已关闭 {{count}} 个",
+    "no_closed": "该时段内没有关闭的议题",
+    "days_unit": "天",
+    "legend_member": "成员",
+    "legend_agent": "智能体",
+    "throughput_title": "每周吞吐量",
+    "throughput_empty": "该时段内没有关闭的议题。",
+    "tooltip_total": "总计",
+    "cost_title": "每个已关闭议题的成本",
+    "cost_series": "平均成本",
+    "cost_caption": "带智能体运行的已关闭议题——成本仅涵盖这些运行。",
+    "cost_empty": "该时段内没有带智能体运行的已关闭议题。",
+    "empty_title": "暂无速率数据",
+    "empty_body": "当成员或智能体关闭议题后,最近 {{days}} 天的周期时间和每周吞吐量将显示在这里。",
+    "load_error": "无法加载速率数据。",
+    "retry": "重试"
   }
 }

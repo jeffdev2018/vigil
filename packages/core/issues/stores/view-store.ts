@@ -132,6 +132,8 @@ export interface FilterSnapshot {
   creatorFilters: ActorFilterValue[];
   projectFilters: string[];
   includeNoProject: boolean;
+  /** Goal ids (JEF-395). Exact membership, like cycles. */
+  goalFilters: string[];
   /** Cycle ids (F29). Exact membership — a cycle has no inheritance. */
   cycleFilters: string[];
   /** Work item type KEYS (F30), not ids — a type is referenced by its key

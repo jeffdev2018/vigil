@@ -30,7 +30,8 @@
     "change_project_context": "更改项目上下文",
     "remove_project_context": "移除项目上下文",
     "no_projects": "还没有项目",
-    "project_context_unsupported": "项目描述不会生效——该智能体的守护进程版本过旧，需要升级"
+    "project_context_unsupported": "项目描述不会生效——该智能体的守护进程版本过旧，需要升级",
+    "run_notice": "发送后会启动 {{name}} 的一次运行，可能需要几分钟。"
   },
   "queue": {
     "title_other": "{{count}} 条排队消息",
@@ -243,7 +244,8 @@
     "rename": "重命名会话",
     "delete": "删除会话",
     "archive": "归档会话",
-    "unarchive": "取消归档"
+    "unarchive": "取消归档",
+    "more_actions_aria": "更多操作"
   },
   "voice": {
     "start": "语音输入消息",
@@ -254,7 +256,10 @@
     "error_not_configured": "此服务器未配置转录。",
     "error_failed": "无法转录该录音。",
     "listen": "朗读",
-    "stop_listening": "停止朗读"
+    "stop_listening": "停止朗读",
+    "conversation_start": "对话模式",
+    "conversation_stop": "结束对话",
+    "conversation_transcribing": "转写中…"
   },
   "participants": {
     "add": "添加成员",
@@ -265,5 +270,8 @@
     "typing_name": "{{name}} 正在输入…",
     "typing_count": "{{count}} 人正在输入…",
     "author_badge": "由 {{name}} 发送"
+  },
+  "approvals": {
+    "strip_title_other": "{{count}} 项待审批"
   }
 }

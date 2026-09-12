@@ -408,6 +408,14 @@ type workspaceState struct {
 	// revisits it. A failed register records nothing, so the workspace stays
 	// behind and is retried. Guarded by Daemon.mu.
 	builtinVersions map[string]string
+	// convergedToZero marks a runtime set emptied on purpose by
+	// convergeWorkspaceRuntimesToZero: there is nothing to host, so the sync
+	// loop's zero-runtime recovery must not retry it (it could only fail with
+	// ErrNoRuntimesToRegister). A profile re-enable or a newly discovered CLI
+	// registers it again through their own paths. Cleared when a server-side
+	// deletion prunes a runtime, the case recovery exists for. Guarded by
+	// Daemon.mu.
+	convergedToZero bool
 }
 
 // contextLock is a zero-value-ready mutex whose wait can be cancelled. Repo
@@ -1457,6 +1465,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 		}
 		if found {
 			ws.runtimeIDs = filtered
+			ws.convergedToZero = false
 			workspaceID = wsID
 			break
 		}
@@ -1479,7 +1488,7 @@ func (d *Daemon) removeStaleRuntime(runtimeID string) (string, bool) {
 // has zero runtime IDs — the state reached when handleRuntimeGone pruned every
 // runtime and its inline re-register failed. workspaceSyncLoop calls this on
 // each tick so the workspace can recover without waiting for an external
-// trigger.
+// trigger. A workspace that converged to zero on purpose is not in that state.
 func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1487,7 +1496,7 @@ func (d *Daemon) workspaceNeedsRuntimeRecovery(workspaceID string) bool {
 	if !ok {
 		return false
 	}
-	return len(ws.runtimeIDs) == 0
+	return len(ws.runtimeIDs) == 0 && !ws.convergedToZero
 }
 
 // reregisterWorkspaceAfterRuntimeGone calls registerRuntimesForWorkspace and
@@ -1932,7 +1941,7 @@ func (d *Daemon) untrackedRuntimeIDs(ids []string) []string {
 }
 
 func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, workspaceID string) error {
-	var newIDs []string
+	var newIDs, recoverIDs []string
 	// Send, apply and clean up as one ordered step — see workspaceRegisterLock.
 	err := d.withWorkspaceRegisterLock(workspaceID, func() error {
 		resp, profileSig, preserve, err := d.registerRuntimesForWorkspaceLocked(ctx, workspaceID)
@@ -1940,11 +1949,29 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 			return fmt.Errorf("register runtimes: %w", err)
 		}
 
+		// Snapshot which returned IDs this daemon was NOT tracking before the
+		// apply: only those rows were deleted (or never known) here. A sibling
+		// that survived keeps its ID through the upsert and may be executing a
+		// task right now, so it must not be orphan-recovered below.
+		respIDs := make([]string, 0, len(resp.Runtimes))
+		for _, rt := range resp.Runtimes {
+			respIDs = append(respIDs, rt.ID)
+		}
+		untracked := make(map[string]struct{})
+		for _, id := range d.untrackedRuntimeIDs(respIDs) {
+			untracked[id] = struct{}{}
+		}
+
 		ids, droppedIDs, ok := d.applyRegisterResponseInPlace(workspaceID, resp, profileSig, preserve)
 		if !ok {
 			return fmt.Errorf("workspace %s no longer tracked", workspaceID)
 		}
 		newIDs = ids
+		for _, id := range ids {
+			if _, fresh := untracked[id]; fresh {
+				recoverIDs = append(recoverIDs, id)
+			}
+		}
 
 		for _, rid := range newIDs {
 			d.logger.Info("re-registered runtime after server-side deletion",
@@ -1966,14 +1993,12 @@ func (d *Daemon) reregisterWorkspaceAfterRuntimeGone(ctx context.Context, worksp
 
 	// Tell the server about any tasks the previous (now-deleted) runtime
 	// was working on, mirroring the registration path's recover-orphans call.
-	// This is intentionally scoped to the runtime_gone recovery: the
-	// runtimes were truly gone server-side, so anything still in
-	// dispatched/running/waiting_local_directory on those rows is an orphan
-	// that needs to be failed-and-retried. The drift-refresh path (which
-	// also feeds applyRegisterResponseInPlace) deliberately skips this step
-	// because its surviving runtime IDs may still be actively executing
-	// tasks for the user (MUL-3332).
-	for _, rid := range newIDs {
+	// This is intentionally scoped to the runtimes that were truly gone: a
+	// row this daemon was not tracking before the register. Surviving
+	// siblings are skipped for the same reason the drift-refresh path skips
+	// the step entirely — they may still be actively executing tasks for the
+	// user (MUL-3332).
+	for _, rid := range recoverIDs {
 		if err := d.client.RecoverOrphans(ctx, rid); err != nil {
 			d.logger.Warn("recover-orphans after re-register failed",
 				"runtime_id", rid, "error", err)
@@ -3263,10 +3288,10 @@ func (d *Daemon) registerTaskRepos(workspaceID, taskID string, repos []RepoData)
 		// yet, so the agent's first checkout will surface a sync failure
 		// without silently treating it as a config bug.
 		d.bgSyncs.Add(1)
-		go func() {
+		d.goRecover("workspace repo sync", func() {
 			defer d.bgSyncs.Done()
 			d.syncWorkspaceRepos(workspaceID, toSync)
-		}()
+		})
 	}
 }
 
@@ -3757,6 +3782,7 @@ func (d *Daemon) convergeWorkspaceRuntimesToZero(ctx context.Context, workspaceI
 		dropped = append(dropped, rid)
 	}
 	ws.runtimeIDs = kept
+	ws.convergedToZero = len(kept) == 0
 	if profileSig != "" {
 		// Cache the converged signature so we don't loop into re-converging
 		// on every subsequent sync tick.
@@ -4167,7 +4193,7 @@ func (d *Daemon) syncWorkspacesFromAPI(ctx context.Context, reconcileProfiles bo
 		}
 
 		if d.repoCache != nil && len(resp.Repos) > 0 {
-			go d.syncWorkspaceRepos(id, resp.Repos)
+			d.goRecover("workspace repo sync", func() { d.syncWorkspaceRepos(id, resp.Repos) })
 		}
 
 		// Tell the server about any tasks the previous daemon process was
@@ -4385,38 +4411,38 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 		)
 	}
 	if resp.PendingUpdate != nil {
-		go d.handleUpdate(ctx, runtimeID, resp.PendingUpdate)
+		d.goRecover("update", func() { d.handleUpdate(ctx, runtimeID, resp.PendingUpdate) })
 	}
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+			d.goRecover("model list", func() { d.handleModelList(ctx, *rt, resp.PendingModelList.ID) })
 		}
 	}
 	if resp.PendingMemoryEvaluation != "" {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation)
+			d.goRecover("memory evaluation", func() { d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation) })
 		}
 	}
 	if resp.PendingCliAuth != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth)
+			d.goRecover("cli auth", func() { d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth) })
 		}
 	}
 	if resp.PendingLocalSkills != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID)
+			d.goRecover("local skill list", func() { d.handleLocalSkillList(ctx, *rt, resp.PendingLocalSkills.ID) })
 		}
 	}
 	// Prefer the batch field (new backend); fall back to singular (old backend).
 	if len(resp.PendingLocalSkillImports) > 0 {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			for _, imp := range resp.PendingLocalSkillImports {
-				go d.handleLocalSkillImport(ctx, *rt, imp)
+				d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, imp) })
 			}
 		}
 	} else if resp.PendingLocalSkillImport != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
-			go d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport)
+			d.goRecover("local skill import", func() { d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport) })
 		}
 	}
 	if resp.PendingWorktreeRevert != nil {
@@ -4425,7 +4451,15 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			// repository and then has to report what it did. A revert
 			// interrupted between the two would leave the server believing the
 			// branch never moved.
-			go d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert)
+			d.goRecover("worktree revert", func() { d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert) })
+		}
+	}
+	if resp.PendingBranchAction != nil {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			// WithoutCancel, same reason as the revert above: a push or a
+			// branch deletion that already happened must still be reported,
+			// or the server leaves the request claimed until the sweeper.
+			d.goRecover("branch action", func() { d.handleBranchAction(context.WithoutCancel(ctx), *rt, *resp.PendingBranchAction) })
 		}
 	}
 }
@@ -4458,6 +4492,52 @@ func (d *Daemon) handleWorktreeRevert(ctx context.Context, rt Runtime, pending P
 func (d *Daemon) reportWorktreeRevertResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
 	d.reportRuntimeResultWithRetry(ctx, "worktree_revert", rt.ID, requestID, func(ctx context.Context) error {
 		return d.client.ReportWorktreeRevertResult(ctx, rt.ID, requestID, payload)
+	})
+}
+
+// handleBranchAction promotes (push to origin) or discards (delete branch and
+// worktree) the branch a terminal run delivered, and reports the outcome
+// (JEF-255).
+//
+// A refusal is reported as failed with its cause verbatim: "no_remote" and
+// "branch checked out in your working tree" are the answers the user needs,
+// and turning them into a generic error would leave them re-clicking a button
+// that can never work.
+func (d *Daemon) handleBranchAction(ctx context.Context, rt Runtime, pending PendingBranchAction) {
+	params := execenv.BranchActionParams{LocalPath: pending.LocalPath, Branch: pending.Branch}
+	var (
+		outcome execenv.BranchActionOutcome
+		err     error
+	)
+	switch pending.Action {
+	case "promote":
+		outcome, err = execenv.PromoteBranch(params, d.logger)
+	case "discard":
+		outcome, err = execenv.DiscardBranch(params, d.logger)
+	default:
+		err = fmt.Errorf("unknown branch action %q", pending.Action)
+	}
+	if err != nil {
+		d.logger.Warn("run branch action did not complete",
+			"runtime_id", rt.ID, "request_id", pending.ID, "action", pending.Action,
+			"branch", pending.Branch, "error", err)
+		d.reportBranchActionResult(ctx, rt, pending.ID, map[string]any{
+			"status": "failed",
+			"error":  err.Error(),
+		})
+		return
+	}
+	d.reportBranchActionResult(ctx, rt, pending.ID, map[string]any{
+		"status":         "completed",
+		"head_sha":       outcome.HeadSHA,
+		"remote_url":     outcome.RemoteURL,
+		"default_branch": outcome.DefaultBranch,
+	})
+}
+
+func (d *Daemon) reportBranchActionResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
+	d.reportRuntimeResultWithRetry(ctx, "branch_action", rt.ID, requestID, func(ctx context.Context) error {
+		return d.client.ReportBranchActionResult(ctx, rt.ID, requestID, payload)
 	})
 }
 
@@ -5696,7 +5776,15 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 
 	// Pause (K19): the run stopped at a boundary on a human's request. Report
 	// where the session lives and leave the result to the resumed run.
-	if pauseCtl.paused() {
+	//
+	// Except when worktree Finalize could not complete: the agent's work then
+	// lives only in the preserved worktree, the error names it, and a pause ack
+	// has nowhere to put it. Fall through so the run fails with that error, as
+	// the same finalize failure does on the completion path.
+	var preservedOnPause *worktreePreservedError
+	if pauseCtl.paused() && errors.As(err, &preservedOnPause) {
+		taskLog.Warn("pause requested but the worktree could not be finalized; reporting the failure instead of the pause", "error", err)
+	} else if pauseCtl.paused() {
 		select {
 		case <-cancelledByPoll:
 		default:
@@ -6045,19 +6133,7 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		// server status update below fails.
 		d.resourceWaitTasks.Add(1)
 		waitCounted = true
-		// Rendered to the user, so it names the directory rather than its path
-		// (see localDirectoryAssignment.DisplayName). The absolute path stays in
-		// the daemon's own logs, which is where an operator debugging a wedged
-		// lock looks for it.
-		reason := assignment.DisplayName()
-		if holder != "" {
-			// Known rough edge: this clause is English and the client renders it
-			// inside a localized "Waiting for {reason}" label, so a zh/ja/ko user
-			// sees mixed script. Fixing it properly means sending the directory
-			// and the holder as separate fields and localizing the join on the
-			// client — worth doing if this hint grows, not for one parenthetical.
-			reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-		}
+		reason := localDirectoryWaitReason(assignment, holder)
 		taskLog.Info("local_directory: waiting on path mutex", "holder", holder)
 		if waitErr := d.client.MarkTaskWaitingLocalDirectory(ctx, task.ID, reason); waitErr != nil {
 			// Non-fatal: even if the server-side flag fails to update,
@@ -7331,6 +7407,29 @@ type taskModelSelection struct {
 	ServiceTier   string
 }
 
+// resolveTaskModel settles the model tier cascade for a run (JEF-12):
+// a per-task model_override wins first, then the agent's configured model,
+// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If all three are
+// empty we deliberately pass "" through — each backend omits `--model` from
+// the CLI invocation, so the provider picks its own default (Claude Code's
+// shipped default, codex app-server's account-scoped default, etc.). Baking
+// a Go-side "recommended default" here is how the cursor regression
+// happened — static guesses drift from whatever the upstream CLI actually
+// accepts.
+//
+// Catalog qualification (resolveTaskModelSelection) runs on whatever this
+// returns, so an override gets the same qualify-or-pass-through treatment
+// as an agent.model value.
+func resolveTaskModel(task Task, envModel string) string {
+	if task.ModelOverride != "" {
+		return task.ModelOverride
+	}
+	if task.Agent != nil && task.Agent.Model != "" {
+		return task.Agent.Model
+	}
+	return envModel
+}
+
 // resolveTaskModelSelection settles the model selector and its capability
 // overrides against the runtime's own model catalog, reading that catalog at
 // most once per task — and not at all when nothing needs it.
@@ -7644,6 +7743,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		InitiatorName:                    task.InitiatorName,
 		InitiatorEmail:                   task.InitiatorEmail,
 		WorkspaceContext:                 task.WorkspaceContext,
+		WorkspaceDoctrineRevision:        task.WorkspaceDoctrineRevision,
 		IssueStatuses:                    convertIssueStatusesForEnv(task.IssueStatuses),
 		IssueStatusesOmitted:             task.IssueStatusesOmitted,
 		ConnectedApps:                    task.ConnectedApps,
@@ -7836,8 +7936,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		openclawMode, openclawGateway = decodeOpenclawRuntimeConfig(task.Agent.RuntimeConfig, d.logger)
 	}
 	// Permission profile (K06): withhold hidden secrets and add the flags the
-	// provider enforces, once, before anything reads the agent payload.
-	applyPermissionProfile(task.Agent, provider, taskLog)
+	// provider enforces, once, before anything reads the agent payload. The
+	// sandbox policy's .env block (JEF-256) rides the same emission so the
+	// Claude deny rules and the profile's own land in one --settings payload.
+	applyPermissionProfile(task.Agent, provider, task.Sandbox != nil && task.Sandbox.BlockSensitiveFiles, taskLog)
 	var agentEnvOverrides map[string]string
 	var agentCustomArgs []string
 	if task.Agent != nil {
@@ -8080,10 +8182,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			release, lockErr := d.localPathLocks.Acquire(waitCtx, localAssignment.RealPath, task.ID, func(holder string) {
 				d.resourceWaitTasks.Add(1)
 				waitCounted = true
-				reason := fmt.Sprintf("local_directory %s", localAssignment.AbsPath)
-				if holder != "" {
-					reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-				}
+				reason := localDirectoryWaitReason(localAssignment, holder)
 				taskLog.Info("local_directory: worktree snapshot waiting for holder",
 					"holder", holder)
 				if waitErr := d.client.MarkTaskWaitingLocalDirectory(waitCtx, task.ID, reason); waitErr != nil {
@@ -8170,20 +8269,19 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			if outcome.CheckpointSHA != "" {
 				taskResult.CheckpointSHA = outcome.CheckpointSHA
 			}
-			// Racing attempts (F11) only. Measured here because Finalize has
-			// just committed the agent's leftovers, so the branch tip is the
-			// whole deliverable — and because the worktree is about to be gone,
-			// leaving the user's repository as the only place the branch lives.
-			// An attempt that changed nothing has no branch and reports a zero
-			// stat, which is a real answer rather than a missing one.
-			if task.RunGroupID != "" {
-				if outcome.Branch == "" {
-					taskResult.Diff = &runDiff{}
-				} else {
-					taskResult.Diff = computeRunDiff(context.WithoutCancel(ctx),
-						env.LocalWorktree.GitRoot, env.LocalWorktree.BaseCommit, outcome.Branch,
-						maxRunDiffBytes, taskLog)
-				}
+			// Every terminal run with a branch (JEF-255; racing attempts only
+			// before it). Measured here because Finalize has just committed the
+			// agent's leftovers, so the branch tip is the whole deliverable —
+			// and because the worktree is about to be gone, leaving the user's
+			// repository as the only place the branch lives. A run that changed
+			// nothing has no branch and reports a zero stat, which is a real
+			// answer rather than a missing one.
+			if outcome.Branch == "" {
+				taskResult.Diff = &runDiff{}
+			} else {
+				taskResult.Diff = computeRunDiff(context.WithoutCancel(ctx),
+					env.LocalWorktree.GitRoot, env.LocalWorktree.BaseCommit, outcome.Branch,
+					maxRunDiffBytes, taskLog)
 			}
 			if finalizeErr == nil {
 				// The configured local_directory becomes authoritative only after
@@ -8434,9 +8532,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// Unlike its two lifecycle siblings this one is long-lived, and its failure
 	// is not the run's: an agent works perfectly well in a worktree whose dev
 	// server never came up, so a failed preview is recorded as `error` rather
-	// than trading the deliverable for a convenience. Started in a goroutine
-	// because the probe waits up to 90 s for a first compile, and the agent has
-	// no reason to.
+	// than trading the deliverable for a convenience. The probe runs in the
+	// background because it waits up to 90 s for a first compile, and the agent
+	// has no reason to; the registration does not, so the deferred stop below
+	// always finds the preview.
 	if runScript := localAssignment.RunScript(); len(runScript) > 0 {
 		// A copy: agentEnv keeps being written below (PATH, CODEX_HOME, …) and
 		// the goroutine reads it concurrently.
@@ -8444,7 +8543,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		for k, v := range agentEnv {
 			previewEnv[k] = v
 		}
-		go d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
+		d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
 		defer d.stopRunPreview(task.ID, taskLog)
 	}
 	if task.AutopilotRunID != "" {
@@ -8591,27 +8690,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, fmt.Errorf("create agent backend: %w", err)
 	}
 
-	// Two-tier model resolution: an explicit agent.model wins,
-	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If
-	// both are empty we deliberately pass "" through — each
-	// backend omits `--model` from the CLI invocation, so the
-	// provider picks its own default (Claude Code's shipped
-	// default, codex app-server's account-scoped default, etc.).
-	// Baking a Go-side "recommended default" here is how the
-	// cursor regression happened — static guesses drift from
-	// whatever the upstream CLI actually accepts.
+	// Model cascade: task.model_override (JEF-12) wins, then agent.model,
+	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var; empty passes
+	// through so the CLI picks its own default (see resolveTaskModel).
 	//
 	// Resolved before the start log rather than at first use: logging
 	// entry.Model there reported the env-var tier alone, so every task whose
 	// model came from agent.model — the common case — announced itself with an
 	// empty model and looked like the selection had been dropped (GH #7300).
-	model := ""
-	if task.Agent != nil && task.Agent.Model != "" {
-		model = task.Agent.Model
-	}
-	if model == "" {
-		model = entry.Model
-	}
+	model := resolveTaskModel(task, entry.Model)
 
 	taskLog.Info("starting agent",
 		"provider", provider,
@@ -8665,6 +8752,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		FirstTurnNoProgressTimeout: d.cfg.CodexFirstTurnNoProgressTimeout,
 		IdleWatchdogTimeout:        idleWatchdogTimeout,
 		HandshakeTimeout:           d.cfg.CodexHandshakeTimeout,
+		TurnInterruptTimeout:       d.cfg.CodexTurnInterruptTimeout,
 		ThreadHandshakeTimeout:     d.cfg.CodexThreadHandshakeTimeout,
 		ResumeSessionID:            task.PriorSessionID,
 		// Post-gate intent: PriorSessionID here already reflects the pre-flight
@@ -9340,8 +9428,36 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 	}
 	var idleWatchdogThreshold atomic.Int64
 	idleWatchdogThreshold.Store(int64(idleWindow))
+	watchdogToolCount := inFlightTools.Load
+	if session.ToolActivity != nil {
+		watchdogToolCount = func() int32 {
+			count, at := session.ToolActivity()
+			for {
+				previous := lastActivityAt.Load()
+				if at.UnixNano() <= previous || lastActivityAt.CompareAndSwap(previous, at.UnixNano()) {
+					break
+				}
+			}
+			return count
+		}
+	}
+	// A backend that can prove its outcome is already decided outranks every
+	// liveness policy below: a run whose terminal result has been read is not a
+	// hang, no matter how long its cleanup then takes.
+	// Nil is meaningful and kept distinguishable: a backend that offers no
+	// terminal boundary is one whose result cannot outrank a force stop, so it
+	// must not be given a hand-off window it can never use. Every such backend
+	// keeps the previous behaviour, including a wedged one, which is force
+	// stopped and classified without waiting for anything.
+	handsOverTerminal := session.TerminalObserved != nil
+	terminalObserved := session.TerminalObserved
+	if terminalObserved == nil {
+		terminalObserved = func() bool { return false }
+	}
+	watchdogCtx, stopWatchdog := context.WithCancel(agentCtx)
+	defer stopWatchdog()
 	if idleWindow > 0 {
-		go d.runIdleWatchdog(agentCtx, idleWindow, d.cfg.AgentToolWatchdog, &lastActivityAt, &inFlightTools, &idleWatchdogFired, &idleWatchdogThreshold, agentCancel, session.Messages, taskLog)
+		go d.runIdleWatchdog(watchdogCtx, idleWindow, d.cfg.AgentToolWatchdog, &lastActivityAt, watchdogToolCount, &idleWatchdogFired, &idleWatchdogThreshold, agentCancel, session.Messages, session.InterruptBackgroundTools, terminalObserved, taskLog)
 	}
 
 	// drainFinished closes after the drain goroutine has flushed the last
@@ -9610,8 +9726,12 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 
 	select {
 	case result := <-session.Result:
+		stopWatchdog()
 		waitForDrain()
-		if idleWatchdogFired.Load() {
+		// terminalObserved outranks a watchdog that fired anyway: if the backend
+		// had already read its authoritative result, this is the real outcome and
+		// re-tagging it would report a completed run as a hang.
+		if idleWatchdogFired.Load() && !terminalObserved() {
 			// The backend's wait goroutine (e.g. claude.go) translates the
 			// SIGKILL we delivered via agentCancel into Status="aborted".
 			// Re-tag it as "idle_watchdog" so runTask routes the
@@ -9634,6 +9754,51 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 		// classifiers so a watchdog-induced stop isn't misreported as
 		// "task cancelled by server".
 		if idleWatchdogFired.Load() {
+			// For a backend that publishes a terminal boundary, enter the
+			// hand-off without asking terminalObserved first. Reading a flag and
+			// then acting on it is exactly the window this branch kept losing:
+			// the backend can publish between the read and the classifier below.
+			// Waiting for the result instead makes its delivery the
+			// linearization point, and the backend contract — publish the
+			// observation before sending Result — is what makes the check after
+			// delivery reliable rather than lucky.
+			//
+			// Such a backend always closes Result, so a wedged one still ends
+			// this wait promptly through the closed channel rather than the
+			// budget.
+			if handsOverTerminal {
+				taskLog.Info("idle watchdog fired; waiting for the backend to hand over its result",
+					"budget", terminalResultHandoffBudget.String())
+				select {
+				case result, ok := <-session.Result:
+					if ok && terminalObserved() {
+						// The backend had already read its authoritative
+						// result, so this is the real outcome, not a hang.
+						return result, toolCount.Load(), nil
+					}
+					if ok {
+						// The backend's wait goroutine (e.g. claude.go)
+						// translates the SIGKILL we delivered via agentCancel
+						// into Status="aborted". Re-tag it as "idle_watchdog"
+						// so runTask routes the disposition through a dedicated
+						// failure_reason, not the generic "agent_error" bucket
+						// the aborted path falls into.
+						result.Status = "idle_watchdog"
+						if result.Error == "" {
+							result.Error = idleWatchdogReason(time.Duration(idleWatchdogThreshold.Load()))
+						}
+						return result, toolCount.Load(), nil
+					}
+					// Closed with no value: the backend gave up without an
+					// outcome, so the liveness verdict is the only one left.
+				case <-time.After(terminalResultHandoffBudget):
+					// A backend that neither delivers nor closes is itself the
+					// hang. Linearizing here keeps the branch bounded whatever
+					// a backend does.
+					taskLog.Warn("backend did not hand over a result within the budget; classifying by liveness",
+						"budget", terminalResultHandoffBudget.String())
+				}
+			}
 			return agent.Result{
 				Status: "idle_watchdog",
 				Error:  idleWatchdogReason(time.Duration(idleWatchdogThreshold.Load())),
@@ -9656,6 +9821,25 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 		}, toolCount.Load(), nil
 	}
 }
+
+// terminalResultHandoffBudget is how long executeAndDrain waits, after force-
+// stopping a run, for the backend to hand over whatever result it has. It only
+// decides how long we believe a backend before falling back to the liveness
+// verdict; the backend caps its own finalization, so in practice the wait ends
+// far sooner.
+//
+// The value is derived from the slowest finalization this daemon drives today,
+// Cursor's, rather than picked: a concurrent background-cleanup pass we may have
+// to wait behind (cursorCloseBudget, 10s), the closing pass itself (another
+// 10s), one already-started process termination per pass overshooting its
+// budget by that termination's own bound (~1s each), and the process WaitDelay
+// after cancellation (0.5s) — about 22.5s. 30s leaves margin without letting a
+// wedged backend hold a runtime slot indefinitely.
+//
+// Deliberately not a term: the background reaper's tick. Closing its stop
+// channel wakes it immediately rather than at the next tick, so it adds
+// nothing to this ceiling.
+const terminalResultHandoffBudget = 30 * time.Second
 
 // idleWatchdogReason formats the human-facing explanation surfaced on
 // idle_watchdog dispositions. Centralised so the result-arrival branch and the
@@ -9709,8 +9893,12 @@ func idleWatchdogTickInterval(window time.Duration) time.Duration {
 //
 // Polling rate comes from idleWatchdogTickInterval, so a run is force-stopped
 // somewhere between its budget and budget + tick, never earlier.
-func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow time.Duration, lastActivityAt *atomic.Int64, inFlightTools *atomic.Int32, fired *atomic.Bool, firedThreshold *atomic.Int64, cancel context.CancelFunc, messages <-chan agent.Message, taskLog *slog.Logger) {
-	ticker := time.NewTicker(idleWatchdogTickInterval(window))
+func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow time.Duration, lastActivityAt *atomic.Int64, inFlightTools func() int32, fired *atomic.Bool, firedThreshold *atomic.Int64, cancel context.CancelFunc, messages <-chan agent.Message, interruptBackground func() bool, terminalObserved func() bool, taskLog *slog.Logger) {
+	tickWindow := window
+	if toolWindow > 0 && toolWindow < tickWindow {
+		tickWindow = toolWindow
+	}
+	ticker := time.NewTicker(idleWatchdogTickInterval(tickWindow))
 	defer ticker.Stop()
 	for {
 		select {
@@ -9722,7 +9910,7 @@ func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow ti
 			// tool_use and tool_result), so it gets the larger toolWindow;
 			// toolWindow <= 0 disables the in-flight bound entirely.
 			threshold := window
-			toolInFlight := inFlightTools.Load() > 0
+			toolInFlight := inFlightTools() > 0
 			if toolInFlight {
 				if toolWindow <= 0 {
 					continue
@@ -9739,6 +9927,41 @@ func (d *Daemon) runIdleWatchdog(agentCtx context.Context, window, toolWindow ti
 			// killing a backend that is still producing output.
 			if len(messages) > 0 {
 				continue
+			}
+			// Cursor can stop its owned background tools without aborting the
+			// agent. The same watchdog owns both the budget and this recovery,
+			// so no competing timer can cancel Cursor while it reports a result.
+			if agentCtx.Err() != nil {
+				return
+			}
+			if terminalObserved != nil && terminalObserved() {
+				return
+			}
+			if toolInFlight && interruptBackground != nil && interruptBackground() {
+				lastActivityAt.Store(time.Now().UnixNano())
+				taskLog.Info("tool watchdog stopped background tools; waiting for agent result")
+				continue
+			}
+			// A natural tool completion may race the callback or the tick.
+			if agentCtx.Err() != nil {
+				return
+			}
+			// Refresh native tool activity BEFORE reading its timestamp. The
+			// callback may publish newer activity without changing the count.
+			currentToolInFlight := inFlightTools() > 0
+			currentActivity := lastActivityAt.Load()
+			if currentActivity != last.UnixNano() ||
+				currentToolInFlight != toolInFlight || len(messages) > 0 {
+				continue
+			}
+			if agentCtx.Err() != nil {
+				return
+			}
+			// Last gate before force-stopping. The terminal result can land while
+			// this tick is deciding — including while it is blocked inside the
+			// interrupt callback above — and a decided outcome is never a hang.
+			if terminalObserved != nil && terminalObserved() {
+				return
 			}
 			// No "task" field here: taskLog already carries the full id.
 			taskLog.Warn("idle watchdog firing: no agent activity, force-stopping run",
@@ -10150,8 +10373,16 @@ func isBlockedEnvKey(key string) bool {
 	if strings.HasPrefix(upper, "MULTICA_") {
 		return true
 	}
+	// Git's environment config is how the approval gate (K05) installs its
+	// pre-push hook for every git call of the run (gateEnvironment). A custom
+	// value, even for an unrelated key, would replace or outrank that
+	// core.hooksPath and leave pushes ungated.
+	if strings.HasPrefix(upper, "GIT_CONFIG_KEY_") || strings.HasPrefix(upper, "GIT_CONFIG_VALUE_") {
+		return true
+	}
 	switch upper {
-	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS":
+	case "HOME", "PATH", "USER", "SHELL", "TERM", "TMPDIR", "TMP", "TEMP", "CODEX_HOME", "REASONIX_STATE_HOME", "CURSOR_DATA_DIR", execenv.CursorMcpAuthSourceEnv, "OPENCLAW_CONFIG_PATH", "OPENCLAW_INCLUDE_ROOTS",
+		"GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS":
 		return true
 	}
 	return false

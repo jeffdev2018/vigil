@@ -21,7 +21,8 @@ import { Dialog, DialogContent, DialogTitle } from "@multica/ui/components/ui/di
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
-import { useT } from "../../i18n";
+import { taskStatusLabel } from "../../agents/components/tabs/activity-tab";
+import { tKnown, useT } from "../../i18n";
 import { formatTokens, formatUsd } from "../../runtimes/utils";
 import { redactSecrets } from "./redact";
 
@@ -93,7 +94,7 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
   const current: ReplayEvent | undefined = events[pos];
   const counts = useMemo(() => replayCountsUpTo(events, pos), [events, pos]);
   const seal = data ? sealState(data) : "unsealed";
-  const kindLabel = (k: string) => t(($) => $.replay.kinds[k as keyof typeof $.replay.kinds] ?? k);
+  const kindLabel = (k: string) => tKnown(t, "replay.kinds", k, k);
 
   const submitResume = () => {
     if (!current || !instruction.trim()) return;
@@ -121,7 +122,7 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
           <>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
               <span>{t(($) => $.replay.events_count, { n: data.total })}</span>
-              <span>{data.run.status}</span>
+              <span>{taskStatusLabel(data.run.status, t)}</span>
               <span>
                 {formatTokens(data.cost.input_tokens)} / {formatTokens(data.cost.output_tokens)}
                 {data.cost.cost_usd_ticks !== null && <> · {formatUsd(data.cost.cost_usd_ticks / 1e10)}</>}
@@ -157,7 +158,7 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
                       setPos(0);
                     }}
                   >
-                    {t(($) => $.replay.relations[l.relation as keyof typeof $.replay.relations] ?? l.relation)}
+                    {tKnown(t, "replay.relations", l.relation, l.relation)}
                     {l.agent_name ? ` · ${l.agent_name}` : ""}
                   </button>
                 ))}

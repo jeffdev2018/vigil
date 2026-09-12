@@ -201,13 +201,16 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
     }
   };
 
-  const handleArchive = async (id: string) => {
+  /** Resolves true once the server archived the agent; toasts and resolves false otherwise. */
+  const handleArchive = async (id: string): Promise<boolean> => {
     try {
       await api.archiveAgent(id);
       qc.invalidateQueries({ queryKey: workspaceKeys.agents(wsId) });
       toast.success(t(($) => $.detail.agent_archived_toast));
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t(($) => $.detail.archive_failed_toast));
+      return false;
     }
   };
 
@@ -421,6 +424,9 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
           canEdit={canEdit.allowed}
           navIntent={tabNavIntent}
           onNavIntentHandled={() => setTabNavIntent(null)}
+          onAssignWork={
+            !agent.archived_at && canAssign.allowed ? handleAssign : undefined
+          }
         />
       </div>
 
@@ -454,10 +460,11 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => {
+                onClick={async () => {
                   setConfirmArchive(false);
-                  handleArchive(agent.id);
-                  navigation.push(paths.agents());
+                  // Navigate only after the server confirmed: a failure keeps
+                  // the user on the agent the error is about.
+                  if (await handleArchive(agent.id)) navigation.push(paths.agents());
                 }}
               >
                 {t(($) => $.detail.archive_dialog_confirm)}

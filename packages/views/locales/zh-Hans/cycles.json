@@ -14,7 +14,8 @@
     "edit": "编辑周期",
     "delete": "删除周期",
     "no_project": "先选择一个项目再规划周期。",
-    "loading": "正在加载周期"
+    "loading": "正在加载周期",
+    "load_error": "无法加载周期"
   },
   "status": {
     "upcoming": "即将开始",
@@ -46,7 +47,32 @@
     "close_confirm": "结束周期",
     "cancel": "取消",
     "close_error": "无法结束该周期",
-    "closed_on": "{{date}} 结束"
+    "closed_on": "{{date}} 结束",
+    "empty_issues_title": "此周期内还没有任务",
+    "empty_issues_hint": "新建一个任务，或把已有的任务关联到这个周期。",
+    "empty_issues_new_button": "新建任务"
+  },
+  "actors": {
+    "title": "按执行者划分的容量",
+    "empty": "尚未声明任何执行者的容量。",
+    "empty_hint": "声明每个人员或智能体在本周期可以承担的工作量。",
+    "add": "添加执行者",
+    "actor_label": "执行者",
+    "actor_placeholder": "选择人员或智能体",
+    "points_label": "点数",
+    "remove": "移除执行者",
+    "save": "保存容量",
+    "error": "无法保存容量",
+    "points_invalid": "点数必须是 0 到 10000 之间的整数。"
+  },
+  "velocity": {
+    "title": "速率",
+    "loading": "正在加载速率",
+    "empty": "本周期还没有完成的工作。",
+    "empty_hint": "当人员和智能体完成任务后，速率会显示在这里。",
+    "other": "未指派或小组工作",
+    "done_value": "已完成 {{points}}",
+    "history_title": "历史周期"
   },
   "form": {
     "create_title": "新建周期",
@@ -69,7 +95,8 @@
     "create": "创建周期",
     "save": "保存",
     "error": "无法保存该周期",
-    "date_order": "结束日期必须不早于开始日期。"
+    "date_order": "结束日期必须不早于开始日期。",
+    "capacity_negative": "容量必须大于或等于 0。"
   },
   "delete_dialog": {
     "title": "删除该周期？",

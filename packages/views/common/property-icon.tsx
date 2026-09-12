@@ -3,6 +3,7 @@
 import type { IssueProperty } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
+import { useT } from "../i18n";
 import {
   Bookmark,
   BriefcaseBusiness,
@@ -93,10 +94,21 @@ export const PROPERTY_ICON_OPTIONS = [
   { value: "heart", label: "Favorite", Icon: Heart },
   { value: "circle-alert", label: "Alert", Icon: CircleAlert },
   { value: "lock-keyhole", label: "Private", Icon: LockKeyhole },
-] satisfies PropertyIconOption[];
+] as const satisfies PropertyIconOption[];
+
+type PropertyIconValue = (typeof PROPERTY_ICON_OPTIONS)[number]["value"];
 
 function findPropertyIcon(value: string | undefined) {
   return PROPERTY_ICON_OPTIONS.find((option) => option.value === value);
+}
+
+// PROPERTY_ICON_OPTIONS.label above is an internal English key (and the
+// picker's persisted `icon` value's twin for readability in this file) —
+// not display text. The picker renders the localized label through this
+// hook instead, keyed by the same closed, developer-controlled `value` set.
+function usePropertyIconLabel() {
+  const { t } = useT("common");
+  return (value: PropertyIconValue) => t(($) => $.property_icons[value]);
 }
 
 export function PropertyIconGlyph({
@@ -147,26 +159,28 @@ export function PropertyIconPicker({
   onSelect: (value: string) => void;
   onRemove: () => void;
 }) {
+  const iconLabel = usePropertyIconLabel();
   return (
     <div className="w-64">
       <div className="flex items-center justify-between px-1 pb-2">
         <span className="text-caption font-medium text-foreground">{label}</span>
-        {value && (
+        {value && findPropertyIcon(value) && (
           <span className="truncate pl-3 text-micro text-muted-foreground">
-            {findPropertyIcon(value)?.label}
+            {iconLabel(value as PropertyIconValue)}
           </span>
         )}
       </div>
       <div className="grid grid-cols-6 gap-1" aria-label={label}>
         {PROPERTY_ICON_OPTIONS.map((option) => {
           const selected = option.value === value;
+          const optionLabel = iconLabel(option.value);
           return (
             <button
               key={option.value}
               type="button"
-              aria-label={option.label}
+              aria-label={optionLabel}
               aria-pressed={selected}
-              title={option.label}
+              title={optionLabel}
               className={cn(
                 "flex size-9 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
                 selected && "bg-brand/10 text-brand ring-1 ring-inset ring-brand/25",

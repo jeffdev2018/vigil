@@ -18,4 +18,4 @@ SELECT COUNT(*) FROM handoff_packet WHERE run_id = $1;
 DELETE FROM handoff_packet WHERE workspace_id = $1;
 
 -- name: ListHandoffPacketsForRun :many
-SELECT * FROM handoff_packet WHERE run_id = $1 ORDER BY created_at ASC, id ASC;
+SELECT * FROM handoff_packet WHERE run_id = $1 ORDER BY created_at ASC, id ASC LIMIT 100;

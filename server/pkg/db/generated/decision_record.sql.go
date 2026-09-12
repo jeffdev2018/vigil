@@ -22,6 +22,39 @@ func (q *Queries) CountIssueDecisionRecords(ctx context.Context, issueID pgtype.
 	return count, err
 }
 
+const countIssueDecisionRecordsByIssueIDs = `-- name: CountIssueDecisionRecordsByIssueIDs :many
+SELECT issue_id, COUNT(*) AS count FROM decision_record
+WHERE issue_id = ANY($1::uuid[])
+GROUP BY issue_id
+`
+
+type CountIssueDecisionRecordsByIssueIDsRow struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	Count   int64       `json:"count"`
+}
+
+// Batch variant of CountIssueDecisionRecords for DryRunBusinessRule; see
+// CountIssueLabelsByIssueIDs in business_rule.sql for why this exists.
+func (q *Queries) CountIssueDecisionRecordsByIssueIDs(ctx context.Context, issueIds []pgtype.UUID) ([]CountIssueDecisionRecordsByIssueIDsRow, error) {
+	rows, err := q.db.Query(ctx, countIssueDecisionRecordsByIssueIDs, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountIssueDecisionRecordsByIssueIDsRow{}
+	for rows.Next() {
+		var i CountIssueDecisionRecordsByIssueIDsRow
+		if err := rows.Scan(&i.IssueID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countRunDecisionRecords = `-- name: CountRunDecisionRecords :one
 SELECT COUNT(*) FROM decision_record WHERE run_id = $1
 `
@@ -91,7 +124,7 @@ func (q *Queries) CreateDecisionRecord(ctx context.Context, arg CreateDecisionRe
 }
 
 const getIssueTask = `-- name: GetIssueTask :one
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue WHERE id = $1 AND issue_id = $2
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue WHERE id = $1 AND issue_id = $2
 `
 
 type GetIssueTaskParams struct {
@@ -187,12 +220,18 @@ func (q *Queries) GetIssueTask(ctx context.Context, arg GetIssueTaskParams) (Age
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
 	)
 	return i, err
 }
 
 const getLatestCompletedTaskForIssue = `-- name: GetLatestCompletedTaskForIssue :one
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue
 WHERE issue_id = $1 AND status = 'completed'
 ORDER BY completed_at DESC NULLS LAST, created_at DESC
 LIMIT 1
@@ -286,6 +325,12 @@ func (q *Queries) GetLatestCompletedTaskForIssue(ctx context.Context, issueID pg
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
 	)
 	return i, err
 }

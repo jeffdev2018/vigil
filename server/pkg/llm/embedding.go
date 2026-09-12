@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"math"
 	"strings"
+	"sync"
 
 	openai "github.com/openai/openai-go/v3"
 )
@@ -15,6 +18,42 @@ import (
 // upstream and still not want an embeddings bill, and the caller's fallback
 // differs — the shared repo index (K47) stays lexical rather than turning off.
 var ErrEmbeddingsNotConfigured = errors.New("llm: no embedding model configured")
+
+// EmbeddingDimensions is the width every pgvector column in this codebase is
+// declared with (repo_index_chunk.embedding, workspace_note_passage.embedding)
+// and the largest width the hnsw index accepts is 2000. The request asks the
+// upstream for exactly this width; a model that ignores the parameter and
+// answers wider (gemini-embedding answers 3072 by default) is cut down to it
+// and re-normalised — the Matryoshka truncation those models are trained for.
+const EmbeddingDimensions = 1536
+
+var wideEmbeddingWarned sync.Map
+
+// fitEmbedding returns vec at EmbeddingDimensions: shorter vectors are kept
+// as they are (the insert fails loudly, which is right: padding would fake a
+// vector), wider ones are truncated and re-normalised to unit length.
+func fitEmbedding(model string, vec []float32) []float32 {
+	if len(vec) <= EmbeddingDimensions {
+		return vec
+	}
+	if _, seen := wideEmbeddingWarned.LoadOrStore(model, true); !seen {
+		slog.Warn("llm: embedding model ignores the dimensions parameter; truncating", "model", model, "got", len(vec), "want", EmbeddingDimensions)
+	}
+	cut := vec[:EmbeddingDimensions]
+	var norm float64
+	for _, v := range cut {
+		norm += float64(v) * float64(v)
+	}
+	norm = math.Sqrt(norm)
+	if norm == 0 {
+		return cut
+	}
+	out := make([]float32, EmbeddingDimensions)
+	for i, v := range cut {
+		out[i] = float32(float64(v) / norm)
+	}
+	return out
+}
 
 // EmbeddingModel returns the configured embeddings model, or "" when none is
 // set. Callers use it to record which model a stored vector came from.
@@ -62,6 +101,7 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 	resp, err := c.sdk.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Input:          openai.EmbeddingNewParamsInputUnion{OfArrayOfStrings: texts},
 		Model:          model,
+		Dimensions:     openai.Int(EmbeddingDimensions),
 		EncodingFormat: openai.EmbeddingNewParamsEncodingFormatFloat,
 	})
 	if err != nil {
@@ -83,7 +123,7 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 		for i, v := range item.Embedding {
 			vec[i] = float32(v)
 		}
-		out[item.Index] = vec
+		out[item.Index] = fitEmbedding(model, vec)
 	}
 	for i, vec := range out {
 		if vec == nil {

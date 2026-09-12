@@ -17,7 +17,8 @@
     "no_matches": "Aucun projet ne correspond",
     "selected_one": "{{count}} sélectionné",
     "selected_other": "{{count}} sélectionnés",
-    "clear_selection": "Effacer la sélection"
+    "clear_selection": "Effacer la sélection",
+    "pin_partial": "{{succeeded}} épinglé(s), {{failed}} échoué(s)"
   },
   "table": {
     "name": "Nom",
@@ -81,7 +82,8 @@
     "toast_link_copied": "Lien copié",
     "toast_project_deleted": "Projet supprimé",
     "toast_move_issue_failed": "Échec du déplacement de l'issue",
-    "progress_hint": "Inclut les issues terminées et annulées ; ce n'est pas un taux de livraison."
+    "progress_hint": "Inclut les issues terminées et annulées ; ce n'est pas un taux de livraison.",
+    "more_actions_aria": "Plus d'actions"
   },
   "resources": {
     "section_header": "Ressources",
@@ -151,7 +153,8 @@
     "title": "Supprimer le projet",
     "description": "Cette action supprimera le projet. Les issues ne seront pas supprimées mais seront dissociées.",
     "confirm": "Supprimer",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "partial": "{{succeeded}} supprimé(s), {{failed}} échoué(s)"
   },
   "picker": {
     "no_project": "Aucun projet",
@@ -224,6 +227,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "La règle n'a pas pu être enregistrée"
   },
+  "sandbox_policy": {
+    "section": "Politique de sandbox",
+    "description": "Restreint les exécutions d'agents dans ce projet : quels hôtes réseau elles peuvent atteindre, et si elles peuvent lire les fichiers sensibles. Les politiques de l'espace de travail, du projet et du ticket se combinent, et la plus restrictive l'emporte.",
+    "capability_hint": "Les modes liste d'autorisation et sans réseau exigent un runtime compatible conteneur : les exécutions sur un runtime sans cette capacité sont refusées et basculent (fail-closed).",
+    "network": "Accès réseau",
+    "mode": {
+      "unrestricted": "Non restreint",
+      "allowlist": "Liste d'autorisation",
+      "none": "Aucun réseau"
+    },
+    "hint": {
+      "unrestricted": "Les exécutions peuvent atteindre n'importe quel hôte.",
+      "allowlist": "Seuls les hôtes listés et ceux par défaut de la plateforme sont accessibles.",
+      "none": "Aucune sortie réseau au-delà de ce dont la plateforme a besoin."
+    },
+    "hosts_label": "Hôtes autorisés",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "Un hôte par ligne. Les hôtes par défaut de la plateforme restent accessibles.",
+    "block_sensitive": "Bloquer les fichiers sensibles",
+    "block_sensitive_help": "Les agents ne doivent pas lire les fichiers .env (au mieux).",
+    "effective": "Effectif pour ce projet : {{mode}}",
+    "effective_blocked": "fichiers sensibles bloqués",
+    "effective_inherited": "hérité de la valeur par défaut de l'espace de travail",
+    "empty": "Aucune politique de projet : la valeur par défaut de l'espace de travail s'applique.",
+    "save": "Enregistrer la politique",
+    "saving": "Enregistrement...",
+    "reset": "Revenir à la valeur par défaut de l'espace de travail",
+    "toast_saved": "Politique de sandbox enregistrée",
+    "toast_reset": "Politique de sandbox revenue à la valeur par défaut de l'espace de travail",
+    "failed": "La politique de sandbox n'a pas pu être enregistrée",
+    "load_failed": "La politique de sandbox n'a pas pu être chargée"
+  },
   "members": {
     "section": "Membres et rôles",
     "description": "Les rôles ici ne font que restreindre : un membre ou un agent n'obtient jamais plus dans ce projet que ce que son rôle d'espace de travail autorise.",
@@ -239,7 +274,12 @@
     "agent": "agent",
     "updated": "Rôle mis à jour",
     "update_failed": "Échec de la mise à jour du rôle",
-    "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles."
+    "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles.",
+    "roles": {
+      "viewer": "Lecteur",
+      "contributor": "Contributeur",
+      "admin": "Administrateur"
+    }
   },
   "review": {
     "section": "Revue par agent",

@@ -146,14 +146,22 @@ export function serializeMentions(
       continue;
     }
 
-    // Read the word after `@` until whitespace or end-of-text.
-    let wordEnd = sentinelAt + 2;
-    while (wordEnd < text.length && !/\s/.test(text[wordEnd]!)) wordEnd++;
-    const word = text.slice(sentinelAt + 2, wordEnd);
-
+    // Match the marker's full name (which may contain spaces, e.g.
+    // "Jean Dupont") rather than stopping at the first whitespace —
+    // scanning word-by-word breaks multi-word display names.
     const marker = markers[markerIndex];
-    if (!marker || marker.name !== word) {
-      // Marker exhausted or word doesn't match — abort and fallback.
+    if (!marker) {
+      // Marker exhausted — abort and fallback.
+      abort = true;
+      break;
+    }
+    const nameStart = sentinelAt + 2;
+    const nameEnd = nameStart + marker.name.length;
+    const candidate = text.slice(nameStart, nameEnd);
+    const boundary = text[nameEnd];
+    const boundaryOk = boundary === undefined || /\s/.test(boundary);
+    if (candidate !== marker.name || !boundaryOk) {
+      // Name mismatch — abort and fallback.
       abort = true;
       break;
     }
@@ -164,7 +172,7 @@ export function serializeMentions(
       marker.type === "issue" ? marker.name : `@${marker.name}`;
     out.push(`[${label}](mention://${marker.type}/${marker.id})`);
     markerIndex++;
-    cursor = wordEnd;
+    cursor = nameEnd;
   }
 
   if (abort || markerIndex !== markers.length) {

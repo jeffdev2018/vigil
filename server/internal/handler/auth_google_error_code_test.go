@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/auth"
@@ -31,6 +31,16 @@ func googleResponse(req *http.Request, status int, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    req,
 	}
+}
+
+// googleLoginRequest is a POST /auth/google from the browser that started
+// the flow: its state matches the state cookie.
+func googleLoginRequest(body string) *http.Request {
+	const state = "test-state"
+	body = strings.TrimSuffix(strings.TrimSpace(body), "}") + `,"state":"` + state + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: auth.GoogleOAuthStateCookieName, Value: state})
+	return req
 }
 
 func TestGoogleLoginTokenFailures(t *testing.T) {
@@ -81,7 +91,7 @@ func TestGoogleLoginTokenFailures(t *testing.T) {
 				}
 				return resp, nil
 			})}
-			req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"test-code"}`))
+			req := googleLoginRequest(`{"code":"test-code"}`)
 			var got struct {
 				Error string `json:"error"`
 				Code  string `json:"code"`
@@ -143,7 +153,7 @@ func TestGoogleLoginUserInfoFailures(t *testing.T) {
 					return nil, nil
 				}
 			})}
-			req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"test-code"}`))
+			req := googleLoginRequest(`{"code":"test-code"}`)
 			var got struct {
 				Error string `json:"error"`
 				Code  string `json:"code"`
@@ -203,11 +213,7 @@ func TestGoogleLoginActionableErrorCodes(t *testing.T) {
 				}
 			})}
 
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/auth/google",
-				bytes.NewBufferString(`{"code":"test-code","redirect_uri":"http://localhost/auth/callback"}`),
-			)
+			req := googleLoginRequest(`{"code":"test-code","redirect_uri":"http://localhost/auth/callback"}`)
 			var got struct {
 				Error string `json:"error"`
 				Code  string `json:"code"`
@@ -284,9 +290,17 @@ func TestGoogleLoginSuccessfulExistingUser(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"test-code","redirect_uri":"http://localhost/auth/callback"}`))
+	h.CFSigner = testCloudFrontSigner(t)
+	req := googleLoginRequest(`{"code":"test-code","redirect_uri":"http://localhost/auth/callback"}`)
 	var got LoginResponse
 	resp := testutil.Call(t, h.GoogleLogin, req).Want(http.StatusOK).JSON(&got)
+	// CDN cookies live as long as the session, as on every other login path;
+	// a shorter fixed lifetime left a valid session without its assets.
+	for _, cookie := range resp.Result().Cookies() {
+		if cookie.Name == "CloudFront-Policy" && cookie.Expires.Before(time.Now().Add(auth.AuthTokenTTL()-time.Hour)) {
+			t.Fatalf("CloudFront cookie expires %s, want about now + AuthTokenTTL (%s)", cookie.Expires, auth.AuthTokenTTL())
+		}
+	}
 	if requests != 2 || got.Token == "" || got.User.ID != userID || got.User.Email != email {
 		t.Fatalf("unexpected successful login: requests=%d, token present=%t, user=%+v", requests, got.Token != "", got.User)
 	}
@@ -318,5 +332,59 @@ func TestGoogleLoginSuccessfulExistingUser(t *testing.T) {
 	csrfReq.Header.Set("X-CSRF-Token", csrfCookie.Value)
 	if !auth.ValidateCSRF(csrfReq) {
 		t.Fatal("Google login cookies must allow authenticated browser writes")
+	}
+}
+
+// Login CSRF: a Google authorization code is only exchanged for the browser
+// that started the flow. The state the callback echoes back must match the
+// short-lived HttpOnly cookie set when that browser started it, or an
+// attacker's code link would sign the victim into the attacker's account.
+func TestGoogleLoginRequiresBrowserBoundState(t *testing.T) {
+	t.Setenv("GOOGLE_CLIENT_ID", "test-client")
+	t.Setenv("GOOGLE_CLIENT_SECRET", "test-secret")
+	h := newTestHandler(Config{})
+	h.googleOAuthHTTPClient = &http.Client{Transport: googleRoundTripper(func(req *http.Request) (*http.Response, error) {
+		t.Errorf("an unbound callback must not reach Google: %s", req.URL)
+		return nil, errors.New("unexpected Google request")
+	})}
+	for name, build := range map[string]func() *http.Request{
+		"no state, no cookie": func() *http.Request {
+			return httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"attacker-code"}`))
+		},
+		"state without the cookie": func() *http.Request {
+			return httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"attacker-code","state":"attacker-state"}`))
+		},
+		"cookie from another flow": func() *http.Request {
+			req := httptest.NewRequest(http.MethodPost, "/auth/google", strings.NewReader(`{"code":"attacker-code","state":"attacker-state"}`))
+			req.AddCookie(&http.Cookie{Name: "multica_google_oauth_state", Value: "victim-state"})
+			return req
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var got struct {
+				Code string `json:"code"`
+			}
+			testutil.Call(t, h.GoogleLogin, build()).Want(http.StatusBadRequest).JSON(&got)
+			if got.Code != "oauth_state_invalid" {
+				t.Fatalf("code = %q, want oauth_state_invalid", got.Code)
+			}
+		})
+	}
+
+	// Start pins a fresh state to the browser in an HttpOnly, SameSite=Lax
+	// cookie scoped to the Google auth routes, and hands the same value back.
+	var started struct {
+		State string `json:"state"`
+	}
+	res := testutil.Call(t, h.GoogleLoginStart, httptest.NewRequest(http.MethodPost, "/auth/google/start", nil)).Want(http.StatusOK)
+	res.JSON(&started)
+	var cookie *http.Cookie
+	for _, c := range res.Result().Cookies() {
+		if c.Name == auth.GoogleOAuthStateCookieName {
+			cookie = c
+		}
+	}
+	if cookie == nil || len(started.State) < 32 || cookie.Value != started.State || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode || cookie.Path != "/auth/google" || cookie.MaxAge <= 0 {
+		t.Fatalf("start: state=%q cookie=%+v", started.State, cookie)
 	}
 }

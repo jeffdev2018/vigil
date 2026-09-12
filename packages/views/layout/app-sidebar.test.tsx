@@ -1,17 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
+import { toast } from "sonner";
 import { renderWithI18n } from "../test/i18n";
-import { AppSidebar } from "./app-sidebar";
+import { AppSidebar, hasOverflowBelow } from "./app-sidebar";
 
-const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
+const { appForeground, chatSessions, chatStore, detail, deletePin, acceptInvitation, declineInvitation, inboxItems, myInvitations, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
   chatStore: { current: { activeSessionId: null as string | null, isOpen: false } },
   detail: { current: { isPending: false, isError: false, data: null as unknown, error: null as unknown } },
   deletePin: vi.fn(),
+  acceptInvitation: vi.fn(),
+  declineInvitation: vi.fn(),
   inboxItems: { current: [] as { id: string; read: boolean }[] },
+  myInvitations: { current: [] as { id: string; workspace_id: string; workspace_name?: string }[] },
   navigation: { current: { pathname: "/acme/issues" } },
   summary: { current: [] as { workspace_id: string; count: number }[] },
   triageStats: { current: { pending: 0 } },
@@ -49,7 +53,12 @@ vi.mock("@dnd-kit/sortable", () => ({
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => undefined } } }));
 vi.mock("@multica/ui/components/ui/sidebar", () => ({
   Sidebar: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SidebarContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  // Renders a real wrapper (unlike the other passthrough mocks below) so
+  // tests can assert which nav items sit inside vs. outside the scrolling
+  // container — see "personal nav scroll container" below.
+  SidebarContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="sidebar-content">{children}</div>
+  ),
   SidebarFooter: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SidebarGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SidebarGroupContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -106,6 +115,9 @@ vi.mock("../navigation", () => ({
 vi.mock("../projects/components/project-icon", () => ({ ProjectIcon: () => <span /> }));
 vi.mock("../workspace/workspace-avatar", () => ({ WorkspaceAvatar: () => <span /> }));
 vi.mock("@multica/ui/components/common/actor-avatar", () => ({ ActorAvatar: () => <span /> }));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
 
 vi.mock("@multica/core/auth", () => ({
   useAuthStore: (selector: (state: { user: { id: string } }) => unknown) => selector({ user: { id: "user-1" } }),
@@ -128,6 +140,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
   useWorkspacePaths: () => ({
     inbox: () => "/acme/inbox",
     triage: () => "/acme/triage",
+    runs: () => "/acme/runs",
     meetings: () => "/acme/meetings",
     postmortems: () => "/acme/postmortems",
     chat: () => "/acme/chat",
@@ -136,6 +149,8 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     projects: () => "/acme/projects",
     goals: () => "/acme/goals",
     cycles: () => "/acme/cycles",
+    roadmap: () => "/acme/roadmap",
+    calendar: () => "/acme/calendar",
     org: () => "/acme/org",
     autopilots: () => "/acme/autopilots",
     agents: () => "/acme/agents",
@@ -156,6 +171,8 @@ vi.mock("@multica/core/api", async (importOriginal) => {
     api: {
       ...actual.api,
       getBaseUrl: () => "http://127.0.0.1:8080",
+      acceptInvitation: (id: string) => acceptInvitation(id),
+      declineInvitation: (id: string) => declineInvitation(id),
     },
   };
 });
@@ -193,13 +210,30 @@ vi.mock("@multica/core/workspace/queries", () => ({
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+  // Only acceptInvitationMut/declineInvitationMut in app-sidebar.tsx call
+  // this hook directly (pins go through useReorderPins/useDeletePin, mocked
+  // separately below) — real enough to run mutationFn and invoke
+  // onSuccess/onError so their error handling is exercisable here.
+  useMutation: <TVars,>(config: {
+    mutationFn: (vars: TVars) => Promise<unknown>;
+    onSuccess?: (data: unknown, vars: TVars) => void;
+    onError?: (err: unknown, vars: TVars) => void;
+  }) => ({
+    isPending: false,
+    mutate: (vars: TVars) => {
+      config
+        .mutationFn(vars)
+        .then((data) => config.onSuccess?.(data, vars))
+        .catch((err: unknown) => config.onError?.(err, vars));
+    },
+  }),
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "pins") return { data: pins.current };
     if (queryKey[0] === "issue") return detail.current;
     if (queryKey[0] === "inbox" && queryKey[1] === "unread-summary") return { data: summary.current };
     if (queryKey[0] === "inbox") return { data: inboxItems.current };
     if (queryKey[0] === "workspaces") return { data: workspaces.current };
+    if (queryKey[0] === "invitations") return { data: myInvitations.current };
     if (queryKey[0] === "chat" && queryKey[2] === "sessions") return { data: chatSessions.current };
     if (queryKey[0] === "triage") return { data: triageStats.current };
     if (queryKey[0] === "postmortem") return { data: postmortemStats.current };
@@ -388,6 +422,46 @@ describe("workspace-switcher dropdown per-workspace dot", () => {
   });
 });
 
+describe("navigation item presentation", () => {
+  it("keeps Analytics and Settings styled like the other nav items", () => {
+    const { container } = render(<AppSidebar />);
+    const referenceClassName = container.querySelector(
+      'button[data-href="/acme/issues"]',
+    )?.className;
+
+    expect(referenceClassName).toBeTruthy();
+
+    for (const href of ["/acme/usage", "/acme/settings"]) {
+      expect(container.querySelector(`button[data-href="${href}"]`)?.className).toBe(
+        referenceClassName,
+      );
+    }
+  });
+});
+
+describe("personal nav scroll container", () => {
+  // JEF-405: on deep pages the scrolling container (Pinned/Work/AI Team)
+  // overflows a laptop screen, pushing Inbox/My issues/Chat out of view.
+  // Personal nav must live outside SidebarContent so it's always visible.
+  it("renders personal nav entries outside the scrolling container", () => {
+    const { container } = render(<AppSidebar />);
+    const scrollContainer = container.querySelector('[data-testid="sidebar-content"]');
+    expect(scrollContainer).not.toBeNull();
+
+    for (const href of ["/acme/inbox", "/acme/my-issues", "/acme/chat"]) {
+      const link = container.querySelector(`button[data-href="${href}"]`);
+      expect(link).not.toBeNull();
+      expect(scrollContainer).not.toContainElement(link as HTMLElement);
+    }
+
+    // Work/AI Team stay inside the scrolling container.
+    for (const href of ["/acme/issues", "/acme/agents"]) {
+      const link = container.querySelector(`button[data-href="${href}"]`);
+      expect(scrollContainer).toContainElement(link as HTMLElement);
+    }
+  });
+});
+
 describe("personal nav — Chat", () => {
   beforeEach(() => {
     chatSessions.current = [];
@@ -522,5 +596,57 @@ describe("personal nav — Triage", () => {
   it("shows no Postmortems badge without drafts", () => {
     const { container } = render(<AppSidebar />);
     expect(postmortemBadge(container)).toBeNull();
+  });
+});
+
+describe("hasOverflowBelow", () => {
+  it("is true only while content remains under the viewport", () => {
+    expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 0 })).toBe(true);
+    expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 300 })).toBe(false);
+    expect(hasOverflowBelow({ scrollHeight: 600, clientHeight: 600, scrollTop: 0 })).toBe(false);
+  });
+});
+
+// Regression: acceptInvitationMut/declineInvitationMut had no onError — a
+// failed accept/decline just re-enabled the button with zero feedback.
+describe("AppSidebar — pending invitations", () => {
+  beforeEach(() => {
+    myInvitations.current = [{ id: "inv-1", workspace_id: "ws-2", workspace_name: "Other Co" }];
+    acceptInvitation.mockReset();
+    declineInvitation.mockReset();
+    vi.mocked(toast.error).mockClear();
+  });
+
+  it("shows a toast when accepting an invitation fails", async () => {
+    acceptInvitation.mockRejectedValue(new Error("invitation expired"));
+    render(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Join" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("invitation expired"));
+  });
+
+  it("shows a toast when declining an invitation fails", async () => {
+    declineInvitation.mockRejectedValue(new Error("already accepted"));
+    render(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("already accepted"));
+  });
+});
+
+describe("New issue from a project page", () => {
+  // Regression (audit): the sidebar's "New issue" on a project page opened the
+  // dialog with "No project", so the issue landed outside the project. Route
+  // parsing is covered in issues/hooks/use-open-contextual-create-issue.test.ts.
+  it("seeds the dialog with the project the user is looking at", async () => {
+    const { openCreateIssueWithPreference } = await import("@multica/core/issues/stores/create-mode-store");
+    navigation.current = { pathname: "/acme/projects/project-1" };
+    renderWithI18n(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: /New Issue/ }));
+
+    expect(openCreateIssueWithPreference).toHaveBeenLastCalledWith({ project_id: "project-1" });
   });
 });

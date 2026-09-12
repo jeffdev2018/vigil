@@ -143,9 +143,13 @@ func (s *pluginHookMCPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, pluginHookMCPMaxRequestBytes))
+	body, err := io.ReadAll(io.LimitReader(r.Body, pluginHookMCPMaxRequestBytes+1))
 	if err != nil {
 		writePluginHookMCPError(w, nil, -32700, "could not read the request")
+		return
+	}
+	if len(body) > pluginHookMCPMaxRequestBytes {
+		writePluginHookMCPError(w, nil, -32600, "request exceeds the size limit")
 		return
 	}
 	var request pluginHookMCPRequest

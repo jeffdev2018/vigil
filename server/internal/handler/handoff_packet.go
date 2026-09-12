@@ -3,11 +3,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -69,8 +71,13 @@ func (h *Handler) CreateHandoffPacket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: the run's own task-token path is separately scoped below; only the
+	// human path needs the project-role gate.
+	if !isMachineCredentialActor(r) && !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req HandoffPacketRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -136,6 +143,11 @@ func (h *Handler) GetLatestHandoffPacket(w http.ResponseWriter, r *http.Request)
 	}
 	p, err := h.Queries.GetLatestHandoffPacket(r.Context(), issue.ID)
 	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			slog.Warn("handoff packet: latest lookup failed", "error", err, "issue_id", uuidToString(issue.ID))
+			writeError(w, http.StatusInternalServerError, "failed to load the latest handoff packet")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"packet": nil})
 		return
 	}
@@ -149,6 +161,9 @@ func (h *Handler) latestHandoffPacket(ctx context.Context, issueID pgtype.UUID) 
 	}
 	p, err := h.Queries.GetLatestHandoffPacket(ctx, issueID)
 	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			slog.Warn("handoff packet: latest lookup for claim failed", "error", err, "issue_id", uuidToString(issueID))
+		}
 		return nil
 	}
 	out := handoffPacketToResponse(p)
@@ -163,11 +178,15 @@ func (h *Handler) ensureCompletionHandoffPacket(ctx context.Context, task db.Age
 	if !task.IssueID.Valid {
 		return
 	}
-	if n, err := h.Queries.CountHandoffPacketsForRun(ctx, task.ID); err != nil || n > 0 {
+	if n, err := h.Queries.CountHandoffPacketsForRun(ctx, task.ID); err != nil {
+		slog.Warn("handoff packet: completion count check failed", "error", err, "run_id", uuidToString(task.ID))
+		return
+	} else if n > 0 {
 		return
 	}
 	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
 	if err != nil {
+		slog.Warn("handoff packet: completion issue lookup failed", "error", err, "run_id", uuidToString(task.ID), "issue_id", uuidToString(task.IssueID))
 		return
 	}
 	evidence := []string{}

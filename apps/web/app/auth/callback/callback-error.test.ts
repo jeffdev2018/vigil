@@ -34,6 +34,11 @@ describe("callbackErrorFrom", () => {
     });
   });
 
+  it("reports a sign-in not started from this browser as an invalid authorization", () => {
+    const err = new ApiError("English fallback", 400, "Bad Request", { code: "oauth_state_invalid" });
+    expect(callbackErrorFrom(err)).toEqual({ kind: "oauth_code_invalid" });
+  });
+
   it("localizes a known 4xx code even without a fallback message", () => {
     const err = new ApiError("", 400, "Bad Request", { code: "oauth_code_invalid" });
     expect(callbackErrorFrom(err)).toEqual({ kind: "oauth_code_invalid" });

@@ -76,7 +76,7 @@ export function AttachmentPreviewPage({
           onLoad={onLoad}
           srcDoc={buildSrcDoc(text as string)}
           sandbox="allow-scripts"
-          title={filename ?? "HTML attachment"}
+          title={filename ?? t(($) => $.attachment.preview_fallback_title)}
           className="flex-1 w-full border-0 bg-background"
         />
       )}

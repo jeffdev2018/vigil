@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -115,6 +116,7 @@ func (h *Handler) ListAttentionInbox(w http.ResponseWriter, r *http.Request) {
 // notifyDecisionRequested files one inbox item per workspace manager when a
 // Decision Card is asked (K01 → K02). Best effort: the card exists either way.
 func (h *Handler) notifyDecisionRequested(ctx context.Context, issue db.Issue, decision db.IssueDecision, actorType, actorID string) {
+	h.publishApproval(ctx, protocol.EventApprovalAsked, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), "")
 	recipients, err := service.ListWorkspaceManagerNotificationRecipients(ctx, h.Queries, issue.WorkspaceID)
 	if err != nil {
 		slog.Warn("decision inbox: list recipients failed", "error", err, "issue_id", uuidToString(issue.ID))
@@ -143,6 +145,9 @@ func (h *Handler) notifyDecisionRequested(ctx context.Context, issue db.Issue, d
 	defer func() {
 		// Mobile push (K64): the badge counts the cards after this one is filed.
 		h.pushToUsers(ctx, issue.WorkspaceID, memberIDs, "Decision needed: "+issue.Title, decision.Question, map[string]any{"kind": "decision_request", "issue_id": uuidToString(issue.ID), "decision_id": uuidToString(decision.ID)})
+		// Inline approvals: the same ask, with its buttons, in the chats the
+		// workspace already routes its digest to.
+		h.postApprovalToChannels(ctx, issue.WorkspaceID, h.decisionAsk(ctx, issue, decision))
 	}()
 	for _, rcpt := range recipients {
 		item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{
@@ -167,4 +172,24 @@ func (h *Handler) notifyDecisionRequested(ctx context.Context, issue db.Issue, d
 			"item": inboxToResponse(item),
 		})
 	}
+}
+
+// decisionAsk renders a Decision Card as the chat-channel ask. A card the web
+// insists on (a plan gate, an interview) carries no options, so it posts as a
+// link and nothing else.
+func (h *Handler) decisionAsk(ctx context.Context, issue db.Issue, decision db.IssueDecision) approvalAsk {
+	ask := approvalAsk{
+		Source:     ApprovalSourceDecision,
+		IssueID:    issue.ID,
+		AskID:      decision.ID,
+		Identifier: h.getIssuePrefix(ctx, issue.WorkspaceID) + "-" + strconv.Itoa(int(issue.Number)),
+		Title:      issue.Title,
+		Question:   decision.Question,
+	}
+	if !decision.PlanVersion.Valid && !decision.InterviewGroupID.Valid {
+		if err := json.Unmarshal(decision.Options, &ask.Options); err != nil {
+			slog.Warn("failed to unmarshal decision options", "decision_id", uuidToString(decision.ID), "error", err)
+		}
+	}
+	return ask
 }

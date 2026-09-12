@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "路线图",
+    "tab_timeline": "时间线",
+    "tab_graph": "依赖关系",
+    "loading": "正在加载路线图",
+    "load_error": "无法加载路线图",
+    "empty_projects": "还没有项目",
+    "empty_projects_description": "创建一个设置了开始日期和截止日期的项目，它就会显示在时间线上。",
+    "empty_scheduled": "暂无计划",
+    "empty_scheduled_description": "还没有项目设置开始日期或截止日期。",
+    "unscheduled": "未排期的项目"
+  },
+  "timeline": {
+    "progress": "已完成 {{percent}}%",
+    "today": "今天"
+  },
+  "graph": {
+    "project": "项目",
+    "pick_project": "选择一个项目以查看其依赖关系图。",
+    "loading_issues": "正在加载事项",
+    "empty_issues": "该项目没有已排期的事项",
+    "no_edges": "这些事项之间还没有依赖关系。",
+    "legend": {
+      "blocks": "阻塞",
+      "related": "关联",
+      "duplicate": "重复"
+    }
+  }
+}

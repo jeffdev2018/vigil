@@ -45,7 +45,9 @@
   },
   "empty": {
     "title": "Aucun agent pour le moment",
-    "description": "Créez un agent et assignez-lui des issues, comme à n'importe quel coéquipier. Les agents locaux s'exécutent sur votre machine ; les agents cloud s'exécutent sur le runtime de Multica."
+    "description": "Créez un agent et assignez-lui des issues, comme à n'importe quel coéquipier. Les agents locaux s'exécutent sur votre machine ; les agents cloud s'exécutent sur le runtime de Multica.",
+    "description_run_explainer": "Les agents s'exécutent dans le navigateur sur le runtime natif — ou sur un ordinateur que vous connectez.",
+    "description_run_explainer_link": "Voir les runtimes"
   },
   "no_matches": {
     "title": "Aucun résultat",
@@ -111,6 +113,7 @@
     "set_access_skipped": "{{count}} ignorés (ne vous appartiennent pas).",
     "set_access_dialog_confirm": "Appliquer",
     "set_access_bulk_partial": "Appliqué à {{succeeded}} ; {{failed}} échoués (état actuel conservé).",
+    "bulk_partial": "{{succeeded}} réussi(s), {{failed}} échoué(s).",
     "agent_archived_toast": "Agent archivé",
     "archive_failed_toast": "Échec de l'archivage de l'agent",
     "agent_restored_toast": "Agent restauré",
@@ -132,6 +135,8 @@
     "cancel_dialog_keep": "Les conserver",
     "cancel_dialog_confirm": "Annuler toutes les exécutions",
     "archive_dialog_title": "Archiver \"{{name}}\" ?",
+    "archive_dialog_title_bulk_one": "Archiver {{count}} agent ?",
+    "archive_dialog_title_bulk_other": "Archiver {{count}} agents ?",
     "archive_dialog_description": "L'agent ne pourra plus être assigné ni mentionné, et toutes les exécutions actives seront annulées. L'historique est conservé et vous pourrez le restaurer plus tard.",
     "archive_dialog_cancel": "Annuler",
     "archive_dialog_confirm": "Archiver"
@@ -277,7 +282,9 @@
     "managed_by_runtime_title": "La sélection du modèle est gérée par ce runtime.",
     "managed_by_runtime_hint": "Configurez le modèle sur l'hôte du runtime (ex. Hermes le lit dans son propre fichier de config).",
     "discovery_failed": "échec de la découverte",
-    "clear_full": "Effacer la sélection (utiliser le défaut du fournisseur)"
+    "clear_full": "Effacer la sélection (utiliser le défaut du fournisseur)",
+    "custom_label": "Personnalisé",
+    "provider_fallback_label": "Modèle"
   },
   "tabs": {
     "overview": "Aperçu",
@@ -447,6 +454,7 @@
     "create_failed_toast": "Échec de la création de l'agent",
     "skill_attach_failed_toast": "Agent créé, mais l'ajout des skills a échoué : {{error}}",
     "squad_join_failed_toast": "L'agent « {{name}} » a été créé mais n'a pas pu rejoindre l'escouade : {{error}}. Vous pouvez l'ajouter manuellement depuis Membres.",
+    "squad_join_unknown_error": "Erreur inconnue",
     "instructions": {
       "label": "Instructions",
       "placeholder_blank": "Cliquez pour rédiger des instructions…",
@@ -731,6 +739,7 @@
       "assigned_hint": "Les compétences du workspace suivent l'agent. Désactivez-en une temporairement sans la supprimer.",
       "runtime_title": "Héritées du runtime",
       "runtime_hint": "Détectées automatiquement depuis {{runtime}} et disponibles dès que cet agent s'y exécute.",
+      "runtime_hint_unset": "Détectées automatiquement depuis le runtime assigné et disponibles dès que cet agent s'y exécute.",
       "workspace_badge": "Workspace",
       "inherited_badge": "Héritée",
       "refresh_action": "Actualiser",
@@ -1046,6 +1055,7 @@
   "live_peek": {
     "current_issue_label": "Actuellement sur",
     "no_current_issue": "Aucune issue",
+    "issue_load_error": "Impossible de charger cette issue",
     "last_activity_label": "Dernière activité",
     "no_recent_activity": "Aucune activité récente",
     "failed_indicator": "Échec"
@@ -1386,5 +1396,14 @@
     "safe_hint": "Le mode sûr retient chaque écriture Multica pour ton approbation et demande à l'agent de décrire les actions externes au lieu de les faire ; les payloads retenus sont la preuve.",
     "safe_started": "Rejeu sûr lancé",
     "safe_failed": "Impossible de lancer le rejeu sûr"
+  },
+  "run_details": {
+    "details": "S'exécute sur {{runtime}} · {{cost}}",
+    "details_auto": "S'exécute sur {{runtime}} ou un autre runtime choisi automatiquement · {{cost}}",
+    "runtime_unknown": "un runtime que vous ne voyez pas",
+    "cost_average_one": "≈ {{cost}} par run (son dernier run tarifé)",
+    "cost_average_other": "≈ {{cost}} par run (moyenne de ses {{count}} derniers runs tarifés)",
+    "cost_loading": "estimation du coût…",
+    "cost_unknown": "coût inconnu (aucun run tarifé pour l'instant)"
   }
 }

@@ -13,11 +13,19 @@
  *     task:failed / task:cancelled → invalidate timeline + detail (task
  *     state can flip an issue's status server-side without firing
  *     issue:updated, so we refetch the authoritative detail too)
+ *   - issue:updated / issue:aux_changed → also invalidate the goal-loop
+ *     query (goal_loop). Member-triggered goal actions (set/pause/resume/
+ *     answer, server/internal/handler/issue_goal.go) publish issue:updated
+ *     via publishIssueAuxChanged; agent/judge-driven transitions with no
+ *     HTTP request in flight (server/internal/service/goal_loop.go) publish
+ *     issue:aux_changed directly. Neither payload carries the goal object,
+ *     so invalidate (not patch) is correct here (apps/mobile/CLAUDE.md
+ *     "Patch over invalidate" rule #1).
+ *   - followup:changed → invalidate this issue's follow-ups (JEF-373)
  *   - reconnect → invalidate detail + timeline (we might've missed events
  *     while disconnected; server has no replay buffer for this client)
  *
- * Mobile pattern (per the realtime plan, see
- * /Users/qingnaiyuan/.claude/plans/plan-api-indexed-waffle.md):
+ * Mobile pattern (see apps/mobile/CLAUDE.md "Realtime / WebSocket strategy"):
  *   - Patch over invalidate where the payload contains the full object
  *   - Versioned events win only when their owner revision is not older than
  *     cached state; an unversioned event over versioned state triggers refetch.
@@ -26,14 +34,19 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import type {
+  IssueRecurrenceResponse,
   TaskCancelledPayload,
   TaskCompletedPayload,
   TaskDispatchPayload,
   TaskFailedPayload,
   TaskMessagePayload,
   TaskQueuedPayload,
+  WSEventType,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
+import { followupKeys } from "@/data/queries/followups";
+import { recurrenceKeys } from "@/data/queries/recurrence";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 import {
   addCommentReaction,
@@ -43,6 +56,7 @@ import {
   clearIssueDetail,
   commentToTimelineEntry,
   invalidateIssueAfterReconnect,
+  isPartialCommentPayload,
   patchIssueDetail,
   patchIssueLabels,
   patchIssuesList,
@@ -107,6 +121,15 @@ export function useIssueRealtime(
           patchIssueDetail(qc, wsId, payload.issue);
           patchMyIssuesList(qc, wsId, payload.issue);
           patchIssuesList(qc, wsId, payload.issue);
+          qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
+        }),
+        // Agent/judge-driven goal transitions with no HTTP request in
+        // flight (server/internal/service/goal_loop.go). issue_id is
+        // optional on this event's payload; undefined never equals issueId
+        // so the guard is safe.
+        ws.on("issue:aux_changed", (payload) => {
+          if (payload.issue_id !== issueId) return;
+          qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
         }),
         ws.on("issue:deleted", (payload) => {
           if (payload.issue_id !== issueId) return;
@@ -129,12 +152,21 @@ export function useIssueRealtime(
         // ----- Comments / activity -----
         ws.on("comment:created", (payload) => {
           if (payload.comment.issue_id !== issueId) return;
-          appendTimelineEntry(
-            qc,
-            wsId,
-            issueId,
-            commentToTimelineEntry(payload.comment),
-          );
+          if (isPartialCommentPayload(payload.comment)) {
+            // Older backends broadcast only {id, issue_id} from some
+            // paths (goal loop, native tools): appending that would render
+            // an empty "System · Invalid Date" entry. Refetch instead.
+            qc.invalidateQueries({
+              queryKey: issueKeys.timeline(wsId, issueId),
+            });
+          } else {
+            appendTimelineEntry(
+              qc,
+              wsId,
+              issueId,
+              commentToTimelineEntry(payload.comment),
+            );
+          }
           onIssueAuxiliaryRevision(qc, wsId, issueId, payload.issue_revision);
         }),
         ws.on("comment:updated", (payload) => {
@@ -221,9 +253,63 @@ export function useIssueRealtime(
         ws.on("task:failed", onTaskEvent),
         ws.on("task:cancelled", onTaskEvent),
 
+        // ----- Follow-ups (JEF-373) -----
+        // Scheduled or cancelled from anywhere — the CLI, an MCP client, the
+        // agent's own run, or another device. The payload carries the full
+        // followup on "scheduled" but not on "cancelled", and the list is
+        // server-ordered (soonest first) with a budget block riding along,
+        // so invalidate rather than patch (condition 2 of the
+        // patch-over-invalidate rule in apps/mobile/CLAUDE.md).
+        // `followup:changed` is in `WSEventType` but has no
+        // `WSEventPayloadMap` entry yet (packages/core/types/events.ts, owned
+        // by the web side of JEF-373), so the payload arrives as `unknown` —
+        // loud, not silently `any`. Narrowed here rather than left unguarded;
+        // delete the cast once the map entry lands.
+        ws.on("followup:changed", (payload) => {
+          const p = payload as { issue_id?: string };
+          if (p.issue_id !== issueId) return;
+          qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
+        }),
+
+        // ----- Recurrence (OS plan, table stakes) -----
+        // Set, toggled or cleared from anywhere. The payload is
+        // {issue_id, recurrence_id, change} — three ids, no rule object — so
+        // invalidate is the only option (condition 1 of the
+        // patch-over-invalidate rule in apps/mobile/CLAUDE.md).
+        //
+        // `issue_id` on this event is the SOURCE issue of the series, so an
+        // occurrence's own screen would never match a `=== issueId` guard.
+        // The cached rule is shared by the whole series, so the honest gate
+        // is "does this rule belong to the series I am showing" — answered by
+        // comparing the recurrence id against the one already in cache, and
+        // by the source id for the moment a rule is created on this issue.
+        //
+        // `issue_recurrence:changed` is not in `WSEventType` yet
+        // (packages/core/types/events.ts, owned by the web side) — hence the
+        // cast, which the runtime dispatcher (a string-keyed Map) does not
+        // care about. Delete it once the union entry lands; the payload type
+        // then comes for free.
+        ws.on("issue_recurrence:changed" as WSEventType, (payload) => {
+          const p = payload as { issue_id?: string; recurrence_id?: string };
+          const cached = qc.getQueryData<IssueRecurrenceResponse | null>(
+            recurrenceKeys.issue(wsId, issueId),
+          );
+          const mine =
+            p.issue_id === issueId ||
+            (!!p.recurrence_id && p.recurrence_id === cached?.recurrence.id);
+          if (!mine) return;
+          qc.invalidateQueries({
+            queryKey: recurrenceKeys.issue(wsId, issueId),
+          });
+        }),
+
         // ----- Reconnect -----
         ws.onReconnect(() => {
           invalidateIssueAfterReconnect(qc, wsId, issueId);
+          qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
+          qc.invalidateQueries({
+            queryKey: recurrenceKeys.issue(wsId, issueId),
+          });
         }),
       ];
     },

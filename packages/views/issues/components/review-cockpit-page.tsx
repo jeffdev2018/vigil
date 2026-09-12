@@ -1,21 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useId, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Circle, Clock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useCanonicalIssue } from "@multica/core/issues/canonical-id";
 import { cockpitChecksPending, reviewCockpitOptions, usdFromTicks } from "@multica/core/issues/cockpit";
-import { useUpdateIssue } from "@multica/core/issues/mutations";
+import { useCreateComment, useUpdateIssue } from "@multica/core/issues/mutations";
+import { issueKeys } from "@multica/core/issues/queries";
 import type { ReviewCockpit } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Label } from "@multica/ui/components/ui/label";
+import { Textarea } from "@multica/ui/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
 import { formatTokens, formatUsd } from "../../runtimes/utils";
+import { LoadErrorState } from "../../common/load-error-state";
 import { IssueNotFound, IssueDetailSkeleton } from "./issue-detail";
+import { CommentTriggerChips } from "./comment-trigger-chips";
+import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
+import { useStatusLabel } from "../utils/status-label";
+import { taskStatusLabel } from "./task-run-labels";
+import { BlockerLabel } from "./merge-readiness-panel";
 
 /**
  * Review cockpit (K16): the reviewer's single screen for an issue's run —
@@ -26,8 +42,9 @@ import { IssueNotFound, IssueDetailSkeleton } from "./issue-detail";
  */
 export function ReviewCockpitRoute({ routeId }: { routeId: string }) {
   const wsId = useWorkspaceId();
-  const { canonicalId, isResolving, notFound } = useCanonicalIssue(wsId, routeId);
+  const { canonicalId, isResolving, notFound, loadFailed, retry } = useCanonicalIssue(wsId, routeId);
   if (isResolving) return <IssueDetailSkeleton />;
+  if (loadFailed) return <LoadErrorState onRetry={retry} />;
   if (notFound || !canonicalId) return <IssueNotFound showBackLink />;
   return <ReviewCockpit issueId={canonicalId} />;
 }
@@ -39,6 +56,17 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
   const [runId, setRunId] = useState<string | undefined>(undefined);
   const { data, isLoading, isError, refetch } = useQuery(reviewCockpitOptions(wsId, issueId, runId));
   const update = useUpdateIssue();
+  const createComment = useCreateComment(issueId);
+  const qc = useQueryClient();
+  const statusLabel = useStatusLabel(wsId);
+  const formId = useId();
+  // Request changes is a written request, not a bare status move: the reviewer
+  // says what must change, it is posted on the issue (where the assignee picks
+  // it up), then the issue goes back to In progress. A bare move gave no
+  // feedback at all and, on an issue already In progress, changed nothing.
+  const [changes, setChanges] = useState<string | null>(null);
+  const [suppressedAgentIds, setSuppressedAgentIds] = useState<Set<string>>(() => new Set());
+  const triggerPreview = useCommentTriggerPreview({ issueId, content: changes ?? "" });
 
   if (isLoading) return <IssueDetailSkeleton />;
   if (isError || !data) {
@@ -52,12 +80,34 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
     );
   }
 
-  const move = (status: string) =>
+  const refreshCockpit = () => qc.invalidateQueries({ queryKey: issueKeys.cockpit(wsId, issueId).slice(0, -1) });
+  const move = (status: string, onSuccess?: () => void) =>
     update.mutate(
       { id: issueId, status },
-      { onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.review_cockpit.move_failed)) },
+      {
+        onSuccess,
+        onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.review_cockpit.move_failed)),
+        onSettled: () => void refreshCockpit(),
+      },
     );
   const checksPending = cockpitChecksPending(data);
+  const busy = update.isPending || createComment.isPending;
+  const sendChanges = async () => {
+    const feedback = changes?.trim();
+    if (!feedback) return;
+    const suppressAgentIds = triggerPreview.agents.filter((a) => suppressedAgentIds.has(a.id)).map((a) => a.id);
+    try {
+      await createComment.mutateAsync({ content: feedback, suppressAgentIds: suppressAgentIds.length > 0 ? suppressAgentIds : undefined });
+    } catch {
+      toast.error(t(($) => $.review_cockpit.request_changes_failed));
+      return;
+    }
+    setChanges(null);
+    setSuppressedAgentIds(new Set());
+    const done = () => toast.success(t(($) => $.review_cockpit.changes_requested));
+    if (data.issue.status === "in_progress") done();
+    else move("in_progress", done);
+  };
 
   return (
     <div data-testid="review-cockpit" className="flex h-full flex-col gap-4 overflow-y-auto p-6 text-body">
@@ -68,7 +118,7 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
         </AppLink>
         <span className="font-mono text-caption text-muted-foreground">{data.issue.identifier}</span>
         <h1 className="min-w-0 flex-1 truncate text-title font-semibold">{data.issue.title}</h1>
-        <span className="rounded-md border px-2 py-0.5 text-caption">{data.issue.status}</span>
+        <span className="rounded-md border px-2 py-0.5 text-caption">{statusLabel(data.issue.status)}</span>
       </div>
 
       {data.failed_sections.length > 0 && (
@@ -78,30 +128,63 @@ export function ReviewCockpit({ issueId }: { issueId: string }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" disabled={update.isPending || checksPending} onClick={() => move("done")} title={checksPending ? t(($) => $.review_cockpit.approve_blocked) : undefined}>
+        <Button type="button" size="sm" disabled={busy || checksPending} onClick={() => move("done")} title={checksPending ? t(($) => $.review_cockpit.approve_blocked) : undefined}>
           {t(($) => $.review_cockpit.approve)}
         </Button>
-        <Button type="button" size="sm" variant="outline" disabled={update.isPending} onClick={() => move("in_progress")}>
+        <Button type="button" size="sm" variant={changes === null ? "outline" : "secondary"} aria-pressed={changes !== null}
+          aria-controls={formId} disabled={busy} onClick={() => setChanges((draft) => draft ?? "")}>
           {t(($) => $.review_cockpit.request_changes)}
         </Button>
         {checksPending && <span className="text-caption text-muted-foreground">{t(($) => $.review_cockpit.approve_blocked)}</span>}
       </div>
 
+      {changes !== null && (
+        <form id={formId} data-testid="cockpit-request-changes" className="flex max-w-2xl flex-col gap-2 rounded-md border p-3"
+          onSubmit={(event) => { event.preventDefault(); void sendChanges(); }}>
+          <Label htmlFor={`${formId}-feedback`}>{t(($) => $.review_cockpit.changes_label)}</Label>
+          <Textarea id={`${formId}-feedback`} autoFocus rows={3} maxLength={4000} disabled={busy} value={changes}
+            onChange={(event) => setChanges(event.target.value)} />
+          <p className="text-caption text-muted-foreground">{t(($) => $.review_cockpit.changes_hint)}</p>
+          <CommentTriggerChips agents={triggerPreview.agents} blocked={triggerPreview.blocked} draftContent={changes}
+            suppressedAgentIds={suppressedAgentIds}
+            onToggle={(agentId) => setSuppressedAgentIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(agentId)) next.delete(agentId); else next.add(agentId);
+              return next;
+            })} />
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setChanges(null)}>
+              {t(($) => $.review_cockpit.changes_cancel)}
+            </Button>
+            <Button type="submit" size="sm" disabled={busy || !changes.trim()}>
+              {t(($) => $.review_cockpit.changes_send)}
+            </Button>
+          </div>
+        </form>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Section title={t(($) => $.review_cockpit.run)} testId="cockpit-run">
           {data.runs.length > 1 && (
-            <select
-              aria-label={t(($) => $.review_cockpit.select_run)}
-              className="mb-2 rounded border bg-background px-1 py-0.5 text-caption"
+            <Select
+              items={data.runs.map((r) => ({
+                value: r.id,
+                label: `${taskStatusLabel(t, r.status)} · ${r.created_at.slice(0, 16).replace("T", " ")}`,
+              }))}
               value={runId ?? data.run?.id ?? ""}
-              onChange={(e) => setRunId(e.target.value || undefined)}
+              onValueChange={(value) => value !== null && setRunId(value || undefined)}
             >
-              {data.runs.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.status} · {r.created_at.slice(0, 16).replace("T", " ")}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="mb-2" aria-label={t(($) => $.review_cockpit.select_run)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {data.runs.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {taskStatusLabel(t, r.status)} · {r.created_at.slice(0, 16).replace("T", " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {data.run ? <RunSummary run={data.run} /> : <Muted>{t(($) => $.review_cockpit.runs_none)}</Muted>}
         </Section>
@@ -196,7 +279,7 @@ function RunSummary({ run }: { run: NonNullable<ReviewCockpit["run"]> }) {
   const timeAgo = useTimeAgo();
   return (
     <div className="flex flex-col gap-1 text-caption">
-      <span className="font-medium">{run.status}</span>
+      <span className="font-medium">{taskStatusLabel(t, run.status)}</span>
       <span className="text-muted-foreground">
         {timeAgo(run.created_at)}
         {run.completed_at && <span> · {t(($) => $.review_cockpit.run_completed, { ago: timeAgo(run.completed_at) })}</span>}
@@ -254,8 +337,7 @@ function PullRequests({ cockpit }: { cockpit: ReviewCockpit }) {
         <ul className="flex flex-col gap-0.5 text-muted-foreground">
           {mr.blockers.map((b, i) => (
             <li key={`${b.kind}-${i}`}>
-              {b.label}
-              {b.count ? ` (${b.count})` : ""}
+              <BlockerLabel blocker={b} />
             </li>
           ))}
         </ul>

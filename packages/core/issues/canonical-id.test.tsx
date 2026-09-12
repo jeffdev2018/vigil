@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { setApiInstance } from "../api";
+import { ApiError, setApiInstance } from "../api";
 import type { ApiClient } from "../api/client";
 import type { Issue } from "../types";
 import { createQueryClient } from "../query-client";
@@ -141,7 +141,7 @@ describe("useCanonicalIssue", () => {
   });
 
   it("reports a nonexistent identifier as terminally not-found", async () => {
-    getIssue.mockRejectedValue(new Error("issue not found"));
+    getIssue.mockRejectedValue(new ApiError("issue not found", 404, "Not Found"));
 
     const { result } = renderHook(() => useCanonicalIssue("ws-1", "ZZZ-134"), {
       wrapper: createWrapper(qc),
@@ -155,6 +155,28 @@ describe("useCanonicalIssue", () => {
     // Must NOT read as still-resolving: a caller that keeps showing a loading
     // frame here re-enters the remount loop this state exists to prevent.
     expect(result.current.isResolving).toBe(false);
+    expect(result.current.loadFailed).toBe(false);
+  });
+
+  // Regression (audit): opening an issue during a network drop said the issue
+  // did not exist. No answer from the server is not a 404.
+  it("reports a resolution that got no answer as a load failure, not as not-found", async () => {
+    const noRetry = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+    getIssue.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const { result } = renderHook(() => useCanonicalIssue("ws-1", "TRS-134"), {
+      wrapper: createWrapper(noRetry),
+    });
+
+    await waitFor(() => expect(result.current.loadFailed).toBe(true));
+    expect(result.current.notFound).toBe(false);
+    expect(result.current.isResolving).toBe(false);
+
+    getIssue.mockResolvedValue(issue);
+    result.current.retry();
+    await waitFor(() => expect(result.current.canonicalId).toBe(ISSUE_UUID));
+    expect(result.current.loadFailed).toBe(false);
+    noRetry.clear();
   });
 
   // Regression: a failed resolution used to present as "not resolving, no id",
@@ -168,7 +190,7 @@ describe("useCanonicalIssue", () => {
       // 1 can only mean a remount refetched.
       defaultOptions: { queries: { staleTime: Infinity, retry: false } },
     });
-    getIssue.mockRejectedValue(new Error("issue not found"));
+    getIssue.mockRejectedValue(new ApiError("issue not found", 404, "Not Found"));
 
     const { result, rerender } = renderHook(() => useCanonicalIssue("ws-1", "ZZZ-134"), {
       wrapper: createWrapper(noRetry),

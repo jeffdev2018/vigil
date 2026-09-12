@@ -20,6 +20,8 @@ export function useCreateWorkspace() {
       issue_prefix?: string;
       /** Seed the new workspace from a saved template run (K76). */
       template_run_id?: string;
+      /** Seed the new workspace from a catalogue pack (packs, vague B). */
+      pack_id?: string;
     }) => api.createWorkspace(data),
     // Seed the workspace list cache BEFORE callers navigate to /{newWs.slug}/issues.
     // The destination [workspaceSlug]/layout queries by slug from this cache;

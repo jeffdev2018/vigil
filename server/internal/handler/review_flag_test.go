@@ -3,8 +3,11 @@ package handler
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/multica-ai/multica/server/internal/integrations/vcs"
@@ -19,7 +22,7 @@ func reviewFlagCleanup(t *testing.T) {
 	t.Helper()
 	syncIssueCounter(t)
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		testPool.Exec(context.Background(), `DELETE FROM review_flag WHERE workspace_id = $1`, testWorkspaceID)
 	})
 }
@@ -368,4 +371,29 @@ func TestReviewFlagsGoStaleWhenTheHeadMoves(t *testing.T) {
 			t.Fatalf("re-applied snapshot: %+v", got.Flags)
 		}
 	})
+}
+
+// A title/body over the byte budget must be truncated on a rune boundary —
+// CJK review comments (conventions.zh.mdx) whose 300th/10000th byte lands
+// mid-rune must not come back as invalid UTF-8.
+func TestValidateReviewFlagRequestTruncatesOnRuneBoundary(t *testing.T) {
+	lineStart := 1
+	req := createReviewFlagRequest{
+		FilePath:  "a.go",
+		Severity:  "bug",
+		Title:     strings.Repeat("中", reviewFlagTitleMax), // well over the byte budget
+		Body:      strings.Repeat("文", reviewFlagBodyMax),
+		LineStart: &lineStart,
+	}
+	w := httptest.NewRecorder()
+	out, ok := validateReviewFlagRequest(w, req, linkedPR{})
+	if !ok {
+		t.Fatalf("validateReviewFlagRequest rejected a valid request: %d %s", w.Code, w.Body.String())
+	}
+	if len(out.Title) > reviewFlagTitleMax || !utf8.ValidString(out.Title) {
+		t.Fatalf("title = %q (%d bytes), want <=%d valid UTF-8 bytes", out.Title, len(out.Title), reviewFlagTitleMax)
+	}
+	if len(out.Body) > reviewFlagBodyMax || !utf8.ValidString(out.Body) {
+		t.Fatalf("body = %q (%d bytes), want <=%d valid UTF-8 bytes", out.Body, len(out.Body), reviewFlagBodyMax)
+	}
 }

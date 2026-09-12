@@ -189,7 +189,12 @@ function MemberRow({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" size="icon-sm" disabled={busy}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={busy}
+                aria-label={t(($) => $.members.member_actions_aria)}
+              >
                 <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
               </Button>
             }
@@ -292,6 +297,7 @@ function InvitationRow({
           disabled={busy}
           onClick={onRevoke}
           title={t(($) => $.members.revoke_invitation_tooltip)}
+          aria-label={t(($) => $.members.revoke_invitation_tooltip)}
         >
           <X className="h-4 w-4 text-muted-foreground" />
         </Button>
@@ -343,6 +349,7 @@ function ShareLinkRow({
         size="icon-sm"
         onClick={onCopy}
         title={t(($) => $.members.share_link_copy_tooltip)}
+        aria-label={t(($) => $.members.share_link_copy_tooltip)}
       >
         <Copy className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -352,6 +359,7 @@ function ShareLinkRow({
         disabled={busy}
         onClick={onRevoke}
         title={t(($) => $.members.share_link_revoke_tooltip)}
+        aria-label={t(($) => $.members.share_link_revoke_tooltip)}
       >
         <Trash2 className="h-4 w-4 text-muted-foreground" />
       </Button>
@@ -372,8 +380,10 @@ export function MembersTab() {
   const qc = useQueryClient();
   const wsId = useWorkspaceId();
   const navigation = useOptionalNavigation();
-  const { data: members = [] } = useQuery(memberListOptions(wsId));
-  const { data: invitations = [] } = useQuery(invitationListOptions(wsId));
+  const membersQuery = useQuery(memberListOptions(wsId));
+  const { data: members = [] } = membersQuery;
+  const invitationsQuery = useQuery(invitationListOptions(wsId));
+  const { data: invitations = [] } = invitationsQuery;
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
@@ -411,7 +421,8 @@ export function MembersTab() {
   const ownerCount = members.filter((m) => m.role === "owner").length;
   // Only owners/admins may list share links; skip the request for plain
   // members (the server would 403) once the current member's role is known.
-  const { data: shareLinks = [] } = useQuery(shareLinkListOptions(wsId, canManageWorkspace));
+  const shareLinksQuery = useQuery(shareLinkListOptions(wsId, canManageWorkspace));
+  const { data: shareLinks = [] } = shareLinksQuery;
 
   const sendInvitation = useCallback(
     async (email: string, role: MemberRole) => {
@@ -821,8 +832,8 @@ export function MembersTab() {
                     <SelectValue>{() => roleConfig[inviteRole].label}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">{roleConfig.member.label}</SelectItem>
-                    <SelectItem value="admin">{roleConfig.admin.label}</SelectItem>
+                    <SelectItem value="member" title={roleConfig.member.description}>{roleConfig.member.label}</SelectItem>
+                    <SelectItem value="admin" title={roleConfig.admin.description}>{roleConfig.admin.label}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -836,7 +847,16 @@ export function MembersTab() {
           </Card>
         )}
 
-        {members.length > 0 ? (
+        {membersQuery.isError ? (
+          <div className="flex flex-col items-start gap-2">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.members.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void membersQuery.refetch()}>
+              {t(($) => $.members.retry)}
+            </Button>
+          </div>
+        ) : members.length > 0 ? (
           <SettingsCard>
             {members.map((m) => (
               <div key={m.id}>
@@ -858,20 +878,31 @@ export function MembersTab() {
         )}
       </SettingsSection>
 
-      {invitations.length > 0 && (
+      {(invitations.length > 0 || invitationsQuery.isError) && (
         <SettingsSection title={t(($) => $.members.pending_title, { count: invitations.length })}>
-          <SettingsCard>
-            {invitations.map((inv) => (
-              <div key={inv.id}>
-                <InvitationRow
-                  invitation={inv}
-                  canManage={canManageWorkspace}
-                  onRevoke={() => handleRevokeInvitation(inv)}
-                  busy={invitationActionId === inv.id}
-                />
-              </div>
-            ))}
-          </SettingsCard>
+          {invitationsQuery.isError ? (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.members.invitations_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void invitationsQuery.refetch()}>
+                {t(($) => $.members.retry)}
+              </Button>
+            </div>
+          ) : (
+            <SettingsCard>
+              {invitations.map((inv) => (
+                <div key={inv.id}>
+                  <InvitationRow
+                    invitation={inv}
+                    canManage={canManageWorkspace}
+                    onRevoke={() => handleRevokeInvitation(inv)}
+                    busy={invitationActionId === inv.id}
+                  />
+                </div>
+              ))}
+            </SettingsCard>
+          )}
         </SettingsSection>
       )}
 
@@ -898,8 +929,8 @@ export function MembersTab() {
                       <SelectValue>{() => roleConfig[shareLinkRole].label}</SelectValue>
                     </SelectTrigger>
                     <SelectContent className="min-w-0">
-                      <SelectItem value="member">{roleConfig.member.label}</SelectItem>
-                      <SelectItem value="admin">{roleConfig.admin.label}</SelectItem>
+                      <SelectItem value="member" title={roleConfig.member.description}>{roleConfig.member.label}</SelectItem>
+                      <SelectItem value="admin" title={roleConfig.admin.description}>{roleConfig.admin.label}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -940,7 +971,16 @@ export function MembersTab() {
               </div>
             </CardContent>
           </Card>
-          {shareLinks.length > 0 && (
+          {shareLinksQuery.isError ? (
+            <div className="flex flex-col items-start gap-2">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.members.share_links_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void shareLinksQuery.refetch()}>
+                {t(($) => $.members.retry)}
+              </Button>
+            </div>
+          ) : shareLinks.length > 0 && (
             <SettingsCard>
               {shareLinks.map((link) => (
                 <div key={link.id}>

@@ -494,6 +494,8 @@ type harness struct {
 	tasks     *fakeTasks
 	reader    *fakeReader
 	lifecycle *fakeChannelChatLifecycle
+	captures  *fakeCaptures
+	schedules *fakeSchedules
 }
 
 func newHarness(t *testing.T) *harness {
@@ -517,10 +519,12 @@ func newHarness(t *testing.T) *harness {
 		media:     &fakeMedia{},
 		issues:    &fakeIssues{},
 		tasks:     &fakeTasks{},
-		reader:    &fakeReader{ws: db.Workspace{IssuePrefix: "MUL"}},
+		reader:    &fakeReader{ws: db.Workspace{IssuePrefix: "MUL", Slug: "demo-web"}},
 		lifecycle: &fakeChannelChatLifecycle{},
+		captures:  &fakeCaptures{id: uuidFromString(t, "cccccccc-cccc-4ccc-8ccc-cccccccccccc")},
+		schedules: &fakeSchedules{id: uuidFromString(t, "dddddddd-dddd-4ddd-8ddd-dddddddddddd")},
 	}
-	h.router = NewRouter(h.issues, h.tasks, h.reader, RouterConfig{Logger: discardLogger(), Lifecycle: h.lifecycle})
+	h.router = NewRouter(h.issues, h.tasks, h.reader, RouterConfig{Logger: discardLogger(), Lifecycle: h.lifecycle, Captures: h.captures, Schedules: h.schedules})
 	h.router.Register(channel.TypeFeishu, ResolverSet{
 		Installation: h.inst,
 		Identity:     h.ident,
@@ -1074,7 +1078,7 @@ func TestRouter_IssueCommand_Creates(t *testing.T) {
 	}
 	if !waitFor(time.Second, func() bool {
 		for _, r := range h.replier.calls() {
-			if r.IssueIdentifier == "MUL-42" && r.IssueTitle == "Fix login" {
+			if r.IssueIdentifier == "MUL-42" && r.IssueWorkspaceSlug == "demo-web" && r.IssueTitle == "Fix login" {
 				return true
 			}
 		}
@@ -1142,7 +1146,7 @@ func TestRouter_IssueCommand_ActiveDuplicateIsTerminalProductOutcome(t *testing.
 	}
 	if !waitFor(time.Second, func() bool {
 		for _, result := range h.replier.calls() {
-			if result.IssueDuplicate && result.IssueID == duplicate.ID && result.IssueIdentifier == "MUL-44" && result.IssueTitle == duplicate.Title {
+			if result.IssueDuplicate && result.IssueID == duplicate.ID && result.IssueIdentifier == "MUL-44" && result.IssueWorkspaceSlug == "demo-web" && result.IssueTitle == duplicate.Title {
 				return true
 			}
 		}

@@ -356,8 +356,11 @@ func (h *Handler) CreateProjectCodeWikiSnapshot(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, project.ID) {
+		return
+	}
 	var req CreateCodeWikiSnapshotRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -425,7 +428,7 @@ func (h *Handler) CreateProjectCodeWikiPage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	var req CreateCodeWikiPageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -526,6 +529,11 @@ func (h *Handler) RefreshProjectCodeWiki(w http.ResponseWriter, r *http.Request)
 func (h *Handler) loadBuildingSnapshot(w http.ResponseWriter, r *http.Request) (db.CodeWikiSnapshot, bool) {
 	project, ok := h.loadProjectForResource(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return db.CodeWikiSnapshot{}, false
+	}
+	// K60: both callers (CreateProjectCodeWikiPage, PublishProjectCodeWikiSnapshot)
+	// are writes — gated once here, same as RefreshProjectCodeWiki.
+	if !h.requireProjectWrite(w, r, project.ID) {
 		return db.CodeWikiSnapshot{}, false
 	}
 	snapshotID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "sid"), "snapshot id")

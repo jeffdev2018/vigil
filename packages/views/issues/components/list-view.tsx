@@ -17,12 +17,14 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Virtuoso } from "react-virtuoso";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import type { Issue, IssueStatusCategory, Project } from "@multica/core/types";
 import { useViewStore } from "@multica/core/issues/stores/view-store-context";
 import { StatusHeading } from "./status-heading";
 import { ListRow, DraggableListRow, type ChildProgress } from "./list-row";
 import { useDragSettle } from "./use-drag-settle";
 import { ListLoadMoreFooter } from "./list-load-more-footer";
+import { sortFieldI18nKey } from "../utils/sort";
 import { useT } from "../../i18n";
 import {
   type DragMoveUpdates,
@@ -94,7 +96,7 @@ function ListViewImpl({
   const sortBy = useViewStore((s) => s.sortBy);
   const { t } = useT("issues");
 
-  const sortFieldKey = sortBy === "created_at" ? "created" : sortBy;
+  const sortFieldKey = sortFieldI18nKey(sortBy);
   const sortLabel = sortBy !== "position"
     ? t(($) => $.board.ordered_by, { field: t(($) => $.display[`sort_${sortFieldKey}` as keyof typeof $.display]) })
     : null;
@@ -554,20 +556,17 @@ function StatusAccordionItem({
         }`}
       >
         <div className="pl-3 flex items-center">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={allSelected}
-            ref={(el) => {
-              if (el) el.indeterminate = someSelected && !allSelected;
-            }}
-            onChange={() => {
+            indeterminate={someSelected && !allSelected}
+            onCheckedChange={() => {
               if (allSelected) {
                 deselect(issueIds);
               } else {
                 select(issueIds);
               }
             }}
-            className="cursor-pointer accent-primary"
+            className="cursor-pointer"
           />
         </div>
         <Accordion.Trigger className="group/trigger flex flex-1 items-center gap-2 px-2 h-full text-left outline-none cursor-pointer">
@@ -584,6 +583,7 @@ function StatusAccordionItem({
                   variant="ghost"
                   size="icon-sm"
                   className="rounded-full text-muted-foreground opacity-0 group-hover/header:opacity-100 transition-opacity"
+                  aria-label={t(($) => $.list.add_issue_tooltip)}
                   onClick={() => {
                     const defaults = {
                       status,

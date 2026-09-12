@@ -247,11 +247,13 @@ export interface Issue {
    */
   origin_type?: string | null;
   origin_id?: string | null;
+  /** The recurrence series the issue belongs to; null when it happens once. */
+  recurrence_id?: string | null;
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
 }
 
-export type IssueDependencyType = "blocks" | "blocked_by" | "related";
+export type IssueDependencyType = "blocks" | "blocked_by" | "related" | "duplicate";
 
 /** One relation seen from the requested issue; `type` is relative to it. */
 export interface IssueDependency {
@@ -264,6 +266,7 @@ export interface IssueDependencies {
   blocks: IssueDependency[];
   blocked_by: IssueDependency[];
   related: IssueDependency[];
+  duplicate: IssueDependency[];
 }
 
 // ── Plan verification (F17) ─────────────────────────────────────────────────

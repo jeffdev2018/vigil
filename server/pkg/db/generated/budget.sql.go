@@ -314,6 +314,44 @@ func (q *Queries) GetActiveBudgetOverride(ctx context.Context, arg GetActiveBudg
 	return i, err
 }
 
+const getActiveBudgetReservationForTask = `-- name: GetActiveBudgetReservationForTask :one
+SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
+WHERE policy_id = $1
+  AND task_id = $2
+  AND state <> 'released'
+ORDER BY created_at
+LIMIT 1
+`
+
+type GetActiveBudgetReservationForTaskParams struct {
+	PolicyID pgtype.UUID `json:"policy_id"`
+	TaskID   pgtype.UUID `json:"task_id"`
+}
+
+// One task holds at most one live reservation per policy, whatever the period.
+// Keying the lookup on the period too let a task still queued across a period
+// boundary be reserved a second time at claim, and settlement then charged its
+// cost once per reservation. The admitted cost belongs to the period that
+// admitted it.
+func (q *Queries) GetActiveBudgetReservationForTask(ctx context.Context, arg GetActiveBudgetReservationForTaskParams) (BudgetReservation, error) {
+	row := q.db.QueryRow(ctx, getActiveBudgetReservationForTask, arg.PolicyID, arg.TaskID)
+	var i BudgetReservation
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.TaskID,
+		&i.EstimateUsdTicks,
+		&i.ActualUsdTicks,
+		&i.State,
+		&i.IdempotencyKey,
+		&i.CreatedAt,
+		&i.FinalizedAt,
+	)
+	return i, err
+}
+
 const getBudgetPeriod = `-- name: GetBudgetPeriod :one
 SELECT policy_id, period_start, period_end, spent_usd_ticks, reserved_usd_ticks, warn_notified_at, block_notified_at, created_at, updated_at FROM budget_period
 WHERE policy_id = $1
@@ -374,48 +412,8 @@ func (q *Queries) GetBudgetPolicyInWorkspace(ctx context.Context, arg GetBudgetP
 	return i, err
 }
 
-const getBudgetReservationByKey = `-- name: GetBudgetReservationByKey :one
-SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
-WHERE policy_id = $1
-  AND period_start = $2
-  AND period_end = $3
-  AND idempotency_key = $4
-  AND state <> 'released'
-`
-
-type GetBudgetReservationByKeyParams struct {
-	PolicyID       pgtype.UUID        `json:"policy_id"`
-	PeriodStart    pgtype.Timestamptz `json:"period_start"`
-	PeriodEnd      pgtype.Timestamptz `json:"period_end"`
-	IdempotencyKey string             `json:"idempotency_key"`
-}
-
-func (q *Queries) GetBudgetReservationByKey(ctx context.Context, arg GetBudgetReservationByKeyParams) (BudgetReservation, error) {
-	row := q.db.QueryRow(ctx, getBudgetReservationByKey,
-		arg.PolicyID,
-		arg.PeriodStart,
-		arg.PeriodEnd,
-		arg.IdempotencyKey,
-	)
-	var i BudgetReservation
-	err := row.Scan(
-		&i.ID,
-		&i.PolicyID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.TaskID,
-		&i.EstimateUsdTicks,
-		&i.ActualUsdTicks,
-		&i.State,
-		&i.IdempotencyKey,
-		&i.CreatedAt,
-		&i.FinalizedAt,
-	)
-	return i, err
-}
-
 const getNextQueuedTaskForBudget = `-- name: GetNextQueuedTaskForBudget :one
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue task
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue task
 WHERE task.agent_id = $1
   AND task.runtime_id = $2
   AND task.status = 'queued'
@@ -518,12 +516,18 @@ func (q *Queries) GetNextQueuedTaskForBudget(ctx context.Context, arg GetNextQue
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
 	)
 	return i, err
 }
 
 const getOldestBudgetPausedTask = `-- name: GetOldestBudgetPausedTask :one
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue task
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at FROM agent_task_queue task
 WHERE task.agent_id = $1
   AND task.runtime_id = $2
   AND task.status = 'queued'
@@ -626,6 +630,12 @@ func (q *Queries) GetOldestBudgetPausedTask(ctx context.Context, arg GetOldestBu
 		&i.DiffStat,
 		&i.DiffUnified,
 		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
 	)
 	return i, err
 }
@@ -901,44 +911,6 @@ func (q *Queries) ListRecoverableBudgetReservations(ctx context.Context, arg Lis
 	return items, nil
 }
 
-const listReservedBudgetReservationsByTask = `-- name: ListReservedBudgetReservationsByTask :many
-SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
-WHERE task_id = $1 AND state = 'reserved'
-ORDER BY policy_id
-`
-
-func (q *Queries) ListReservedBudgetReservationsByTask(ctx context.Context, taskID pgtype.UUID) ([]BudgetReservation, error) {
-	rows, err := q.db.Query(ctx, listReservedBudgetReservationsByTask, taskID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []BudgetReservation{}
-	for rows.Next() {
-		var i BudgetReservation
-		if err := rows.Scan(
-			&i.ID,
-			&i.PolicyID,
-			&i.PeriodStart,
-			&i.PeriodEnd,
-			&i.TaskID,
-			&i.EstimateUsdTicks,
-			&i.ActualUsdTicks,
-			&i.State,
-			&i.IdempotencyKey,
-			&i.CreatedAt,
-			&i.FinalizedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskUsageForBudget = `-- name: ListTaskUsageForBudget :many
 SELECT task_id, provider, model, input_tokens, output_tokens,
        cache_read_tokens, cache_write_tokens, cost_usd_ticks
@@ -976,6 +948,48 @@ func (q *Queries) ListTaskUsageForBudget(ctx context.Context, taskID pgtype.UUID
 			&i.CacheReadTokens,
 			&i.CacheWriteTokens,
 			&i.CostUsdTicks,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockBudgetReservationsByTask = `-- name: LockBudgetReservationsByTask :many
+SELECT id, policy_id, period_start, period_end, task_id, estimate_usd_ticks, actual_usd_ticks, state, idempotency_key, created_at, finalized_at FROM budget_reservation
+WHERE task_id = $1 AND state IN ('reserved', 'consumed', 'released')
+ORDER BY policy_id, id
+FOR UPDATE
+`
+
+// Every reservation of a task, locked before its usage is read: settlement
+// and a late usage report serialize on these rows, so whichever runs second
+// sees the write of the other and prices the usage committed by then.
+func (q *Queries) LockBudgetReservationsByTask(ctx context.Context, taskID pgtype.UUID) ([]BudgetReservation, error) {
+	rows, err := q.db.Query(ctx, lockBudgetReservationsByTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BudgetReservation{}
+	for rows.Next() {
+		var i BudgetReservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.TaskID,
+			&i.EstimateUsdTicks,
+			&i.ActualUsdTicks,
+			&i.State,
+			&i.IdempotencyKey,
+			&i.CreatedAt,
+			&i.FinalizedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1038,6 +1052,60 @@ type MarkBudgetWarnNotifiedParams struct {
 
 func (q *Queries) MarkBudgetWarnNotified(ctx context.Context, arg MarkBudgetWarnNotifiedParams) (BudgetPeriod, error) {
 	row := q.db.QueryRow(ctx, markBudgetWarnNotified, arg.PolicyID, arg.PeriodStart, arg.PeriodEnd)
+	var i BudgetPeriod
+	err := row.Scan(
+		&i.PolicyID,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.SpentUsdTicks,
+		&i.ReservedUsdTicks,
+		&i.WarnNotifiedAt,
+		&i.BlockNotifiedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const rechargeBudgetReservation = `-- name: RechargeBudgetReservation :one
+WITH input AS (
+  SELECT $1::uuid AS reservation_id, $2::bigint AS actual_usd_ticks
+), locked AS (
+  SELECT reservation.id, reservation.policy_id, reservation.period_start, reservation.period_end, reservation.task_id, reservation.estimate_usd_ticks, reservation.actual_usd_ticks, reservation.state, reservation.idempotency_key, reservation.created_at, reservation.finalized_at, input.actual_usd_ticks AS new_actual_usd_ticks
+  FROM budget_reservation AS reservation, input
+  WHERE reservation.id = input.reservation_id
+    AND reservation.state IN ('consumed', 'released')
+    AND reservation.actual_usd_ticks IS DISTINCT FROM input.actual_usd_ticks
+  FOR UPDATE OF reservation
+), changed AS (
+  UPDATE budget_reservation AS reservation
+  SET state = 'consumed', actual_usd_ticks = locked.new_actual_usd_ticks
+  FROM locked
+  WHERE reservation.id = locked.id
+  RETURNING locked.policy_id, locked.period_start, locked.period_end,
+            locked.new_actual_usd_ticks - COALESCE(locked.actual_usd_ticks, 0) AS delta_usd_ticks
+)
+UPDATE budget_period AS period
+SET spent_usd_ticks = GREATEST(0, period.spent_usd_ticks + changed.delta_usd_ticks),
+    updated_at = now()
+FROM changed
+WHERE period.policy_id = changed.policy_id
+  AND period.period_start = changed.period_start
+  AND period.period_end = changed.period_end
+RETURNING period.policy_id, period.period_start, period.period_end, period.spent_usd_ticks, period.reserved_usd_ticks, period.warn_notified_at, period.block_notified_at, period.created_at, period.updated_at
+`
+
+type RechargeBudgetReservationParams struct {
+	ReservationID  pgtype.UUID `json:"reservation_id"`
+	ActualUsdTicks int64       `json:"actual_usd_ticks"`
+}
+
+// Re-prices a reservation that was already finalized when more usage arrived:
+// a daemon reports usage after a server-side cancel, a native run records it
+// after its terminal write, a corrected report overwrites the tokens. The
+// spend of the period moves by the difference, so repeating it is a no-op.
+func (q *Queries) RechargeBudgetReservation(ctx context.Context, arg RechargeBudgetReservationParams) (BudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, rechargeBudgetReservation, arg.ReservationID, arg.ActualUsdTicks)
 	var i BudgetPeriod
 	err := row.Scan(
 		&i.PolicyID,

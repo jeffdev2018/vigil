@@ -47,3 +47,9 @@ WHERE token_hash = sqlc.arg('token_hash') AND token_hash <> '';
 -- name: GetTriageSourceByRef :one
 SELECT * FROM triage_source
 WHERE workspace_id = $1 AND kind = $2 AND ref_id = $3;
+
+-- name: ClearTriageSourceToken :exec
+-- Revoke an intake token without deleting the source: items already captured
+-- keep pointing at their source row.
+UPDATE triage_source SET token_hash = '', updated_at = now()
+WHERE workspace_id = $1 AND kind = $2 AND ref_id = $3;

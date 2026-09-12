@@ -68,6 +68,7 @@ type OrgContextForEnv struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitMission    string   `json:"unit_mission,omitempty"`
 	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
@@ -317,18 +318,23 @@ type TaskContextForEnv struct {
 	AutopilotTriggerPayload string
 	QuickCreatePrompt       string // non-empty for quick-create tasks
 	IsSquadLeader           bool   // true when THIS TASK runs the agent in the squad-leader role (may exit silently on no_action); derived from the claim's is_leader_task / squad_id, never sniffed from instructions text (MUL-5811)
-	// WorkspaceContext is the workspace-level system prompt (workspace.context
-	// in the DB). Rendered into the brief as `## Workspace Context` when
-	// non-empty so every agent in the workspace sees the same shared context,
-	// regardless of issue / chat / autopilot / quick-create.
+	// WorkspaceContext is the workspace doctrine (workspace.context in the
+	// DB). Rendered into the brief as `## Workspace Doctrine` when non-empty
+	// so every agent in the workspace is bound by the same rules, regardless
+	// of issue / chat / autopilot / quick-create.
 	WorkspaceContext string
+	// WorkspaceDoctrineRevision is the doctrine's revision number, rendered in
+	// the heading. Like the text itself this is durable workspace
+	// configuration, not per-turn state. Zero renders the heading without a
+	// revision, which is also what an older server sends.
+	WorkspaceDoctrineRevision int32
 	// IssueStatuses is the workspace's active CUSTOM status catalog from the
 	// claim payload (MUL-6460), in catalog order. Rendered into the brief's
 	// status-command line so agents can see and use statuses beyond the seven
 	// built-ins. Like WorkspaceContext, this is durable workspace configuration,
 	// not per-turn state: it may legitimately change brief bytes when an admin
 	// edits the catalog between runs of a resumed session, exactly as a
-	// Workspace Context edit does. Empty — including on old servers that never
+	// Workspace Doctrine edit does. Empty — including on old servers that never
 	// send the field — renders the built-in-only line byte-identical to before.
 	IssueStatuses []IssueStatusForEnv
 	// IssueStatusesOmitted is the count of active custom statuses the server's

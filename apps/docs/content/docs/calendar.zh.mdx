@@ -1,0 +1,72 @@
+---
+title: 日历
+description: 以成员和智能体为参与者的事件，把任务截止日期、周期和会议汇总在一起的日程表，空闲时段查找，智能体提出、由人接受的提议，一个 ICS 订阅源和 Google 日历。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+工作区有自己的日历。一个**事件**有标题、带时区的时间段、可选的地点、它所服务的可选任务或项目，以及作为成员或智能体的**参与者**——智能体像人一样出席一场评审,它的运行知道这件事。
+
+## 页面
+
+侧边栏中的**日历**显示月视图或周视图。每一天都会列出工作区的事件、当天**到期的任务**、经过这一天的**周期**,以及被记录下来的**会议**;点击一个事件可以看到谁在其中,回答自己的出席状态(接受、拒绝、待定),移动它或取消它。取消的事件仍会以已取消的状态显示,好让订阅的日历知道它已经取消。
+
+**日程**视图以列表形式展示同样的内容,再加上同一时间窗内**计划中的唤醒**,`GET /api/calendar/agenda` 把它提供给脚本使用。
+
+## 提议
+
+智能体不能自行把任何东西放到任何人的日历上。它只能从一次运行中——通过原生运行时的 `propose_event` 工具、MCP 的 `vigil_calendar` 工具,或 `multica calendar propose`——把这个事件作为**已提议**登记在它正在处理的任务上,并附上一张 Decision Card,该任务的相关人员会在他们[做决定](/decisions#在哪里回答)的任何地方看到它:任务时间线、收件箱、聊天、手机、Slack、Telegram 或 Lark。**接受**会安排该事件并邀请参与者;**拒绝**会取消它。
+
+智能体被要求在提议之前先查看日程并询问空闲时段,并且只提议一次。
+
+## 计划中的唤醒
+
+**跟进**是指智能体在选定的时间回到某个任务上,并带着一条说明当时要做什么的备注——它是[自动化](/autopilots)的一次性表亲。日程会把它们和其它有日期的东西并排列出:`GET /api/calendar/agenda` 返回一个 `followups` 数组,包含任务、智能体、触发时间和备注,这样一次唤醒就和同一天的事件、到期日一起可见。
+
+```bash
+multica issue followup ONE-42 --when "+90" --note "检查这次部署"
+multica issue followups ONE-42
+multica issue followup-cancel ONE-42 <followup-id>
+```
+
+`--when` 接受 RFC 3339 时刻或相对当前的 `+<分钟数>`,必须落在 1 分钟到 30 天之间。跟进也会显示在任务上,并在运行列表里显示为一次阻塞在 *deferred* 的运行,阻塞原因就是那条备注;任何能看到这个任务的人都可以在它触发之前取消它。[原生运行时](/native-runtime)记录了运行为此使用的工具,以及那条不让唤醒变成死循环的每日配额。
+
+## 空闲时段
+
+**查找空闲时段**(或 `GET /api/calendar/slots`)接收参与者、时长和一个时间窗口,返回所有人都能安排的最早时段:成员的时段要落在所请求时区内工作日的 09:00–18:00 之间,且不与其自己的事件冲突;智能体则只要不与自己的事件冲突,任何时间都可以。
+
+## 邀请与提醒
+
+被邀请参加一个已排期事件的成员会收到一条收件箱消息和一条推送通知;移动该事件会重新发出邀请。事件开始前十五分钟,所有未拒绝的参与者都会在收件箱和手机上收到提醒。
+
+## 你的 ICS 订阅源
+
+**设置 → 日历 → 从你的日历应用订阅**会生成一个私有 URL(`/api/calendar/ics/<token>`),供 Apple 日历、Google 日历或 Outlook 订阅。它包含你参与或创建的事件,涵盖过去一个月和未来一年,已取消的事件会标注出来。这个 URL 本身就是凭证:重新生成会轮换它,撤销会使它失效。
+
+<Callout title="两个方向,两处设置">
+**你订阅的日历源**(Multica 用来识别你会议名称的外部 ICS)位于**设置 → 会议**。**Multica 为你发布的日历源**就是这一个。
+</Callout>
+
+## Google 日历
+
+在**设置 → 集成 → Composio** 下连接 `googlecalendar` 工具包后,**从 Google 导入**会把某个时间窗口内的 Google 事件拉取到工作区日历中(来源标记为 *google*,以其 id 为键,因此第二次导入是更新而不是重复),而你在这里安排的事件也会镜像到你的 Google 日历。智能体从不为此直接接触 Google:这两个动作都通过你自己的连接在服务端完成。
+
+## 工具与 CLI
+
+- 原生运行时:`list_events`、`find_slot`、`propose_event`。
+- MCP:`vigil_calendar`,动作为 `events`、`agenda`、`slots`、`propose`。
+- CLI:`multica calendar agenda | events | slots | propose`;日程里的唤醒用 `multica issue followup | followups | followup-cancel`。
+
+## API
+
+- `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`、`POST /api/calendar/events`、`GET/PUT/DELETE /api/calendar/events/{id}`、`POST /api/calendar/events/{id}/respond {response}`。
+- `GET /api/calendar/agenda?from&to`(事件、任务到期日、周期、会议,以及该时间窗内的 `followups`)、`GET /api/calendar/slots?participants&duration&from&to&tz`。
+- `POST /api/issues/{id}/followups {when, note?, agent_id?}`、`GET /api/issues/{id}/followups`、`DELETE /api/issues/{id}/followups/{followupId}`;实时事件 `followup:changed`。
+- `GET/POST/DELETE /api/calendar/feed-token`,公开的 `GET /api/calendar/ics/{token}`。
+- `POST /api/calendar/google/import {from, to}`。
+- 事件 `calendar:changed` 让打开的页面保持最新;收件箱类型为 `calendar_invitation` 和 `calendar_reminder`。
+
+## 接下来
+
+- [决策](/decisions) — 提议在哪里被接受。
+- [会议](/meetings) — 日程中显示的已记录会议。

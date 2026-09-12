@@ -381,6 +381,8 @@ LIMIT 1;
 -- the first.
 SELECT * FROM comment
 WHERE issue_id = @issue_id
+  AND (id = ANY(@planned_comment_ids::uuid[])
+       OR comment_thread_root_id(id) = sqlc.narg('comment_thread_id')::uuid)
   AND (
       (
           author_type IN ('member', 'agent')
@@ -822,7 +824,8 @@ FROM (
 -- Merge readiness (F10): the markdown bodies the open-todo counter scans.
 SELECT content FROM comment
 WHERE issue_id = $1 AND author_type <> 'system'
-ORDER BY created_at ASC;
+ORDER BY created_at ASC
+LIMIT 1000;
 
 -- Comment threads anchored to a diff line (F07 / JEF-21).
 

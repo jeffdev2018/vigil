@@ -138,6 +138,12 @@ export default function ProjectDetail() {
           onPress: () => {
             deleteProject.mutate(undefined, {
               onSuccess: () => router.back(),
+              onError: () => {
+                Alert.alert(
+                  "Couldn't delete project",
+                  "Something went wrong. Please try again.",
+                );
+              },
             });
           },
         },

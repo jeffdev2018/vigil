@@ -21,7 +21,8 @@
     "apply": "Save",
     "uploading": "Uploading…",
     "loading": "Loading…",
-    "load_failed": "Couldn't load image"
+    "load_failed": "Couldn't load image",
+    "encode_failed": "Couldn't process the crop. Try again."
   },
   "color_picker": {
     "saturation": "Saturation and brightness",
@@ -33,6 +34,7 @@
   },
   "save": "Save",
   "cancel": "Cancel",
+  "unknown": "Unknown",
   "delete": "Delete",
   "confirm": "Confirm",
   "loading": "Loading...",
@@ -136,5 +138,48 @@
     "status_pending": "To do",
     "status_in_progress": "In progress",
     "status_done": "Done"
+  },
+  "property_icons": {
+    "circle-dot": "Status",
+    "signal-high": "Priority",
+    "user-round": "Assignee",
+    "folder-kanban": "Project",
+    "calendar-days": "Date",
+    "tag": "Label",
+    "milestone": "Milestone",
+    "flag": "Flag",
+    "bookmark": "Bookmark",
+    "star": "Star",
+    "target": "Target",
+    "shield": "Shield",
+    "bug": "Bug",
+    "zap": "Lightning",
+    "rocket": "Rocket",
+    "sparkles": "Sparkles",
+    "lightbulb": "Idea",
+    "globe-2": "Globe",
+    "link": "Link",
+    "hash": "Number",
+    "list-checks": "Checklist",
+    "circle-check": "Complete",
+    "clock-3": "Time",
+    "briefcase-business": "Work",
+    "layers-3": "Layers",
+    "gauge": "Gauge",
+    "database": "Database",
+    "code-2": "Code",
+    "palette": "Design",
+    "megaphone": "Announcement",
+    "map-pin": "Location",
+    "package": "Package",
+    "wrench": "Tools",
+    "heart": "Favorite",
+    "circle-alert": "Alert",
+    "lock-keyhole": "Private"
+  },
+  "load_error": {
+    "title": "Couldn't load this page",
+    "description": "The server did not answer. Check your connection, then try again.",
+    "retry": "Try again"
   }
 }

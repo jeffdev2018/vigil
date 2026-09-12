@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -73,7 +74,9 @@ type IssueDecisionResponse struct {
 
 func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
 	var options []DecisionOption
-	_ = json.Unmarshal(d.Options, &options)
+	if err := json.Unmarshal(d.Options, &options); err != nil {
+		slog.Warn("failed to unmarshal issue decision options", "decision_id", uuidToString(d.ID), "error", err)
+	}
 	if options == nil {
 		options = []DecisionOption{}
 	}
@@ -137,6 +140,9 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -150,7 +156,11 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	options, _ := json.Marshal(req.Options)
+	options, err := json.Marshal(req.Options)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode decision options")
+		return
+	}
 
 	workspaceID := uuidToString(issue.WorkspaceID)
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
@@ -219,6 +229,26 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "decision not found")
 		return
 	}
+	// Approval gates (K05) may be reserved to owners and admins by policy;
+	// every other card keeps the rule that whoever sees the issue may answer.
+	// A failed read fails closed: only "no gate" skips the approver check.
+	if _, gerr := h.Queries.GetApprovalGateByDecision(ctx, decision.ID); gerr == nil {
+		ws, werr := h.Queries.GetWorkspace(ctx, issue.WorkspaceID)
+		if werr != nil {
+			slog.Error("decision: load workspace for approval gate", "decision_id", uuidToString(decision.ID), "error", werr)
+			writeError(w, http.StatusInternalServerError, "failed to check the approval gate")
+			return
+		}
+		member, merr := h.getWorkspaceMember(ctx, userID, uuidToString(issue.WorkspaceID))
+		if merr != nil || !service.ApprovalGatesSettings(ws.Settings).GateApproverAllowed(member.Role) {
+			writeErrorCode(w, http.StatusForbidden, "not_an_approver", "this workspace reserves approval gates to owners and admins")
+			return
+		}
+	} else if !errors.Is(gerr, pgx.ErrNoRows) {
+		slog.Error("decision: load approval gate", "decision_id", uuidToString(decision.ID), "error", gerr)
+		writeError(w, http.StatusInternalServerError, "failed to check the approval gate")
+		return
+	}
 	var options []DecisionOption
 	_ = json.Unmarshal(decision.Options, &options)
 	chosen := ""
@@ -284,7 +314,10 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 // HTTP endpoint and the Slack digest button (K64). Returns "already_decided"
 // as code when the card was answered before.
 func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decision db.IssueDecision, userID, actorType, actorID string, req DecisionAnswer, chosen, materializationNote string, interview func() (pgtype.UUID, bool)) (db.IssueDecision, string, error) {
-	answer, _ := json.Marshal(req)
+	answer, err := json.Marshal(req)
+	if err != nil {
+		return db.IssueDecision{}, "", err
+	}
 	updated, err := h.Queries.RespondIssueDecision(ctx, db.RespondIssueDecisionParams{
 		ID:              decision.ID,
 		Response:        answer,
@@ -297,6 +330,11 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if err != nil {
 		return db.IssueDecision{}, "", err
 	}
+	outcome := req.OptionID
+	if outcome == "" {
+		outcome = "modified"
+	}
+	h.publishApproval(ctx, protocol.EventApprovalDecided, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), outcome)
 	// Pipelines (K37): a gate card answered advances or stops the pipeline, no resume.
 	if h.advancePipelineForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
@@ -319,6 +357,14 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	}
 	// Org chart (K75): a superior approves or holds a routed assignment, no resume.
 	if h.applyOrgForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
+	// Native calendar: an agent's proposed event is scheduled or cancelled, no resume.
+	if h.applyCalendarForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
+	// Autopilot proposal (réveil programmé): activated or discarded, no resume.
+	if h.applyAutopilotForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
 	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.

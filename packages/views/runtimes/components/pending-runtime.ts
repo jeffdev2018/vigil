@@ -61,22 +61,25 @@ export function pendingRuntimeFromProfile({
   profile,
   createdAt,
   ownerId,
-  localDaemonId,
   localMachineName,
   fallbackMachineName,
+  localDaemonId,
 }: {
   profile: RuntimeProfile;
   createdAt: number;
   ownerId?: string | null;
   localDaemonId?: string | null;
   localMachineName?: string | null;
-  fallbackMachineName?: string | null;
+  /**
+   * Translated machine name shown when `localMachineName` is absent. This
+   * file has no `t()`, so a required (not optional) param is the only way
+   * to stop a future caller from silently falling through to an English
+   * literal — TypeScript now refuses to compile a call site that omits it.
+   */
+  fallbackMachineName: string;
 }): AgentRuntime {
   const pendingSince = new Date(createdAt).toISOString();
-  const machineName =
-    localMachineName?.trim() ||
-    fallbackMachineName?.trim() ||
-    "Pending custom runtimes";
+  const machineName = localMachineName?.trim() || fallbackMachineName.trim();
   const metadata: PendingRuntimeMetadata = {
     pending_custom_runtime: true,
     runtime_profile_id: profile.id,
@@ -118,7 +121,7 @@ export function pendingRuntimesForProfiles({
   ownerId?: string | null;
   localDaemonId?: string | null;
   localMachineName?: string | null;
-  fallbackMachineName?: string | null;
+  fallbackMachineName: string;
 }): AgentRuntime[] {
   if (pendingProfiles.length === 0) return runtimes;
   const registeredProfileIds = new Set(

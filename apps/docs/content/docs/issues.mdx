@@ -132,6 +132,58 @@ An issue with no type is **untyped**, which is a normal state — every issue cr
 
 A custom property can be **scoped** to one or more types, so a bug-only field does not clutter every story. A property with no scope applies everywhere, including to untyped issues. Changing an issue's type never deletes a value: values the new type does not cover are folded away, stay readable, and come back if you switch the type back.
 
+## Recurring issues
+
+Some work comes back: a weekly review, a monthly report, a checklist that has to be run again once the last one is closed. Rather than copying an issue by hand, give it a **repeat rule** — the issue becomes the *source* of a series, and Multica files each next occurrence for you.
+
+Open the issue and set **Repeat** in its properties:
+
+| Choice | What it does |
+|---|---|
+| **Daily**, **Weekdays**, **Weekly**, **Monthly** | Presets: pick a time and Multica writes the schedule for you. |
+| **Custom** | Your own 5-field cron expression, with a preview of the next three runs. |
+| **Timezone** | The IANA timezone the schedule is read in. It defaults to UTC, so set it if 9:00 should mean 9:00 where your team is. |
+| **When closed** | No clock at all: the next occurrence is created when the current one reaches a `done` or `cancelled` status. |
+| **Paused** | The rule stays on the issue and stops firing until someone arms it again. |
+
+Only workspace members set, change, or clear a repeat rule. An agent can read the rule of an issue it is working on and suggest one, but it cannot arm a standing order by itself.
+
+### What an occurrence copies
+
+Each occurrence is a new issue copied from the **latest** occurrence of the series — not from the original — so the series carries the corrections your team made along the way:
+
+- Title and description, with every markdown checkbox reset to unchecked.
+- Priority, assignee and delegate, project, labels, custom properties, and acceptance criteria.
+- The due date, shifted to keep the lead the previous occurrence had between its creation and its due date.
+
+The new issue starts in `todo` and records the rule that created it as its origin. Comments, attachments, and run history are not copied: an occurrence is new work, not a duplicate of a conversation.
+
+<Callout type="info">
+When the issue is assigned to an agent, every occurrence starts a run just like any other issue. A daily rule is a run a day until someone stops it — watch [Runs](/tasks) after arming one.
+</Callout>
+
+### The series
+
+Every issue in the series carries a repeat badge, and opening any of them shows the same rule: the issue it was set on, the occurrences already created (newest first) with their status and due date, and the next runs. The schedule can be changed, paused, or stopped from any of them.
+
+Stopping the series clears the rule and nothing else. The occurrences already filed stay as ordinary issues, keep their comments and their runs, and simply stop having a next one.
+
+Setting and clearing a rule are both recorded in the workspace audit log (`issue.recurrence_set`, `issue.recurrence_cleared`), so "why does this issue keep coming back?" always has an answer with a name on it.
+
+### From the CLI and from an agent
+
+```bash
+multica issue recurrence show MUL-42
+multica issue recurrence set MUL-42 --cron "0 9 * * 1" --timezone Europe/Paris
+multica issue recurrence set MUL-42 --weekdays 09:00
+multica issue recurrence set MUL-42 --mode on_close
+multica issue recurrence clear MUL-42
+```
+
+`--daily`, `--weekdays`, `--weekly "MON 09:00"`, and `--monthly "1 09:00"` are the same presets as the interface; an explicit `--cron` wins over them, and `--disabled` files the rule paused. Over MCP the same three operations are the `vigil_issue` actions `recurrence_get`, `recurrence_set`, and `recurrence_clear` — reading is open to agents, and the two writes answer `403` to anything but a member.
+
+A repeating issue is not an [autopilot](/autopilots): a recurrence files the same piece of work again for whoever owns it, while an autopilot runs an instruction on a schedule and may never open an issue at all.
+
 ## Switch views
 
 The Issues page offers six views — list, board, table, Gantt, swimlane, and calendar — filterable and sortable by status, assignee, project, work item type, and other properties. They all show the same issues; the calendar places each issue on its due date.

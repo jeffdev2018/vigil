@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Cycle } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
@@ -12,6 +13,7 @@ const state = vi.hoisted(() => ({
   created: [] as unknown[],
   deleteError: null as Error | null,
   toastError: vi.fn(),
+  cyclesLoading: false,
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -24,7 +26,7 @@ vi.mock("sonner", () => ({ toast: { error: state.toastError } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (o: { queryKey?: readonly unknown[] }) => {
     const key = o.queryKey?.[0];
-    if (key === "cycles") return { data: state.cycles, isLoading: false, isPending: false };
+    if (key === "cycles") return { data: state.cycles, isLoading: state.cyclesLoading, isPending: false };
     if (key === "projects") return { data: [{ id: "p1", title: "Billing" }], isLoading: false };
     if (key === "properties") return { data: [], isLoading: false };
     return { data: undefined, isLoading: false, isPending: true };
@@ -90,7 +92,21 @@ beforeEach(() => {
   state.created = [];
   state.deleteError = null;
   state.toastError.mockReset();
+  state.cyclesLoading = false;
 });
+
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(
+  scope: { getByRole: typeof screen.getByRole; findByRole: typeof screen.findByRole },
+  comboboxName: string,
+  optionName: string,
+) {
+  const user = userEvent.setup();
+  await user.click(scope.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 describe("CyclesPage", () => {
   it("groups cycles into active, upcoming and closed sections", () => {
@@ -127,14 +143,26 @@ describe("CyclesPage", () => {
     expect(screen.getByText("No cycles yet")).toBeInTheDocument();
   });
 
+  // P3 audit finding: the empty-state branch required `!isLoading`, but
+  // there was no isLoading branch of its own — so while the initial fetch
+  // was in flight, cycles.length === 0 and isLoading === true fell through
+  // both the error and empty checks, rendering the section list over an
+  // empty array: a blank content area with no loading indicator at all.
+  it("shows a loading indicator instead of a blank area while the fetch is in flight", () => {
+    state.cyclesLoading = true;
+    renderPage();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading cycles");
+    expect(screen.queryByText("No cycles yet")).toBeNull();
+  });
+
   it("creates a cycle with the project filter preselected", async () => {
     state.cycles = [cycle({ id: "c1" })];
     renderPage();
-    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "p1" } });
+    await pickOption(screen, "Project", "Billing");
     fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect((within(dialog).getByLabelText("Project") as HTMLSelectElement).value).toBe("p1");
+    expect(within(dialog).getByRole("combobox", { name: "Project" }).textContent).toContain("Billing");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Sprint 14" } });
     fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-01" } });
     fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-14" } });
@@ -161,13 +189,33 @@ describe("CyclesPage", () => {
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Project"), { target: { value: "p1" } });
+    await pickOption(within(dialog), "Project", "Billing");
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Backwards" } });
     fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-14" } });
     fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-01" } });
 
     expect(within(dialog).getByRole("button", { name: "Create cycle" })).toBeDisabled();
     expect(within(dialog).getByText(/end date must be on or after/i)).toBeInTheDocument();
+    expect(state.created).toHaveLength(0);
+  });
+
+  // P3 audit finding: capacityValue mapped ANY invalid input (including a
+  // typed negative number) to null — "not declared" — instead of rejecting
+  // it. A typo like "-5" silently saved as an undeclared cap rather than
+  // being caught.
+  it("refuses to submit a negative capacity", async () => {
+    state.cycles = [cycle({ id: "c1" })];
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
+    const dialog = await screen.findByRole("dialog");
+    await pickOption(within(dialog), "Project", "Billing");
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Sprint 14" } });
+    fireEvent.change(within(dialog).getByLabelText("Start date"), { target: { value: "2026-04-01" } });
+    fireEvent.change(within(dialog).getByLabelText("End date"), { target: { value: "2026-04-14" } });
+    fireEvent.change(within(dialog).getByLabelText("People capacity"), { target: { value: "-5" } });
+
+    expect(within(dialog).getByRole("button", { name: "Create cycle" })).toBeDisabled();
+    expect(within(dialog).getByText("Capacity must be zero or greater.")).toBeInTheDocument();
     expect(state.created).toHaveLength(0);
   });
 

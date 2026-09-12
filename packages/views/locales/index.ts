@@ -13,6 +13,7 @@ import enMyIssues from "./en/my-issues.json";
 import enSearch from "./en/search.json";
 import enInbox from "./en/inbox.json";
 import enTriage from "./en/triage.json";
+import enRuns from "./en/runs.json";
 import enMeetings from "./en/meetings.json";
 import enPostmortem from "./en/postmortem.json";
 import enBrain from "./en/brain.json";
@@ -22,6 +23,8 @@ import enAutopilots from "./en/autopilots.json";
 import enSkills from "./en/skills.json";
 import enGoals from "./en/goals.json";
 import enCycles from "./en/cycles.json";
+import enRoadmap from "./en/roadmap.json";
+import enCalendarEvents from "./en/calendar-events.json";
 import enOrg from "./en/org.json";
 import enContests from "./en/contests.json";
 import enChat from "./en/chat.json";
@@ -47,6 +50,7 @@ import zhHansMyIssues from "./zh-Hans/my-issues.json";
 import zhHansSearch from "./zh-Hans/search.json";
 import zhHansInbox from "./zh-Hans/inbox.json";
 import zhHansTriage from "./zh-Hans/triage.json";
+import zhHansRuns from "./zh-Hans/runs.json";
 import zhHansMeetings from "./zh-Hans/meetings.json";
 import zhHansPostmortem from "./zh-Hans/postmortem.json";
 import zhHansBrain from "./zh-Hans/brain.json";
@@ -56,6 +60,8 @@ import zhHansAutopilots from "./zh-Hans/autopilots.json";
 import zhHansSkills from "./zh-Hans/skills.json";
 import zhHansGoals from "./zh-Hans/goals.json";
 import zhHansCycles from "./zh-Hans/cycles.json";
+import zhHansRoadmap from "./zh-Hans/roadmap.json";
+import zhHansCalendarEvents from "./zh-Hans/calendar-events.json";
 import zhHansOrg from "./zh-Hans/org.json";
 import zhHansContests from "./zh-Hans/contests.json";
 import zhHansChat from "./zh-Hans/chat.json";
@@ -81,6 +87,7 @@ import koMyIssues from "./ko/my-issues.json";
 import koSearch from "./ko/search.json";
 import koInbox from "./ko/inbox.json";
 import koTriage from "./ko/triage.json";
+import koRuns from "./ko/runs.json";
 import koMeetings from "./ko/meetings.json";
 import koPostmortem from "./ko/postmortem.json";
 import koBrain from "./ko/brain.json";
@@ -90,6 +97,8 @@ import koAutopilots from "./ko/autopilots.json";
 import koSkills from "./ko/skills.json";
 import koGoals from "./ko/goals.json";
 import koCycles from "./ko/cycles.json";
+import koRoadmap from "./ko/roadmap.json";
+import koCalendarEvents from "./ko/calendar-events.json";
 import koOrg from "./ko/org.json";
 import koContests from "./ko/contests.json";
 import koChat from "./ko/chat.json";
@@ -115,6 +124,7 @@ import jaMyIssues from "./ja/my-issues.json";
 import jaSearch from "./ja/search.json";
 import jaInbox from "./ja/inbox.json";
 import jaTriage from "./ja/triage.json";
+import jaRuns from "./ja/runs.json";
 import jaMeetings from "./ja/meetings.json";
 import jaPostmortem from "./ja/postmortem.json";
 import jaBrain from "./ja/brain.json";
@@ -124,6 +134,8 @@ import jaAutopilots from "./ja/autopilots.json";
 import jaSkills from "./ja/skills.json";
 import jaGoals from "./ja/goals.json";
 import jaCycles from "./ja/cycles.json";
+import jaRoadmap from "./ja/roadmap.json";
+import jaCalendarEvents from "./ja/calendar-events.json";
 import jaOrg from "./ja/org.json";
 import jaContests from "./ja/contests.json";
 import jaChat from "./ja/chat.json";
@@ -149,6 +161,7 @@ import frMyIssues from "./fr/my-issues.json";
 import frSearch from "./fr/search.json";
 import frInbox from "./fr/inbox.json";
 import frTriage from "./fr/triage.json";
+import frRuns from "./fr/runs.json";
 import frMeetings from "./fr/meetings.json";
 import frPostmortem from "./fr/postmortem.json";
 import frWorkspace from "./fr/workspace.json";
@@ -157,6 +170,8 @@ import frAutopilots from "./fr/autopilots.json";
 import frSkills from "./fr/skills.json";
 import frGoals from "./fr/goals.json";
 import frCycles from "./fr/cycles.json";
+import frRoadmap from "./fr/roadmap.json";
+import frCalendarEvents from "./fr/calendar-events.json";
 import frOrg from "./fr/org.json";
 import frContests from "./fr/contests.json";
 import frChat from "./fr/chat.json";
@@ -189,6 +204,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: frSearch,
     inbox: frInbox,
     triage: frTriage,
+    runs: frRuns,
     meetings: frMeetings,
     postmortem: frPostmortem,
     workspace: frWorkspace,
@@ -197,6 +213,8 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: frSkills,
     goals: frGoals,
     cycles: frCycles,
+    roadmap: frRoadmap,
+    "calendar-events": frCalendarEvents,
     org: frOrg,
     contests: frContests,
     chat: frChat,
@@ -225,6 +243,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: enSearch,
     inbox: enInbox,
     triage: enTriage,
+    runs: enRuns,
     meetings: enMeetings,
     postmortem: enPostmortem,
     brain: enBrain,
@@ -234,6 +253,8 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: enSkills,
     goals: enGoals,
     cycles: enCycles,
+    roadmap: enRoadmap,
+    "calendar-events": enCalendarEvents,
     org: enOrg,
     contests: enContests,
     chat: enChat,
@@ -261,6 +282,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: zhHansSearch,
     inbox: zhHansInbox,
     triage: zhHansTriage,
+    runs: zhHansRuns,
     meetings: zhHansMeetings,
     postmortem: zhHansPostmortem,
     brain: zhHansBrain,
@@ -270,6 +292,8 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: zhHansSkills,
     goals: zhHansGoals,
     cycles: zhHansCycles,
+    roadmap: zhHansRoadmap,
+    "calendar-events": zhHansCalendarEvents,
     org: zhHansOrg,
     contests: zhHansContests,
     chat: zhHansChat,
@@ -297,6 +321,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: koSearch,
     inbox: koInbox,
     triage: koTriage,
+    runs: koRuns,
     meetings: koMeetings,
     postmortem: koPostmortem,
     brain: koBrain,
@@ -306,6 +331,8 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: koSkills,
     goals: koGoals,
     cycles: koCycles,
+    roadmap: koRoadmap,
+    "calendar-events": koCalendarEvents,
     org: koOrg,
     contests: koContests,
     chat: koChat,
@@ -333,6 +360,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: jaSearch,
     inbox: jaInbox,
     triage: jaTriage,
+    runs: jaRuns,
     meetings: jaMeetings,
     postmortem: jaPostmortem,
     brain: jaBrain,
@@ -342,6 +370,8 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: jaSkills,
     goals: jaGoals,
     cycles: jaCycles,
+    roadmap: jaRoadmap,
+    "calendar-events": jaCalendarEvents,
     org: jaOrg,
     contests: jaContests,
     chat: jaChat,

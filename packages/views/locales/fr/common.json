@@ -21,7 +21,8 @@
     "apply": "Enregistrer",
     "uploading": "Envoi en cours…",
     "loading": "Chargement…",
-    "load_failed": "Impossible de charger l'image"
+    "load_failed": "Impossible de charger l'image",
+    "encode_failed": "Impossible de traiter le recadrage. Réessayez."
   },
   "color_picker": {
     "saturation": "Saturation et luminosité",
@@ -33,6 +34,7 @@
   },
   "save": "Enregistrer",
   "cancel": "Annuler",
+  "unknown": "Inconnu",
   "delete": "Supprimer",
   "confirm": "Confirmer",
   "loading": "Chargement...",
@@ -136,5 +138,48 @@
     "status_pending": "À faire",
     "status_in_progress": "En cours",
     "status_done": "Terminé"
+  },
+  "property_icons": {
+    "circle-dot": "Statut",
+    "signal-high": "Priorité",
+    "user-round": "Assigné",
+    "folder-kanban": "Projet",
+    "calendar-days": "Date",
+    "tag": "Étiquette",
+    "milestone": "Jalon",
+    "flag": "Drapeau",
+    "bookmark": "Signet",
+    "star": "Étoile",
+    "target": "Cible",
+    "shield": "Bouclier",
+    "bug": "Bug",
+    "zap": "Éclair",
+    "rocket": "Fusée",
+    "sparkles": "Étincelles",
+    "lightbulb": "Idée",
+    "globe-2": "Globe",
+    "link": "Lien",
+    "hash": "Numéro",
+    "list-checks": "Liste de contrôle",
+    "circle-check": "Terminé",
+    "clock-3": "Temps",
+    "briefcase-business": "Travail",
+    "layers-3": "Calques",
+    "gauge": "Jauge",
+    "database": "Base de données",
+    "code-2": "Code",
+    "palette": "Design",
+    "megaphone": "Annonce",
+    "map-pin": "Lieu",
+    "package": "Paquet",
+    "wrench": "Outils",
+    "heart": "Favori",
+    "circle-alert": "Alerte",
+    "lock-keyhole": "Privé"
+  },
+  "load_error": {
+    "title": "Impossible de charger cette page",
+    "description": "Le serveur n'a pas répondu. Vérifiez votre connexion, puis réessayez.",
+    "retry": "Réessayer"
   }
 }

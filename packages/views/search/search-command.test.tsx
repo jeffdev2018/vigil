@@ -132,6 +132,9 @@ const {
 }));
 
 vi.mock("./why-search-group", () => ({ WhySearchGroup: () => null }));
+// Same reason as the group above: it owns its own query and workspace lookup,
+// and has its own suite (brain-search-group.test.tsx).
+vi.mock("./brain-search-group", () => ({ BrainSearchGroup: () => null }));
 vi.mock("@multica/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",
@@ -208,6 +211,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
   useWorkspacePaths: () => ({
     inbox: () => "/ws-test/inbox",
     triage: () => "/ws-test/triage",
+    runs: () => "/ws-test/runs",
     meetings: () => "/ws-test/meetings",
     postmortems: () => "/ws-test/postmortems",
     chat: () => "/ws-test/chat",
@@ -216,6 +220,8 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     projects: () => "/ws-test/projects",
     goals: () => "/ws-test/goals",
     cycles: () => "/ws-test/cycles",
+    roadmap: () => "/ws-test/roadmap",
+    calendar: () => "/ws-test/calendar",
     org: () => "/ws-test/org",
     autopilots: () => "/ws-test/autopilots",
     agents: () => "/ws-test/agents",
@@ -391,7 +397,6 @@ describe("SearchCommand", () => {
   });
 
   it("offers every workspace nav page, not a hand-maintained subset", async () => {
-    const user = userEvent.setup();
     renderSearch();
     const input = screen.getByPlaceholderText("Type a command or search...");
 
@@ -401,8 +406,7 @@ describe("SearchCommand", () => {
     // list this replaced had gone stale by four pages (MUL-6272).
     for (const page of Object.values(WORKSPACE_PAGES)) {
       const label = enLayout.nav[page.navKey];
-      await user.clear(input);
-      await user.type(input, label);
+      fireEvent.change(input, { target: { value: label } });
       expect(
         await screen.findByText(
           (_, el) => el?.textContent === label && el?.tagName === "SPAN",

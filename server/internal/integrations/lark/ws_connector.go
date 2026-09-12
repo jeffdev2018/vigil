@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // WSLongConnConnector is the production EventConnector that holds the
@@ -97,6 +99,17 @@ type WSConnectorConfig struct {
 	// disables enrichment (the decoded body is emitted as-is).
 	Enricher Enricher
 
+	// CardActionHandler settles an interactive-card button press
+	// (card.action.trigger) — the inline approval buttons. It runs on the
+	// read loop AFTER the frame is ACKed, bounded by CardActionTimeout.
+	// Nil drops the event.
+	CardActionHandler func(ctx context.Context, inst Installation, act CardAction)
+
+	// CardActionTimeout caps one card-action settle. Unlike enrichment this
+	// runs after the ACK, so it is not bound by Lark's ACK window — but it
+	// still holds the read loop, so it stays short. Zero defaults to 10s.
+	CardActionTimeout time.Duration
+
 	// EnrichTimeout caps a single message's enrichment (at most two
 	// GetMessage calls). It MUST stay well under Lark's ~3s long-conn
 	// ACK window, since enrichment runs before the frame is ACKed.
@@ -155,6 +168,9 @@ func (c WSConnectorConfig) withDefaults() WSConnectorConfig {
 	}
 	if c.EnrichTimeout == 0 {
 		c.EnrichTimeout = 2 * time.Second
+	}
+	if c.CardActionTimeout == 0 {
+		c.CardActionTimeout = 10 * time.Second
 	}
 	if c.Now == nil {
 		c.Now = time.Now
@@ -233,13 +249,13 @@ func (c *WSLongConnConnector) Run(ctx context.Context, inst Installation, emit E
 	// returns immediately. Also runs on any other exit path so we
 	// never leak the goroutine.
 	done := make(chan struct{})
-	go func() {
+	util.GoBackground("lark ws connector: watchdog", func() {
 		select {
 		case <-runCtx.Done():
 			closeConn()
 		case <-done:
 		}
-	}()
+	})
 
 	// writeMu serializes WriteMessage from the read loop (ACK send)
 	// and the ping goroutine. gorilla/websocket forbids concurrent
@@ -256,7 +272,9 @@ func (c *WSLongConnConnector) Run(ctx context.Context, inst Installation, emit E
 
 	// Ping loop: app-layer binary ping frames at the server's PingInterval.
 	pingDone := make(chan struct{})
-	go c.pingLoop(runCtx, conn, &writeMu, endpoint.ServiceID, pingInterval, log, pingDone)
+	util.GoBackground("lark ws connector: ping loop", func() {
+		c.pingLoop(runCtx, conn, &writeMu, endpoint.ServiceID, pingInterval, log, pingDone)
+	})
 
 	defer func() {
 		runCancel()
@@ -350,6 +368,24 @@ func (c *WSLongConnConnector) Run(ctx context.Context, inst Installation, emit E
 				"chunks", sum,
 				"bytes", len(payload),
 			)
+		}
+
+		// A card button press is not a message and never reaches the
+		// message decoder. ACK it first — deciding writes to the database
+		// and calls back out to Lark, which can outlast the ~3s ACK window
+		// and would otherwise earn a redelivery of a click already acted
+		// on — then settle it inline so clicks keep their arrival order.
+		if act, isAction := DecodeCardAction(payload); isAction {
+			if werr := c.writeFrame(&writeMu, conn, NewAckFrame(frame, true)); werr != nil {
+				log.Warn("lark ws connector: ack-after-card-action write failed", "err", werr.Error())
+				return fmt.Errorf("write ack: %w", werr)
+			}
+			if c.cfg.CardActionHandler != nil {
+				actCtx, cancelAct := context.WithTimeout(ctx, c.cfg.CardActionTimeout)
+				c.cfg.CardActionHandler(actCtx, inst, act)
+				cancelAct()
+			}
+			continue
 		}
 
 		// Data frames: hand the (possibly reassembled) JSON payload to

@@ -47,6 +47,7 @@
     "section_remote": "Distant",
     "section_cloud": "Cloud",
     "this_machine": "Cet appareil",
+    "unknown_machine": "Machine inconnue",
     "cli_sign_in_needed": "Connexion requise",
     "local_badge": "Local · cet appareil",
     "pending_custom_runtimes": "Runtimes personnalisés en attente",
@@ -80,7 +81,8 @@
       "workload_hint": "{{running}} en cours · {{queued}} en file d'attente",
       "cli": "CLI",
       "cloud_worker": "Worker cloud",
-      "local_daemon": "Daemon local"
+      "local_daemon": "Daemon local",
+      "cloud_worker_named": "Cloud {{provider}}"
     },
     "rename": "Renommer la machine",
     "rename_dialog": {
@@ -94,7 +96,8 @@
       "toast_saved": "Machine renommée",
       "toast_cleared": "Nom de la machine effacé",
       "toast_failed": "Échec du renommage de la machine"
-    }
+    },
+    "unassigned": "Non assigné"
   },
   "health": {
     "online": {
@@ -359,7 +362,8 @@
       "completed": "Mise à jour terminée. Redémarrage du daemon...",
       "failed": "Échec de la mise à jour",
       "timeout": "Délai dépassé"
-    }
+    },
+    "updated_to": "Mise à jour vers {{version}}"
   },
   "cli_auth": {
     "authenticated": "Authentifié",
@@ -392,7 +396,11 @@
     "heatmap_average": "moy. {{value}}",
     "heatmap_window_total_one": "Total sur {{count}} jour",
     "heatmap_window_total_other": "Total sur {{count}} jours",
-    "tooltip_total": "Total"
+    "tooltip_total": "Total",
+    "tasks_completed": "Terminé",
+    "tasks_cancelled": "Annulé",
+    "tasks_failed": "Échoué",
+    "time_run_time": "Durée d'exécution"
   },
   "list": {
     "col_runtime": "Runtime",
@@ -506,6 +514,10 @@
   },
   "usage": {
     "period_label": "Période",
+    "period_7d": "7 derniers jours",
+    "period_30d": "30 derniers jours",
+    "period_90d": "90 derniers jours",
+    "period_180d": "180 derniers jours",
     "dimension_label": "Dimension",
     "kpi_cost_label": "Coût · {{days}}j",
     "kpi_cost_delta": "{{sign}}{{pct}}% vs préc.",
@@ -554,6 +566,9 @@
     "cost_by_caption_agent_one": "{{count}} agent sur ce runtime",
     "cost_by_caption_agent_other": "{{count}} agents sur ce runtime",
     "cost_by_caption_model_one": "{{count}} modèle utilisé",
+    "cost_by_show_zero_cost_one": "Afficher {{count}} agent à 0 $",
+    "cost_by_show_zero_cost_other": "Afficher {{count}} agents à 0 $",
+    "cost_by_hide_zero_cost": "Masquer les agents à 0 $",
     "cost_by_caption_model_other": "{{count}} modèles utilisés",
     "daily_breakdown_toggle": "Tableau de ventilation quotidienne",
     "table_date": "Date",

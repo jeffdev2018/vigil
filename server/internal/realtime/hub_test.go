@@ -62,7 +62,7 @@ func (s staticPATResolver) ResolveToken(_ context.Context, token string) (string
 func TestAuthenticateTokenRejectsTemporarilyDisabledJWTUser(t *testing.T) {
 	token := makeTestTokenForUser(t, "514492f7-b30f-4147-bd33-c0e8ce5d6d4f", "")
 
-	uid, errMsg := authenticateToken(token, nil, context.Background())
+	uid, errMsg := authenticateToken(token, nil, nil, context.Background())
 	if uid != "" {
 		t.Fatalf("expected no user ID, got %q", uid)
 	}
@@ -74,12 +74,32 @@ func TestAuthenticateTokenRejectsTemporarilyDisabledJWTUser(t *testing.T) {
 func TestAuthenticateTokenRejectsTemporarilyDisabledPATUser(t *testing.T) {
 	uid, errMsg := authenticateToken("mul_disabled", staticPATResolver{
 		"mul_disabled": "1d542296-17c6-484a-9914-dcee589be116",
-	}, context.Background())
+	}, nil, context.Background())
 	if uid != "" {
 		t.Fatalf("expected no user ID, got %q", uid)
 	}
 	if !strings.Contains(errMsg, "account disabled") {
 		t.Fatalf("expected account disabled error, got %q", errMsg)
+	}
+}
+
+// TestAuthenticateTokenRefusesRevokedSession pins K60 on the realtime path:
+// a JWT minted before the user's sessions were revoked must not open a
+// WebSocket subscription.
+func TestAuthenticateTokenRefusesRevokedSession(t *testing.T) {
+	revocations := auth.NewSessionRevocations(nil, func(context.Context, string) (time.Time, bool, error) {
+		return time.Now(), true, nil
+	})
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": testUserID, "iat": time.Now().Add(-time.Hour).Unix()})
+	signed, err := token.SignedString(auth.JWTSecret())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uid, errMsg := authenticateToken(signed, nil, revocations, context.Background()); uid != "" || !strings.Contains(errMsg, "session revoked") {
+		t.Fatalf("revoked JWT accepted: uid=%q err=%q", uid, errMsg)
+	}
+	if uid, _ := authenticateToken(signed, nil, nil, context.Background()); uid != testUserID {
+		t.Fatalf("without a revocation checker the token is valid, got %q", uid)
 	}
 }
 
@@ -91,7 +111,7 @@ func newTestHub(t *testing.T) (*Hub, *httptest.Server) {
 	mc := &mockMembershipChecker{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		HandleWebSocket(hub, mc, nil, nil, w, r)
+		HandleWebSocket(hub, mc, nil, nil, nil, w, r)
 	})
 	server := httptest.NewServer(mux)
 	return hub, server

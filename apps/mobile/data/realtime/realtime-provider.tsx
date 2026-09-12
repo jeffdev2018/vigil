@@ -102,10 +102,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         (status: AppStateStatus) => {
           if (status === "active") {
             // Foreground. The socket may have been paused (we put it
-            // there on background) or it may be a zombie (iOS killed
-            // it silently). Either way: resume / force-reconnect.
-            ws?.resume();
-            ws?.forceReconnect();
+            // there on background) or it may be a zombie (iOS killed it
+            // silently). resume() already opens a fresh socket in the
+            // paused case, so forceReconnect() right after would open a
+            // second one back to back — only call it when resume() was
+            // a no-op (state was already "active": the zombie case).
+            const resumed = ws?.resume();
+            if (!resumed) ws?.forceReconnect();
           } else if (status === "background") {
             ws?.pause();
           }

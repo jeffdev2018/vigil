@@ -82,7 +82,7 @@ export function GoalProgressSection({ goalId }: { goalId: string }) {
                   {project.name}
                 </AppLink>
                 <div
-                  className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted"
+                  className="h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-muted-foreground/20"
                   role="progressbar"
                   aria-label={project.name}
                   aria-valuenow={pct}

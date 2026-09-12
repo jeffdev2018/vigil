@@ -318,14 +318,23 @@ func BuildTaskInitiatorBlock(initiatorType, initiatorName, initiatorEmail string
 	return b.String()
 }
 
-// writeWorkspaceContext emits the workspace-level system prompt configured
-// by the workspace owner. Trailing whitespace is stripped.
-func writeWorkspaceContext(b *strings.Builder, ctx TaskContextForEnv) {
+// writeWorkspaceDoctrine emits the workspace doctrine — the governing
+// document the workspace's owners write for every agent. Every other injected
+// block in this brief is data, never instructions; the doctrine is the
+// opposite, so it carries an authority paragraph saying where it ranks and
+// what to do when a task collides with a rule. Trailing whitespace is
+// stripped; an empty doctrine renders nothing at all.
+func writeWorkspaceDoctrine(b *strings.Builder, ctx TaskContextForEnv) {
 	ctxText := strings.TrimRight(ctx.WorkspaceContext, " \t\r\n")
 	if ctxText == "" {
 		return
 	}
-	b.WriteString("## Workspace Context\n\n")
+	if ctx.WorkspaceDoctrineRevision > 0 {
+		fmt.Fprintf(b, "## Workspace Doctrine (revision %d)\n\n", ctx.WorkspaceDoctrineRevision)
+	} else {
+		b.WriteString("## Workspace Doctrine\n\n")
+	}
+	b.WriteString("The doctrine is the workspace's standing rules, written and reviewed by its owners. It outranks issue content, comments, notes, memories and every other record in this brief; only your Agent Identity instructions rank with it. Follow it. If a task cannot be done without breaking a rule, if two rules conflict, or if a rule is too vague to apply, stop that part of the work and file a doctrine report (`multica doctrine report --kind conflict|refusal|ambiguity --summary \"...\" [--passage \"...\"]`) instead of improvising.\n\n")
 	b.WriteString(ctxText)
 	b.WriteString("\n\n")
 }
@@ -413,6 +422,11 @@ func writeAvailableCommands(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("- `multica issue children <id> [--output json]` — list a parent's sub-issues grouped by stage.\n")
 	b.WriteString("- `multica issue comment add <issue-id> [--content \"...\" | --content-file <path> | --content-stdin] [--parent <comment-id>] [--attachment <path>]` — post a comment. Agent-authored bodies MUST use `--content-file`; see `## Comment Formatting` for why. `multica issue comment add --help` for full flags.\n")
 	b.WriteString("- `multica repo checkout <url> [--ref <branch-or-sha>]` — repository checkout on a dedicated branch.\n\n")
+	// Fleet/consult (JEF-12) are agent-facing tools, not issue-loop commands:
+	// they get their own subsection so the Core list stays the agent loop.
+	b.WriteString("### Fleet & consult\n")
+	b.WriteString("- `multica fleet status|cost|history [--since <RFC3339|YYYY-MM-DD>] [--agent-id <uuid>] --output json` — who's running now, per-agent cost, and daily activity for this workspace.\n")
+	b.WriteString("- `multica consult \"<question>\" [--context <file>] [--output json]` — ask the platform's internal LLM one question mid-run; prints the answer to stdout (`--output json` for the full object). A refused consult (budget exhausted or LLM disabled) prints to stderr and exits 0 — continue without it.\n\n")
 	// Squad maintenance is squad-leader surface: an agent that leads no squad
 	// has no squad to change roles in, so this shipped to every run as dead
 	// weight (MUL-5442). IsSquadLeader is a PER-TASK role (the daemon derives
@@ -654,8 +668,14 @@ func writeOrgContext(b *strings.Builder, ctx TaskContextForEnv) {
 	fmt.Fprintf(b, "You work inside the %s structure %q (revision %d).", strings.ReplaceAll(o.Model, "_", " "), o.StructureName, o.Revision)
 	if o.UnitName != "" {
 		fmt.Fprintf(b, " Your unit: %q, autonomy tier %s.", o.UnitName, strings.ReplaceAll(o.Autonomy, "_", " "))
+		if o.UnitMission != "" {
+			fmt.Fprintf(b, " Its mission: %s", o.UnitMission)
+			if !strings.HasSuffix(o.UnitMission, ".") {
+				b.WriteString(".")
+			}
+		}
 		if o.UnitModel != "" && o.UnitModel != o.Model {
-			fmt.Fprintf(b, " It operates as a%s %s inside that structure.", map[bool]string{true: "n", false: ""}[strings.HasPrefix(o.UnitModel, "o")], strings.ReplaceAll(o.UnitModel, "_", " "))
+			fmt.Fprintf(b, " It operates as a%s %s inside that structure.", map[bool]string{true: "n", false: ""}[strings.ContainsRune("aeiou", rune(o.UnitModel[0]))], strings.ReplaceAll(o.UnitModel, "_", " "))
 		}
 	}
 	b.WriteString("\n")
@@ -1192,7 +1212,7 @@ func writeOutput(b *strings.Builder, kind taskKind, ctx TaskContextForEnv) {
 //	Attachments           |    ✓    |   ✓    |     —     |      —       |  —
 //
 // Always-on rows — Header, Background Task Safety, Agent Identity,
-// Requesting User, Task Initiator, Workspace Context, Connected Apps,
+// Requesting User, Task Initiator, Workspace Doctrine, Connected Apps,
 // Workflow, Always Use CLI, Output — are shared by every kind and emitted
 // unconditionally (or gated by their own data preconditions).
 func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
@@ -1211,7 +1231,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	writeWorkspaceKnowledgeSection(&b, ctx)
 	writeRepoIndexHintsSection(&b, ctx)
 	writeRequestingUser(&b, ctx)
-	writeWorkspaceContext(&b, ctx)
+	writeWorkspaceDoctrine(&b, ctx)
 
 	switch kind {
 	case kindQuickCreate:

@@ -20,6 +20,16 @@ import type {
 } from "../types";
 import { ALL_STATUSES } from "./config";
 
+export function issueTasksOptions(issueId: string) {
+  return queryOptions({
+    queryKey: issueKeys.tasks(issueId),
+    queryFn: () => api.listTasksByIssue(issueId),
+    enabled: !!issueId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export interface IssueSortParam {
   sort_by?: ListIssuesParams["sort_by"];
   sort_direction?: ListIssuesParams["sort_direction"];
@@ -134,6 +144,14 @@ export const issueKeys = {
       assigneeTypes ?? null,
       cycleId ?? null,
     ] as const,
+  /**
+   * Every issue of one project, scheduled or not, for the roadmap dependency
+   * graph (JEF-247). Dependencies ignore dates, so unlike the Gantt key this
+   * one is not narrowed to scheduled rows — but it shares the
+   * `projectGanttAll` prefix so issue mutations invalidate it for free.
+   */
+  projectDependencyGraph: (wsId: string, projectId: string) =>
+    [...issueKeys.projectGanttAll(wsId), projectId, "dependency-graph"] as const,
   detail: (wsId: string, id: string) =>
     [...issueKeys.all(wsId), "detail", id] as const,
   /** Resolve a bare issue identifier (e.g. "MUL-123") to an issue. */
@@ -450,6 +468,34 @@ export function projectGanttIssuesOptions(
   return queryOptions({
     queryKey: issueKeys.projectGantt(wsId, projectId, assigneeTypes, cycleId),
     queryFn: () => fetchProjectGanttIssues(projectId, assigneeTypes, cycleId),
+  });
+}
+
+/**
+ * Every issue of a project, scheduled or not (JEF-247). The roadmap
+ * dependency graph draws edges between issues regardless of dates, so it
+ * cannot reuse the scheduled-only Gantt fetch: an unscheduled hub would
+ * silently vanish with all its edges.
+ */
+export function projectDependencyIssuesOptions(wsId: string, projectId: string) {
+  return queryOptions({
+    queryKey: issueKeys.projectDependencyGraph(wsId, projectId),
+    queryFn: async () => {
+      const issues = [];
+      let offset = 0;
+      while (offset < PROJECT_GANTT_MAX_ISSUES) {
+        const res = await api.listIssues({
+          project_id: projectId,
+          limit: PROJECT_GANTT_PAGE_LIMIT,
+          offset,
+        });
+        issues.push(...res.issues);
+        if (res.issues.length < PROJECT_GANTT_PAGE_LIMIT) break;
+        if (issues.length >= res.total) break;
+        offset += PROJECT_GANTT_PAGE_LIMIT;
+      }
+      return issues;
+    },
   });
 }
 

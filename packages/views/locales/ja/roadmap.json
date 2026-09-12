@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "ロードマップ",
+    "tab_timeline": "タイムライン",
+    "tab_graph": "依存関係",
+    "loading": "ロードマップを読み込み中",
+    "load_error": "ロードマップを読み込めませんでした",
+    "empty_projects": "プロジェクトはまだありません",
+    "empty_projects_description": "開始日と期日を設定したプロジェクトを作成すると、タイムラインに表示されます。",
+    "empty_scheduled": "予定されているプロジェクトはありません",
+    "empty_scheduled_description": "開始日または期日が設定されたプロジェクトはまだありません。",
+    "unscheduled": "未計画のプロジェクト"
+  },
+  "timeline": {
+    "progress": "{{percent}}% 完了",
+    "today": "今日"
+  },
+  "graph": {
+    "project": "プロジェクト",
+    "pick_project": "プロジェクトを選択すると依存関係グラフが表示されます。",
+    "loading_issues": "課題を読み込み中",
+    "empty_issues": "このプロジェクトには予定された課題がありません",
+    "no_edges": "これらの課題間の依存関係はまだありません。",
+    "legend": {
+      "blocks": "ブロック",
+      "related": "関連",
+      "duplicate": "重複"
+    }
+  }
+}

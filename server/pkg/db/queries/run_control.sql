@@ -7,7 +7,9 @@ WHERE issue_id = $1 AND (status = 'running' OR (status = 'paused' AND resumed_by
 ORDER BY created_at DESC LIMIT 1;
 
 -- name: RequestTaskPause :one
-UPDATE agent_task_queue SET pause_requested_at = COALESCE(pause_requested_at, now())
+-- A human pause clears the halt-freeze marker (JEF-257): whoever pauses by
+-- hand takes ownership of that run, so lifting the halt must not resume it.
+UPDATE agent_task_queue SET pause_requested_at = COALESCE(pause_requested_at, now()), halt_frozen_at = NULL
 WHERE id = $1 AND status = 'running' RETURNING *;
 
 -- name: MarkTaskPaused :one
@@ -19,8 +21,13 @@ SET status = 'paused', pause_requested_at = NULL,
 WHERE id = $1 AND status = 'running' RETURNING *;
 
 -- name: MarkTaskResumed :one
+-- resumed_by_task_id IS NULL is an optimistic lock: two concurrent resume
+-- sweeps (K41) racing on the same paused row must not have the second
+-- UPDATE silently clobber the first winner's child id and orphan its
+-- already-enqueued child run. The second call now affects 0 rows and
+-- returns pgx.ErrNoRows instead.
 UPDATE agent_task_queue SET resumed_by_task_id = $2, completed_at = now()
-WHERE id = $1 AND status = 'paused' RETURNING *;
+WHERE id = $1 AND status = 'paused' AND resumed_by_task_id IS NULL RETURNING *;
 
 -- name: SetTaskResumeContext :exec
 UPDATE agent_task_queue SET session_id = $2, work_dir = $3 WHERE id = $1;

@@ -725,7 +725,15 @@ function SwimLaneViewImpl({
       if (progress && progress.total > 0) consider(issue.id);
     }
     return Array.from(ids).sort();
-  }, [groupBranches?.enabled, swimlaneGrouping, issues, childProgressMap]); // eslint-disable-line react-hooks/exhaustive-deps
+    // wsId and qc are included on purpose, not omitted: useQueryClient()'s
+    // qc is referentially stable across renders, and wsId only changes on a
+    // full workspace switch (full remount) — but consider() above keys the
+    // cache lookup on both, so a silent workspace change without a
+    // recompute here would check the NEW workspace's ids against the OLD
+    // workspace's cache. Listing them costs nothing (they never actually
+    // change without wsId already forcing a remount) and keeps this memo
+    // honest about its real inputs instead of an unexplained eslint-disable.
+  }, [groupBranches?.enabled, swimlaneGrouping, issues, childProgressMap, wsId, qc]);
 
   const { data: batchChildrenMap } = useQuery(
     childrenByParentsOptions(wsId, batchParentIds, qc),

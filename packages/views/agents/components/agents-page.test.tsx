@@ -95,7 +95,6 @@ vi.mock("@multica/core/agents", () => ({
   agentRunCounts30dOptions: () => ({ queryKey: ["agent-run-counts"] }),
   useWorkspaceActivityMap: () => mocks.activity,
   useWorkspacePresenceMap: () => mocks.presence,
-  VISIBILITY_TOOLTIP: { private: "Private", workspace: "Workspace" },
   effectiveAccessScope: (pm: unknown, it: unknown) => {
     if (pm !== "public_to") return "owner-only";
     if ((Array.isArray(it) ? it : []).some((t) => (t as {target_type?: string})?.target_type === "workspace")) return "workspace";
@@ -129,6 +128,7 @@ vi.mock("@multica/core/paths", () => ({
     newAgent: () => "/test-workspace/agents/new",
     newAgentManual: () => "/test-workspace/agents/new/manual",
     agentDetail: (id: string) => `/test-workspace/agents/${id}`,
+    runtimes: () => "/test-workspace/runtimes",
   }),
 }));
 
@@ -256,6 +256,23 @@ beforeEach(() => {
   };
 });
 
+describe("AgentsPage visibility badge", () => {
+  // Regression: the row's private-visibility lock icon used to render
+  // core's hardcoded-English VISIBILITY_TOOLTIP.private directly, bypassing
+  // i18n entirely. It now goes through the canonical VisibilityBadge
+  // component (useT("agents") visibility.private.tooltip).
+  it("renders the private-visibility tooltip localized, not the removed English constant", () => {
+    mocks.agents = [makeAgent({ id: "a-priv", name: "Private Agent", visibility: "private" })];
+    renderWithI18n(
+      <NavigationProvider value={makeAdapter()}>
+        <AgentsPage />
+      </NavigationProvider>,
+      { locale: "zh-Hans" },
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("仅 owner 和其授权的人可以运行该智能体");
+  });
+});
+
 describe("AgentsPage listReady gate", () => {
   it("shows only a skeleton (no real rows) while lastActive deps are pending", () => {
     // Default lastActive sort depends on activity + run-counts.
@@ -290,6 +307,8 @@ describe("AgentsPage listReady gate", () => {
     expect(screen.getByText("Alpha Agent")).toBeInTheDocument();
     expect(screen.getByText("Beta Agent")).toBeInTheDocument();
     expect(betaPrecedesAlpha()).toBe(true);
+    // The name cell truncates; the full name must survive as a tooltip.
+    expect(screen.getByText("Alpha Agent").getAttribute("title")).toBe("Alpha Agent");
   });
 
   it("renders rows immediately for name sort without waiting on activity/run-counts", () => {

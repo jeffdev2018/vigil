@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { OrgSimulation } from "../types";
 import {
+  OrgSimulationSchema,
   AppConfigSchema,
+  OnboardingChecklistSchema,
+  EMPTY_ONBOARDING_CHECKLIST,
   ProjectMemoryHistorySchema,
   CommentAnchorSchema,
   CommentSchema,
@@ -60,6 +64,7 @@ import {
   InboxItemListSchema,
   InboxUnreadSummarySchema,
   IssueTriggerPreviewSchema,
+  LabelSchema,
   ListIssuesResponseSchema,
   ListPropertiesResponseSchema,
   MALFORMED_RUNTIME_MODEL_LIST_REQUEST,
@@ -664,6 +669,32 @@ describe("IssuePropertySchema (via ListPropertiesResponseSchema)", () => {
   });
 });
 
+// LabelChip trusts `label.color` enough to pass it straight into
+// `style={{ backgroundColor: color }}` (packages/views/labels/label-chip.tsx).
+// The server's normalizeColor already pins the write path to
+// `^#?[0-9a-fA-F]{6}$`, but the schema itself accepted any string — this is
+// the defense-in-depth layer the code comment there promised and never had.
+describe("LabelSchema", () => {
+  const baseLabel = {
+    id: "lbl-1",
+    workspace_id: "ws-1",
+    name: "Bug",
+    color: "#ef4444",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("parses a well-formed hex color", () => {
+    const parsed = LabelSchema.parse(baseLabel);
+    expect(parsed.color).toBe("#ef4444");
+  });
+
+  it("falls back to the default gray for a malformed color instead of passing it through", () => {
+    const parsed = LabelSchema.parse({ ...baseLabel, color: "javascript:alert(1)" });
+    expect(parsed.color).toBe("#6b7280");
+  });
+});
+
 // POST /api/issues/preview-trigger feeds this schema through parseWithFallback
 // in client.previewIssueTrigger with fallback { triggers: [], total_count: 0 }
 // (MUL-3375). The four entry points read it to decide "will this start a run",
@@ -808,6 +839,11 @@ describe("WorktreeRevertRequestSchema", () => {
 });
 
 describe("AgentTaskListSchema", () => {
+  it.each([true, false, undefined, null, "true", 1])("safely parses comment cancellation metadata: %s", (value) => {
+    const parsed = AgentTaskListSchema.parse([{ id: "run", cancelled_by_comment_change: value }]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.cancelled_by_comment_change).toBe(typeof value === "boolean" ? value : undefined);
+  });
   const task = {
     id: "task-1",
     agent_id: "agent-1",
@@ -1925,6 +1961,26 @@ describe("AppConfigSchema agent_conversation_starters_supported drift", () => {
     expect(
       AppConfigSchema.parse({ agent_conversation_starters_supported: true })
         .agent_conversation_starters_supported,
+    ).toBe(true);
+  });
+});
+
+describe("AppConfigSchema native_runtime_available drift", () => {
+  it("defaults to false when the server predates the native runtime", () => {
+    expect(AppConfigSchema.parse({}).native_runtime_available).toBe(false);
+  });
+
+  it("coerces a malformed declaration to false rather than trusting it", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: "yes" })
+        .native_runtime_available,
+    ).toBe(false);
+  });
+
+  it("carries a genuine declaration through", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: true })
+        .native_runtime_available,
     ).toBe(true);
   });
 });
@@ -5832,5 +5888,110 @@ describe("ProjectMemoryHistorySchema", () => {
     for (const malformed of [null, "oops", 42, [1, 2], {}, { versions: [{ revision: 1 }], next_before_revision: null }]) {
       expect(parseWithFallback(malformed, ProjectMemoryHistorySchema, null, ENDPOINT)).toBeNull();
     }
+  });
+});
+
+// POST /api/org/simulate — the org page's "test a request" answer. Parsed
+// with a null fallback because client.ts throws on it: an empty simulation
+// would be displayed as a real verdict ("no unit takes this, nobody
+// decides"), which is a lie a person would act on.
+describe("OrgSimulationSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/org/simulate" };
+  const simulation = {
+    basis: "draft" as const,
+    structure_id: "struct-1",
+    revision: 3,
+    unit: { id: "team", name: "Team", model: "hierarchy", autonomy: "draft" },
+    receives: { unit_id: "team", unit_name: "Team" },
+    prepares: { kind: "agent" as const, id: "agent-1", name: "Ada" },
+    decides: { kind: "member" as const, id: "user-1", name: "Jeff" },
+    escalation_path: [{ unit_id: "lead", unit_name: "Lead" }],
+    blocking_denies: ["rembourser"],
+    cost_estimate_usd_ticks: 4200,
+    notes: [],
+  };
+
+  it("keeps a valid simulation intact", () => {
+    expect(parseWithFallback(simulation, OrgSimulationSchema, null, ENDPOINT)).toEqual(simulation);
+  });
+
+  it("keeps an unrouted simulation, where no unit takes the request", () => {
+    const unrouted = { ...simulation, unit: null, receives: null, prepares: { kind: "none" as const, id: "", name: "" } };
+    expect(parseWithFallback(unrouted, OrgSimulationSchema, null, ENDPOINT)).toEqual(unrouted);
+  });
+
+  it("defaults an unknown actor kind rather than dropping the answer", () => {
+    const parsed = parseWithFallback<OrgSimulation | null>(
+      { ...simulation, prepares: { kind: "robot", id: "x", name: "X" } },
+      OrgSimulationSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.prepares.kind).toBe("none");
+  });
+
+  it("falls back to null on a malformed payload", () => {
+    for (const malformed of [
+      null,
+      "oops",
+      42,
+      [1, 2],
+      {},
+      { ...simulation, basis: "guess" },
+      { ...simulation, prepares: undefined },
+    ]) {
+      expect(parseWithFallback(malformed, OrgSimulationSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("OnboardingChecklistSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/onboarding/checklist" };
+  const valid = {
+    runtime_kind: "native",
+    native_available: true,
+    runtime_ready: true,
+    agent_created: true,
+    issue_created: true,
+    first_run_completed: false,
+    first_decision_answered: false,
+    complete: false,
+    agents: 1,
+    issues: 2,
+    completed_runs: 0,
+  };
+
+  it("keeps a valid checklist intact", () => {
+    expect(
+      parseWithFallback(valid, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+    ).toEqual(valid);
+  });
+
+  it("defaults an unrecognized runtime_kind to none rather than failing the whole checklist", () => {
+    const parsed = parseWithFallback(
+      { ...valid, runtime_kind: "quantum" },
+      OnboardingChecklistSchema,
+      EMPTY_ONBOARDING_CHECKLIST,
+      ENDPOINT,
+    );
+    expect(parsed.runtime_kind).toBe("none");
+    // Every other field survives — one bad enum must not blank the card.
+    expect(parsed.agent_created).toBe(true);
+  });
+
+  it("falls back to the empty checklist on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+      ).toEqual(EMPTY_ONBOARDING_CHECKLIST);
+    }
+  });
+
+  it("coerces missing/malformed booleans and counts to safe defaults", () => {
+    const parsed = OnboardingChecklistSchema.parse({
+      runtime_ready: "yes",
+      agents: "three",
+    });
+    expect(parsed).toEqual(EMPTY_ONBOARDING_CHECKLIST);
   });
 });

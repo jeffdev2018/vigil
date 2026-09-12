@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // agentDiscoveryInterval is how often a running daemon re-checks which agent
@@ -63,6 +65,12 @@ var agentVersionRefreshInterval = 10 * time.Minute
 // that are *missing* a runtime, so without it an in-place CLI upgrade would stay
 // invisible until the daemon restarted.
 func (d *Daemon) agentDiscoveryLoop(ctx context.Context) {
+	// A panic in one tick (a probe, a register call) restarts the loop after a
+	// backoff instead of crashing the daemon or ending discovery silently.
+	util.Supervise(ctx, "agent discovery loop", d.runAgentDiscovery)
+}
+
+func (d *Daemon) runAgentDiscovery(ctx context.Context) {
 	ticker := time.NewTicker(agentDiscoveryInterval)
 	defer ticker.Stop()
 	versionTicker := time.NewTicker(agentVersionRefreshInterval)

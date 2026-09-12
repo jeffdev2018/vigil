@@ -27,6 +27,12 @@ type fakeStore struct {
 	// counters the assertions read
 	createdIssues   int
 	createdComments int
+
+	// blockIssueLinkLookup, when non-nil, is received from before
+	// GetLinearIssueLinkByIssue returns — used to prove a caller hands the
+	// lookup (and the network call behind it) off to another goroutine
+	// instead of running it on the caller's own goroutine.
+	blockIssueLinkLookup chan struct{}
 }
 
 func newFakeStore() *fakeStore {
@@ -106,6 +112,12 @@ func (f *fakeStore) GetLinearIssueLinkByRemoteIssue(_ context.Context, arg db.Ge
 }
 
 func (f *fakeStore) GetLinearIssueLinkByIssue(_ context.Context, issueID pgtype.UUID) (db.LinearIssueLink, error) {
+	f.mu.Lock()
+	block := f.blockIssueLinkLookup
+	f.mu.Unlock()
+	if block != nil {
+		<-block
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, l := range f.issueLinks {

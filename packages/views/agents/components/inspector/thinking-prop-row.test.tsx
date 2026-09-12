@@ -34,7 +34,7 @@ vi.mock("@multica/core/api", () => ({
   },
 }));
 
-import { ThinkingPropRow } from "./thinking-prop-row";
+import { ThinkingSettingField } from "./thinking-prop-row";
 
 const CLAUDE_MODEL: RuntimeModel = {
   id: "claude-sonnet-4-6",
@@ -92,7 +92,7 @@ function listResult(models: RuntimeModel[]): RuntimeModelListRequest {
 }
 
 function renderRow(
-  props: Partial<React.ComponentProps<typeof ThinkingPropRow>> = {},
+  props: Partial<React.ComponentProps<typeof ThinkingSettingField>> = {},
 ) {
   const onChange = vi.fn();
   const queryClient = new QueryClient({
@@ -106,7 +106,8 @@ function renderRow(
     <I18nProvider locale="en" resources={TEST_RESOURCES}>
       <QueryClientProvider client={queryClient}>
         <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
-          <ThinkingPropRow
+          <ThinkingSettingField
+            label="Thinking"
             runtimeId="runtime-1"
             runtimeOnline
             provider="claude"
@@ -123,7 +124,7 @@ function renderRow(
   return { ...utils, onChange, queryClient };
 }
 
-describe("ThinkingPropRow", () => {
+describe("ThinkingSettingField", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInitiateListModels.mockResolvedValue(listResult([CLAUDE_MODEL]));
@@ -138,7 +139,7 @@ describe("ThinkingPropRow", () => {
     mockInitiateListModels.mockResolvedValue(listResult([NO_THINKING_MODEL]));
     renderRow({ model: "gemini-2.5-pro", value: "" });
 
-    // ThinkingPropRow returns null when levels are empty and value is
+    // ThinkingSettingField returns null when levels are empty and value is
     // empty — both initially (data undefined) and after discovery
     // (NO_THINKING_MODEL has no `thinking` block). The `useQuery` hook
     // runs before the early null return on first render, so the

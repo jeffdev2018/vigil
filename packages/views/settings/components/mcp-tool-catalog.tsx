@@ -12,6 +12,9 @@ import {
 import type { McpCatalogTool, McpToolRisk } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 export const MCP_TOOL_RISKS: McpToolRisk[] = [
@@ -21,9 +24,6 @@ export const MCP_TOOL_RISKS: McpToolRisk[] = [
   "sensitive_data",
   "unknown",
 ];
-
-const SELECT_CLASS =
-  "h-8 rounded-md border border-input bg-transparent px-2 text-caption";
 
 /**
  * The tool catalogue of one workspace MCP server (K77): what the server
@@ -140,6 +140,15 @@ export function McpToolCatalog({
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
           {t(($) => $.mcp.tools.loading)}
         </p>
+      ) : catalogQuery.isError ? (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-caption text-destructive">
+            {t(($) => $.mcp.tools.load_error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void catalogQuery.refetch()}>
+            {t(($) => $.mcp.tools.retry)}
+          </Button>
+        </div>
       ) : tools.length === 0 ? (
         <p className="text-caption text-muted-foreground">
           {t(($) => $.mcp.tools.empty)}
@@ -161,19 +170,26 @@ export function McpToolCatalog({
                   ? t(($) => $.mcp.tools.source_manual)
                   : t(($) => $.mcp.tools.source_auto)}
               </span>
-              <select
-                aria-label={t(($) => $.mcp.tools.risk_aria, { name: tool.name })}
-                className={SELECT_CLASS}
+              <Select
+                items={MCP_TOOL_RISKS.map((risk) => ({ value: risk, label: riskLabel(risk) }))}
                 value={tool.risk}
-                disabled={!canManage}
-                onChange={(event) => setRisk(tool.name, event.target.value as McpToolRisk)}
+                onValueChange={(value) => value && setRisk(tool.name, value as McpToolRisk)}
               >
-                {MCP_TOOL_RISKS.map((risk) => (
-                  <option key={risk} value={risk}>
-                    {riskLabel(risk)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  aria-label={t(($) => $.mcp.tools.risk_aria, { name: tool.name })}
+                  size="sm"
+                  disabled={!canManage}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MCP_TOOL_RISKS.map((risk) => (
+                    <SelectItem key={risk} value={risk}>
+                      {riskLabel(risk)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {canManage ? (
                 <Button
                   variant="ghost"
@@ -212,18 +228,22 @@ export function McpToolCatalog({
               value={newDescription}
               onChange={(event) => setNewDescription(event.target.value)}
             />
-            <select
-              aria-label={t(($) => $.mcp.tools.risk_aria, { name: newName || "?" })}
-              className={SELECT_CLASS}
+            <Select
+              items={MCP_TOOL_RISKS.map((risk) => ({ value: risk, label: riskLabel(risk) }))}
               value={newRisk}
-              onChange={(event) => setNewRisk(event.target.value as McpToolRisk)}
+              onValueChange={(value) => value && setNewRisk(value as McpToolRisk)}
             >
-              {MCP_TOOL_RISKS.map((risk) => (
-                <option key={risk} value={risk}>
-                  {riskLabel(risk)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={t(($) => $.mcp.tools.risk_aria, { name: newName || "?" })} size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MCP_TOOL_RISKS.map((risk) => (
+                  <SelectItem key={risk} value={risk}>
+                    {riskLabel(risk)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button type="submit" size="sm" variant="outline" disabled={!newName.trim()}>
               <Plus aria-hidden="true" />
               {t(($) => $.mcp.tools.add)}

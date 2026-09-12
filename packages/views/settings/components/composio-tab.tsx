@@ -317,7 +317,7 @@ function ToolkitCard({
 
         {isConnected ? (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-caption text-emerald-600">
+            <span className="inline-flex items-center gap-1 text-caption text-success">
               <Check className="h-3 w-3" />
               {t(($) => $.composio.connected)}
             </span>
@@ -334,7 +334,7 @@ function ToolkitCard({
           // Token-expired connection: surface the failure and let the user
           // re-run the same connect flow in one click (no disconnect step).
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-caption text-amber-600">
+            <span className="inline-flex items-center gap-1 text-caption text-warning">
               <AlertTriangle className="h-3 w-3" />
               {t(($) => $.composio.expired)}
             </span>

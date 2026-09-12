@@ -41,6 +41,17 @@ const allowedDevOrigins = process.env.CORS_ALLOWED_ORIGINS
 const nextConfig: NextConfig = {
   ...(process.env.STANDALONE === "true" ? { output: "standalone" as const } : {}),
   transpilePackages: ["@multica/core", "@multica/ui", "@multica/views"],
+  experimental: {
+    // proxy.ts rewrites /api to the backend, and Next buffers every request
+    // body it proxies, 10 MB by default: a larger multipart upload reached
+    // the API truncated and hung it until "socket hang up" (JEF-346). The
+    // API's own caps are 32 MB (packs) and 50 MB (Brain captures).
+    proxyClientMaxBodySize: "64mb",
+    // Endpoints that wait on a model (autopilot draft, Brain suggest,
+    // consult, insights) can take longer than the 30 s default before the
+    // API answers; the proxy must not turn that into a 500.
+    proxyTimeout: 180_000,
+  },
   ...(allowedDevOrigins && allowedDevOrigins.length > 0
     ? { allowedDevOrigins }
     : {}),

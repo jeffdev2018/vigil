@@ -361,6 +361,9 @@ export function ChatPage() {
         agentAccessRevoked={c.isAgentAccessRevoked}
         agentRuntimeRequired={!c.isAgentRuntimeBound}
         agentName={c.activeAgent?.name}
+        agentId={c.activeAgent?.id}
+        // A new conversation: its first send is the one that starts a run.
+        showRunNotice={!c.activeSessionId}
         projects={c.projects}
         projectId={c.activeProjectId}
         projectContextUnsupported={c.projectContextUnsupported}

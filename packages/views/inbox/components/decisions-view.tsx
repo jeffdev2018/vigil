@@ -1,28 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { inboxDecisionsOptions, inboxKeys, type InboxDecision } from "@multica/core/inbox/queries";
-import { useRespondIssueDecision } from "@multica/core/issues/decisions";
-import { useWorkspacePaths } from "@multica/core/paths";
-import type { DecisionAnswer } from "@multica/core/types";
-import { Button } from "@multica/ui/components/ui/button";
-import { cn } from "@multica/ui/lib/utils";
-import { AppLink } from "../../navigation";
-import { useT, useTimeAgo } from "../../i18n";
+import { inboxDecisionsOptions, type InboxDecision } from "@multica/core/inbox/queries";
+import type { ApprovalGoalQuestion, ApprovalItem, ApprovalTransition } from "@multica/core/approvals";
+import { ApprovalCard } from "../../approvals/approval-card";
+import { useT } from "../../i18n";
+
+// JEF-244: the view asks for every pending ask, not only Decision Cards.
+const INCLUDED_SOURCES = ["transitions", "goal_questions"];
 
 /**
- * Inbox zero (K63): the Decision Cards waiting for me, at most five with
- * the total, answered in one click from the list through the ordinary
- * respond endpoint (K01). The server orders them (risk, then deadline);
- * an answered card leaves the list on the refetch.
+ * Inbox zero (K63): the asks waiting for me — Decision Cards, held status
+ * transitions and goal-loop questions (JEF-244) — at most five with the
+ * total, answered in one click through the same `ApprovalCard` the
+ * timeline, inbox detail pane and chat panel use. The server orders them
+ * (risk, then deadline); an answered card leaves the list on the
+ * approval:decided invalidation.
  */
 export function DecisionsView() {
   const { t } = useT("inbox");
   const wsId = useWorkspaceId();
-  const { data, isLoading, error } = useQuery(inboxDecisionsOptions(wsId));
+  const { data, isLoading, error } = useQuery(inboxDecisionsOptions(wsId, INCLUDED_SOURCES));
   if (isLoading) return <p className="p-4 text-caption text-muted-foreground">{t(($) => $.decisions.loading)}</p>;
   if (error || !data) return <p className="p-4 text-caption text-muted-foreground">{t(($) => $.decisions.load_failed)}</p>;
   return (
@@ -30,7 +29,10 @@ export function DecisionsView() {
       {data.decisions.length === 0 ? (
         <p data-testid="inbox-decisions-empty" className="py-8 text-center text-caption text-muted-foreground">{t(($) => $.decisions.empty)}</p>
       ) : (
-        data.decisions.map((d) => <DecisionCard key={d.decision.id} item={d} />)
+        data.decisions.map((d) => {
+          const approval = inboxDecisionToApproval(d);
+          return approval ? <ApprovalCard key={d.inbox_item_id || `${approval.source}:${approval.id}`} approval={approval} wsId={wsId} showIssue /> : null;
+        })
       )}
       {data.total > data.decisions.length && (
         <p data-testid="inbox-decisions-more" className="text-center text-caption text-muted-foreground">{t(($) => $.decisions.more, { count: data.total - data.decisions.length })}</p>
@@ -39,61 +41,96 @@ export function DecisionsView() {
   );
 }
 
-function DecisionCard({ item }: { item: InboxDecision }) {
-  const { t } = useT("inbox");
-  const timeAgo = useTimeAgo();
-  const wsId = useWorkspaceId();
-  const paths = useWorkspacePaths();
-  const qc = useQueryClient();
-  const respond = useRespondIssueDecision(wsId);
-  const [other, setOther] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+/**
+ * The decisions endpoint returns its own shape (risk-ordered, capped
+ * server-side) rather than the general approvals feed — adapted here so the
+ * list can render the one shared card instead of keeping a parallel
+ * implementation of "answer a pending ask". Each source fills the fields
+ * ApprovalCard reads for it, mirroring how the server builds the same
+ * sources for the approvals feed; an entry whose payload is missing (a
+ * mid-rollout server) is skipped rather than rendered broken.
+ */
+function inboxDecisionToApproval(item: InboxDecision): ApprovalItem | null {
+  if (item.source === "transition") {
+    return item.transition ? inboxTransitionToApproval(item, item.transition) : null;
+  }
+  if (item.source === "goal_question") {
+    return item.goal_question ? inboxGoalQuestionToApproval(item, item.goal_question) : null;
+  }
   const d = item.decision;
-  const answer = (a: DecisionAnswer) =>
-    respond.mutate(
-      { issueId: item.issue_id, decisionId: d.id, answer: a },
-      {
-        onSuccess: () => {
-          setDone(true);
-          qc.invalidateQueries({ queryKey: inboxKeys.decisions(wsId) });
-          qc.invalidateQueries({ queryKey: inboxKeys.attention(wsId) });
-        },
-        onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.decisions.respond_failed)),
-      },
-    );
-  const urgency: "high" | "normal" | "low" = d.urgency === "high" ? "high" : d.urgency === "low" ? "low" : "normal";
-  return (
-    <div data-testid="inbox-decision" data-answered={done} className={cn("flex flex-col gap-1.5 rounded-md border p-2 text-caption", d.urgency === "high" ? "border-warning/60" : "border-border")}>
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <AppLink href={paths.issueDetail(item.issue_id)} className="font-mono hover:underline">{item.issue_identifier || item.issue_id.slice(0, 8)}</AppLink>
-        <span className="min-w-0 flex-1 truncate">{item.issue_title}</span>
-        <span className={cn("rounded px-1", d.urgency === "high" ? "bg-warning/20 text-warning" : "bg-muted")}>{t(($) => $.decisions.urgency[urgency])}</span>
-        {d.sla_deadline_at && <span>{t(($) => $.decisions.due, { when: timeAgo(d.sla_deadline_at) })}</span>}
-      </div>
-      <p className="font-medium text-foreground">{d.question}</p>
-      {d.learned && !done && (
-        <p data-testid="decision-learned" className="text-muted-foreground">
-          {t(($) => $.decisions.learned, { label: d.learned.option_label, count: d.learned.count, total: d.learned.total })}
-        </p>
-      )}
-      {done ? (
-        <span className="text-success">{t(($) => $.decisions.answered)}</span>
-      ) : other === null ? (
-        <div className="flex flex-wrap gap-1">
-          {d.options.map((o) => (
-            <Button key={o.id} type="button" size="sm" variant={o.id === d.recommended_option_id || (d.learned?.option_id === o.id && !d.recommended_option_id) ? "default" : "outline"} disabled={respond.isPending} onClick={() => answer({ option_id: o.id })}>
-              {o.label}{o.id === d.recommended_option_id ? ` · ${t(($) => $.decisions.recommended)}` : ""}
-            </Button>
-          ))}
-          <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setOther("")}>{t(($) => $.decisions.other)}</button>
-        </div>
-      ) : (
-        <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); if (other.trim()) answer({ modified_text: other.trim() }); }}>
-          <input aria-label={t(($) => $.decisions.other_label)} className="flex-1 rounded-md border border-input bg-transparent px-2 py-1" value={other} onChange={(e) => setOther(e.target.value)} />
-          <Button type="submit" size="sm" disabled={!other.trim() || respond.isPending}>{t(($) => $.decisions.send)}</Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => setOther(null)}>{t(($) => $.decisions.cancel)}</Button>
-        </form>
-      )}
-    </div>
-  );
+  if (!d) return null;
+  return {
+    id: d.id,
+    source: "decision",
+    kind: "decision",
+    issue: { id: item.issue_id, identifier: item.issue_identifier, title: item.issue_title, status: "" },
+    task_id: d.task_id ?? "",
+    asked_by: { type: d.asked_by_type, id: d.asked_by_id, name: "" },
+    question: d.question,
+    options: d.options.map((o) => ({ id: o.id, label: o.label, impact: o.impact ?? "" })),
+    recommended_option_id: d.recommended_option_id ?? "",
+    urgency: d.urgency,
+    created_at: d.created_at,
+    expires_at: null,
+    sla_deadline_at: d.sla_deadline_at ?? null,
+    can_decide: true,
+    cannot_decide_reason: "",
+    decision: d,
+    gate: null,
+    transition: null,
+    goal_question: null,
+  };
+}
+
+/** A held status change: the card settles it through the transition hooks. */
+function inboxTransitionToApproval(item: InboxDecision, tr: ApprovalTransition): ApprovalItem {
+  return {
+    id: tr.request_id,
+    source: "transition",
+    kind: "transition",
+    issue: { id: item.issue_id, identifier: item.issue_identifier, title: item.issue_title, status: "" },
+    task_id: "",
+    asked_by: { type: "", id: "", name: "" },
+    question: `Move ${item.issue_identifier} from ${tr.from_status} to ${tr.to_status}`,
+    options: [
+      { id: "approve", label: "Approve", impact: `the issue moves to ${tr.to_status}` },
+      { id: "reject", label: "Reject", impact: "the issue stays where it is" },
+    ],
+    recommended_option_id: "",
+    urgency: "normal",
+    created_at: "",
+    expires_at: null,
+    sla_deadline_at: null,
+    can_decide: true,
+    cannot_decide_reason: "",
+    decision: null,
+    gate: null,
+    transition: tr,
+    goal_question: null,
+  };
+}
+
+/** A goal-loop question: the card answers it through the goal-answer hook. */
+function inboxGoalQuestionToApproval(item: InboxDecision, q: ApprovalGoalQuestion): ApprovalItem {
+  return {
+    id: item.inbox_item_id || q.run_id,
+    source: "goal_question",
+    kind: "goal_question",
+    issue: { id: item.issue_id, identifier: item.issue_identifier, title: item.issue_title, status: "" },
+    task_id: q.run_id,
+    asked_by: { type: "agent", id: "", name: "" },
+    question: q.prompt,
+    options: q.options.map((o, i) => ({ id: String(i), label: o, impact: "" })),
+    recommended_option_id: "",
+    urgency: "normal",
+    created_at: q.asked_at,
+    expires_at: null,
+    sla_deadline_at: null,
+    can_decide: true,
+    cannot_decide_reason: "",
+    decision: null,
+    gate: null,
+    transition: null,
+    goal_question: q,
+  };
 }

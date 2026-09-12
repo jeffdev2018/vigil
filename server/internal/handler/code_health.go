@@ -224,17 +224,15 @@ func (h *Handler) PutCodeHealthSettings(w http.ResponseWriter, r *http.Request) 
 		req.EnabledAt = time.Now().UTC()
 	}
 
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["code_health"] = req
-	raw, err := json.Marshal(settings)
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, err := json.Marshal(map[string]any{"code_health": req})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the code health settings")
 		return
 	}
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the code health settings")
 		return
 	}

@@ -77,7 +77,7 @@ export function LabelsTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Label | null>(null);
 
-  const { data: labels = [], isLoading } = useQuery(
+  const { data: labels = [], isLoading, isError, refetch } = useQuery(
     labelListOptions(wsId, resourceType),
   );
   const filteredLabels = useMemo(() => {
@@ -151,6 +151,15 @@ export function LabelsTab() {
           {isLoading ? (
             <div className="px-4 py-12 text-center text-body text-muted-foreground">
               {t(($) => $.labels.loading)}
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.labels.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.labels.retry)}
+              </Button>
             </div>
           ) : filteredLabels.length === 0 ? (
             <div className="px-4 py-12 text-center">

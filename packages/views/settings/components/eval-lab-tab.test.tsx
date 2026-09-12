@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import type { BenchmarkCorpus, BenchmarkRun, EvalCase, EvalRun, EvalSuite } from "@multica/core/eval";
+import userEvent from "@testing-library/user-event";
+import type { BenchmarkCorpus, BenchmarkPolicyOutcome, BenchmarkPolicySearch, BenchmarkRun, EvalCase, EvalRun, EvalSuite } from "@multica/core/eval";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Score banding and drift-tolerant parsing: packages/core/eval/schemas.test.ts.
 
@@ -15,18 +27,34 @@ const state = vi.hoisted(() => ({
   corpus: null as BenchmarkCorpus | null,
   runtimes: [] as unknown[],
   loading: false,
+  casesError: false,
+  suitesError: false,
+  runsError: false,
+  benchmarksError: false,
   create: vi.fn(),
   run: vi.fn(),
   benchmark: vi.fn(),
+  policySearch: vi.fn(),
+  policyData: undefined as BenchmarkPolicySearch | null | undefined,
+  policyPending: false,
+  policyError: false,
+  refetchCases: vi.fn(),
+  refetchSuites: vi.fn(),
+  refetchRuns: vi.fn(),
+  refetchBenchmarks: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
     const key = options.queryKey[0];
-    if (key === "eval-cases") return { data: state.cases, isLoading: state.loading };
-    if (key === "eval-suites") return { data: state.suites, isLoading: state.loading };
-    if (key === "eval-runs") return { data: state.runs, isLoading: false };
-    if (key === "eval-benchmarks") return { data: state.benchmarks, isLoading: false };
+    if (key === "eval-cases")
+      return { data: state.cases, isLoading: state.loading, isError: state.casesError, refetch: state.refetchCases };
+    if (key === "eval-suites")
+      return { data: state.suites, isLoading: state.loading, isError: state.suitesError, refetch: state.refetchSuites };
+    if (key === "eval-runs")
+      return { data: state.runs, isLoading: false, isError: state.runsError, refetch: state.refetchRuns };
+    if (key === "eval-benchmarks")
+      return { data: state.benchmarks, isLoading: false, isError: state.benchmarksError, refetch: state.refetchBenchmarks };
     if (key === "eval-suite-corpus") return { data: state.corpus, isLoading: false };
     if (key === "runtimes") return { data: state.runtimes, isLoading: false };
     if (key === "agent-versions") return { data: options.enabled === false ? undefined : state.versions, isLoading: false };
@@ -44,6 +72,12 @@ vi.mock("@multica/core/eval", async (importOriginal) => ({
   useCreateEvalSuite: () => ({ mutateAsync: state.create, isPending: false }),
   useRunEvalSuite: () => ({ mutate: state.run, isPending: false }),
   useRunBenchmark: () => ({ mutate: state.benchmark, isPending: false }),
+  useBenchmarkPolicySearch: () => ({
+    mutate: state.policySearch,
+    data: state.policyData,
+    isPending: state.policyPending,
+    isError: state.policyError,
+  }),
 }));
 
 // The real runtimeDisplayLabel is kept: rendering a raw `runtime.name` in a
@@ -106,6 +140,13 @@ beforeEach(() => {
     { id: "rt-2", name: "Claude (host)", custom_name: "Laptop", provider: "claude" },
   ];
   state.loading = false;
+  state.casesError = false;
+  state.suitesError = false;
+  state.runsError = false;
+  state.benchmarksError = false;
+  state.policyData = undefined;
+  state.policyPending = false;
+  state.policyError = false;
   state.create.mockResolvedValue({});
 });
 
@@ -115,9 +156,50 @@ describe("EvalLabTab", () => {
     expect(screen.getByTestId("eval-suites-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-cases-empty")).toBeTruthy();
     expect(screen.getByTestId("eval-runs-empty").textContent).toBe("No run yet");
-    expect(screen.getAllByText(/Promote a resolved issue/).length).toBeGreaterThan(0);
+    // The promote instruction lives in the Suites card only; the New suite
+    // card explains what will show up there instead of repeating it.
+    expect(screen.getAllByText(/Promote a resolved issue/)).toHaveLength(1);
+    expect(screen.getByTestId("eval-cases-empty").textContent).toContain("The form opens once a case exists");
     // Without a case there is nothing to name a suite after.
     expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
+  // A failed fetch must not read as "nothing here yet" — each section that
+  // has its own empty state gets its own error state and retry action.
+  it("reports a load failure for suites instead of the empty state", () => {
+    state.suitesError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-suites-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-suites-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-suites-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchSuites).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for eval cases instead of the empty state", () => {
+    state.casesError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-cases-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-cases-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-cases-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchCases).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for run history instead of the empty state", () => {
+    state.runsError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("eval-runs-error")).toBeTruthy();
+    expect(screen.queryByTestId("eval-runs-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("eval-runs-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchRuns).toHaveBeenCalled();
+  });
+
+  it("reports a load failure for benchmarks instead of the empty state", () => {
+    state.benchmarksError = true;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("benchmark-runs-error")).toBeTruthy();
+    expect(screen.queryByTestId("benchmark-runs-empty")).toBeNull();
+    fireEvent.click(within(screen.getByTestId("benchmark-runs-error")).getByRole("button", { name: /retry/i }));
+    expect(state.refetchBenchmarks).toHaveBeenCalled();
   });
 
   it("creates a suite from the promoted cases", async () => {
@@ -153,7 +235,7 @@ describe("EvalLabTab", () => {
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Nightly");
   });
 
-  it("runs a suite against one agent version", () => {
+  it("runs a suite against one agent version", async () => {
     state.suites = [suite()];
     renderWithI18n(<EvalLabTab />);
 
@@ -162,14 +244,14 @@ describe("EvalLabTab", () => {
     expect(row.getByText(/never run/)).toBeTruthy();
 
     fireEvent.click(row.getByRole("button", { name: "Run" }));
-    const version = screen.getByLabelText("Version") as HTMLSelectElement;
+    const version = screen.getByRole("combobox", { name: "Version" });
     // No agent picked yet: the version list stays locked.
-    expect(version.disabled).toBe(true);
+    expect(version).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-2" } });
-    expect(version.disabled).toBe(false);
-    expect(screen.getByRole("option", { name: "v3 — tuned prompt" })).toBeTruthy();
-    fireEvent.change(version, { target: { value: "ver-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Beta");
+    expect(version).not.toBeDisabled();
+    await pickOption(user, "Version", "v3 — tuned prompt");
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
     expect(state.run).toHaveBeenCalledWith(
@@ -224,14 +306,16 @@ describe("EvalLabTab", () => {
   it("renders an unknown status from a newer server without breaking", () => {
     state.runs = [run({ status: "quantum" as EvalRun["status"], score: null })];
     renderWithI18n(<EvalLabTab />);
-    expect(screen.getByTestId("eval-run-status").textContent).toBe("Unknown");
+    // Unknown-status fallback (humanize + muted tone) is StatusBadge's own
+    // contract, covered exhaustively in packages/views/common/status-badge.test.tsx.
+    expect(screen.getByTestId("eval-run-status").textContent).toBe("Quantum");
   });
 });
 
 // Delta banding, corpus ordering and drift-tolerant benchmark parsing:
 // packages/core/eval/schemas.test.ts.
 describe("EvalLabTab benchmarks", () => {
-  it("benchmarks a suite against several runtime/model candidates", () => {
+  it("benchmarks a suite against several runtime/model candidates", async () => {
     state.suites = [suite()];
     state.benchmarks = [benchmarkRun({ id: "bench-old", score: 70, runtime_name: "Codex (host)", model: "gpt-5" })];
     renderWithI18n(<EvalLabTab />);
@@ -241,21 +325,23 @@ describe("EvalLabTab benchmarks", () => {
     // Nothing picked yet: an agent version and at least one candidate are required.
     expect(submit.disabled).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-1" } });
-    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "ver-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Alpha");
+    await pickOption(user, "Version", "v3 — tuned prompt");
     expect(submit.disabled).toBe(true);
 
     // A custom alias must not hide which CLI backs the runtime.
-    expect(screen.getByRole("option", { name: "Laptop (Claude)" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Runtime 1"), { target: { value: "rt-1" } });
+    await user.click(screen.getByRole("combobox", { name: "Runtime 1" }));
+    expect(await screen.findByRole("option", { name: "Laptop (Claude)" })).toBeTruthy();
+    await user.click(screen.getByRole("option", { name: "Codex (host)" }));
     fireEvent.change(screen.getByLabelText("Model 1"), { target: { value: "gpt-5" } });
     expect(submit.disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Add a candidate" }));
-    fireEvent.change(screen.getByLabelText("Runtime 2"), { target: { value: "rt-2" } });
+    await pickOption(user, "Runtime 2", "Laptop (Claude)");
     // Second candidate keeps the empty model: the server reads it as "the
     // runtime's default", so it must be sent, not dropped.
-    fireEvent.change(screen.getByLabelText("Baseline"), { target: { value: "bench-old" } });
+    await pickOption(user, "Baseline", /Codex \(host\)/);
     fireEvent.click(submit);
 
     expect(state.benchmark).toHaveBeenCalledWith(
@@ -270,13 +356,14 @@ describe("EvalLabTab benchmarks", () => {
     );
   });
 
-  it("drops a candidate row whose runtime was never picked", () => {
+  it("drops a candidate row whose runtime was never picked", async () => {
     state.suites = [suite()];
     renderWithI18n(<EvalLabTab />);
     fireEvent.click(within(screen.getByTestId("eval-suite")).getByRole("button", { name: "Benchmark" }));
-    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agent-1" } });
-    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "ver-1" } });
-    fireEvent.change(screen.getByLabelText("Runtime 1"), { target: { value: "rt-1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Agent", "Alpha");
+    await pickOption(user, "Version", "v3 — tuned prompt");
+    await pickOption(user, "Runtime 1", "Codex (host)");
     fireEvent.click(screen.getByRole("button", { name: "Add a candidate" }));
 
     fireEvent.click(screen.getByTestId("eval-benchmark-form").querySelector("button[type=submit]") as HTMLButtonElement);
@@ -341,5 +428,92 @@ describe("EvalLabTab benchmarks", () => {
     expect(row.getByText("Default")).toBeTruthy();
     // No movement is a warning, not a regression.
     expect(row.getByTestId("benchmark-delta").className).toContain("text-warning");
+  });
+});
+
+const outcome = (over: Partial<BenchmarkPolicyOutcome> = {}): BenchmarkPolicyOutcome => ({
+  policy: { cost_weight: 0.3, duration_weight: 0.1, min_samples: 5 }, baseline: true, scored_classes: 2,
+  cases: 4, passed: 3, passed_rate: 0.75, avg_cost_usd: 0.42, picks: [], ...over,
+});
+
+// Parsing of the policy search payload: packages/core/eval/schemas.test.ts.
+describe("EvalLabTab routing policy search", () => {
+  it("is not offered before any benchmark exists", () => {
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.queryByTestId("benchmark-policy-search")).toBeNull();
+  });
+
+  it("replays the listed benchmark runs", () => {
+    state.benchmarks = [benchmarkRun({ id: "bench-2" }), benchmarkRun({ id: "bench-1" })];
+    renderWithI18n(<EvalLabTab />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search policies" }));
+
+    expect(state.policySearch).toHaveBeenCalledWith({ runs: ["bench-2", "bench-1"] });
+  });
+
+  it("disables the action while the search runs", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyPending = true;
+    renderWithI18n(<EvalLabTab />);
+    expect((screen.getByRole("button", { name: "Search policies" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows the proposed policy next to the current one and says nothing is applied", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = {
+      improved: true,
+      grid: [],
+      baseline: outcome(),
+      winner: outcome({ baseline: false, policy: { cost_weight: 0.5, duration_weight: 0, min_samples: 3 }, passed: 4, passed_rate: 1, avg_cost_usd: 0.21 }),
+    };
+    renderWithI18n(<EvalLabTab />);
+
+    const panel = within(screen.getByTestId("policy-search-result"));
+    expect(panel.getByText("A different policy would have picked better on these benchmarks.")).toBeTruthy();
+    const rows = panel.getAllByRole("row").map((row) => Array.from(row.children).map((cell) => cell.textContent));
+    expect(rows).toEqual([
+      ["", "Current", "Proposed"],
+      ["Pass rate", "75%", "100%"],
+      ["Pass rate gap", "—", "+25 pts"],
+      ["Avg. cost", "$0.42", "$0.21"],
+      ["Cost weight", "0.3", "0.5"],
+      ["Duration weight", "0.1", "0"],
+      ["Minimum samples", "5", "3"],
+    ]);
+    expect(panel.getByTestId("policy-search-gap").className).toContain("text-success");
+    expect(panel.getByTestId("policy-search-not-applied").textContent).toContain("Nothing is applied");
+  });
+
+  it("says the current policy already picks best when nothing beats it", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = { improved: false, grid: [], baseline: outcome(), winner: outcome() };
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByText("The current policy already picks best on these benchmarks.")).toBeTruthy();
+  });
+
+  it("reports when no class had enough measured cases to score", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = {
+      improved: false, grid: [],
+      baseline: outcome({ scored_classes: 0, cases: 0, passed: 0, passed_rate: 0 }),
+      winner: outcome({ scored_classes: 0, cases: 0, passed: 0, passed_rate: 0 }),
+    };
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("policy-search-empty")).toBeTruthy();
+    expect(screen.queryByTestId("policy-search-result")).toBeNull();
+  });
+
+  it("reports a failed or unreadable search", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyError = true;
+    const { unmount } = renderWithI18n(<EvalLabTab />);
+    expect(screen.getByRole("alert").textContent).toBe("Could not run the policy search.");
+    unmount();
+
+    state.policyError = false;
+    state.policyData = null;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByRole("alert").textContent).toBe("Could not run the policy search.");
   });
 });

@@ -29,6 +29,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
@@ -137,7 +144,7 @@ function GoalFormDialog({ target, goals, onClose }: { target: FormTarget; goals:
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}</DialogTitle>
-            <DialogDescription className="sr-only">{t(($) => $.page.empty_description)}</DialogDescription>
+            <DialogDescription className="sr-only">{target.mode === "edit" ? t(($) => $.form.edit_title) : t(($) => $.form.create_title)}</DialogDescription>
           </DialogHeader>
 
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">
@@ -159,29 +166,62 @@ function GoalFormDialog({ target, goals, onClose }: { target: FormTarget; goals:
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.status)}
-              <select className={SELECT_CLASS} value={form.status} onChange={(e) => set("status", e.target.value as GoalStatus)}>
-                {GOAL_STATUSES.map((s) => (
-                  <option key={s} value={s}>{t(($) => $.status[s])}</option>
-                ))}
-              </select>
+              <Select
+                items={GOAL_STATUSES.map((s) => ({ value: s, label: t(($) => $.status[s]) }))}
+                value={form.status}
+                onValueChange={(value) => value && set("status", value as GoalStatus)}
+              >
+                <SelectTrigger className="w-full" aria-label={t(($) => $.form.status)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GOAL_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>{t(($) => $.status[s])}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.owner)}
-              <select className={SELECT_CLASS} value={form.owner_id} onChange={(e) => set("owner_id", e.target.value)}>
-                <option value="">{t(($) => $.form.owner_none)}</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>{m.name}</option>
-                ))}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.form.owner_none) },
+                  ...members.map((m) => ({ value: m.user_id, label: m.name })),
+                ]}
+                value={form.owner_id}
+                onValueChange={(value) => value !== null && set("owner_id", value)}
+              >
+                <SelectTrigger className="w-full" aria-label={t(($) => $.form.owner)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.form.owner_none)}</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.parent)}
-              <select className={SELECT_CLASS} value={form.parent_goal_id} onChange={(e) => set("parent_goal_id", e.target.value)}>
-                <option value="">{t(($) => $.form.parent_none)}</option>
-                {parentOptions.map(({ goal, depth }) => (
-                  <option key={goal.id} value={goal.id}>{`${"  ".repeat(depth)}${goal.title}`}</option>
-                ))}
-              </select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.form.parent_none) },
+                  ...parentOptions.map(({ goal, depth }) => ({ value: goal.id, label: `${"  ".repeat(depth)}${goal.title}` })),
+                ]}
+                value={form.parent_goal_id}
+                onValueChange={(value) => value !== null && set("parent_goal_id", value)}
+              >
+                <SelectTrigger className="w-full" aria-label={t(($) => $.form.parent)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.form.parent_none)}</SelectItem>
+                  {parentOptions.map(({ goal, depth }) => (
+                    <SelectItem key={goal.id} value={goal.id}>{`${"  ".repeat(depth)}${goal.title}`}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
           </div>
           {form.status === "active" && !form.owner_id && (
@@ -235,7 +275,7 @@ export function GoalsPage() {
   const { t } = useT("goals");
   const wsId = useWorkspaceId();
   const currentUser = useAuthStore((s) => s.user);
-  const { data: goals = [], isLoading } = useQuery(goalListOptions(wsId));
+  const { data: goals = [], isLoading, isError } = useQuery(goalListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const deleteGoal = useDeleteGoal(wsId);
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
@@ -273,7 +313,9 @@ export function GoalsPage() {
         actions={<CollectionPageHeaderAction icon={Plus} label={t(($) => $.page.new_goal)} onClick={() => setFormTarget({ mode: "create", parentId: null })} />}
       />
 
-      {!isLoading && goals.length === 0 ? (
+      {isError ? (
+        <CollectionPageState icon={Target} tone="destructive" title={t(($) => $.page.load_error)} />
+      ) : !isLoading && goals.length === 0 ? (
         <CollectionPageState
           icon={Target}
           title={t(($) => $.page.empty)}
@@ -311,7 +353,7 @@ export function GoalsPage() {
                       <span className="text-caption text-muted-foreground">{goal.due_date ?? t(($) => $.page.no_due_date)}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-2">
-                      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted-foreground/20" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
                         <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
                       </div>
                       <span className="text-caption tabular-nums text-muted-foreground">

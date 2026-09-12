@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { issueStatusCategory } from "@multica/core/issues";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@multica/ui/lib/utils";
@@ -33,7 +34,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@multica/ui
 import { CappedNumberFlow } from "@multica/ui/components/ui/number-flow";
 import { StatusIcon } from "../issues/components/status-icon";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
-import { openCreateIssueWithPreference } from "@multica/core/issues/stores/create-mode-store";
+import { useOpenContextualCreateIssue } from "../issues/hooks/use-open-contextual-create-issue";
 import {
   Sidebar,
   SidebarContent,
@@ -71,6 +72,7 @@ import { inboxKeys, deduplicateInboxItems, inboxUnreadSummaryOptions, hasOtherWo
 import { chatSessionsOptions } from "@multica/core/chat/queries";
 import { triageStatsOptions } from "@multica/core/triage/queries";
 import { postmortemStatsOptions } from "@multica/core/postmortem/queries";
+import { useBrainRawCount } from "@multica/core/brain/queries";
 import { countUnreadChatMessages } from "@multica/core/chat/unread";
 import { useChatStore } from "@multica/core/chat";
 import { api, ApiError } from "@multica/core/api";
@@ -110,12 +112,45 @@ const EMPTY_INBOX: Awaited<ReturnType<typeof api.listInbox>> = [];
 const EMPTY_INBOX_SUMMARY: Awaited<ReturnType<typeof api.getInboxUnreadSummary>> = [];
 const PINNED_PREVIEW_LIMIT = 5;
 
+/**
+ * Whether `el` still has content below its viewport. The fork's navigation
+ * outgrew a laptop-height sidebar, and macOS overlay scrollbars only show
+ * while scrolling, so without a hint the "AI Team" group looks like the
+ * end of the list.
+ */
+export function hasOverflowBelow(el: { scrollHeight: number; clientHeight: number; scrollTop: number }): boolean {
+  return el.scrollHeight - el.clientHeight - el.scrollTop > 1;
+}
+
+function useOverflowBelow(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setBelow(hasOverflowBelow(el));
+    const frame = requestAnimationFrame(update);
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    const mo = new MutationObserver(update);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [ref]);
+  return below;
+}
+
 // Nav items reference WorkspacePaths method names so they can be resolved
 // against the current workspace slug at render time (see AppSidebar body).
 // Only parameterless paths are valid nav destinations.
 type NavKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -125,6 +160,8 @@ type NavKey =
   | "projects"
   | "goals"
   | "cycles"
+  | "roadmap"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -139,6 +176,7 @@ type NavKey =
 type NavLabelKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -148,6 +186,8 @@ type NavLabelKey =
   | "projects"
   | "goals"
   | "cycles"
+  | "roadmap"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -171,6 +211,8 @@ const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "projects", labelKey: "projects" },
   { key: "goals", labelKey: "goals" },
   { key: "cycles", labelKey: "cycles" },
+  { key: "roadmap", labelKey: "roadmap" },
+  { key: "calendar", labelKey: "calendar" },
   { key: "triage", labelKey: "triage" },
   { key: "meetings", labelKey: "meetings" },
   { key: "postmortems", labelKey: "postmortems" },
@@ -184,12 +226,16 @@ const aiTeamNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "org", labelKey: "org" },
   { key: "skills", labelKey: "skills" },
   { key: "runtimes", labelKey: "runtimes" },
+  { key: "runs", labelKey: "runs" },
 ];
 
 const utilityNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "usage", labelKey: "usage" },
   { key: "settings", labelKey: "settings" },
 ];
+
+const NAV_ITEM_CLASS_NAME =
+  "text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground";
 
 function DraftDot() {
   const hasDraft = useIssueDraftStore((s) => s.hasDraft());
@@ -278,7 +324,7 @@ function SortablePinItem({
               onUnpin();
             }}
           >
-            <X className="size-1" />
+            <X className="size-2.5" />
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>{t(($) => $.sidebar.unpin_tooltip)}</TooltipContent>
         </Tooltip>
@@ -474,6 +520,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   }, [pathname, setOpenMobile]);
 
   const wsId = workspace?.id;
+  const openCreateIssue = useOpenContextualCreateIssue();
   const { data: inboxItems = EMPTY_INBOX } = useQuery({
     queryKey: wsId ? inboxKeys.list(wsId) : ["inbox", "disabled"],
     queryFn: () => api.listInbox(),
@@ -525,6 +572,10 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     enabled: !!wsId,
   });
   const postmortemDraftCount = postmortemStats?.draft ?? 0;
+  // Brain badge: raw captures are the same shape of debt — something a human
+  // dropped in and has yet to sort. Shares the inbox's cache entry, so the
+  // badge costs no request of its own once the Brain page has been opened.
+  const { data: brainRawCount = 0 } = useBrainRawCount(wsId ?? "");
   // Cross-workspace unread summary backs the workspace-switcher dot. One
   // shared cache entry across workspaces; gated on an active workspace since
   // the endpoint resolves through the workspace-member middleware.
@@ -548,6 +599,21 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
+  const sidebarOverflowBelow = useOverflowBelow(sidebarScrollRef);
+  // Landing on a route whose entry sits below the fold (Agents, Runs, …)
+  // reveals it; otherwise the active row would be invisible behind the fade.
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    // Base UI renders the active state as a bare `data-active` attribute.
+    const active = el.querySelector<HTMLElement>("[data-active]");
+    active?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
+  const revealMoreNav = useCallback(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: Math.max(120, el.clientHeight * 0.6), behavior: "smooth" });
+  }, []);
   const getPinHref = useCallback(
     (pin: PinnedItem) =>
       pin.item_type === "issue"
@@ -624,12 +690,24 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         push(paths.workspace(joined.slug).issues());
       }
     },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.sidebar.invitation_accept_failed),
+      ),
   });
   const declineInvitationMut = useMutation({
     mutationFn: (id: string) => api.declineInvitation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
     },
+    onError: (err) =>
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.sidebar.invitation_decline_failed),
+      ),
   });
 
   const createIssueShortcut = useShortcut("createIssue");
@@ -778,7 +856,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             <SidebarMenuItem>
               <SidebarMenuButton
                 className="text-muted-foreground"
-                onClick={() => openCreateIssueWithPreference()}
+                onClick={openCreateIssue}
               >
                 <span className="relative">
                   <SquarePen />
@@ -793,46 +871,51 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           </SidebarMenu>
         </SidebarHeader>
 
-        {/* Navigation */}
-        <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
-                {personalNav.map((item) => {
-                  const href = p[item.key]();
-                  const Icon = routeIconForPath(href);
-                  const isActive = isNavActive(pathname, href);
-                  return (
-                    <SidebarMenuItem key={item.key}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        render={<AppLink href={href} />}
-                        className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
-                      >
-                        <Icon />
-                        <span>{t(($) => $.nav[item.labelKey])}</span>
-                        {item.key === "inbox" && unreadCount > 0 && (
-                          <CappedNumberFlow
-                            value={unreadCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
-                        {item.key === "chat" && chatUnreadCount > 0 && (
-                          <CappedNumberFlow
-                            value={chatUnreadCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {/* Personal nav (Inbox, My issues, Chat) stays outside the scrolling
+            container so it's always visible on deep pages (Skills, Runtimes,
+            Runs, …) — same reasoning as Analytics/Settings in SidebarFooter
+            below. Only Pinned/Work/AI Team scroll; see hasOverflowBelow above. */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-0.5">
+              {personalNav.map((item) => {
+                const href = p[item.key]();
+                const Icon = routeIconForPath(href);
+                const isActive = isNavActive(pathname, href);
+                return (
+                  <SidebarMenuItem key={item.key}>
+                    <SidebarMenuButton
+                      isActive={isActive}
+                      render={<AppLink href={href} />}
+                      className={NAV_ITEM_CLASS_NAME}
+                    >
+                      <Icon />
+                      <span>{t(($) => $.nav[item.labelKey])}</span>
+                      {item.key === "inbox" && unreadCount > 0 && (
+                        <CappedNumberFlow
+                          value={unreadCount}
+                          animated={false}
+                          className="ml-auto text-caption"
+                        />
+                      )}
+                      {item.key === "chat" && chatUnreadCount > 0 && (
+                        <CappedNumberFlow
+                          value={chatUnreadCount}
+                          animated={false}
+                          className="ml-auto text-caption"
+                        />
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
+        {/* Navigation */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+        <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
           {visiblePinned.length > 0 && (
             <Collapsible defaultOpen>
               <SidebarGroup className="group/pinned">
@@ -895,7 +978,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       <SidebarMenuButton
                         isActive={isActive}
                         render={<AppLink href={href} />}
-                        className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                        className={NAV_ITEM_CLASS_NAME}
                       >
                         <Icon />
                         <span>{t(($) => $.nav[item.labelKey])}</span>
@@ -909,6 +992,13 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         {item.key === "postmortems" && postmortemDraftCount > 0 && (
                           <CappedNumberFlow
                             value={postmortemDraftCount}
+                            animated={false}
+                            className="ml-auto text-caption"
+                          />
+                        )}
+                        {item.key === "brain" && brainRawCount > 0 && (
+                          <CappedNumberFlow
+                            value={brainRawCount}
                             animated={false}
                             className="ml-auto text-caption"
                           />
@@ -934,7 +1024,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       <SidebarMenuButton
                         isActive={isActive}
                         render={<AppLink href={href} />}
-                        className="text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                        className={NAV_ITEM_CLASS_NAME}
                       >
                         <Icon />
                         <span>{t(($) => $.nav[item.labelKey])}</span>
@@ -946,6 +1036,19 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        {sidebarOverflowBelow ? (
+          <button
+            type="button"
+            data-testid="sidebar-more-nav"
+            aria-label={t(($) => $.sidebar.more_nav)}
+            title={t(($) => $.sidebar.more_nav)}
+            onClick={revealMoreNav}
+            className="absolute inset-x-0 bottom-0 flex h-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground group-data-[collapsible=icon]:hidden"
+          >
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
+        </div>
 
         <SidebarFooter className="p-2">
           <SidebarMenu className="gap-0.5">
@@ -957,7 +1060,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                   <SidebarMenuButton
                     isActive={isNavActive(pathname, href)}
                     render={<AppLink href={href} />}
-                    className="text-caption text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                    className={NAV_ITEM_CLASS_NAME}
                   >
                     <Icon />
                     <span>{t(($) => $.nav[item.labelKey])}</span>

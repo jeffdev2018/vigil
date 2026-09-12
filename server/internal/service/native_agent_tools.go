@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/url"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -12,6 +16,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
@@ -32,14 +37,97 @@ type nativeToolContext struct {
 	// effectful counts this run's state-changing tool calls against
 	// nativeMaxEffectfulActions.
 	effectful int
+	// effectWindow (N11): temporal Rule of Two loaded from workspace
+	// settings at run start. Max<=0 disables the window.
+	effectWindow NativeEffectWindow
+	// followupSettings is the per-day wake-up budget from workspace settings.
+	followupSettings FollowupSettings
+	// textStreamed (N04): the closing text was grown in place by the stream;
+	// the caller must not write a second copy. streamedMsgID names the row.
+	textStreamed  bool
+	streamedMsgID pgtype.UUID
+	// orgDenies (N08): the deny list of the org unit holding this run's
+	// issue. A tool a denied verb matches as NEVER is absent from the specs
+	// and refused at dispatch.
+	orgDenies []string
+	// repeats counts identical tool calls (name + canonical arguments) so a
+	// model stuck re-issuing the same call is warned, then refused.
+	repeats map[string]int
+	// wrapUp asks the loop to spend its next turn on a closing status
+	// instead of more tools; wrapUpReason says why, for the model and the
+	// transcript.
+	wrapUp       bool
+	wrapUpReason string
 	// issue is the task's own issue, nil for the issue-less kinds (chat,
 	// quick-create, autopilot run-only). Tools that default to "the task's
 	// issue" require an explicit issue_id when it is nil.
 	issue       *db.Issue
 	workspaceID pgtype.UUID
+	// depth is 0 for a run, 1 for a sub-agent it delegated to; budget is
+	// shared down the tree (effectful ceiling, sub-agent count); receipts
+	// journal tool calls — all tools for a sub-run's report contract, and
+	// successful state-changing tools for the parent run's honest stop (N18).
+	depth    int
+	budget   *nativeRunBudget
+	receipts []nativeReceipt
+	// honestStopAsked: the loop already diverted a premature prose turn
+	// into a wrap-up so the model must reconcile effects vs the ask (N18).
+	honestStopAsked bool
+}
+
+// chargeEffectful counts one state-changing call against the caller's own
+// ceiling and the run's shared one. Non-empty when a ceiling is crossed:
+// the reason for the wrap-up.
+func (t *nativeToolContext) chargeEffectful() string {
+	t.effectful++
+	own := nativeMaxEffectfulActions
+	if t.depth > 0 {
+		own = nativeSubagentMaxEffectful
+	}
+	if t.effectful > own {
+		return fmt.Sprintf("the effectful-action budget (%d state-changing calls) is spent", own)
+	}
+	if t.budget != nil {
+		t.budget.mu.Lock()
+		t.budget.effectful++
+		n := t.budget.effectful
+		t.budget.mu.Unlock()
+		if n > nativeMaxEffectfulActions {
+			return fmt.Sprintf("the run's effectful-action budget (%d state-changing calls, sub-agents included) is spent", nativeMaxEffectfulActions)
+		}
+	}
+	return ""
+}
+
+// requestWrapUp flags the run for a closing turn. The first reason wins:
+// it is the one that actually ended the work.
+func (t *nativeToolContext) requestWrapUp(reason string) {
+	if t.wrapUp {
+		return
+	}
+	t.wrapUp = true
+	t.wrapUpReason = reason
 }
 
 var nativeIssuePriorities = []string{"urgent", "high", "medium", "low", "none"}
+
+// nativeAgentToolSpecsFor is the tool list for a run at the given depth: a
+// sub-agent gets neither delegate (depth is one) nor ask_user (it reports
+// to its run, not to the team).
+func nativeAgentToolSpecsFor(depth int) []openai.ChatCompletionToolUnionParam {
+	all := nativeAgentToolSpecs()
+	if depth == 0 {
+		return all
+	}
+	out := make([]openai.ChatCompletionToolUnionParam, 0, len(all))
+	for _, t := range all {
+		if t.OfFunction != nil && (t.OfFunction.Function.Name == "delegate" || t.OfFunction.Function.Name == "ask_user") {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
 
 func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 	return []openai.ChatCompletionToolUnionParam{
@@ -113,14 +201,39 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "search_workspace",
+			Description: openai.String("Search the whole workspace by text: matching issues (open or closed) and knowledge notes, in one call. Use it to find past requests, decisions or procedures by words, names or numbers."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"query"},
+				"properties": shared.FunctionParameters{
+					"query": shared.FunctionParameters{"type": "string", "description": "Words to look for"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "search_notes",
-			Description: openai.String("Search the workspace's shared knowledge (notes): full-text query and/or a single tag. This is where procedures, decisions and know-how live — check it before answering or filing."),
+			Description: openai.String("Search the workspace's shared knowledge (notes) by relevance: results come back ranked, with a score and a matching snippet. This is where procedures, decisions and know-how live — check it before answering or filing. The query accepts \"a quoted phrase\", -negation and OR; omit it to browse the freshest notes instead."),
 			Parameters: shared.FunctionParameters{
 				"type": "object",
 				"properties": shared.FunctionParameters{
-					"query": shared.FunctionParameters{"type": "string"},
-					"tag":   shared.FunctionParameters{"type": "string"},
-					"limit": shared.FunctionParameters{"type": "integer"},
+					"query":            shared.FunctionParameters{"type": "string", "description": "What to look for. Omit to browse."},
+					"tag":              shared.FunctionParameters{"type": "string", "description": "Only notes carrying this tag."},
+					"limit":            shared.FunctionParameters{"type": "integer", "description": "Max hits, 1-50 (default 10)."},
+					"include_archived": shared.FunctionParameters{"type": "boolean", "description": "Also search notes that were archived."},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "capture_note",
+			Description: openai.String("Park something in the Brain's capture inbox instead of filing it. Capture when you are NOT sure it belongs in the shared knowledge — a link worth reading, a remark that might be a convention, a lead: a person files it later. Use save_note only when you are sure it is durable workspace knowledge and you checked search_notes first."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"content":    shared.FunctionParameters{"type": "string", "description": "The text to capture (content or url is required)."},
+					"url":        shared.FunctionParameters{"type": "string", "description": "An http(s) link to capture."},
+					"kind":       shared.FunctionParameters{"type": "string", "enum": []string{"text", "link", "todo"}, "description": "Inferred when omitted."},
+					"title_hint": shared.FunctionParameters{"type": "string", "description": "A hint for the note title, used when a person organizes the capture."},
 				},
 			},
 		}),
@@ -163,6 +276,74 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "ask_user",
+			Description: openai.String("Ask the team a question you cannot answer yourself (a decision, a missing fact, a permission). The run ends after this call; the goal loop waits for the answer and a follow-up run receives it. kind is text (free answer) or choice (pick one of options)."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"question": shared.FunctionParameters{"type": "string"},
+					"kind":     shared.FunctionParameters{"type": "string", "enum": []string{"text", "choice"}},
+					"options":  shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+				},
+				"required": []string{"question"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "delegate",
+			Description: openai.String("Hand one bounded piece of this task to a sub-agent with a fresh context: say exactly what to do and what to report. It runs with the same tools (minus delegate and ask_user), its own turn and time budget, and returns a report whose claims cite receipts [rN] of its tool calls; the result tells you which citations were verified. Up to 6 sub-agents per run, 3 at a time. Use it for independent reads or drafts, not for the decision that is yours."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"task":    shared.FunctionParameters{"type": "string"},
+					"context": shared.FunctionParameters{"type": "string"},
+				},
+				"required": []string{"task"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "schedule_followup",
+			Description: openai.String("Schedule this issue's next run for later: a follow-up task for the same agent fires at the given time, carrying your note on what to do next. when is RFC 3339 (e.g. 2026-09-11T09:00:00+02:00) or an offset in minutes from now (e.g. +90). Use it to pause and resume instead of looping."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"when"},
+				"properties": shared.FunctionParameters{
+					"when": shared.FunctionParameters{"type": "string", "description": "RFC 3339 timestamp, or +90 for minutes from now"},
+					"note": shared.FunctionParameters{"type": "string", "description": "What the follow-up run should do (shown as its trigger)"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "cancel_followup",
+			Description: openai.String("Cancel a follow-up scheduled on this issue that has not fired yet (list_followups shows them). Use it before scheduling a replacement instead of stacking wake-ups."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"followup_task_id": shared.FunctionParameters{"type": "string", "description": "id returned by schedule_followup or list_followups"},
+				},
+				"required": []string{"followup_task_id"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "list_followups",
+			Description: openai.String("The follow-ups already scheduled on this issue (who, when, note). Check it before scheduling another."),
+			Parameters:  shared.FunctionParameters{"type": "object", "properties": shared.FunctionParameters{}},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "propose_autopilot",
+			Description: openai.String("Propose a recurring automation from a sentence (\"every Monday at 9, list the open tickets\") or from explicit fields. It is created paused; a person activates it from the Decision Card filed on this issue. Use it when the work should repeat on a schedule instead of scheduling follow-ups by hand."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"text":            shared.FunctionParameters{"type": "string", "description": "the schedule and the task in plain words; the model drafts title, cron and prompt"},
+					"title":           shared.FunctionParameters{"type": "string"},
+					"cron_expression": shared.FunctionParameters{"type": "string", "description": "5-field cron, when you know it"},
+					"timezone":        shared.FunctionParameters{"type": "string", "description": "IANA timezone"},
+					"description":     shared.FunctionParameters{"type": "string", "description": "the instruction followed at each run"},
+					"execution_mode":  shared.FunctionParameters{"type": "string", "enum": []string{"create_issue", "run_only"}},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -176,12 +357,134 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 				},
 			},
 		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "list_events",
+			Description: openai.String("Calendar events of the workspace overlapping a window (RFC 3339 from/to, default the coming week), with participants and status. Use agenda=true to also get issues due, cycles and meetings."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"from":   shared.FunctionParameters{"type": "string"},
+					"to":     shared.FunctionParameters{"type": "string"},
+					"agenda": shared.FunctionParameters{"type": "boolean"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "find_slot",
+			Description: openai.String("Free windows every participant can make (members inside 09:00-18:00 weekdays in tz, agents any time), earliest first. participants: [\"member:<user id>\", \"agent:<agent id>\"]."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"participants":     shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+					"duration_minutes": shared.FunctionParameters{"type": "integer"},
+					"from":             shared.FunctionParameters{"type": "string"},
+					"to":               shared.FunctionParameters{"type": "string"},
+					"tz":               shared.FunctionParameters{"type": "string"},
+				},
+				"required": []string{"participants"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "propose_event",
+			Description: openai.String("Propose a calendar event on this task's issue. It is filed as proposed with a Decision Card; a person accepts or declines. Times RFC 3339; participants: [{type: member|agent, id}]."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"title":        shared.FunctionParameters{"type": "string"},
+					"starts_at":    shared.FunctionParameters{"type": "string"},
+					"ends_at":      shared.FunctionParameters{"type": "string"},
+					"description":  shared.FunctionParameters{"type": "string"},
+					"timezone":     shared.FunctionParameters{"type": "string"},
+					"location":     shared.FunctionParameters{"type": "string"},
+					"participants": shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "object"}},
+				},
+				"required": []string{"title", "starts_at", "ends_at"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "report_doctrine_conflict",
+			Description: openai.String("File a doctrine report when this task cannot be done without breaking a workspace rule (kind refusal), when two rules collide (conflict), or when a rule is too vague to apply (ambiguity). The workspace owners are notified and review the rule; do not improvise around the doctrine instead of reporting."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"kind", "summary"},
+				"properties": shared.FunctionParameters{
+					"kind":    shared.FunctionParameters{"type": "string", "enum": nativeDoctrineReportKinds},
+					"summary": shared.FunctionParameters{"type": "string", "description": "What the task asked, which rule stands in the way, and what you did instead."},
+					"passage": shared.FunctionParameters{"type": "string", "description": "The doctrine passage at issue, quoted."},
+				},
+			},
+		}),
 	}
+}
+
+// nativeFilterToolSpecs removes the tools the org unit denies outright (N08).
+// The description rides along because OrgDenyClass matches it too — the same
+// rule the CLI catalogue applies (mcpgov.ApplyOrgDeny).
+func nativeFilterToolSpecs(specs []openai.ChatCompletionToolUnionParam, denies []string) []openai.ChatCompletionToolUnionParam {
+	if len(denies) == 0 {
+		return specs
+	}
+	out := make([]openai.ChatCompletionToolUnionParam, 0, len(specs))
+	for _, spec := range specs {
+		name := ""
+		description := ""
+		// The union carries the function definition through its variant
+		// fields; both are plain values on the ChatCompletionFunctionToolParam
+		// built here, and the openai.String helper made Description a
+		// param.Opt whose string form is the description.
+		if fn := spec.GetFunction(); fn != nil {
+			name = fn.Name
+			description = fn.Description.Value
+		}
+		if nativeToolDeniedByOrg(name, description, denies) {
+			continue
+		}
+		out = append(out, spec)
+	}
+	return out
+}
+
+// callNativeToolRead dispatches one validated tool invocation. Errors are
+// values for the model to react to, not run failures. Exported for tests.
+func (s *NativeAgentService) callNativeToolRead(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
+	return s.callNativeTool(ctx, tctx, name, args)
+}
+
+// nativeHoldsEffects reports whether this run's writes wait for a human
+// (N10): the agent's effect_mode is preview (K69's own gate — the same one
+// every HTTP write path consults via RunHoldsEffects), or the run is a safe
+// replay.
+func (s *NativeAgentService) nativeHoldsEffects(ctx context.Context, tctx *nativeToolContext) bool {
+	return RunHoldsEffects(ctx, s.Queries, tctx.agent.ID, tctx.task.ID)
+}
+
+// nativeHoldEffect journals the write an agent in preview asked for and was
+// NOT applied, and returns the reply the model receives: a pending id and a
+// clear statement that a human must approve before anything happens.
+func (s *NativeAgentService) nativeHoldEffect(ctx context.Context, tctx *nativeToolContext, kind string, targetID pgtype.UUID, after, payload map[string]any) (any, error) {
+	issueID := pgtype.UUID{}
+	if tctx.issue != nil {
+		issueID = tctx.issue.ID
+	}
+	eff, err := RecordPendingAgentEffect(ctx, s.Queries, AgentEffectParams{
+		WorkspaceID: tctx.workspaceID, TaskID: tctx.task.ID, AgentID: tctx.agent.ID, IssueID: issueID,
+		Kind: kind, TargetType: "issue", TargetID: targetID, After: after, Reversible: true,
+	}, payload)
+	if err != nil {
+		return nil, fmt.Errorf("the write could not be held for approval: %w", err)
+	}
+	return map[string]any{
+		"held": true, "pending_effect_id": util.UUIDToString(eff.ID),
+		"note": "the agent runs in preview mode: a human must approve this change before it is applied",
+	}, nil
 }
 
 // callNativeTool dispatches one validated tool invocation. Errors are values
 // for the model to react to, not run failures.
 func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
+	if nativeToolDeniedByOrg(name, name, tctx.orgDenies) {
+		return nil, fmt.Errorf("the organisation denies this action (%s)", name)
+	}
 	switch name {
 	case "get_issue":
 		issue, err := s.nativeResolveIssue(ctx, tctx, args)
@@ -191,13 +494,40 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeIssueSnapshot(ctx, tctx, issue)
 	case "list_issues":
 		return s.nativeListIssues(ctx, tctx, args)
-	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note":
+	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note", "capture_note":
+		// Preview mode (N10 / K69): the write is HELD, not applied — journaled
+		// as a pending effect a human approves. Held writes do not spend the
+		// effect budget: nothing changed.
+		if s.nativeHoldsEffects(ctx, tctx) {
+			payload := map[string]any{"tool": name, "arguments": args}
+			var targetHint pgtype.UUID
+			if tctx.issue != nil {
+				targetHint = tctx.issue.ID
+			}
+			if raw, ok := args["issue_id"].(string); ok {
+				if id, err := util.ParseUUID(strings.TrimSpace(raw)); err == nil {
+					targetHint = id
+				}
+			}
+			after := map[string]any{"tool": name}
+			if t, ok := args["title"].(string); ok {
+				after["title"] = t
+			}
+			return s.nativeHoldEffect(ctx, tctx, "native_"+name, targetHint, after, payload)
+		}
 		// Rule-of-Many: one run may only change workspace state so many
-		// times. Read-only tools stay free; a refusal tells the model to
-		// wrap up instead of looping.
-		tctx.effectful++
-		if tctx.effectful > nativeMaxEffectfulActions {
-			return nil, fmt.Errorf("this run's effectful-action budget (%d) is exhausted; stop changing the workspace and give your final answer", nativeMaxEffectfulActions)
+		// times, its sub-agents included. Read-only tools stay free; a
+		// refusal tells the model to wrap up instead of looping.
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, fmt.Errorf("this run's effectful-action budget is exhausted (%s); stop changing the workspace and give your final answer", reason)
+		}
+		// Temporal Rule of Two (N11): across runs, the same agent is
+		// bounded by a sliding window so a frenzy of short runs cannot
+		// thrash the workspace.
+		if reason := s.observeAgentEffect(util.UUIDToString(tctx.agent.ID), tctx.effectWindow, time.Now()); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, fmt.Errorf("%s", reason)
 		}
 		switch name {
 		case "add_comment":
@@ -212,9 +542,56 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return s.nativeSaveNote(ctx, tctx, args)
 		case "update_note":
 			return s.nativeUpdateNote(ctx, tctx, args)
+		case "capture_note":
+			return s.nativeCaptureNote(ctx, tctx, args)
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
+	case "list_events":
+		return s.nativeCalendarList(ctx, tctx, args)
+	case "find_slot":
+		return s.nativeCalendarSlots(ctx, tctx, args)
+	case "propose_event":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		if reason := s.observeAgentEffect(util.UUIDToString(tctx.agent.ID), tctx.effectWindow, time.Now()); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeCalendarPropose(ctx, tctx, args)
+	case "schedule_followup":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeScheduleFollowup(ctx, tctx, args)
+	case "cancel_followup":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeCancelFollowup(ctx, tctx, args)
+	case "list_followups":
+		return s.nativeListFollowups(ctx, tctx)
+	case "propose_autopilot":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeProposeAutopilot(ctx, tctx, args)
+	case "report_doctrine_conflict":
+		// Deliberately outside the effectful budget: a run that spent its
+		// budget must still be able to say a rule blocked it, and the
+		// repeat guard already refuses the same report twice.
+		return s.nativeReportDoctrineConflict(ctx, tctx, args)
+	case "ask_user":
+		return s.nativeAskUser(ctx, tctx, args)
+	case "delegate":
+		return s.nativeDelegate(ctx, tctx, args)
+	case "search_workspace":
+		return s.nativeSearchWorkspace(ctx, tctx, args)
 	case "search_notes":
 		return s.nativeSearchNotes(ctx, tctx, args)
 	case "get_note":
@@ -256,7 +633,7 @@ func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx *nati
 		out["priority"] = issue.Priority
 	}
 	if issue.Description.Valid {
-		out["description"] = issue.Description.String
+		out["description"] = nativeDataFence("issue description", issue.Description.String)
 	}
 	comments, err := s.Queries.ListCommentsForIssue(ctx, db.ListCommentsForIssueParams{
 		IssueID:     issue.ID,
@@ -271,7 +648,7 @@ func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx *nati
 		list = append(list, map[string]any{
 			"author_type": c.AuthorType,
 			"author_id":   util.UUIDToString(c.AuthorID),
-			"content":     clampString(c.Content, 2000),
+			"content":     nativeDataFence("comment", clampString(c.Content, 2000)),
 			"created_at":  c.CreatedAt,
 		})
 	}
@@ -323,7 +700,7 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 		return nil, errors.New("content is required")
 	}
 	if len(content) > nativeCommentMaxLen {
-		content = content[:nativeCommentMaxLen]
+		content = util.TruncateUTF8Bytes(content, nativeCommentMaxLen)
 	}
 	issue, err := s.nativeResolveIssue(ctx, tctx, args)
 	if err != nil {
@@ -343,10 +720,37 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 		return nil, fmt.Errorf("comment failed: %w", err)
 	}
 	s.publishNative(protocol.EventCommentCreated, tctx, map[string]any{
-		"comment":        map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)},
+		"comment":        createdCommentEventFields(created),
 		"issue_revision": created.IssueRevision,
 	})
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
+}
+
+// nativeAskUser records a typed question for the team on the issue's goal
+// and closes the run: the goal loop turns it into a needs_user_input verdict,
+// raises the inbox item, and queues the follow-up run with the answer.
+func (s *NativeAgentService) nativeAskUser(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Goal == nil {
+		return nil, errors.New("the goal loop is not available on this server")
+	}
+	if tctx.issue == nil {
+		return nil, errors.New("ask_user needs the task's own issue")
+	}
+	q := goalstate.Question{}
+	q.Prompt, _ = args["question"].(string)
+	q.Kind, _ = args["kind"].(string)
+	if raw, ok := args["options"].([]any); ok {
+		for _, o := range raw {
+			if str, ok := o.(string); ok {
+				q.Options = append(q.Options, str)
+			}
+		}
+	}
+	if _, err := s.Goal.AskQuestion(ctx, tctx.task, q); err != nil {
+		return nil, err
+	}
+	tctx.requestWrapUp("you asked the team a question; the run stops here and a follow-up run will receive the answer")
+	return map[string]any{"asked": true, "note": "the question is on its way to the team; give your closing status now"}, nil
 }
 
 func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
@@ -361,14 +765,14 @@ func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *native
 			return nil, errors.New("title must not be empty")
 		}
 		if len(title) > 255 {
-			title = title[:255]
+			title = util.TruncateUTF8Bytes(title, 255)
 		}
 	}
 	description, hasDescription := args["description"].(string)
 	if hasDescription {
 		description = util.SanitizeTextForPostgres(description)
 		if len(description) > 100000 {
-			description = description[:100000]
+			description = util.TruncateUTF8Bytes(description, 100000)
 		}
 	}
 	priority, hasPriority := args["priority"].(string)
@@ -449,27 +853,7 @@ func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx *na
 		}
 		return map[string]any{"held": true, "request_id": util.UUIDToString(result.Request.ID), "from": issue.Status, "to": status, "note": "the move needs human approval; a request was filed and the status is unchanged until an approver decides"}, nil
 	default:
-		params := db.UpdateIssueParams{ID: issue.ID}
-		// Same bare-narg contract as update_issue: pre-fill every overwrite
-		// column from the current row, then set the new status.
-		params.Status = pgtype.Text{String: status, Valid: true}
-		params.Title = pgtype.Text{String: issue.Title, Valid: true}
-		if issue.Description.Valid {
-			params.Description = issue.Description
-		}
-		if issue.Priority != "" {
-			params.Priority = pgtype.Text{String: issue.Priority, Valid: true}
-		}
-		params.AssigneeType = issue.AssigneeType
-		params.AssigneeID = issue.AssigneeID
-		params.DelegateType = issue.DelegateType
-		params.DelegateID = issue.DelegateID
-		params.StartDate = issue.StartDate
-		params.DueDate = issue.DueDate
-		params.ParentIssueID = issue.ParentIssueID
-		params.ProjectID = issue.ProjectID
-		params.Stage = issue.Stage
-		updated, err := s.Queries.UpdateIssue(ctx, params)
+		updated, err := updateIssueStatusKeepingFields(ctx, s.Queries, issue, status)
 		if err != nil {
 			return nil, fmt.Errorf("transition failed: %w", err)
 		}
@@ -485,7 +869,7 @@ func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx *nat
 		return nil, errors.New("title is required")
 	}
 	if len(title) > 255 {
-		title = title[:255]
+		title = util.TruncateUTF8Bytes(title, 255)
 	}
 	description, _ := args["description"].(string)
 	description = util.SanitizeTextForPostgres(description)
@@ -540,6 +924,130 @@ func (s *NativeAgentService) publishNativeIssueChanged(tctx *nativeToolContext, 
 	})
 }
 
+// nativeScheduleFollowup (N16): pause and resume. The tool writes a deferred
+// follow-up task for the same agent on the same issue; the existing promotion
+// tick flips it to queued at fire_at, and the note rides as the trigger the
+// next run (and the human) reads. Bounded: the fire time must land inside
+// [now+1min, now+30d], and a pending follow-up already on the issue is
+// refused rather than stacked.
+func (s *NativeAgentService) nativeScheduleFollowup(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("schedule_followup needs the task's own issue")
+	}
+	rawWhen, _ := args["when"].(string)
+	note, _ := args["note"].(string)
+	task, err := ScheduleFollowup(ctx, s.Queries, FollowupInput{
+		WorkspaceID: tctx.workspaceID, IssueID: tctx.issue.ID, Agent: tctx.agent, Priority: tctx.task.Priority,
+		When: rawWhen, Note: note, ByType: "agent", ByID: tctx.agent.ID, Settings: tctx.followupSettings,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.publishNative(protocol.EventFollowupChanged, tctx, map[string]any{"issue_id": util.UUIDToString(tctx.issue.ID), "followup_id": util.UUIDToString(task.ID), "change": "scheduled"})
+	return map[string]any{
+		"scheduled": true, "followup_task_id": util.UUIDToString(task.ID),
+		"fires_at": task.FireAt.Time.UTC().Format(time.RFC3339),
+	}, nil
+}
+
+// nativeCancelFollowup drops a follow-up the run (or a previous run of the
+// same issue) scheduled and that has not fired yet.
+func (s *NativeAgentService) nativeCancelFollowup(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("cancel_followup needs the task's own issue")
+	}
+	raw, _ := args["followup_task_id"].(string)
+	id, err := util.ParseUUID(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, errors.New("followup_task_id must be a uuid")
+	}
+	row, err := s.Queries.GetIssueFollowup(ctx, db.GetIssueFollowupParams{ID: id, IssueID: tctx.issue.ID, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, errors.New("no such follow-up on this issue")
+	}
+	if row.Status != "deferred" {
+		return map[string]any{"cancelled": false, "status": row.Status}, nil
+	}
+	if _, err := s.Queries.CancelAgentTask(ctx, id); err != nil {
+		return nil, fmt.Errorf("follow-up could not be cancelled: %w", err)
+	}
+	s.publishNative(protocol.EventFollowupChanged, tctx, map[string]any{"issue_id": util.UUIDToString(tctx.issue.ID), "followup_id": util.UUIDToString(id), "change": "cancelled"})
+	return map[string]any{"cancelled": true}, nil
+}
+
+// nativeListFollowups shows what is already scheduled on the issue so a run
+// does not stack a second wake-up on the first.
+func (s *NativeAgentService) nativeListFollowups(ctx context.Context, tctx *nativeToolContext) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("list_followups needs the task's own issue")
+	}
+	rows, err := s.Queries.ListIssueFollowups(ctx, db.ListIssueFollowupsParams{IssueID: tctx.issue.ID, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"followup_task_id": util.UUIDToString(r.ID), "agent_id": util.UUIDToString(r.AgentID), "fires_at": r.FireAt.Time.UTC().Format(time.RFC3339), "note": FollowupNoteFromSummary(r.TriggerSummary.String)})
+	}
+	return map[string]any{"followups": out}, nil
+}
+
+// nativeProposeAutopilot files a paused autopilot behind a Decision Card on
+// the run's issue; the handler owns the card, so this goes through it.
+func (s *NativeAgentService) nativeProposeAutopilot(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Autopilots == nil {
+		return nil, errors.New("autopilot proposals are not available on this server")
+	}
+	if tctx.issue == nil {
+		return nil, errors.New("propose_autopilot needs the task's own issue")
+	}
+	text, _ := args["text"].(string)
+	cron, _ := args["cron_expression"].(string)
+	if strings.TrimSpace(text) == "" && strings.TrimSpace(cron) == "" {
+		return nil, errors.New("give text (a sentence) or cron_expression with title and description")
+	}
+	return s.Autopilots.Propose(ctx, tctx.task, tctx.agent, args)
+}
+
+// nativeSearchWorkspace (N06): issues and notes in one call — the helpdesk
+// question is "find what was said about this", not "find an issue".
+func (s *NativeAgentService) nativeSearchWorkspace(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	raw, _ := args["query"].(string)
+	query := strings.TrimSpace(raw)
+	if query == "" {
+		return nil, errors.New("query is required")
+	}
+	issues, err := s.Queries.SearchIssuesForNative(ctx, db.SearchIssuesForNativeParams{
+		WorkspaceID: tctx.workspaceID,
+		Needle:      pgtype.Text{String: query, Valid: true},
+		PageLimit:   10,
+	})
+	if err != nil {
+		issues = nil // best-effort: notes may still answer
+	}
+	outIssues := make([]map[string]any, 0, len(issues))
+	for _, i := range issues {
+		outIssues = append(outIssues, map[string]any{
+			"id": util.UUIDToString(i.ID), "number": i.Number,
+			"title": i.Title, "status": i.Status,
+		})
+	}
+	notes, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{WorkspaceID: tctx.workspaceID, Query: query, Limit: 5})
+	if err != nil {
+		slog.Warn("search_workspace: note search failed", "error", err)
+		notes = nil // best-effort: issues may still answer
+	}
+	outNotes := make([]map[string]any, 0, len(notes))
+	for _, hit := range notes {
+		outNotes = append(outNotes, map[string]any{
+			"id": util.UUIDToString(hit.Note.ID), "title": hit.Note.Title,
+			"section": hit.PassageHeading,
+			"excerpt": stripNoteHighlight(hit.Snippet),
+		})
+	}
+	return map[string]any{"issues": outIssues, "notes": outNotes}, nil
+}
+
 // ---- Workspace Brain tools (JEF-316 office runtime, slice 1) -------------
 
 const (
@@ -560,46 +1068,172 @@ func nativeNoteTags(raw []any) ([]string, error) {
 			return nil, errors.New("tags must be non-empty strings")
 		}
 		if len(s) > nativeNoteTagMax {
-			s = s[:nativeNoteTagMax]
+			s = util.TruncateUTF8Bytes(s, nativeNoteTagMax)
 		}
 		out = append(out, util.SanitizeTextForPostgres(s))
 	}
 	return out, nil
 }
 
+// nativeSearchNotes answers a question against the Brain by relevance. With a
+// query it runs the same ranked search the app does — lexical rank fused with
+// a vector rank when an embeddings model is configured, so a note that words
+// the fact differently still surfaces. With no query at all there is nothing
+// to rank, so it falls back to browsing: the freshest notes, optionally of one
+// tag, which is what "what do we know" means.
 func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
-	params := db.ListWorkspaceNotesParams{
-		WorkspaceID:     tctx.workspaceID,
-		IncludeArchived: false,
-		PageLimit:       10,
-	}
-	if q, ok := args["query"].(string); ok && strings.TrimSpace(q) != "" {
-		params.Search = pgtype.Text{String: strings.TrimSpace(q), Valid: true}
-	}
-	if tag, ok := args["tag"].(string); ok && strings.TrimSpace(tag) != "" {
-		params.Tag = pgtype.Text{String: strings.TrimSpace(tag), Valid: true}
-	}
+	query, _ := args["query"].(string)
+	query = strings.TrimSpace(query)
+	tag, _ := args["tag"].(string)
+	tag = strings.TrimSpace(tag)
+	includeArchived, _ := args["include_archived"].(bool)
+	limit := int32(10)
 	if lim, ok := args["limit"].(float64); ok && lim >= 1 {
-		params.PageLimit = int32(min(int(lim), 20))
+		limit = int32(min(int(lim), 50))
 	}
-	if !params.Search.Valid && !params.Tag.Valid {
-		// No filter: the freshest notes, so "what do we know" has an answer.
+
+	if query == "" {
+		return s.nativeBrowseNotes(ctx, tctx, tag, includeArchived, limit)
 	}
-	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
+
+	// The app's own search (SearchBrainNotes), so an agent and a person
+	// asking the same question see the same notes in the same order.
+	hits, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{
+		WorkspaceID: tctx.workspaceID, Query: query, Tag: tag, IncludeArchived: includeArchived, Limit: limit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("note search failed: %w", err)
 	}
-	out := make([]map[string]any, 0, len(notes))
-	for _, n := range notes {
+	out := make([]map[string]any, 0, len(hits))
+	for _, hit := range hits {
+		n := hit.Note
 		out = append(out, map[string]any{
 			"id":      util.UUIDToString(n.ID),
 			"title":   n.Title,
 			"tags":    n.Tags,
 			"pinned":  n.Pinned,
-			"excerpt": clampString(n.Content, 300),
+			"score":   hit.Score,
+			"section": hit.PassageHeading,
+			// Fenced as a record (N01): a note's body is workspace data,
+			// never instructions for the agent reading it.
+			"snippet":    nativeDataFence("note", stripNoteHighlight(hit.Snippet)),
+			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
 	}
 	return out, nil
+}
+
+// nativeBrowseNotes is the no-query branch: the freshest notes, so an agent
+// with no words to search by still has an answer.
+func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *nativeToolContext, tag string, includeArchived bool, limit int32) (any, error) {
+	params := db.ListWorkspaceNotesParams{
+		WorkspaceID:     tctx.workspaceID,
+		IncludeArchived: includeArchived,
+		PageLimit:       limit,
+	}
+	if tag != "" {
+		params.Tag = pgtype.Text{String: tag, Valid: true}
+	}
+	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("note listing failed: %w", err)
+	}
+	out := make([]map[string]any, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, map[string]any{
+			"id":         util.UUIDToString(n.ID),
+			"title":      n.Title,
+			"tags":       n.Tags,
+			"pinned":     n.Pinned,
+			"snippet":    nativeDataFence("note", clampString(n.Content, 300)),
+			"updated_at": nativeTimestamp(n.UpdatedAt),
+		})
+	}
+	return out, nil
+}
+
+// stripNoteHighlight removes the search snippet's <mark> markers. They exist
+// for a browser to bold; to a model they are noise inside the fenced record.
+func stripNoteHighlight(snippet string) string {
+	return strings.NewReplacer("<mark>", "", "</mark>", "").Replace(snippet)
+}
+
+func nativeTimestamp(ts pgtype.Timestamptz) string {
+	if !ts.Valid {
+		return ""
+	}
+	return ts.Time.UTC().Format(time.RFC3339)
+}
+
+// nativeCaptureNote parks something in the Brain's capture inbox instead of
+// writing a note. Nothing is filed: a person turns the capture into a note,
+// merges it into one, or discards it. It is the honest move when a run learns
+// something that MIGHT be worth keeping — a wrong capture costs a click, a
+// wrong note pollutes what every later run reads.
+func (s *NativeAgentService) nativeCaptureNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	content, _ := args["content"].(string)
+	content = strings.TrimSpace(util.SanitizeTextForPostgres(content))
+	rawURL, _ := args["url"].(string)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL != "" {
+		u, err := url.Parse(rawURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(rawURL) > 2048 {
+			return nil, errors.New("url must be an http(s) URL")
+		}
+	}
+	if content == "" && rawURL == "" {
+		return nil, errors.New("content or url is required")
+	}
+	if utf8.RuneCountInString(content) > nativeNoteBodyMax {
+		return nil, fmt.Errorf("content exceeds %d characters — capture the part that matters", nativeNoteBodyMax)
+	}
+	hint, _ := args["title_hint"].(string)
+	hint = strings.TrimSpace(util.SanitizeTextForPostgres(hint))
+	if len(hint) > nativeNoteTitleMax {
+		hint = util.TruncateUTF8Bytes(hint, nativeNoteTitleMax)
+	}
+	kind, _ := args["kind"].(string)
+	switch strings.TrimSpace(kind) {
+	case "text", "link", "todo":
+		kind = strings.TrimSpace(kind)
+	case "":
+		// The server-side rule, applied here because the native runtime
+		// writes the row directly: a bare link is a link, anything with
+		// words is text.
+		if rawURL != "" && content == "" {
+			kind = "link"
+		} else {
+			kind = "text"
+		}
+	default:
+		return nil, errors.New("kind must be text, link or todo")
+	}
+
+	capture, err := s.Queries.CreateBrainCapture(ctx, db.CreateBrainCaptureParams{
+		ID:                  dbid.NewV7(),
+		WorkspaceID:         tctx.workspaceID,
+		Kind:                kind,
+		Content:             content,
+		Url:                 rawURL,
+		TitleHint:           hint,
+		Origin:              "agent",
+		TranscriptionStatus: "none",
+		CreatedByType:       "agent",
+		CreatedByID:         pgtype.UUID(tctx.agent.ID),
+		SourceTaskID:        pgtype.UUID(tctx.task.ID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("capture failed: %w", err)
+	}
+	s.publishNative(protocol.EventBrainCaptureChanged, tctx, map[string]any{
+		"capture_id": util.UUIDToString(capture.ID),
+		"status":     capture.Status,
+		"change":     "captured",
+	})
+	return map[string]any{
+		"id": util.UUIDToString(capture.ID), "kind": capture.Kind, "status": capture.Status,
+		"note": "Captured, not filed. A person organizes the Brain inbox; do not capture the same thing twice.",
+	}, nil
 }
 
 func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
@@ -614,7 +1248,7 @@ func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeTool
 	}
 	return map[string]any{
 		"id": util.UUIDToString(note.ID), "title": note.Title,
-		"content": note.Content, "tags": note.Tags, "pinned": note.Pinned,
+		"content": nativeDataFence("note", note.Content), "tags": note.Tags, "pinned": note.Pinned,
 		"revision": note.Revision,
 	}, nil
 }
@@ -626,7 +1260,7 @@ func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToo
 		return nil, errors.New("title is required")
 	}
 	if len(title) > nativeNoteTitleMax {
-		title = title[:nativeNoteTitleMax]
+		title = util.TruncateUTF8Bytes(title, nativeNoteTitleMax)
 	}
 	content, _ := args["content"].(string)
 	content = util.SanitizeTextForPostgres(content)
@@ -653,6 +1287,9 @@ func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToo
 	if err != nil {
 		return nil, fmt.Errorf("note save failed: %w", err)
 	}
+	if s.NoteEmbedder != nil {
+		s.NoteEmbedder.EmbedNoteAsync(note.ID)
+	}
 	s.publishNative(protocol.EventWorkspaceNoteCreated, tctx, map[string]any{
 		"note": map[string]any{"id": util.UUIDToString(note.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},
 	})
@@ -677,7 +1314,7 @@ func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeT
 	if title, ok := args["title"].(string); ok && strings.TrimSpace(title) != "" {
 		title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
 		if len(title) > nativeNoteTitleMax {
-			title = title[:nativeNoteTitleMax]
+			title = util.TruncateUTF8Bytes(title, nativeNoteTitleMax)
 		}
 		params.Title = pgtype.Text{String: title, Valid: true}
 		hasChange = true
@@ -705,6 +1342,9 @@ func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeT
 	if err != nil {
 		return nil, fmt.Errorf("note update failed (concurrent edit?): %w", err)
 	}
+	if s.NoteEmbedder != nil {
+		s.NoteEmbedder.EmbedNoteAsync(updated.ID)
+	}
 	s.publishNative(protocol.EventWorkspaceNoteUpdated, tctx, map[string]any{
 		"note": map[string]any{"id": util.UUIDToString(updated.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},
 	})
@@ -722,7 +1362,7 @@ func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx *native
 		return nil, errors.New("title is required")
 	}
 	if len(title) > 255 {
-		title = title[:255]
+		title = util.TruncateUTF8Bytes(title, 255)
 	}
 	description, _ := args["description"].(string)
 	description = util.SanitizeTextForPostgres(description)
@@ -788,5 +1428,128 @@ func clampString(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return util.TruncateUTF8Bytes(s, n) + "…"
+}
+
+// ---- Calendar tools (native calendar, chantier 19) ---------------------------------
+
+func nativeCalendarWindow(args map[string]any) (time.Time, time.Time, error) {
+	from := time.Now().UTC().Truncate(time.Hour)
+	to := from.Add(7 * 24 * time.Hour)
+	if raw, _ := args["from"].(string); strings.TrimSpace(raw) != "" {
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			return from, to, errors.New("from must be RFC 3339")
+		}
+		from = t
+		to = from.Add(7 * 24 * time.Hour)
+	}
+	if raw, _ := args["to"].(string); strings.TrimSpace(raw) != "" {
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			return from, to, errors.New("to must be RFC 3339")
+		}
+		to = t
+	}
+	if !to.After(from) {
+		return from, to, errors.New("to must be after from")
+	}
+	if to.Sub(from) > 366*24*time.Hour {
+		return from, to, errors.New("the window may span at most a year")
+	}
+	return from, to, nil
+}
+
+func (s *NativeAgentService) nativeCalendarList(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	from, to, err := nativeCalendarWindow(args)
+	if err != nil {
+		return nil, err
+	}
+	if agenda, _ := args["agenda"].(bool); agenda {
+		return s.Calendar.Agenda(ctx, tctx.agent.WorkspaceID, from, to)
+	}
+	return s.Calendar.ListEvents(ctx, tctx.agent.WorkspaceID, from, to)
+}
+
+func (s *NativeAgentService) nativeCalendarSlots(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	from, to, err := nativeCalendarWindow(args)
+	if err != nil {
+		return nil, err
+	}
+	var participants []string
+	if raw, ok := args["participants"].([]any); ok {
+		for _, p := range raw {
+			if str, ok := p.(string); ok && strings.TrimSpace(str) != "" {
+				participants = append(participants, strings.TrimSpace(str))
+			}
+		}
+	}
+	if len(participants) == 0 {
+		return nil, errors.New("participants is required")
+	}
+	duration := 30
+	if raw, ok := args["duration_minutes"].(float64); ok && raw > 0 {
+		duration = int(raw)
+	}
+	tz, _ := args["tz"].(string)
+	return s.Calendar.FindSlots(ctx, tctx.agent.WorkspaceID, participants, duration, from, to, tz)
+}
+
+func (s *NativeAgentService) nativeCalendarPropose(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Calendar == nil {
+		return nil, errors.New("this server has no calendar")
+	}
+	if !tctx.task.IssueID.Valid {
+		return nil, errors.New("this run has no issue to propose an event on")
+	}
+	return s.Calendar.Propose(ctx, tctx.agent.WorkspaceID, tctx.agent.ID, tctx.task.IssueID, args)
+}
+
+// ---- Doctrine report (workspace doctrine, chantier 22) ----------------------
+
+// nativeDoctrineReportKinds is the closed kind list the API accepts.
+var nativeDoctrineReportKinds = []string{"conflict", "refusal", "ambiguity"}
+
+func nativeIsDoctrineKind(kind string) bool {
+	for _, k := range nativeDoctrineReportKinds {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// nativeReportDoctrineConflict files a doctrine report for this run. Length
+// limits are the API's: an over-long summary comes back as its error message,
+// which the model reads and can shorten.
+func (s *NativeAgentService) nativeReportDoctrineConflict(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Doctrine == nil {
+		return nil, errors.New("this server cannot file doctrine reports")
+	}
+	rawKind, _ := args["kind"].(string)
+	kind := strings.ToLower(strings.TrimSpace(rawKind))
+	if !nativeIsDoctrineKind(kind) {
+		return nil, fmt.Errorf("kind must be one of %s", strings.Join(nativeDoctrineReportKinds, ", "))
+	}
+	rawSummary, _ := args["summary"].(string)
+	summary := strings.TrimSpace(util.SanitizeTextForPostgres(rawSummary))
+	if summary == "" {
+		return nil, errors.New("summary is required: say what the task asked and which rule stands in the way")
+	}
+	rawPassage, _ := args["passage"].(string)
+	passage := strings.TrimSpace(util.SanitizeTextForPostgres(rawPassage))
+	id, err := s.Doctrine.Report(ctx, tctx.task, tctx.agent, kind, summary, passage)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"report_id": id,
+		"result":    fmt.Sprintf("Doctrine report filed (id %s). The workspace owners were notified; continue with the parts of the task the doctrine allows.", id),
+	}, nil
 }

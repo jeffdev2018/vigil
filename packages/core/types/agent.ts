@@ -2,7 +2,16 @@ import type { ChatSession } from "./chat";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
-export type AgentRuntimeMode = "local" | "cloud";
+/**
+ * "native" (OS plan, chantier 5) is a workspace-level runtime that runs in
+ * the browser server-side — no daemon, no CLI install. One row is
+ * provisioned per workspace when the server has a configured model
+ * (`native_runtime_available` in `/api/config`), so it behaves like any
+ * other `RuntimeDevice` to the rest of the frontend (selectable in
+ * `MikaRuntimeChoice`, listed by `GET /api/runtimes`) — only onboarding
+ * treats it specially, as the no-install fast path.
+ */
+export type AgentRuntimeMode = "local" | "cloud" | "native";
 
 // ---------------------------------------------------------------------------
 // Smart runtime routing (JEF-237)
@@ -523,6 +532,8 @@ export interface AgentTask {
   checkpointed_at?: string | null;
   /** Issue router (K27): risk level, pool and escalation behind this run. */
   routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
+  /** The input comment was edited or deleted, invalidating this run. */
+  cancelled_by_comment_change?: boolean;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -559,9 +570,9 @@ export interface AgentTask {
    */
   trigger_summary?: string;
   /**
-   * Server-computed source discriminator used by the activity row to label
-   * tasks that have no linked issue (so e.g. quick-create tasks render
-   * with a meaningful title instead of falling through to "Untracked").
+   * Server-computed source discriminator used by task surfaces. Quick-create
+   * remains quick_create after its result issue is linked, so consumers can
+   * distinguish creation work from later direct runs on that issue.
    */
   kind?: "comment" | "autopilot" | "chat" | "quick_create" | "direct";
   /**
@@ -625,6 +636,20 @@ export interface AgentTask {
    * rather than disabling it, so absence and `false` mean the same thing.
    */
   revertable?: boolean;
+  /**
+   * Worktree branch lifecycle (JEF-255): where this run's branch stands after
+   * the run ended. `promoted_at` marks a branch the user chose to push and
+   * open a pull request from (`promote_pr_url` is that PR's URL, "" when the
+   * daemon could not report one); `discarded_at` marks a branch+worktree the
+   * user chose to delete. `pending_branch_action` is the promote/discard the
+   * daemon is executing right now — while set, no new branch action is
+   * accepted (409 run_branch_action_pending). All absent on servers that
+   * predate the feature, which reads as "no action taken, none in flight".
+   */
+  promoted_at?: string | null;
+  discarded_at?: string | null;
+  promote_pr_url?: string;
+  pending_branch_action?: "" | "promote" | "discard";
   /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
@@ -1705,6 +1730,13 @@ export interface ScorecardTotals {
   runs_no_intervention: number;
   cost_usd_ticks_total: number;
   low_sample: boolean;
+}
+
+/** GET /api/agents/{id}/cost-estimate — mean priced cost of recent runs; null = unknown. */
+export interface AgentCostEstimate {
+  agent_id: string;
+  sample_runs: number;
+  avg_cost_usd_ticks: number | null;
 }
 
 export interface AgentScorecard {

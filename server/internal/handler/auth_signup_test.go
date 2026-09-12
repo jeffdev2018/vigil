@@ -48,8 +48,38 @@ func TestSignupGating(t *testing.T) {
 	}
 }
 
+// With signup closed (by the flag or an allowlist), send-code must answer an
+// unknown email exactly like an existing account's: a distinct 403 would let
+// anyone enumerate who has an account. No code is mailed and no user is
+// created; the refusal stays actionable at verify-code.
+func TestSendCodeDoesNotRevealAccountsWhenSignupIsClosed(t *testing.T) {
+	for name, cfg := range map[string]Config{
+		"signup disabled":    {AllowSignup: false},
+		"allowlist mismatch": {AllowSignup: true, AllowedEmailDomains: []string{"company.com"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newTestHandler(cfg)
+			h.Queries = testHandler.Queries
+			h.EmailService = testHandler.EmailService
+			existing := "sendcode-existing-" + strings.ReplaceAll(name, " ", "-") + "@example.com"
+			unknown := "sendcode-unknown-" + strings.ReplaceAll(name, " ", "-") + "@example.com"
+			dbfx.User(t, "Existing", existing)
+			dbfx.Cleanup(t, `DELETE FROM verification_code WHERE email IN ($1, $2)`, existing, unknown)
+			dbfx.Cleanup(t, `DELETE FROM "user" WHERE email = $1`, unknown)
+			known := testutil.Call(t, h.SendCode, testutil.JSONRequest(http.MethodPost, "/auth/send-code", map[string]string{"email": existing}))
+			probe := testutil.Call(t, h.SendCode, testutil.JSONRequest(http.MethodPost, "/auth/send-code", map[string]string{"email": unknown}))
+			if probe.Code != known.Code || probe.Body.String() != known.Body.String() {
+				t.Fatalf("existing email answered %d %s, unknown answered %d %s", known.Code, known.Body.String(), probe.Code, probe.Body.String())
+			}
+			if n := dbfx.Count(t, `SELECT count(*) FROM "user" WHERE email = $1`, unknown); n != 0 {
+				t.Fatalf("closed signup created %d users", n)
+			}
+		})
+	}
+}
+
 func TestEmailCodeAllowlistErrors(t *testing.T) {
-	for _, path := range []string{"send-code", "verify-code"} {
+	for _, path := range []string{"verify-code"} {
 		t.Run(path, func(t *testing.T) {
 			email := path + "-allowlist-regression@example.com"
 			h := newTestHandler(Config{AllowSignup: true, AllowedEmailDomains: []string{"company.com"}})
@@ -73,8 +103,10 @@ func TestEmailCodeAllowlistErrors(t *testing.T) {
 			if got["error"] != ErrEmailNotAllowed.Error() {
 				t.Fatalf("expected an actionable allowlist error, got %v", got)
 			}
-			if _, hasCode := got["code"]; hasCode {
-				t.Fatal("email-code errors must retain their existing response shape")
+			// The stable code is additive: older clients keep reading `error`,
+			// localized clients translate by `code`.
+			if code, hasCode := got["code"]; hasCode && code != authCodeEmailNotAllowed {
+				t.Fatalf("allowlist rejection code = %v, want %q", code, authCodeEmailNotAllowed)
 			}
 			if len(resp.Result().Cookies()) != 0 {
 				t.Fatal("rejected signup must not establish an authenticated session")

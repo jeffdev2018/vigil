@@ -10,7 +10,10 @@ import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Label } from "@multica/ui/components/ui/label";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
-import { useT } from "../../i18n";
+import { goalBlockerLabelKey, goalOutcomeLabelKey } from "@multica/core/issues/goal-loop";
+import { parseRunResult } from "@multica/core/issues/run-result";
+import { ReadonlyContent } from "../../editor";
+import { useLocale, useT } from "../../i18n";
 import { collectUnmappedModels, formatUsd, summarizeTaskUsageAcross } from "../../runtimes/utils";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TranscriptButton } from "../../common/task-transcript";
@@ -43,6 +46,7 @@ export function IssueDeliverySection({
   projectId?: string | null;
 }) {
   const { t } = useT("issues");
+  const locale = useLocale();
   const { data, isPending, isError, refetch } = useQuery(issueDeliveryOptions(wsId, issueId));
   const { data: tasks = [], isError: costError } = useQuery(deliveryTasksOptions(wsId, issueId));
   const criteriaMutation = useUpdateDeliveryCriteria(wsId, issueId);
@@ -122,12 +126,12 @@ export function IssueDeliverySection({
     <p className="text-caption text-muted-foreground">{t(($) => $.delivery.description)}</p>
     <p className="text-caption text-muted-foreground">{t(($) => $.delivery.honesty)}</p>
     {boardStatusIsReview && (
-      <p role="note" className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-caption text-muted-foreground">
+      <p role="note" className="text-caption text-muted-foreground">
         {t(($) => $.delivery.board_status_note)}
       </p>
     )}
     {needsHumanDecision && !unavailable && data && (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2">
         <p className="text-caption">{needsCorrectionLaunch
           ? t(($) => $.delivery.loop_correction_pending)
           : t(($) => $.delivery.loop_review_pending)}</p>
@@ -145,7 +149,7 @@ export function IssueDeliverySection({
       </div>
     )}
     {showProposeDone && (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2">
         <div className="min-w-0 space-y-1">
           <p className="text-caption font-medium">{t(($) => $.delivery.propose_done_title)}</p>
           <p className="text-caption text-muted-foreground">{t(($) => $.delivery.propose_done_hint)}</p>
@@ -176,7 +180,7 @@ export function IssueDeliverySection({
             title={t(($) => $.delivery.view_transcript)} isLive={!["completed", "failed", "cancelled"].includes(runTask.status)} />}
         </div>
         <p className="text-caption text-muted-foreground">{data.run.completedAt
-          ? t(($) => $.delivery.run_completed, { date: new Date(data.run.completedAt).toLocaleString() })
+          ? t(($) => $.delivery.run_completed, { date: new Date(data.run.completedAt).toLocaleString(locale) })
           : t(($) => $.delivery.run_pending)}</p>
         <DeliveryResult result={data.run.result} />
         {data.run.error && <p className="whitespace-pre-wrap break-words text-caption text-destructive">{data.run.error}</p>}
@@ -190,7 +194,7 @@ export function IssueDeliverySection({
             ? t(($) => $.delivery.checks_unavailable)
             : t(($) => $.delivery.checks, { passed: pr.checks_passed, total: pr.checks_total })}
             {pr.snapshot_stale === true && <> · {t(($) => $.delivery.stale_checks)}</>}</p>
-          {pr.snapshot_fetched_at && <p className="text-muted-foreground">{t(($) => $.delivery.fetched_at, { date: new Date(pr.snapshot_fetched_at).toLocaleString() })}</p>}
+          {pr.snapshot_fetched_at && <p className="text-muted-foreground">{t(($) => $.delivery.fetched_at, { date: new Date(pr.snapshot_fetched_at).toLocaleString(locale) })}</p>}
         </div>)}
       </div>}
       <div className="flex flex-wrap items-center gap-2 text-caption">
@@ -201,12 +205,12 @@ export function IssueDeliverySection({
           {incompleteCost && <span>{t(($) => $.delivery.incomplete)}</span>}
         </> : <span>{t(($) => $.delivery.cost_unavailable)}</span>}
       </div>
-      {data.latestReview && <div className="space-y-2 rounded-md bg-muted/50 p-3 text-caption">
+      {data.latestReview && <div className="space-y-2 pt-2 text-caption">
         <p className="font-medium">{data.reviewStale ? t(($) => $.delivery.outdated_review)
           : data.latestReview.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
         <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, {
           name: getActorName?.("member", data.latestReview.reviewedBy) || data.latestReview.reviewedBy,
-          date: new Date(data.latestReview.createdAt).toLocaleString(),
+          date: new Date(data.latestReview.createdAt).toLocaleString(locale),
         })}</p>
         <DeliveryUsageAtReview review={data.latestReview} />
         {data.latestReview.feedback && <p className="whitespace-pre-wrap break-words">{data.latestReview.feedback}</p>}
@@ -256,9 +260,9 @@ export function IssueDeliverySection({
           {!history.isPending && !history.isError && history.data?.pages.every((page) => page.reviews.length === 0) && <p>{t(($) => $.delivery.history_empty)}</p>}
           {history.data?.pages.flatMap((page) => page.reviews).map((review) => {
             const historicalTask = tasks.find((task) => task.id === review.snapshot.run?.id);
-            return <div key={review.id} className="space-y-3 rounded-lg border p-3">
+            return <div key={review.id} className="space-y-3 pt-3">
               <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
-              <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString() })}</p>
+              <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString(locale) })}</p>
               {review.feedback && <p className="whitespace-pre-wrap break-words">{review.feedback}</p>}
               {review.decision === "changes_requested" && historicalTask?.agent_id && (
                 <TeachFromReviewButton wsId={wsId} agentId={historicalTask.agent_id} sourceTaskId={historicalTask.id} review={review} />
@@ -332,16 +336,42 @@ export function IssueDeliverySection({
   </section>;
 }
 
+// The run's reported result, for a human reviewer: the output rendered as
+// Markdown, the pull request and the goal verdict under translated labels.
+// Working directories, session ids and the judge's signature are machine
+// state (parseRunResult never returns them); the remaining raw fields fold
+// into "Technical details" instead of leading the review.
 function DeliveryResult({ result }: { result: unknown }) {
   const { t } = useT("issues");
-  if (result == null) return <p className="text-caption text-muted-foreground">{t(($) => $.delivery.result_unavailable)}</p>;
-  const summary = typeof result === "object" && "summary" in result ? result.summary : result;
-  const text = typeof summary === "string" ? summary : JSON.stringify(result, null, 2);
-  return <p className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-body">{text}</p>;
+  const view = parseRunResult(result);
+  if (!view) return <p className="text-caption text-muted-foreground">{t(($) => $.delivery.result_unavailable)}</p>;
+  const goal = view.goal;
+  return <div className="min-w-0 space-y-2">
+    {view.output && <div className="max-h-64 overflow-auto"><ReadonlyContent content={view.output} /></div>}
+    {(view.prUrl || goal) && <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-caption">
+      {view.prUrl && <><dt className="text-muted-foreground">{t(($) => $.delivery.result_pr)}</dt>
+        <dd className="min-w-0 break-all"><a href={view.prUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">{view.prUrl}</a></dd></>}
+      {goal?.outcome && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.section)}</dt>
+        <dd className="min-w-0">{t(($) => $.goal_loop.outcomes[goalOutcomeLabelKey(goal.outcome) as "stopped_unknown"])}</dd></>}
+      {goal?.blocker && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.blocker)}</dt>
+        <dd className="min-w-0">{t(($) => $.goal_loop.blockers[goalBlockerLabelKey(goal.blocker ?? "") as "other"])}</dd></>}
+      {goal?.reason && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.reason)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.reason}</dd></>}
+      {goal && goal.evidence.length > 0 && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.evidence)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.evidence.join("\n")}</dd></>}
+      {goal?.nextStep && <><dt className="text-muted-foreground">{t(($) => $.goal_loop.next_step)}</dt>
+        <dd className="min-w-0 whitespace-pre-wrap break-words">{goal.nextStep}</dd></>}
+    </dl>}
+    {view.technical && <details className="text-caption">
+      <summary className="cursor-pointer text-muted-foreground">{t(($) => $.delivery.technical_details)}</summary>
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(view.technical, null, 2)}</pre>
+    </details>}
+  </div>;
 }
 
 function DeliveryUsageAtReview({ review }: { review: DeliveryReview }) {
   const { t } = useT("issues");
+  const locale = useLocale();
   const usage = review.usageSnapshot;
   return <div className="space-y-2 text-caption">
     <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted_cost) : t(($) => $.delivery.review_cost)}: {usage?.availableUsd != null ? <span title={usage.availableUsd}>{formatUsd(Number(usage.availableUsd))}</span> : t(($) => $.delivery.cost_unavailable)}</p>
@@ -352,10 +382,10 @@ function DeliveryUsageAtReview({ review }: { review: DeliveryReview }) {
         <summary className="cursor-pointer">{t(($) => $.delivery.cost_breakdown)}</summary>
         <p>{t(($) => $.delivery.cost_split, { reported: formatUsd(Number(usage.reportedUsd)), estimated: formatUsd(Number(usage.estimatedUsd)) })}</p>
         <p>{t(($) => $.delivery.cost_gaps, { missing: usage.runsWithoutUsage, unpriced: usage.unpricedSlices, running: usage.nonterminalRuns })}</p>
-        <p className="text-muted-foreground">{t(($) => $.delivery.cost_snapshot_hint, { date: new Date(usage.capturedAt).toLocaleString() })}</p>
+        <p className="text-muted-foreground">{t(($) => $.delivery.cost_snapshot_hint, { date: new Date(usage.capturedAt).toLocaleString(locale) })}</p>
       </details>
     </>}
-    {review.reviewDelaySeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.review_delay, { minutes: (review.reviewDelaySeconds / 60).toLocaleString(undefined, { maximumFractionDigits: 1 }) })}</p>}
-    {review.humanEffortSeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.human_effort, { seconds: review.humanEffortSeconds.toLocaleString() })}</p>}
+    {review.reviewDelaySeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.review_delay, { minutes: (review.reviewDelaySeconds / 60).toLocaleString(locale, { maximumFractionDigits: 1 }) })}</p>}
+    {review.humanEffortSeconds != null && <p className="text-muted-foreground">{t(($) => $.delivery.human_effort, { seconds: review.humanEffortSeconds.toLocaleString(locale) })}</p>}
   </div>;
 }

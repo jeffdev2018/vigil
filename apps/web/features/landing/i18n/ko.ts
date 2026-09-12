@@ -3035,11 +3035,9 @@ export function createKoDict(allowSignup: boolean): LandingDict {
         updates:
           "Multica의 제품 업데이트, 인사이트, 이벤트 초대 소식을 받겠습니다.",
         unsubscribe:
-          "언제든 수신을 거부할 수 있습니다. 개인정보와 데이터 권리를 어떻게 다루는지는 다음 문서에서 자세히 확인하실 수 있습니다:",
+          "언제든 수신을 거부할 수 있습니다.",
         submitConsent:
           "\"제출\"을 클릭하시면 요청하신 콘텐츠를 보내 드리기 위해 Multica, Inc.가 정보를 저장하고 처리하는 것에 동의하게 됩니다.",
-        privacyLinkLabel: "개인정보 처리방침.",
-        privacyLinkHref: "/about",
       },
       success: {
         title: "감사합니다. 요청을 잘 받았습니다.",

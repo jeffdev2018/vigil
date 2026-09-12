@@ -698,6 +698,20 @@ function StringListEditor({
   onChange: (values: string[]) => void;
 }) {
   const labelId = useId();
+  // `values` is plain strings, no id of its own — a stable key has to live
+  // here, assigned once per row and kept in lockstep with add/remove so
+  // reordering the DOM by removing a middle row doesn't drop focus from a
+  // later row (index-as-key made React treat the shifted-up row as if it
+  // were the removed one).
+  const [ids, setIds] = useState<string[]>(() => values.map(() => crypto.randomUUID()));
+  const addRow = () => {
+    setIds((prev) => [...prev, crypto.randomUUID()]);
+    onChange([...values, ""]);
+  };
+  const removeRow = (index: number) => {
+    setIds((prev) => prev.filter((_, i) => i !== index));
+    onChange(values.filter((_, itemIndex) => itemIndex !== index));
+  };
   return (
     <div role="group" aria-labelledby={labelId} className="space-y-3">
       <div className="flex items-start justify-between gap-4">
@@ -712,7 +726,7 @@ function StringListEditor({
           variant="ghost"
           size="sm"
           className="shrink-0"
-          onClick={() => onChange([...values, ""])}
+          onClick={addRow}
         >
           <Plus aria-hidden="true" />
           {addLabel}
@@ -721,7 +735,7 @@ function StringListEditor({
       {values.length > 0 ? (
         <div className="space-y-2">
           {values.map((value, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={ids[index] ?? index} className="flex items-center gap-2">
               <Input
                 aria-label={`${label} ${index + 1}`}
                 name={`mcp-argument-${index}`}
@@ -740,9 +754,7 @@ function StringListEditor({
                 size="icon"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label={`${removeLabel} ${index + 1}`}
-                onClick={() =>
-                  onChange(values.filter((_, itemIndex) => itemIndex !== index))
-                }
+                onClick={() => removeRow(index)}
               >
                 <Trash2 aria-hidden="true" />
               </Button>
@@ -774,6 +786,18 @@ function KeyValueEditor({
   onChange: (rows: KeyValue[]) => void;
 }) {
   const labelId = useId();
+  // Same lockstep-id pattern as StringListEditor above — `rows` carries no
+  // id of its own, and index-as-key dropped focus from a later row when an
+  // earlier one was removed.
+  const [ids, setIds] = useState<string[]>(() => rows.map(() => crypto.randomUUID()));
+  const addRow = () => {
+    setIds((prev) => [...prev, crypto.randomUUID()]);
+    onChange([...rows, { key: "", value: "" }]);
+  };
+  const removeRow = (index: number) => {
+    setIds((prev) => prev.filter((_, i) => i !== index));
+    onChange(rows.filter((_, itemIndex) => itemIndex !== index));
+  };
   return (
     <div role="group" aria-labelledby={labelId} className="space-y-3">
       <div className="flex items-start justify-between gap-4">
@@ -788,7 +812,7 @@ function KeyValueEditor({
           variant="ghost"
           size="sm"
           className="shrink-0"
-          onClick={() => onChange([...rows, { key: "", value: "" }])}
+          onClick={addRow}
         >
           <Plus aria-hidden="true" />
           {addLabel}
@@ -797,7 +821,7 @@ function KeyValueEditor({
       {rows.length > 0 ? (
         <div className="space-y-2">
           {rows.map((row, index) => (
-            <div key={index} className="flex items-start gap-2">
+            <div key={ids[index] ?? index} className="flex items-start gap-2">
               <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
                 <Input
                   aria-label={`${label}: ${keyLabel} ${index + 1}`}
@@ -834,9 +858,7 @@ function KeyValueEditor({
                 size="icon"
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label={`${removeLabel} ${index + 1}`}
-                onClick={() =>
-                  onChange(rows.filter((_, itemIndex) => itemIndex !== index))
-                }
+                onClick={() => removeRow(index)}
               >
                 <Trash2 aria-hidden="true" />
               </Button>

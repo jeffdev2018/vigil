@@ -276,6 +276,7 @@ export function DaemonPanel({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t(($) => $.desktop.daemon.search)}
+              aria-label={t(($) => $.desktop.daemon.search)}
               className="h-7 w-full rounded-md border bg-background pl-7 pr-2 text-caption placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

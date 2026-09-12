@@ -7,7 +7,7 @@ import { busiestHours, formatReviewLoad, ruleSummary, useForgetObservation, useS
 import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { cn } from "@multica/ui/lib/utils";
-import { useT, useTimeAgo } from "../../i18n";
+import { tKnown, useT, useTimeAgo } from "../../i18n";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 
 /**
@@ -20,12 +20,32 @@ export function LearningTab() {
   const { t } = useT("settings");
   const timeAgo = useTimeAgo();
   const wsId = useWorkspaceId();
-  const { data, isPending } = useQuery(workProfileOptions(wsId));
+  const { data, isPending, isError, refetch } = useQuery(workProfileOptions(wsId));
   const setAuto = useSetObservationAuto(wsId);
   const forget = useForgetObservation(wsId);
   const fail = (e: unknown, fallback: string) => toast.error(e instanceof Error && e.message ? e.message : fallback);
   const rules = (data?.observations ?? []).filter((o) => o.kind === "decision_rule");
   const hours = (data?.observations ?? []).find((o) => o.key === "decision_hour");
+
+  // A failed fetch must not read as "nothing learned yet" — every field below
+  // (examples, review load, rules) silently defaults to 0/empty on `data`
+  // being undefined, indistinguishable from a genuinely blank profile.
+  if (isError) {
+    return (
+      <div data-testid="learning-tab" className="flex flex-col gap-6">
+        <SettingsCard>
+          <div className="flex flex-col items-center gap-2 p-8 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.learning.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.learning.retry)}
+            </Button>
+          </div>
+        </SettingsCard>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="learning-tab" className="flex flex-col gap-6">
@@ -41,7 +61,7 @@ export function LearningTab() {
             <span className="tabular-nums">{data?.auto_decided ?? 0}</span>
           </SettingsRow>
           <SettingsRow label={t(($) => $.learning.surface)} description={t(($) => $.learning.surface_description)}>
-            <span className="text-muted-foreground">{(data?.adaptation_surface ?? []).map((s) => t(($) => $.learning.surfaces[s as "decision_rules" | "decision_hours"] ?? s)).join(" · ") || "–"}</span>
+            <span className="text-muted-foreground">{(data?.adaptation_surface ?? []).map((s) => tKnown(t, "learning.surfaces", s, s)).join(" · ") || "–"}</span>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
@@ -58,7 +78,7 @@ export function LearningTab() {
                 key={o.id}
                 label={
                   <span data-testid="learning-rule" data-state={o.state} data-auto={o.auto ? "on" : "off"} className="flex flex-wrap items-center gap-2">
-                    <span>{t(($) => $.learning.rule_label, { family: t(($) => $.learning.families[r.family as "gate" | "preview" | "watchdog" | "plan" | "pipeline_gate" | "second_approval" | "interview" | "question"] ?? r.family), label: r.option_label })}</span>
+                    <span>{t(($) => $.learning.rule_label, { family: tKnown(t, "learning.families", r.family, r.family), label: r.option_label })}</span>
                     <span className={cn("rounded px-1 text-caption", o.state === "proposed" ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground")}>
                       {t(($) => $.learning.states[o.state])}
                     </span>

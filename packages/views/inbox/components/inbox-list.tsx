@@ -13,11 +13,13 @@ import { Archive, Check, ChevronRight, Inbox, RotateCcw } from "lucide-react";
 import { isEditableShortcutTarget } from "@multica/core/shortcuts";
 import { isImeComposing } from "@multica/core/utils";
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import type { InboxView } from "./inbox-view";
 import { InboxListItem } from "./inbox-list-item";
 import { VirtuosoSeed, VIRTUOSO_SEED_COUNT } from "../../common/virtuoso-seed";
 import { useRestoredScrollOffset, useRestoredScrollRef } from "../../platform";
 import { useT } from "../../i18n";
+import { CollectionPageState } from "../../layout/collection-page";
 
 // Sizing only (like the board's card estimate): the seed's trailing spacer
 // and Virtuoso's defaultItemHeight share this value so the scroller's height
@@ -61,6 +63,7 @@ export function InboxList({
   onOpenRetro,
   emptyLabel,
   emptyAction,
+  approvals = [],
 }: {
   items: InboxItem[];
   view: InboxView;
@@ -82,6 +85,9 @@ export function InboxList({
   onOpenRetro?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
+  // Inline approvals (OS plan, chantier 3): passed straight through to each
+  // row so it can offer quick decide buttons for its own matching ask, if any.
+  approvals?: ApprovalItem[];
 }) {
   const { t } = useT("inbox");
   // Virtuoso's `customScrollParent` wants the actual HTMLElement, not a ref.
@@ -260,18 +266,24 @@ export function InboxList({
   if (items.length === 0) {
     return (
       <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Inbox className="mb-3 h-8 w-8 text-faint-foreground" />
-          <p className="text-body">
-            {emptyLabel ??
-              (isArchivedView
-                ? t(($) => $.list.archived_empty)
-                : isAttentionView
-                  ? t(($) => $.list.attention_empty)
-                  : t(($) => $.list.empty))}
-          </p>
-          {emptyAction && <div className="mt-3">{emptyAction}</div>}
-        </div>
+        <CollectionPageState
+          icon={Inbox}
+          className="py-12"
+          title={
+            emptyLabel ??
+            (isArchivedView
+              ? t(($) => $.list.archived_empty)
+              : isAttentionView
+                ? t(($) => $.list.attention_empty)
+                : t(($) => $.list.empty))
+          }
+          description={
+            emptyLabel || isArchivedView || isAttentionView
+              ? undefined
+              : t(($) => $.list.empty_hint)
+          }
+          actions={emptyAction}
+        />
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
         {briefingEntry && <div className="px-2">{briefingEntry}</div>}
@@ -291,6 +303,7 @@ export function InboxList({
       isSelected={(item.issue_id ?? item.id) === selectedKey}
       onClick={() => selectItem(item)}
       onAction={() => onAction(item.id)}
+      approvals={approvals}
     />
   );
 

@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -302,6 +305,10 @@ func (h *Handler) UpdateIssueTransitionRule(w http.ResponseWriter, r *http.Reque
 		if !ok {
 			return
 		}
+		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: parsed, WorkspaceID: wsUUID}); err != nil {
+			writeError(w, http.StatusBadRequest, "project not found in this workspace")
+			return
+		}
 		projectID = parsed
 	}
 	row, err := h.Queries.UpdateIssueTransitionRule(r.Context(), db.UpdateIssueTransitionRuleParams{
@@ -505,18 +512,7 @@ func (h *Handler) loadTransitionRequestForDecision(w http.ResponseWriter, r *htt
 // check and the reject fallback. A rule deleted since the request was filed
 // leaves owner/admin as the only approvers, which is the safe default.
 func (h *Handler) ruleForRequest(r *http.Request, req db.IssueTransitionRequest) *issuestatus.TransitionRule {
-	if !req.RuleID.Valid {
-		return nil
-	}
-	row, err := h.Queries.GetIssueTransitionRule(r.Context(), db.GetIssueTransitionRuleParams{ID: req.RuleID, WorkspaceID: req.WorkspaceID})
-	if err != nil {
-		return nil
-	}
-	rules, err := h.attachRuleActors(r.Context(), []db.IssueTransitionRule{row})
-	if err != nil || len(rules) == 0 {
-		return nil
-	}
-	return &rules[0]
+	return h.transitionRuleFor(r.Context(), req)
 }
 
 // ApproveIssueTransitionRequest applies the held move as the approver.
@@ -536,7 +532,15 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 		return
 	}
 	var body transitionDecisionRequest
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	// The body is optional (an approve/reject needs no note), so an empty
+	// request (io.EOF) is fine; anything else malformed must not silently
+	// drop the note the caller sent, matching every other Decode in this
+	// package (CreateIssueStatus, UpdateIssueStatus, ReorderIssueStatuses,
+	// CreateIssueTransitionRule, UpdateIssueTransitionRule).
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
 	rule := h.ruleForRequest(r, req)
 	actor := h.transitionActor(r, issue.WorkspaceID)
@@ -545,31 +549,93 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 			"you are not an approver for this transition")
 		return
 	}
-	actorUUID, err := util.ParseUUID(actor.ID)
-	if err != nil {
+	if _, err := util.ParseUUID(actor.ID); err != nil {
 		writeError(w, http.StatusBadRequest, "could not identify the deciding actor")
 		return
 	}
 
+	decided, applied, err := h.decideTransitionCore(r.Context(), issue, req, rule, actor, state, optionalString(body.Note),
+		h.actingTaskID(r), h.issueTriggerWriteProbe(r, actor.Type, actor.ID, issue))
+	if err != nil {
+		var applyErr transitionApplyError
+		var refusal transitionGateRefusal
+		switch {
+		case errors.As(err, &refusal):
+			writeErrorCode(w, http.StatusConflict, refusal.code, refusal.msg)
+		case errors.As(err, &applyErr):
+			if writeIssueStatusRaceError(w, applyErr.err) {
+				return
+			}
+			slog.Warn("apply decided transition failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "the decision was recorded but the status could not be applied")
+		case errors.Is(err, pgx.ErrNoRows):
+			writeErrorCode(w, http.StatusConflict, ErrCodeAlreadyDecided,
+				"this transition request has already been decided")
+		default:
+			slog.Warn("decide transition request failed", append(logger.RequestAttrs(r), "error", err)...)
+			writeError(w, http.StatusInternalServerError, "failed to decide this transition request")
+		}
+		return
+	}
+
+	resp := issueToResponse(applied, h.getIssuePrefix(r.Context(), applied.WorkspaceID))
+	h.fillStatusCategory(r.Context(), applied.WorkspaceID, &resp)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"request": issueTransitionRequestToResponse(decided),
+		"issue":   resp,
+	})
+}
+
+// transitionApplyError marks the one failure that happens AFTER the decision
+// is already recorded: the status write. The caller has to answer differently
+// for it, because retrying the decision would now report "already decided".
+type transitionApplyError struct{ err error }
+
+func (e transitionApplyError) Error() string { return e.err.Error() }
+func (e transitionApplyError) Unwrap() error { return e.err }
+
+// decideTransitionCore records an approver's verdict on a held move, applies
+// the resulting status, and announces both. It is the path behind the HTTP
+// endpoints AND behind an approve/reject button clicked in a chat channel, so
+// a transition settled from Slack leaves exactly the records one settled from
+// the web leaves.
+func (h *Handler) decideTransitionCore(ctx context.Context, issue db.Issue, req db.IssueTransitionRequest, rule *issuestatus.TransitionRule, actor issuestatus.TransitionActor, state string, note *string, actingTaskID pgtype.UUID, probe service.IssueTriggerProbe) (db.IssueTransitionRequest, db.Issue, error) {
+	actorUUID, err := util.ParseUUID(actor.ID)
+	if err != nil {
+		return db.IssueTransitionRequest{}, issue, err
+	}
+	// The request passed the state gates when it was filed, but an approval
+	// can come much later: a criterion lost its proof, a mirror opened. Those
+	// are re-checked before deciding, so a refusal leaves the request pending
+	// rather than recording an approval that cannot be applied. Actor gates
+	// (critic hold, trust dial, submit-review rules) judged the requester and
+	// stay settled; the transition rule itself is what the approver decides.
+	decidedTarget := ""
+	switch state {
+	case "approved":
+		decidedTarget = req.ToStatus
+	case "rejected":
+		if rule != nil {
+			decidedTarget = rule.RejectStatusKey
+		}
+	}
+	if decidedTarget != "" && decidedTarget != issue.Status {
+		if err := h.stateGatesAllowDecidedMove(ctx, issue, decidedTarget); err != nil {
+			return db.IssueTransitionRequest{}, issue, err
+		}
+	}
 	// The concurrency fence: two approvers racing both run this and only the
 	// first matches a pending row.
-	decided, err := h.Queries.DecideIssueTransitionRequest(r.Context(), db.DecideIssueTransitionRequestParams{
+	decided, err := h.Queries.DecideIssueTransitionRequest(ctx, db.DecideIssueTransitionRequestParams{
 		ID:            req.ID,
 		WorkspaceID:   req.WorkspaceID,
 		State:         state,
 		DecidedByType: pgtype.Text{String: actor.Type, Valid: true},
 		DecidedByID:   actorUUID,
-		Note:          ptrToText(optionalString(body.Note)),
+		Note:          ptrToText(note),
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeErrorCode(w, http.StatusConflict, ErrCodeAlreadyDecided,
-				"this transition request has already been decided")
-			return
-		}
-		slog.Warn("decide transition request failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to decide this transition request")
-		return
+		return db.IssueTransitionRequest{}, issue, err
 	}
 
 	targetStatus := ""
@@ -583,18 +649,13 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 	}
 	applied := issue
 	if targetStatus != "" && targetStatus != issue.Status {
-		applied, err = h.applyDecidedTransition(r, issue, targetStatus, actor.Type, actor.ID)
+		applied, err = h.applyDecidedTransition(ctx, issue, targetStatus, actor.Type, actor.ID, actingTaskID, probe)
 		if err != nil {
-			if writeIssueStatusRaceError(w, err) {
-				return
-			}
-			slog.Warn("apply decided transition failed", append(logger.RequestAttrs(r), "error", err)...)
-			writeError(w, http.StatusInternalServerError, "the decision was recorded but the status could not be applied")
-			return
+			return decided, issue, transitionApplyError{err: err}
 		}
 	}
 
-	h.audit(r.Context(), issue.WorkspaceID, actor.Type, actor.ID, AuditTransitionDecided, "issue", issue.ID,
+	h.audit(ctx, issue.WorkspaceID, actor.Type, actor.ID, AuditTransitionDecided, "issue", issue.ID,
 		map[string]any{"request_id": uuidToString(decided.ID), "state": state, "to": targetStatus}, nil)
 	event := protocol.EventIssueTransitionApproved
 	if state == "rejected" {
@@ -602,23 +663,72 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 	}
 	h.publish(event, uuidToString(issue.WorkspaceID), actor.Type, actor.ID,
 		map[string]any{"request": issueTransitionRequestToResponse(decided)})
+	h.publishApproval(ctx, protocol.EventApprovalDecided, actor.Type, actor.ID, issue.WorkspaceID, issue.ID, ApprovalSourceTransition, uuidToString(decided.ID), ApprovalKindTransition, state)
+	return decided, applied, nil
+}
 
-	resp := issueToResponse(applied, h.getIssuePrefix(r.Context(), applied.WorkspaceID))
-	h.fillStatusCategory(r.Context(), applied.WorkspaceID, &resp)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"request": issueTransitionRequestToResponse(decided),
-		"issue":   resp,
-	})
+// transitionGateRefusal is a state gate refusing a decided move; the request
+// stays pending. Code is the same error code the gate answers on UpdateIssue.
+type transitionGateRefusal struct {
+	code string
+	msg  string
+}
+
+func (e transitionGateRefusal) Error() string { return e.msg }
+
+// stateGatesAllowDecidedMove runs the issue-state gates UpdateIssue runs
+// (plan verification, review gate, acceptance criteria, open mirrors) for a
+// move an approver is deciding. A read failure is an error, never a pass.
+func (h *Handler) stateGatesAllowDecidedMove(ctx context.Context, issue db.Issue, statusKey string) error {
+	if blocked, err := h.planVerificationBlocksDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if blocked {
+		return transitionGateRefusal{code: ErrCodePlanVerificationCritical, msg: "plan verification found a critical divergence; publish a new plan version or a clean verification before marking done"}
+	}
+	if reason, err := h.reviewGateBlocksDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if reason != "" {
+		return transitionGateRefusal{msg: reason}
+	}
+	if issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, statusKey) == issuestatus.Done {
+		if unsatisfied := unsatisfiedAcceptanceCriteria(issue.AcceptanceCriteria); len(unsatisfied) > 0 {
+			return transitionGateRefusal{code: ErrCodeUnsatisfiedAcceptanceCriteria, msg: fmt.Sprintf("%d acceptance criteria lack proof", len(unsatisfied))}
+		}
+	}
+	if _, identifiers, err := h.openMirrorsBlockingDone(ctx, issue, statusKey); err != nil {
+		return err
+	} else if len(identifiers) > 0 {
+		return transitionGateRefusal{code: ErrCodeOpenMirrors, msg: openMirrorsMessage(identifiers)}
+	}
+	return nil
+}
+
+// transitionRuleFor is ruleForRequest without a request, for the chat-button
+// path. A rule deleted since the request was filed leaves owner/admin as the
+// only approvers, which is the safe default.
+func (h *Handler) transitionRuleFor(ctx context.Context, req db.IssueTransitionRequest) *issuestatus.TransitionRule {
+	if !req.RuleID.Valid {
+		return nil
+	}
+	row, err := h.Queries.GetIssueTransitionRule(ctx, db.GetIssueTransitionRuleParams{ID: req.RuleID, WorkspaceID: req.WorkspaceID})
+	if err != nil {
+		return nil
+	}
+	rules, err := h.attachRuleActors(ctx, []db.IssueTransitionRule{row})
+	if err != nil || len(rules) == 0 {
+		return nil
+	}
+	return &rules[0]
 }
 
 // applyDecidedTransition writes the status through the same archive-race guard
 // every other status write uses, then publishes issue:updated with
 // status_changed and starts the run the original write would have started.
-func (h *Handler) applyDecidedTransition(r *http.Request, issue db.Issue, statusKey, actorType, actorID string) (db.Issue, error) {
+func (h *Handler) applyDecidedTransition(ctx context.Context, issue db.Issue, statusKey, actorType, actorID string, actingTaskID pgtype.UUID, probe service.IssueTriggerProbe) (db.Issue, error) {
 	var updated db.Issue
-	err := h.runWithIssueStatusGuard(r.Context(), issue.WorkspaceID, statusKey, func(q *db.Queries) error {
+	err := h.runWithIssueStatusGuard(ctx, issue.WorkspaceID, statusKey, func(q *db.Queries) error {
 		var innerErr error
-		updated, innerErr = q.UpdateIssueStatus(r.Context(), db.UpdateIssueStatusParams{
+		updated, innerErr = q.UpdateIssueStatus(ctx, db.UpdateIssueStatusParams{
 			ID: issue.ID, Status: statusKey, WorkspaceID: issue.WorkspaceID,
 		})
 		return innerErr
@@ -627,26 +737,26 @@ func (h *Handler) applyDecidedTransition(r *http.Request, issue db.Issue, status
 		return issue, err
 	}
 
-	prefix := h.getIssuePrefix(r.Context(), updated.WorkspaceID)
+	prefix := h.getIssuePrefix(ctx, updated.WorkspaceID)
 	resp := issueToResponse(updated, prefix)
-	h.fillStatusCategory(r.Context(), updated.WorkspaceID, &resp)
+	h.fillStatusCategory(ctx, updated.WorkspaceID, &resp)
 	h.publish(protocol.EventIssueUpdated, uuidToString(updated.WorkspaceID), actorType, actorID, map[string]any{
 		"issue":          resp,
-		"acting_task_id": uuidToString(h.actingTaskID(r)),
+		"acting_task_id": uuidToString(actingTaskID),
 		"status_changed": true,
 	})
-	h.audit(r.Context(), updated.WorkspaceID, actorType, actorID, AuditIssueStatus, "issue", updated.ID,
+	h.audit(ctx, updated.WorkspaceID, actorType, actorID, AuditIssueStatus, "issue", updated.ID,
 		map[string]any{"from": issue.Status, "to": updated.Status}, nil)
 
 	// The approved move is the write the requester attempted, so it starts the
 	// run that write would have started — otherwise an approval gate would
 	// silently turn "assign and start" into "assign".
-	if trigger, ok := h.IssueService.WillEnqueueRun(r.Context(), service.IssueTriggerInput{
+	if trigger, ok := h.IssueService.WillEnqueueRun(ctx, service.IssueTriggerInput{
 		Issue:         updated,
 		PrevStatus:    issue.Status,
 		StatusChanged: true,
-	}, h.issueTriggerWriteProbe(r, actorType, actorID, updated)); ok {
-		h.dispatchIssueRun(r.Context(), updated, trigger, actorType, actorID, "")
+	}, probe); ok {
+		h.dispatchIssueRun(ctx, updated, trigger, actorType, actorID, "")
 	}
 	return updated, nil
 }

@@ -165,7 +165,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function normalizeUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "";
-  if (trimmed.startsWith("/")) return trimmed;
+  // A site path, but not a protocol-relative URL: that one names another host
+  // and is made explicit below.
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return trimmed;
   if (DANGEROUS_PROTOCOL_RE.test(trimmed)) return "";
   if (HAS_PROTOCOL_RE.test(trimmed)) return trimmed;
   if (EMAIL_RE.test(trimmed)) return `mailto:${trimmed}`;

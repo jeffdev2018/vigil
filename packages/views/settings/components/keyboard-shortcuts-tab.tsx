@@ -203,6 +203,10 @@ export function KeyboardShortcutsTab() {
           <FixedShortcutRow label={t(($) => $.shortcuts.fixed.zoom_out)} shortcut={createShortcutChord("Minus", { primary: true })} />
           <FixedShortcutRow label={t(($) => $.shortcuts.fixed.reset_zoom)} shortcut={createShortcutChord("0", { primary: true })} />
           <FixedShortcutRow label={t(($) => $.shortcuts.fixed.close_dialog)} shortcut={createShortcutChord("Escape")} />
+          <FixedShortcutRow
+            label={t(($) => $.shortcuts.fixed.open_link_new_tab)}
+            shortcut={createShortcutChord(t(($) => $.shortcuts.fixed.click_word), { primary: true })}
+          />
         </SettingsCard>
       </SettingsSection>
 

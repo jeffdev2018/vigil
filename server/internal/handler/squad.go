@@ -301,12 +301,18 @@ func (h *Handler) CreateSquad(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto-add leader as a member with role "leader".
-	h.Queries.AddSquadMember(r.Context(), db.AddSquadMemberParams{
+	if _, err := h.Queries.AddSquadMember(r.Context(), db.AddSquadMemberParams{
 		SquadID:    squad.ID,
 		MemberType: "agent",
 		MemberID:   leaderUUID,
 		Role:       "leader",
-	})
+	}); err != nil {
+		// The squad row is already committed and returned as created; log
+		// rather than fail the request (per project convention, upstream
+		// code is not opportunistically rewritten), but a squad without its
+		// leader as a member is an inconsistent state a maintainer should see.
+		slog.Warn("squad: adding leader as member failed", "error", err, "squad_id", uuidToString(squad.ID), "leader_id", uuidToString(leaderUUID))
+	}
 
 	resp, err := h.squadToResponseWithPreview(r.Context(), squad)
 	if err != nil {
@@ -523,7 +529,10 @@ func (h *Handler) DeleteSquad(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := requestUserID(r)
-	userUUID, _ := parseUUIDOrBadRequest(w, userID, "user_id")
+	userUUID, ok := parseUUIDOrBadRequest(w, userID, "user_id")
+	if !ok {
+		return
+	}
 
 	if _, err := h.Queries.ArchiveSquad(r.Context(), db.ArchiveSquadParams{
 		ID:         squad.ID,

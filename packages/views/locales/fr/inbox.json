@@ -7,7 +7,8 @@
     "mark_all_read": "Tout marquer comme lu",
     "archive_all": "Tout archiver",
     "archive_all_read": "Archiver tout ce qui est lu",
-    "archive_completed": "Archiver les éléments terminés"
+    "archive_completed": "Archiver les éléments terminés",
+    "more_actions_aria": "Plus d'actions"
   },
   "filters": {
     "tooltip": "Filtrer la boîte de réception",
@@ -31,6 +32,7 @@
   },
   "list": {
     "empty": "Aucune notification",
+    "empty_hint": "Les commentaires, affectations et mises à jour des agents arrivent ici au fil de l'eau.",
     "mark_done_tooltip": "Marquer comme terminé",
     "archive_tooltip": "Archiver",
     "time": {
@@ -47,10 +49,13 @@
     "attention_empty": "Rien ne requiert votre attention.",
     "briefing_title": "Ce matin",
     "retro_title": "Rétrospective hebdomadaire",
-    "decisions_title": "Décisions en attente"
+    "decisions_title": "Décisions en attente",
+    "approval_action_failed": "Impossible d'enregistrer la réponse"
   },
   "detail": {
     "select_prompt": "Sélectionnez une notification pour afficher les détails",
+    "select_prompt_hint": "Choisissez une notification à gauche pour la lire et agir dessus.",
+    "empty_hint": "Les commentaires, affectations et mises à jour des agents arrivent ici au fil de l'eau.",
     "empty": "Votre boîte de réception est vide",
     "original_input": "Saisie d'origine",
     "retry_with_context": "Réessayer avec le contexte",
@@ -58,7 +63,9 @@
     "autopilot_quota_exceeded_body": "Ce workspace a atteint sa limite de {{limit}} exécutions d'autopilot pour la période en cours. Les exécutions suivantes ne démarreront pas avant la réinitialisation le {{resetAt}}.",
     "autopilot_quota_upgrade": "Voir les options de mise à niveau",
     "archive": "Archiver",
-    "unarchive": "Désarchiver"
+    "unarchive": "Désarchiver",
+    "already_decided": "Déjà décidé",
+    "open_doctrine": "Ouvrir la doctrine"
   },
   "types": {
     "issue_assigned": "Assigné",
@@ -95,6 +102,7 @@
     "trust_promotion_suggested": "Promotion de confiance suggérée",
     "triage_stale": "La file de triage stagne",
     "transition_approval_requested": "Approbation requise",
+    "goal_question": "Question de l'agent",
     "critic_degraded": "Revue adverse ignorée",
     "critic_budget": "Revue adverse arrêtée",
     "cycle_rollover_orphaned": "Du travail a quitté un cycle sans destination",
@@ -108,7 +116,15 @@
     "residency_policy_blocked": "Bloqué par la résidence des données",
     "linear_alert": "Linear est déconnecté",
     "code_health_report": "Rapport de santé du code",
-    "doc_drift_report": "Dérive du contexte agent"
+    "doc_drift_report": "Dérive du contexte agent",
+    "calendar_invitation": "Invitation à un événement",
+    "calendar_reminder": "Commence bientôt",
+    "doctrine_review": "Relecture de la doctrine",
+    "doctrine_report": "Signalement de doctrine",
+    "confidence_review": "Livraison signalée pour révision",
+    "run_limit_warn": "Run proche de sa limite",
+    "run_limit_exceeded": "Run au-delà de sa limite",
+    "run_limit_stopped": "Run arrêté : limite atteinte"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

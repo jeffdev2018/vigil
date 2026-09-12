@@ -604,10 +604,11 @@ func TestClaimTaskByRuntime_SkillBundleRefsAndResolve(t *testing.T) {
 }
 
 // TestClaimTaskByRuntime_PopulatesWorkspaceContext verifies the claim
-// response carries workspace.context so the daemon can inject the
-// workspace-level system prompt into every agent brief. Regression coverage
-// for MUL-2542: before this fix the field was never plumbed through, so
-// even workspaces that had set a context got an empty brief.
+// response carries workspace.context — the workspace doctrine — and its
+// revision, so the daemon can inject `## Workspace Doctrine (revision N)`
+// into every agent brief. Regression coverage for MUL-2542: before this fix
+// the field was never plumbed through, so even workspaces that had set a
+// context got an empty brief.
 func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 	if testHandler == nil || testPool == nil {
 		t.Skip("database not available")
@@ -615,14 +616,16 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 
 	ctx := context.Background()
 	const wsContext = "All comments must be in English. Prefer concise PR descriptions."
+	const wsRevision = 5
 	var prior string
-	dbfx.QueryRow(t, `SELECT COALESCE(context, '') FROM workspace WHERE id = $1`, testWorkspaceID).Scan(&prior)
-	dbfx.Exec(t, `UPDATE workspace SET context = $1 WHERE id = $2`, wsContext, testWorkspaceID)
+	var priorRevision int32
+	dbfx.QueryRow(t, `SELECT COALESCE(context, ''), doctrine_revision FROM workspace WHERE id = $1`, testWorkspaceID).Scan(&prior, &priorRevision)
+	dbfx.Exec(t, `UPDATE workspace SET context = $1, doctrine_revision = $2 WHERE id = $3`, wsContext, wsRevision, testWorkspaceID)
 	t.Cleanup(func() {
 		if prior == "" {
-			testPool.Exec(ctx, `UPDATE workspace SET context = NULL WHERE id = $1`, testWorkspaceID)
+			testPool.Exec(ctx, `UPDATE workspace SET context = NULL, doctrine_revision = $1 WHERE id = $2`, priorRevision, testWorkspaceID)
 		} else {
-			testPool.Exec(ctx, `UPDATE workspace SET context = $1 WHERE id = $2`, prior, testWorkspaceID)
+			testPool.Exec(ctx, `UPDATE workspace SET context = $1, doctrine_revision = $2 WHERE id = $3`, prior, priorRevision, testWorkspaceID)
 		}
 	})
 
@@ -641,10 +644,11 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 
 	var resp struct {
 		Task *struct {
-			ID               string `json:"id"`
-			WorkspaceContext string `json:"workspace_context"`
-			WorkspaceSlug    string `json:"workspace_slug"`
-			IssueIdentifier  string `json:"issue_identifier"`
+			ID                        string `json:"id"`
+			WorkspaceContext          string `json:"workspace_context"`
+			WorkspaceDoctrineRevision int32  `json:"workspace_doctrine_revision"`
+			WorkspaceSlug             string `json:"workspace_slug"`
+			IssueIdentifier           string `json:"issue_identifier"`
 		} `json:"task"`
 	}
 	w.JSON(&resp)
@@ -656,6 +660,9 @@ func TestClaimTaskByRuntime_PopulatesWorkspaceContext(t *testing.T) {
 	}
 	if resp.Task.WorkspaceContext != wsContext {
 		t.Errorf("workspace_context = %q, want %q", resp.Task.WorkspaceContext, wsContext)
+	}
+	if resp.Task.WorkspaceDoctrineRevision != wsRevision {
+		t.Errorf("workspace_doctrine_revision = %d, want %d", resp.Task.WorkspaceDoctrineRevision, wsRevision)
 	}
 	if resp.Task.WorkspaceSlug != workspaceSlug {
 		t.Errorf("workspace_slug = %q, want %q", resp.Task.WorkspaceSlug, workspaceSlug)
@@ -908,7 +915,7 @@ func TestHandleDaemonWSHeartbeat_RuntimeGoneReturnsAckNotError(t *testing.T) {
 				missingRuntime: daemonws.NewRuntimeLease(testWorkspaceID, "online", time.Now().Add(-2*runtimeHeartbeatDBFlushInterval), true),
 			},
 		},
-		missingRuntime, false)
+		protocol.DaemonHeartbeatRequestPayload{RuntimeID: missingRuntime})
 	if err != nil {
 		t.Fatalf("HandleDaemonWSHeartbeat: unexpected error %v", err)
 	}
@@ -952,7 +959,7 @@ func TestHandleDaemonWSHeartbeat_AllowsAnyAuthorizedWorkspace(t *testing.T) {
 				runtimeID: daemonws.NewRuntimeLease(workspaceID, "online", time.Now(), true),
 			},
 		},
-		runtimeID, false)
+		protocol.DaemonHeartbeatRequestPayload{RuntimeID: runtimeID})
 	if err != nil {
 		t.Fatalf("HandleDaemonWSHeartbeat: unexpected error %v", err)
 	}
@@ -4609,4 +4616,62 @@ func TestDaemonRegister_RecordsProbedCliAuthState(t *testing.T) {
 			t.Errorf("cli_auth for %q = %#v, want no record at all", unknown, meta["cli_auth"])
 		}
 	}
+}
+
+// K18: a daemon on a healthy WebSocket never sends the HTTP heartbeat, so the
+// WS frame must store the human-edit report too. An absent field (older
+// daemon) keeps the stored report; an explicit empty list clears it.
+func TestHandleDaemonWSHeartbeat_StoresDirtyCheckouts(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	runtimeID := dbfx.Runtime(t, "WS Dirty Checkouts Runtime", testutil.Cols{"workspace_id": testWorkspaceID})
+	identity := daemonws.ClientIdentity{
+		WorkspaceID: testWorkspaceID,
+		RuntimeLeases: map[string]*daemonws.RuntimeLease{
+			runtimeID: daemonws.NewRuntimeLease(testWorkspaceID, "online", time.Now(), true),
+		},
+	}
+	beat := func(payload protocol.DaemonHeartbeatRequestPayload) []string {
+		t.Helper()
+		payload.RuntimeID = runtimeID
+		if _, err := testHandler.HandleDaemonWSHeartbeat(ctx, identity, payload); err != nil {
+			t.Fatalf("HandleDaemonWSHeartbeat: %v", err)
+		}
+		var metadata []byte
+		if err := testPool.QueryRow(ctx, `SELECT metadata FROM agent_runtime WHERE id = $1`, runtimeID).Scan(&metadata); err != nil {
+			t.Fatal(err)
+		}
+		paths, _ := recentDirtyPaths(metadata, time.Now())
+		return paths
+	}
+
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{DirtyCheckouts: []protocol.DaemonDirtyCheckout{{Root: "/home/u/repo", Paths: []string{"src/human.go"}}}}); len(got) != 1 || got[0] != "src/human.go" {
+		t.Fatalf("dirty paths after WS report = %v, want [src/human.go]", got)
+	}
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{}); len(got) != 1 {
+		t.Fatalf("dirty paths after a beat without the field = %v, want the previous report kept", got)
+	}
+	if got := beat(protocol.DaemonHeartbeatRequestPayload{DirtyCheckouts: []protocol.DaemonDirtyCheckout{}}); len(got) != 0 {
+		t.Fatalf("dirty paths after an empty report = %v, want cleared", got)
+	}
+}
+
+// TestCancelTask_MalformedTaskID_Returns400 covers the audit finding that
+// CancelTask passed the raw taskId path param straight into parseUUID
+// (util.MustParseUUID), which panics on a non-UUID string; chi's global
+// Recoverer middleware turned that into a 500 instead of the documented 400
+// every other raw-path-param UUID in this file (ListTaskMessagesByUser,
+// BatchIssueGCCheck, GetIssueGCCheck) already returns via
+// parseUUIDOrBadRequest.
+func TestCancelTask_MalformedTaskID_Returns400(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	issueID := dbfx.Issue(t, "cancel task malformed id "+t.Name())
+
+	req := newRequest("POST", "/api/issues/"+issueID+"/tasks/not-a-uuid/cancel", nil)
+	req = withURLParams(req, "id", issueID, "taskId", "not-a-uuid")
+	testutil.Call(t, testHandler.CancelTask, req).Want(http.StatusBadRequest)
 }

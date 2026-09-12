@@ -367,11 +367,18 @@ func (h *Handler) ScimCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ExternalID != "" {
-		_ = h.Queries.SetMemberScimExternalID(r.Context(), db.SetMemberScimExternalIDParams{ID: member.ID, ScimExternalID: pgtype.Text{String: req.ExternalID, Valid: true}})
+		if err := h.Queries.SetMemberScimExternalID(r.Context(), db.SetMemberScimExternalIDParams{ID: member.ID, ScimExternalID: pgtype.Text{String: req.ExternalID, Valid: true}}); err != nil {
+			slog.Warn("scim: set member external id failed", "member_id", uuidToString(member.ID), "error", err)
+		}
 	}
 	h.MembershipCache.Invalidate(r.Context(), uuidToString(user.ID), uuidToString(wsUUID))
 	h.audit(r.Context(), wsUUID, "system", "", AuditScimProvision, "member", member.ID, map[string]any{"email": email, "external_id": req.ExternalID}, nil)
-	h.publish(protocol.EventMemberAdded, uuidToString(wsUUID), "system", "", map[string]any{"member_id": uuidToString(member.ID), "workspace_id": uuidToString(wsUUID), "user_id": uuidToString(user.ID)})
+	// Same shape as the invitation path: clients read `member.user_id`.
+	memberPayload := map[string]any{"member": h.memberWithUserResponse(member, user)}
+	if ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err == nil {
+		memberPayload["workspace_name"] = ws.Name
+	}
+	h.publish(protocol.EventMemberAdded, uuidToString(wsUUID), "system", "", memberPayload)
 	row := db.ListMembersWithUserRow{ID: member.ID, WorkspaceID: wsUUID, UserID: user.ID, Role: member.Role, CreatedAt: member.CreatedAt, UserName: user.Name, UserEmail: user.Email, UserAvatarUrl: user.AvatarUrl}
 	writeSCIM(w, http.StatusCreated, scimUserOf(r, row, req.ExternalID))
 }
@@ -393,7 +400,10 @@ func (h *Handler) ScimReplaceUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Active != nil && !*req.Active {
-		h.scimDeprovision(r.Context(), wsUUID, m, "put")
+		if err := h.scimDeprovision(r.Context(), wsUUID, m, "put"); err != nil {
+			writeSCIMError(w, http.StatusInternalServerError, "failed to deprovision user")
+			return
+		}
 		writeSCIM(w, http.StatusOK, h.scimInactive(m, req.ExternalID))
 		return
 	}
@@ -437,7 +447,10 @@ func (h *Handler) ScimPatchUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if deactivate {
-		h.scimDeprovision(r.Context(), wsUUID, m, "patch")
+		if err := h.scimDeprovision(r.Context(), wsUUID, m, "patch"); err != nil {
+			writeSCIMError(w, http.StatusInternalServerError, "failed to deprovision user")
+			return
+		}
 		writeSCIM(w, http.StatusOK, h.scimInactive(m, ""))
 		return
 	}
@@ -478,7 +491,10 @@ func (h *Handler) ScimDeleteUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	h.scimDeprovision(r.Context(), wsUUID, m, "delete")
+	if err := h.scimDeprovision(r.Context(), wsUUID, m, "delete"); err != nil {
+		writeSCIMError(w, http.StatusInternalServerError, "failed to deprovision user")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -490,17 +506,20 @@ func (h *Handler) scimInactive(m db.ListMembersWithUserRow, externalID string) s
 
 // scimDeprovision removes the membership with the full revocation sweep and
 // invalidates the user's sessions before returning: access is gone when the
-// identity provider gets its answer.
-func (h *Handler) scimDeprovision(ctx context.Context, wsUUID pgtype.UUID, m db.ListMembersWithUserRow, via string) {
-	result, err := h.revokeAndRemoveMember(ctx, wsUUID, m.UserID, m.ID, pgtype.UUID{})
-	if err != nil {
-		slog.Warn("scim: remove member failed", "member_id", uuidToString(m.ID), "error", err)
-	}
+// identity provider gets its answer. A failed removal is returned so the
+// caller answers a SCIM error and the provider retries; sessions are still
+// cut, since the provider's intent is that the user loses access.
+func (h *Handler) scimDeprovision(ctx context.Context, wsUUID pgtype.UUID, m db.ListMembersWithUserRow, via string) error {
+	result, removeErr := h.revokeAndRemoveMember(ctx, wsUUID, m.UserID, m.ID, pgtype.UUID{})
 	if err := h.Queries.InvalidateUserSessions(ctx, m.UserID); err != nil {
 		slog.Warn("scim: invalidate sessions failed", "user_id", uuidToString(m.UserID), "error", err)
 	}
 	if middleware.Revocations != nil {
 		middleware.Revocations.Invalidate(ctx, uuidToString(m.UserID), time.Now())
+	}
+	if removeErr != nil {
+		slog.Error("scim: remove member failed", "member_id", uuidToString(m.ID), "error", removeErr)
+		return removeErr
 	}
 	h.MembershipCache.Invalidate(ctx, uuidToString(m.UserID), uuidToString(wsUUID))
 	wsIDStr := uuidToString(wsUUID)
@@ -509,4 +528,5 @@ func (h *Handler) scimDeprovision(ctx context.Context, wsUUID pgtype.UUID, m db.
 	h.audit(ctx, wsUUID, "system", "", AuditScimRevoke, "member", m.ID, map[string]any{"email": m.UserEmail, "via": via}, nil)
 	h.publish(protocol.EventMemberRemoved, wsIDStr, "system", "", map[string]any{"member_id": uuidToString(m.ID), "workspace_id": wsIDStr, "user_id": uuidToString(m.UserID)})
 	h.notifyDaemonWorkspacesChanged(uuidToString(m.UserID))
+	return nil
 }

@@ -307,10 +307,14 @@ func dispatchResultFromEngine(res engine.Result) DispatchResult {
 		IssueID:            res.IssueID,
 		IssueNumber:        res.IssueNumber,
 		IssueIdentifier:    res.IssueIdentifier,
+		IssueWorkspaceSlug: res.IssueWorkspaceSlug,
 		IssueTitle:         res.IssueTitle,
 		IssueDuplicate:     res.IssueDuplicate,
 		IssueUsageHadMedia: res.IssueUsageHadMedia,
 		IssueHeld:          res.IssueHeld,
+		AutopilotID:        res.AutopilotID,
+		ScheduleTitle:      res.ScheduleTitle,
+		ScheduleSummary:    res.ScheduleSummary,
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,12 +40,18 @@ func (e SignupError) Error() string {
 var ErrSignupProhibited = SignupError{Message: "user registration is disabled on this self-hosted instance"}
 var ErrEmailNotAllowed = SignupError{Message: "email address or domain not allowed on this instance"}
 
+// Stable auth failure codes (MUL UX audit): shared across every login entry
+// point (email code, Google, SSO) so the client translates one code set
+// instead of pattern-matching each handler's English sentence.
 const (
-	googleLoginCodeAccountDisabled     = "account_disabled"
-	googleLoginCodeSignupProhibited    = "signup_prohibited"
-	googleLoginCodeEmailNotAllowed     = "email_not_allowed"
+	authCodeAccountDisabled            = "account_disabled"
+	authCodeSignupProhibited           = "signup_prohibited"
+	authCodeEmailNotAllowed            = "email_not_allowed"
+	authCodeInvalid                    = "code_invalid"
+	authCodeRateLimited                = "rate_limited"
 	googleLoginCodeAccountWithoutEmail = "google_account_no_email"
 	googleLoginCodeInvalidOAuthCode    = "oauth_code_invalid"
+	googleLoginCodeInvalidOAuthState   = "oauth_state_invalid"
 )
 
 const devVerificationCodeEnv = "MULTICA_DEV_VERIFICATION_CODE"
@@ -58,6 +65,7 @@ var supportedLanguages = map[string]struct{}{
 	"zh-Hans": {},
 	"ko":      {},
 	"ja":      {},
+	"fr":      {},
 }
 
 type UserResponse struct {
@@ -177,11 +185,20 @@ func (h *Handler) issueJWT(user db.User) (string, error) {
 // event fires on that edge, covering both the verification-code and Google
 // OAuth entry points.
 func (h *Handler) findOrCreateUser(ctx context.Context, email string) (user db.User, isNew bool, err error) {
+	existing, lookupErr := h.Queries.GetUserByEmail(ctx, email)
+	return h.findOrCreateUserFromLookup(ctx, email, existing, lookupErr)
+}
+
+// findOrCreateUserFromLookup is findOrCreateUser's core, taking an
+// already-performed GetUserByEmail lookup (user, err) so a caller that
+// already queried the user for another check (e.g. the SSO-enforcement
+// lookup in VerifyCode/GoogleLogin) doesn't pay for a second round trip.
+func (h *Handler) findOrCreateUserFromLookup(ctx context.Context, email string, existing db.User, lookupErr error) (user db.User, isNew bool, err error) {
 	if auth.IsTemporarilyDisabledUserEmail(email) {
 		return db.User{}, false, auth.ErrTemporarilyDisabledUser
 	}
 
-	user, err = h.Queries.GetUserByEmail(ctx, email)
+	user, err = existing, lookupErr
 	isNew = isNotFound(err)
 	if err != nil && !isNew {
 		return db.User{}, false, err
@@ -297,11 +314,17 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
-	// Check signup restrictions before sending magic link
+	// Signup restrictions. A refused new email gets the same answer as an
+	// existing account — same status, same body, same rate limit — so
+	// send-code cannot be used to enumerate accounts on a closed instance.
+	// No code is mailed for it; verify-code still refuses the signup. Deliberately
+	// no error code here either: a code would let a client tell "refused" apart
+	// from "sent" and defeat the enumeration guard this comment describes.
+	mailCode := true
 	existingUser, err := h.Queries.GetUserByEmail(r.Context(), email)
 	if err != nil {
 		if !isNotFound(err) {
@@ -309,40 +332,19 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to lookup user")
 			return
 		}
-		// User does not exist → treat as new user
-		isNewUser := true
-		if err := h.checkSignupAllowed(email, isNewUser); err != nil {
-			var signupErr SignupError
-			if errors.As(err, &signupErr) {
-				writeError(w, http.StatusForbidden, signupErr.Error())
-			} else {
-				writeError(w, http.StatusForbidden, "user registration is disabled")
-			}
-			return
+		if err := h.checkSignupAllowed(email, true); err != nil {
+			slog.Info("send-code: signup refused; answering like an existing account", "error", err)
+			mailCode = false
 		}
-	} else {
-		// User already exists → always allowed to login
-		if auth.IsTemporarilyDisabledUser(uuidToString(existingUser.ID), existingUser.Email) {
-			writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
-			return
-		}
-		isNewUser := false
-		if err := h.checkSignupAllowed(email, isNewUser); err != nil {
-			// This should rarely happen, but handle it anyway
-			var signupErr SignupError
-			if errors.As(err, &signupErr) {
-				writeError(w, http.StatusForbidden, signupErr.Error())
-			} else {
-				writeError(w, http.StatusForbidden, "user registration is disabled")
-			}
-			return
-		}
+	} else if auth.IsTemporarilyDisabledUser(uuidToString(existingUser.ID), existingUser.Email) {
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		return
 	}
 
 	// Rate limit: max 1 code per 60 seconds per email
 	latest, err := h.Queries.GetLatestCodeByEmail(r.Context(), email)
 	if err == nil && time.Since(latest.CreatedAt.Time) < 60*time.Second {
-		writeError(w, http.StatusTooManyRequests, "please wait before requesting another code")
+		writeErrorCode(w, http.StatusTooManyRequests, authCodeRateLimited, "please wait before requesting another code")
 		return
 	}
 
@@ -362,10 +364,12 @@ func (h *Handler) SendCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.EmailService.SendVerificationCode(email, code); err != nil {
-		slog.Error("failed to send verification code", "email", email, "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to send verification code")
-		return
+	if mailCode {
+		if err := h.EmailService.SendVerificationCode(email, code); err != nil {
+			slog.Error("failed to send verification code", "email", email, "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to send verification code")
+			return
+		}
 	}
 
 	// Best-effort cleanup of expired codes
@@ -389,21 +393,43 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
 	dbCode, err := h.Queries.GetLatestVerificationCode(r.Context(), email)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid or expired code")
+		writeErrorCode(w, http.StatusBadRequest, authCodeInvalid, "invalid or expired code")
 		return
 	}
 
 	isDevCode := isDevVerificationCode(code)
 	if !isDevCode && subtle.ConstantTimeCompare([]byte(code), []byte(dbCode.Code)) != 1 {
-		_ = h.Queries.IncrementVerificationCodeAttempts(r.Context(), dbCode.ID)
-		writeError(w, http.StatusBadRequest, "invalid or expired code")
+		// A failed write here means this wrong-guess attempt doesn't count
+		// toward the brute-force cap enforced by GetLatestVerificationCode's
+		// `attempts < 5` — log so a spike in such failures is diagnosable.
+		if err := h.Queries.IncrementVerificationCodeAttempts(r.Context(), dbCode.ID); err != nil {
+			slog.Warn("verify code: increment attempts failed", "code_id", uuidToString(dbCode.ID), "error", err)
+		}
+		writeErrorCode(w, http.StatusBadRequest, authCodeInvalid, "invalid or expired code")
 		return
+	}
+
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains. Check this
+	// before consuming the code so a policy rejection never burns a
+	// one-time code the user could otherwise still use once SSO is
+	// resolved (or on a non-enforced workspace).
+	existingUser, lookupErr := h.Queries.GetUserByEmail(r.Context(), email)
+	{
+		var uid pgtype.UUID
+		if lookupErr == nil {
+			uid = existingUser.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
 	}
 
 	if err := h.Queries.MarkVerificationCodeUsed(r.Context(), dbCode.ID); err != nil {
@@ -411,22 +437,19 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSO enforcement (K60): a workspace that enforces its identity provider
-	// closes this door for its members and its email domains.
-	{
-		var uid pgtype.UUID
-		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
-			uid = existing.ID
-		}
-		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
-			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
-			return
-		}
-	}
-	user, isNew, err := h.findOrCreateUser(r.Context(), email)
+	// Reuse the SSO check's lookup instead of re-querying GetUserByEmail.
+	user, isNew, err := h.findOrCreateUserFromLookup(r.Context(), email, existingUser, lookupErr)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
-			writeError(w, http.StatusForbidden, auth.TemporarilyDisabledUserError)
+			writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+			return
+		}
+		if errors.Is(err, ErrSignupProhibited) {
+			writeErrorCode(w, http.StatusForbidden, authCodeSignupProhibited, ErrSignupProhibited.Error())
+			return
+		}
+		if errors.Is(err, ErrEmailNotAllowed) {
+			writeErrorCode(w, http.StatusForbidden, authCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
 			return
 		}
 		var signupErr SignupError
@@ -504,6 +527,9 @@ type UpdateMeRequest struct {
 type GoogleLoginRequest struct {
 	Code        string `json:"code"`
 	RedirectURI string `json:"redirect_uri"`
+	// State is the value POST /auth/google/start returned, echoed back from
+	// Google's redirect. It must match the browser's state cookie.
+	State string `json:"state"`
 }
 
 type googleTokenResponse struct {
@@ -521,11 +547,11 @@ type googleUserInfo struct {
 func writeGoogleLoginActionableError(w http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, auth.ErrTemporarilyDisabledUser):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 	case errors.Is(err, ErrSignupProhibited):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeSignupProhibited, ErrSignupProhibited.Error())
+		writeErrorCode(w, http.StatusForbidden, authCodeSignupProhibited, ErrSignupProhibited.Error())
 	case errors.Is(err, ErrEmailNotAllowed):
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
+		writeErrorCode(w, http.StatusForbidden, authCodeEmailNotAllowed, ErrEmailNotAllowed.Error())
 	default:
 		var signupErr SignupError
 		if !errors.As(err, &signupErr) {
@@ -544,6 +570,22 @@ func (h *Handler) googleHTTPClient() *http.Client {
 	return http.DefaultClient
 }
 
+// GoogleLoginStart: POST /auth/google/start → {state}. It mints the state
+// the browser puts in Google's authorization URL and pins it to that browser
+// in an HttpOnly cookie, so POST /auth/google only exchanges a code for the
+// browser that started the flow. The desktop app starts Google sign-in in
+// the system browser, which carries the cookie through the whole round-trip.
+func (h *Handler) GoogleLoginStart(w http.ResponseWriter, r *http.Request) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start Google login")
+		return
+	}
+	state := hex.EncodeToString(buf)
+	auth.SetGoogleOAuthStateCookie(w, state)
+	writeJSON(w, http.StatusOK, map[string]string{"state": state})
+}
+
 func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	var req GoogleLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -553,6 +595,16 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if req.Code == "" {
 		writeError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+
+	// Login CSRF: the state is single-use and must be the one this browser
+	// was handed by GoogleLoginStart.
+	stateCookie, cookieErr := r.Cookie(auth.GoogleOAuthStateCookieName)
+	auth.ClearGoogleOAuthStateCookie(w)
+	if cookieErr != nil || stateCookie.Value == "" || req.State == "" ||
+		subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(req.State)) != 1 {
+		writeErrorCode(w, http.StatusBadRequest, googleLoginCodeInvalidOAuthState, "the Google sign-in was not started from this browser; sign in again")
 		return
 	}
 
@@ -661,23 +713,25 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if auth.IsTemporarilyDisabledUserEmail(email) {
-		writeErrorCode(w, http.StatusForbidden, googleLoginCodeAccountDisabled, auth.TemporarilyDisabledUserError)
+		writeErrorCode(w, http.StatusForbidden, authCodeAccountDisabled, auth.TemporarilyDisabledUserError)
 		return
 	}
 
 	// SSO enforcement (K60): a workspace that enforces its identity provider
 	// closes this door for its members and its email domains.
+	existingUser, lookupErr := h.Queries.GetUserByEmail(r.Context(), email)
 	{
 		var uid pgtype.UUID
-		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
-			uid = existing.ID
+		if lookupErr == nil {
+			uid = existingUser.ID
 		}
 		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
 			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
 			return
 		}
 	}
-	user, isNew, err := h.findOrCreateUser(r.Context(), email)
+	// Reuse the SSO check's lookup instead of re-querying GetUserByEmail.
+	user, isNew, err := h.findOrCreateUserFromLookup(r.Context(), email, existingUser, lookupErr)
 	if err != nil {
 		if writeGoogleLoginActionableError(w, err) {
 			return
@@ -732,7 +786,7 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.CFSigner != nil {
-		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(72 * time.Hour)) {
+		for _, cookie := range h.CFSigner.SignedCookies(time.Now().Add(auth.AuthTokenTTL())) {
 			http.SetCookie(w, cookie)
 		}
 	}

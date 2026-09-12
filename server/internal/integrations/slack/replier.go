@@ -31,11 +31,15 @@ import (
 //   - Ingested with an /issue created: a confirmation of the new issue.
 
 const (
-	agentOfflineText  = "⚠️ The agent is offline right now. Your message was received and will be handled once it's back online."
-	agentArchivedText = "⚠️ This agent has been archived and can't respond. Please contact your workspace admin."
-	freshPendingText  = "✅ Fresh start ready. Your next chat message will run without previous context."
-	chatStartedText   = "✅ Started a new Multica chat. Your next message will enter it."
-	issueUsageText    = "Please include an issue title. Use:\n\n`/issue <title>`\n`[description]` (optional)"
+	agentOfflineText        = "⚠️ The agent is offline right now. Your message was received and will be handled once it's back online."
+	agentArchivedText       = "⚠️ This agent has been archived and can't respond. Please contact your workspace admin."
+	freshPendingText        = "✅ Fresh start ready. Your next chat message will run without previous context."
+	chatStartedText         = "✅ Started a new Multica chat. Your next message will enter it."
+	issueUsageText          = "Please include an issue title. Use:\n\n`/issue <title>`\n`[description]` (optional)"
+	captureAckText          = "✅ Captured — organize it in the Brain inbox."
+	captureUsageText        = "Please include what to capture. Use:\n\n`/capture <text or link>`"
+	scheduleUsageText       = "Please say what should happen and when. Use:\n\n`/schedule <every Monday at 9, list the open tickets>`"
+	scheduleUnavailableText = "\u26a0\ufe0f No model is configured for this workspace, so I can't read that as a schedule. Create the autopilot from the Autopilots page."
 )
 
 // bindingMinter is the binding-token surface the replier needs.
@@ -139,6 +143,31 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeIssueUsage:
 		if err := r.postResult(ctx, inst, msg, res, issueUsageText); err != nil {
 			r.logger.WarnContext(ctx, "slack replier: issue usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptured:
+		if err := r.postResult(ctx, inst, msg, res, captureAckText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: capture confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptureUsage:
+		if err := r.postResult(ctx, inst, msg, res, captureUsageText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: capture usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduled:
+		if err := r.postResult(ctx, inst, msg, res, scheduleAckText(res)); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: schedule confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUsage:
+		if err := r.postResult(ctx, inst, msg, res, scheduleUsageText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: schedule usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUnavailable:
+		if err := r.postResult(ctx, inst, msg, res, scheduleUnavailableText); err != nil {
+			r.logger.WarnContext(ctx, "slack replier: schedule unavailable notice failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:
@@ -271,4 +300,20 @@ func issueResultIdentifier(res engine.Result) string {
 		return res.IssueIdentifier
 	}
 	return fmt.Sprintf("#%d", res.IssueNumber)
+}
+
+// scheduleAckText confirms a paused autopilot proposal: what was understood,
+// when it would run, and where a person goes to turn it on. The proposal
+// starts nothing on its own, so the reply must not read like a confirmation
+// that something is now running.
+func scheduleAckText(res engine.Result) string {
+	title := strings.TrimSpace(res.ScheduleTitle)
+	if title == "" {
+		title = "Autopilot"
+	}
+	text := "\u23f8 Proposed \"" + title + "\""
+	if summary := strings.TrimSpace(res.ScheduleSummary); summary != "" {
+		text += " \u2014 " + summary
+	}
+	return text + ". It is paused. Activate it from Autopilots."
 }

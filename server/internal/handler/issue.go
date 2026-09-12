@@ -95,7 +95,11 @@ type IssueResponse struct {
 	// absent means "this endpoint did not resolve it", never "no origin".
 	OriginType *string `json:"origin_type,omitempty"`
 	OriginID   *string `json:"origin_id,omitempty"`
-	Position   float64 `json:"position"`
+	// RecurrenceID names the series the issue belongs to (source or
+	// occurrence); null when it happens once. Present on list rows too so a
+	// board can badge recurring work.
+	RecurrenceID *string `json:"recurrence_id"`
+	Position     float64 `json:"position"`
 	// Stage groups sub-issues under the same parent into ordered barrier
 	// groups (null = unstaged). See issue_child_done.go for how a closed
 	// stage gates the child-done -> parent wake.
@@ -346,6 +350,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
@@ -390,6 +395,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
@@ -464,6 +470,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		RecurrenceID:   uuidToPtr(i.RecurrenceID),
 		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
@@ -745,22 +752,23 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 	// final page is known. Per-term BOOL_OR flags keep the legacy eligibility rule
 	// where terms may be spread across comments, while comment_all_terms keeps
 	// ranking/snippet tied to one comment.
+	const loweredCommentContent = "lowered_comment.lowered"
 	commentFlagColumns := []string{
 		"c.issue_id",
-		fmt.Sprintf("BOOL_OR(LOWER(c.content) LIKE %s) AS comment_phrase", phraseContainsParam),
+		fmt.Sprintf("BOOL_OR(%s LIKE %s) AS comment_phrase", loweredCommentContent, phraseContainsParam),
 	}
 	commentCandidateFlags := []string{"aggregated_comments.comment_phrase"}
 	commentTerms := make([]string, 0, len(termContainsParams))
 	for index, termParam := range termContainsParams {
 		alias := fmt.Sprintf("comment_term_%d", index)
 		commentFlagColumns = append(commentFlagColumns,
-			fmt.Sprintf("BOOL_OR(LOWER(c.content) LIKE %s) AS %s", termParam, alias),
+			fmt.Sprintf("BOOL_OR(%s LIKE %s) AS %s", loweredCommentContent, termParam, alias),
 		)
 		commentCandidateFlags = append(commentCandidateFlags, "aggregated_comments."+alias)
-		commentTerms = append(commentTerms, fmt.Sprintf("LOWER(c.content) LIKE %s", termParam))
+		commentTerms = append(commentTerms, fmt.Sprintf("%s LIKE %s", loweredCommentContent, termParam))
 	}
 
-	commentSnippetPredicate := fmt.Sprintf("LOWER(c.content) LIKE %s", phraseContainsParam)
+	commentSnippetPredicate := fmt.Sprintf("%s LIKE %s", loweredCommentContent, phraseContainsParam)
 	if len(commentTerms) > 1 {
 		commentAllTerms := "(" + strings.Join(commentTerms, " AND ") + ")"
 		commentFlagColumns = append(commentFlagColumns,
@@ -778,11 +786,20 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 		commentSnippetPredicate,
 	))
 
+	// PostgreSQL otherwise inlines this scalar LATERAL subquery and recomputes
+	// LOWER(c.content) for every flag. OFFSET 0 is the intentional planner fence
+	// that keeps the long comment body lowercased once per row. Future indexable
+	// text predicates must stay outside this projection-only fence so an index on
+	// LOWER(c.content) can still match them.
 	commentMatchesCTE := fmt.Sprintf(`comment_matches AS MATERIALIZED (
 		SELECT *
 		FROM (
 			SELECT %s
 			FROM comment c
+			CROSS JOIN LATERAL (
+				SELECT LOWER(c.content) AS lowered
+				OFFSET 0
+			) lowered_comment
 			WHERE c.workspace_id = %s
 			GROUP BY c.issue_id
 		) aggregated_comments
@@ -1607,7 +1624,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision, i.goal_id, i.cycle_id, i.issue_type
+	   i.revision, i.goal_id, i.cycle_id, i.issue_type, i.recurrence_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1651,6 +1668,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.GoalID,
 			&row.CycleID,
 			&row.IssueType,
+			&row.RecurrenceID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -3832,9 +3850,15 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// Cycle detection: walk up from the new parent to ensure we don't reach this issue.
+			// Scoped to the workspace so the walk can never silently cross into
+			// another workspace's issue rows, even if the same-workspace
+			// invariant on parent_issue_id were ever broken elsewhere.
 			cursor := newParentID
 			for depth := 0; depth < 10; depth++ {
-				ancestor, err := h.Queries.GetIssue(r.Context(), cursor)
+				ancestor, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{
+					ID:          cursor,
+					WorkspaceID: prevIssue.WorkspaceID,
+				})
 				if err != nil || !ancestor.ParentIssueID.Valid {
 					break
 				}
@@ -3866,6 +3890,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				writeError(w, http.StatusBadRequest, "project not found in this workspace")
+				return
+			}
+			// K60: moving into a project is a write on that project too, not
+			// just the source one already gated above.
+			if !h.requireProjectWrite(w, r, projectUUID) {
 				return
 			}
 			params.ProjectID = projectUUID
@@ -4414,9 +4443,16 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
+	// Best-effort: delete-must-proceed semantics regardless of these two
+	// failing, but a DB failure mid-cancel should still leave a trace for
+	// operators instead of being invisible.
+	if err := h.TaskService.CancelTasksForIssue(r.Context(), issue.ID); err != nil {
+		slog.Warn("delete issue: cancel tasks failed", "issue_id", uuidToString(issue.ID), "error", err)
+	}
 	// Fail any linked autopilot runs before delete (ON DELETE SET NULL clears issue_id).
-	_ = h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+	if err := h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID); err != nil {
+		slog.Warn("delete issue: fail autopilot runs failed", "issue_id", uuidToString(issue.ID), "error", err)
+	}
 
 	deleteResult, err := h.deleteIssueAndCollectAttachmentURLs(r.Context(), issue, nil)
 	if err != nil {
@@ -4645,6 +4681,13 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "project not found in this workspace")
 			return
 		}
+		// K60: the whole batch moves into this one project, so its write
+		// access is checked once here — same rationale as the tenancy check
+		// just above, and it covers the destination side of a move that the
+		// per-issue project_role check below only covers for the source.
+		if !h.requireProjectWrite(w, r, projectUUID) {
+			return
+		}
 		batchProjectID = projectUUID
 	}
 	// Dated cycles (F29). The cycle row is resolved once — the batch shares one
@@ -4708,6 +4751,16 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: wsUUID,
 		})
 		if err != nil {
+			continue
+		}
+		// K60: a project-role override refuses this one item rather than the
+		// whole batch, like the transition gate below — reported in `refused`.
+		if !h.projectWriteAllowed(r, prevIssue.ProjectID) {
+			refused = append(refused, map[string]any{
+				"issue_id": uuidToString(prevIssue.ID),
+				"code":     ErrCodeProjectRoleForbidden,
+				"reason":   "your project role does not allow this",
+			})
 			continue
 		}
 
@@ -4872,10 +4925,14 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				// Cycle detection: walk up from the new parent to ensure we don't reach this issue.
+				// Scoped to the workspace, matching UpdateIssue's cycle walk.
 				cycleDetected := false
 				cursor := newParentID
 				for depth := 0; depth < 10; depth++ {
-					ancestor, err := h.Queries.GetIssue(r.Context(), cursor)
+					ancestor, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{
+						ID:          cursor,
+						WorkspaceID: prevIssue.WorkspaceID,
+					})
 					if err != nil || !ancestor.ParentIssueID.Valid {
 						break
 					}
@@ -5132,12 +5189,23 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
+		// K60: silently skip, matching this loop's existing not-found/invalid-id
+		// handling above rather than aborting the whole batch.
+		if !h.projectWriteAllowed(r, issue.ProjectID) {
+			continue
+		}
 
 		seenIssueIDs[issueUUID] = struct{}{}
 		issues = append(issues, issue)
 		excludedIDs = append(excludedIDs, issue.ID)
-		h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
-		_ = h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+		// Best-effort, same delete-must-proceed semantics as DeleteIssue —
+		// logged rather than silently discarded.
+		if err := h.TaskService.CancelTasksForIssue(r.Context(), issue.ID); err != nil {
+			slog.Warn("batch delete issues: cancel tasks failed", "issue_id", uuidToString(issue.ID), "error", err)
+		}
+		if err := h.AutopilotService.FailAutopilotRunsByIssue(r.Context(), issue.ID); err != nil {
+			slog.Warn("batch delete issues: fail autopilot runs failed", "issue_id", uuidToString(issue.ID), "error", err)
+		}
 	}
 	deleteResult, err := h.deleteIssuesAndCollectAttachmentURLs(r.Context(), issues, excludedIDs)
 	if err != nil {

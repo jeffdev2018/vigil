@@ -16,7 +16,8 @@
     "delete": "削除",
     "no_matches": "該当するプロジェクトはありません",
     "selected_other": "{{count}} 件選択中",
-    "clear_selection": "選択を解除"
+    "clear_selection": "選択を解除",
+    "pin_partial": "{{succeeded}} 件ピン留め、{{failed}} 件失敗"
   },
   "table": {
     "name": "名前",
@@ -80,7 +81,8 @@
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
     "toast_move_issue_failed": "課題を移動できませんでした",
-    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。"
+    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。",
+    "more_actions_aria": "その他の操作"
   },
   "resources": {
     "section_header": "リソース",
@@ -150,7 +152,8 @@
     "title": "プロジェクトを削除",
     "description": "プロジェクトが削除されます。課題は削除されませんが、リンクが解除されます。",
     "confirm": "削除",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "partial": "{{succeeded}} 件削除、{{failed}} 件失敗"
   },
   "picker": {
     "no_project": "プロジェクトなし",
@@ -222,6 +225,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "ルールを保存できませんでした"
   },
+  "sandbox_policy": {
+    "section": "サンドボックスポリシー",
+    "description": "このプロジェクトでのエージェント実行を制限します: 到達可能なネットワークホストと、機密ファイルの読み取り可否。ワークスペース・プロジェクト・課題のポリシーは組み合わされ、最も厳しいものが適用されます。",
+    "capability_hint": "許可リストとネットワークなしのモードにはコンテナ対応ランタイムが必要です。その能力のないランタイムでの実行は拒否され、フェイルオーバーします (フェイルクローズ)。",
+    "network": "ネットワークアクセス",
+    "mode": {
+      "unrestricted": "制限なし",
+      "allowlist": "許可リスト",
+      "none": "ネットワークなし"
+    },
+    "hint": {
+      "unrestricted": "任意のホストに到達できます。",
+      "allowlist": "リストされたホストとプラットフォーム既定のホストのみ到達可能です。",
+      "none": "プラットフォームが必要とするもの以外のネットワーク egress はありません。"
+    },
+    "hosts_label": "許可するホスト",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "1 行に 1 ホスト。プラットフォーム既定のホストは常に到達可能です。",
+    "block_sensitive": "機密ファイルをブロック",
+    "block_sensitive_help": "エージェントは .env ファイルを読んではいけません (ベストエフォート)。",
+    "effective": "このプロジェクトの実効値: {{mode}}",
+    "effective_blocked": "機密ファイルはブロック中",
+    "effective_inherited": "ワークスペース既定から継承",
+    "empty": "プロジェクトのポリシーはありません: ワークスペース既定が適用されます。",
+    "save": "ポリシーを保存",
+    "saving": "保存中...",
+    "reset": "ワークスペース既定に戻す",
+    "toast_saved": "サンドボックスポリシーを保存しました",
+    "toast_reset": "サンドボックスポリシーをワークスペース既定に戻しました",
+    "failed": "サンドボックスポリシーを保存できませんでした",
+    "load_failed": "サンドボックスポリシーを読み込めませんでした"
+  },
   "members": {
     "section": "メンバーとロール",
     "description": "ここでのロールは制限のみ行います。メンバーやエージェントがこのプロジェクトでワークスペースのロール以上の権限を得ることはありません。",
@@ -237,7 +272,12 @@
     "agent": "エージェント",
     "updated": "ロールを更新しました",
     "update_failed": "ロールの更新に失敗しました",
-    "read_only": "ロールを変更できるのはワークスペースのオーナー、管理者、プロジェクトの admin だけです。"
+    "read_only": "ロールを変更できるのはワークスペースのオーナー、管理者、プロジェクトの admin だけです。",
+    "roles": {
+      "viewer": "閲覧者",
+      "contributor": "寄稿者",
+      "admin": "管理者"
+    }
   },
   "review": {
     "section": "エージェントレビュー",

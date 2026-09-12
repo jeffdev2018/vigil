@@ -156,6 +156,13 @@
           "subtitle": "安装 Codex 或 Kimi，然后从 \"运行时\" 页面进入 Mika 的引导对话。"
         }
       }
+    },
+    "native": {
+      "loading": "正在准备你的第一次运行...",
+      "error_title": "没能启动",
+      "error_body": "第一次运行没有创建成功。可以重试，也可以随时新建一个任务并分配给 Mika。",
+      "retry": "重试",
+      "dismiss": "暂不"
     }
   },
   "step_workspace": {
@@ -200,7 +207,13 @@
     "creation_disabled_lede_resume": "该实例已禁用创建工作区，继续进入你已有的工作区即可。",
     "template_label": "从哪里开始",
     "template_scratch": "从零开始",
-    "template_hint": "模板会根据已导出的工作区预先填好 Agent、技能、项目等内容。"
+    "template_hint": "模板会根据已导出的工作区预先填好 Agent、技能、项目等内容。",
+    "pack_label": "从 pack 开始",
+    "pack_none": "不用 pack",
+    "pack_none_hint": "一个空工作区，由你自己配置。",
+    "pack_no_agents": "无需智能体",
+    "pack_hint": "pack 会为一个职能装好状态、任务类型、标签、视图、规则和第一个项目。它没有智能体也能用，之后也可以在设置 -> Pack 里安装或移除。",
+    "pack_seed_failed": "工作区已创建，但 pack 没能安装：{{reason}}。可以在设置 -> Pack 里重试。"
   },
   "step_runtime": {
     "scanning_headline": "正在连接这台电脑...",
@@ -246,6 +259,12 @@
     "cloud_title": "使用云电脑",
     "cloud_subtitle": "我们会在云上为你运行一台电脑。尚未上线。",
     "cloud_action": "即将推出",
+    "native_title": "在浏览器中运行",
+    "native_subtitle": "无需安装——Mika 运行在 Multica 自己的运行时上。",
+    "native_disabled_subtitle": "请让管理员为服务器配置模型（MULTICA_LLM_API_KEY）。",
+    "native_action": "和 Mika 开始",
+    "native_action_disabled": "暂不可用",
+    "native_badge": "推荐",
     "cli_dialog_title": "通过终端连接",
     "cli_dialog_description": "和桌面端相同的连接，通过终端配置。适用于服务器、远程开发机或任意无头电脑。",
     "cli_dialog_pick_hint": "在上方选一台电脑。",
@@ -271,5 +290,17 @@
     "name": "Mika",
     "role": "参谋长",
     "blurb": "把你想做的事告诉 Mika，它会变成一个任务，并交给合适的智能体处理。"
+  },
+  "getting_started": {
+    "title": "开始使用",
+    "dismiss": "关闭",
+    "row_runtime_native": "原生运行时已就绪",
+    "row_runtime_daemon": "运行时已连接",
+    "row_runtime_none": "连接运行时",
+    "row_agent": "新建智能体",
+    "row_issue": "新建任务",
+    "row_first_run": "完成你的第一次运行",
+    "row_first_decision": "回应你的第一个决策",
+    "optional_suffix": "（可选）"
   }
 }

@@ -580,6 +580,78 @@ func TestFlushPiTextBufferKeepsUnmatchedToolPrefixes(t *testing.T) {
 	}
 }
 
+// Prose that merely contains "call:" or "response:" is not tool markup. It
+// used to hold every later delta of the turn in the buffer, because the same
+// failed match was retried at the same position on each new delta.
+func TestDrainPiTextBufferDoesNotStallOnProseToolPrefix(t *testing.T) {
+	chunks := []string{"she said, call: the police", " and then", " response: none", " the end"}
+	var buf strings.Builder
+	var got strings.Builder
+	for _, chunk := range chunks {
+		got.WriteString(drainPiTextBuffer(&buf, chunk))
+	}
+	if want := strings.Join(chunks, ""); got.String() != want {
+		t.Fatalf("streamed text before flush = %q, want %q", got.String(), want)
+	}
+	// Real markup after such prose is still stripped.
+	buf.Reset()
+	got.Reset()
+	got.WriteString(drainPiTextBuffer(&buf, `call: me, then call:bash{command:<|"|>ls<|"|>} done`))
+	got.WriteString(flushPiTextBuffer(&buf))
+	if got.String() != "call: me, then  done" {
+		t.Fatalf("mixed prose and markup = %q", got.String())
+	}
+	if out := stripPiToolCallMarkup(`call: me, then call:bash{command:<|"|>ls<|"|>} done`); out != "call: me, then  done" {
+		t.Fatalf("stripPiToolCallMarkup = %q", out)
+	}
+}
+
+// Text a turn left pending in the buffer (an unterminated markup-looking
+// fragment) must reach the message stream when the next turn starts, not be
+// dropped by the turn reset.
+func TestPiExecuteFlushesPendingTextAtTurnStart(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	events := []string{
+		`{"type":"agent_start"}`,
+		`{"type":"turn_start"}`,
+		`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"see call:bash{unterminated"}}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","usage":{"input":1,"output":1}}}`,
+		`{"type":"turn_start"}`,
+		`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"final"}}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","usage":{"input":1,"output":1}}}`,
+	}
+	fakePath := filepath.Join(t.TempDir(), "pi")
+	writeTestExecutable(t, fakePath, []byte(piEventStreamScript(events)))
+
+	backend, err := New("pi", Config{ExecutablePath: fakePath, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("new pi backend: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	session, err := backend.Execute(ctx, "prompt-ignored", ExecOptions{Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var streamed strings.Builder
+	for msg := range session.Messages {
+		if msg.Type == MessageText {
+			streamed.WriteString(msg.Content)
+		}
+	}
+	result := <-session.Result
+	if result.Status != "completed" || result.Output != "final" {
+		t.Fatalf("result = %+v, want completed with the last turn only", result)
+	}
+	if streamed.String() != "see call:bash{unterminatedfinal" {
+		t.Fatalf("streamed text = %q, want the first turn's pending text kept", streamed.String())
+	}
+}
+
 // TestBuildPiArgsKeepsSlashShapedModelIDIntact is the GH #7300 regression.
 // A gateway-style provider registers model ids that themselves contain a
 // slash (`claude/claude-opus-5` under provider `multica-anthropic`). Splitting

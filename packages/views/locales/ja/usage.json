@@ -17,7 +17,8 @@
     "run_time_label": "実行時間 · {{days}}日",
     "run_time_hint": "{{tasks}} 件の実行全体",
     "tasks_label": "実行 · {{days}}日",
-    "tasks_hint": "{{failed}} 件失敗"
+    "tasks_hint": "{{failed}} 件失敗",
+    "cost_hint": "すべての実行のトークンから見積もった値（報告があればプロバイダーのコスト）。予算への計上額ではありません"
   },
   "dim": {
     "label": "単位",
@@ -134,24 +135,30 @@
     "hint": "{{count}} 件完了 · 平均 ${{mean}}",
     "floor": "一部の使用量は価格なし",
     "none": "この期間はなし",
-    "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。"
+    "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。",
+    "load_error": "成果物あたりのコストを読み込めませんでした。",
+    "retry": "再試行"
   },
   "agent_roi": {
     "title": "エージェント別 ROI · {{days}}日",
     "headline": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ（{{second}} は {{cost2}}）",
     "headline_single": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ",
     "empty": "過去 {{days}} 日間にエージェントの稼働はありません。",
+    "load_error": "エージェントの ROI を読み込めませんでした。",
+    "retry": "再試行",
     "agent": "エージェント",
     "issues": "クローズしたイシュー",
     "prs": "マージした PR",
     "cost": "コスト",
     "cost_per_issue": "イシューあたりコスト",
     "none": "クローズしたイシューなし",
-    "floor": "下限値"
+    "floor": "下限値",
+    "floor_hint": "この合計は最小値です。このエージェントの一部の実行では価格が不明なモデルが使用されました。"
   },
   "scorecards": {
     "title": "エージェントのスコアカード · {{days}}日",
     "scope_note": "ワークスペース全体・全プロジェクト · UTC 日次",
+    "load_error": "エージェントのスコアカードを読み込めませんでした。",
     "agent": "エージェント",
     "runs": "実行",
     "accepted": "受け入れ",
@@ -159,12 +166,15 @@
     "reopened": "再オープン",
     "no_intervention": "人の介入なし",
     "mean_cost": "平均コスト",
-    "low_sample": "（実行が少ない）"
+    "low_sample": "（実行が少ない）",
+    "retry": "再試行"
   },
   "autopilot_quota": {
     "title": "今期のオートパイロット実行: {{used}} / {{limit}}",
+    "load_error": "オートパイロットのクォータを読み込めませんでした。",
     "near_limit": "上限が近づいています。上限に達するとオートパイロットは起動しません。",
-    "reached": "上限に達しました。期間がリセットされるまでオートパイロットは起動しません。"
+    "reached": "上限に達しました。期間がリセットされるまでオートパイロットは起動しません。",
+    "retry": "再試行"
   },
   "workflow_outcomes": {
     "title": "ワークフロー別の結果",
@@ -200,6 +210,32 @@
     "too_many_series": "{{count}} 件のカテゴリ — 表として表示します。",
     "move_up": "上へ移動",
     "move_down": "下へ移動",
-    "remove": "削除"
+    "remove": "削除",
+    "pin_failed": "この回答をピン留めできませんでした。",
+    "reorder_failed": "このカードを並べ替えできませんでした。",
+    "remove_failed": "このカードを削除できませんでした。"
+  },
+  "velocity": {
+    "title": "ベロシティ",
+    "kpi_member_cycle": "メンバーのサイクルタイム · {{days}}日",
+    "kpi_agent_cycle": "エージェントのサイクルタイム · {{days}}日",
+    "kpi_throughput": "完了イシュー · {{days}}日",
+    "throughput_hint": "メンバー {{member}} 件 · エージェント {{agent}} 件",
+    "closed_hint": "{{count}} 件完了",
+    "no_closed": "この期間に完了したイシューはありません",
+    "days_unit": "日",
+    "legend_member": "メンバー",
+    "legend_agent": "エージェント",
+    "throughput_title": "週間スループット",
+    "throughput_empty": "この期間に完了したイシューはありません。",
+    "tooltip_total": "合計",
+    "cost_title": "完了イシューあたりのコスト",
+    "cost_series": "平均コスト",
+    "cost_caption": "エージェント実行を伴う完了イシュー — コストはそれらの実行分のみです。",
+    "cost_empty": "この期間にエージェント実行を伴う完了イシューはありません。",
+    "empty_title": "ベロシティはまだありません",
+    "empty_body": "メンバーやエージェントがイシューを完了すると、過去 {{days}} 日間のサイクルタイムと週間スループットがここに表示されます。",
+    "load_error": "ベロシティを読み込めませんでした。",
+    "retry": "再試行"
   }
 }

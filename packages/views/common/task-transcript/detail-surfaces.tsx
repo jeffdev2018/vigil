@@ -118,6 +118,10 @@ export function PatchDetailSurface({
         // Transcript events are immutable once persisted, so index is stable.
         <div key={`${file.path}:${index}`}>
           <div className="flex items-center gap-2 px-3 pt-2 font-mono text-micro">
+            {/* add/delete/update render as-is, uppercase, in the same
+                font-mono git-status-badge style as the path next to them —
+                developer-facing diff jargon, not prose, left untranslated
+                the same way "STDIO"/"HTTP" are elsewhere in this package. */}
             {file.changeKind && (
               <span
                 className={cn(

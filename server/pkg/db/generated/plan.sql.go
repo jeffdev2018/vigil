@@ -475,6 +475,25 @@ func (q *Queries) SetPlanVerificationState(ctx context.Context, arg SetPlanVerif
 	return err
 }
 
+const setPlanVerificationTaskID = `-- name: SetPlanVerificationTaskID :exec
+UPDATE plan_verification SET task_id = $2 WHERE id = $1
+`
+
+type SetPlanVerificationTaskIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	TaskID pgtype.UUID `json:"task_id"`
+}
+
+// MaybeEnqueuePlanVerification records the row BEFORE enqueuing the
+// verification run, with task_id set to the placeholder value $2
+// (source_task_id) so PlanVerificationExistsForSource closes the re-fire
+// window immediately. This swaps the placeholder for the real verification
+// task_id once EnqueueTaskForIssueWithHandoff has actually succeeded.
+func (q *Queries) SetPlanVerificationTaskID(ctx context.Context, arg SetPlanVerificationTaskIDParams) error {
+	_, err := q.db.Exec(ctx, setPlanVerificationTaskID, arg.ID, arg.TaskID)
+	return err
+}
+
 const supersedeOtherIssuePlans = `-- name: SupersedeOtherIssuePlans :exec
 UPDATE issue_plan
 SET superseded_at = now()
@@ -494,7 +513,7 @@ func (q *Queries) SupersedeOtherIssuePlans(ctx context.Context, arg SupersedeOth
 const touchIssueRevision = `-- name: TouchIssueRevision :one
 UPDATE issue SET revision = revision + 1, updated_at = now()
 WHERE id = $1
-RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type
+RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id
 `
 
 // Plan and verification changes live in side tables; bumping the issue
@@ -540,6 +559,7 @@ func (q *Queries) TouchIssueRevision(ctx context.Context, id pgtype.UUID) (Issue
 		&i.DelegateID,
 		&i.CycleID,
 		&i.IssueType,
+		&i.RecurrenceID,
 	)
 	return i, err
 }

@@ -81,8 +81,11 @@ import { ProjectPicker } from "../../projects/components/project-picker";
 import { GoalPicker } from "../../goals/components/goal-picker";
 import { CyclePicker } from "../../cycles/components/cycle-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
-import { CommentCard } from "./comment-card";
 import { MeetingOriginLink } from "./meeting-origin-link";
+import { useNewRunIds } from "./use-run-comment-motion";
+import { AgentRunComment, CommentCard } from "./comment-card";
+import { EMPTY_COMMENT_RUNS, buildCommentRunView, type CommentRun } from "./comment-runs";
+import { issueTasksOptions } from "@multica/core/issues/queries";
 import { SourceContextBadge } from "./source-context-viewer";
 import { RevisionConflictCompare } from "./revision-conflict-compare";
 import { CommentInput } from "./comment-input";
@@ -94,8 +97,14 @@ import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
+import { GoalSection } from "./goal-section";
+import { FollowupsSection } from "./followups-section";
+import { RecurrenceSection } from "./recurrence-section";
 import { DecisionCardsSection } from "./decision-cards-section";
+import { ApprovalCard, PendingApprovalsBar } from "../../approvals/approval-card";
+import { issueApprovalsOptions, type ApprovalItem } from "@multica/core/approvals";
 import { RunSecretsSection } from "./run-secrets-section";
+import { SandboxOverrideSection } from "./sandbox-override-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
@@ -139,6 +148,8 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useRecentContextStore } from "@multica/core/chat";
 import { useModalStore } from "@multica/core/modals";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { issueListOptions, issueDetailOptions, childIssuesOptions, childIssueProgressOptions, issueAttachmentsOptions } from "@multica/core/issues/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
@@ -502,14 +513,42 @@ function shallowEqualEntries(a: TimelineEntry[], b: TimelineEntry[]): boolean {
 // into one activity-group row) but project it into a discriminated union
 // the itemContent dispatcher can switch on.
 type TimelineItem =
+  | { kind: "run"; id: string; run: CommentRun; entry?: TimelineEntry }
   | { kind: "comment"; id: string; entry: TimelineEntry }
   | { kind: "resolved-bar"; id: string; entry: TimelineEntry }
-  | { kind: "activity-group"; id: string; entries: TimelineEntry[] };
+  | { kind: "activity-group"; id: string; entries: TimelineEntry[] }
+  // Inline approvals (OS plan, chantier 3): a pending ask sits in the
+  // timeline at the moment it was asked, decidable in place.
+  | { kind: "approval"; id: string; approval: ApprovalItem };
 
-type RawTimelineGroup = {
-  type: "comment" | "activities";
-  entries: TimelineEntry[];
-};
+type RawTimelineGroup =
+  | { type: "comment" | "activities"; entries: TimelineEntry[] }
+  | { type: "approval"; approval: ApprovalItem }
+  | { type: "run"; run: CommentRun; entry?: TimelineEntry };
+
+/**
+ * Interleaves pending asks with the grouped timeline by time asked. An ask
+ * with no usable timestamp lands at the end, which is where the eye looks
+ * for what is waiting now.
+ */
+function interleaveApprovals(groups: RawTimelineGroup[], approvals: ReadonlyArray<ApprovalItem>): RawTimelineGroup[] {
+  if (approvals.length === 0) return groups;
+  const stamp = (g: RawTimelineGroup): number => {
+    if (g.type === "approval") {
+      const t = Date.parse(g.approval.created_at);
+      return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+    }
+    const at = g.type === "run" ? (g.entry?.created_at ?? g.run.task.created_at) : g.entries[0]?.created_at;
+    const t = Date.parse(at ?? "");
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const merged: RawTimelineGroup[] = [...groups, ...approvals.map((approval) => ({ type: "approval" as const, approval }))];
+  // Stable: ties keep the timeline's own order, approvals after entries.
+  return merged
+    .map((g, i) => ({ g, i, t: stamp(g) }))
+    .sort((a, b) => a.t - b.t || a.i - b.i)
+    .map(({ g }) => g);
+}
 
 function flattenGroups(
   groups: ReadonlyArray<RawTimelineGroup>,
@@ -517,6 +556,14 @@ function flattenGroups(
 ): TimelineItem[] {
   const out: TimelineItem[] = [];
   for (const group of groups) {
+    if (group.type === "approval") {
+      out.push({ kind: "approval", id: group.approval.id, approval: group.approval });
+      continue;
+    }
+    if (group.type === "run") {
+      out.push({ kind: "run", id: group.entry?.id ?? group.run.task.id, run: group.run, entry: group.entry });
+      continue;
+    }
     if (group.type === "comment") {
       const entry = group.entries[0]!;
       const isResolved = !!entry.resolved_at;
@@ -801,15 +848,14 @@ function SubIssueRow({
               )}
             />
           )}
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={() => toggleSelected(child.id)}
+            onCheckedChange={() => toggleSelected(child.id)}
             aria-label={t(($) => $.detail.select_sub_issue_aria, {
               identifier: child.identifier,
             })}
             className={cn(
-              "absolute inset-0 cursor-pointer accent-primary transition-opacity",
+              "absolute inset-0 cursor-pointer transition-opacity",
               selected
                 ? "opacity-100"
                 : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
@@ -1405,7 +1451,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Issue data from TQ — uses detail query, seeded from list cache if available.
   // Only seed when description is present; the list API omits it, so a partial
   // list row must not masquerade as a hydrated issue detail.
-  const { data: issue = null, isLoading: issueLoading, refetch: refetchIssue } = useQuery({
+  const { data: issue = null, isLoading: issueLoading, error: issueError, refetch: refetchIssue } = useQuery({
     ...issueDetailOptions(wsId, id),
     // List rows and issue-created realtime payloads intentionally omit the
     // detail-only source-context snapshot. They can still seed this query via
@@ -1478,6 +1524,15 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     editComment, deleteComment, toggleResolveComment, toggleReaction: handleToggleReaction,
   } = useIssueTimeline(id, user?.id);
 
+  const { data: commentTasks } = useQuery(issueTasksOptions(id));
+  const enteringRunIds = useNewRunIds(id, commentTasks);
+  const previousCommentRuns = useRef(new Map<string, CommentRun[]>());
+  const { runs: commentRuns, timeline: displayTimeline, standaloneRuns } = useMemo(() => {
+    const next = buildCommentRunView(commentTasks ?? [], timeline, previousCommentRuns.current);
+    previousCommentRuns.current = next.runs;
+    return next;
+  }, [commentTasks, timeline]);
+
   // Resolve / unresolve must always clear the per-session expand entry so
   // re-resolving an already-expanded thread folds it back to the bar (the
   // expand Set is keyed only on commentId, not on resolution state). Without
@@ -1488,13 +1543,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       // Fold the thread back on any resolve change: clear the thread ROOT's
       // expand entry (expand state is keyed on root id, but a resolve target
       // can be a reply). Walk parent_id up to the root.
-      const byId = new Map(timeline.map((e) => [e.id, e]));
+      const byId = new Map(displayTimeline.map((e) => [e.id, e]));
       let cur = byId.get(commentId);
       while (cur?.parent_id && byId.get(cur.parent_id)) cur = byId.get(cur.parent_id)!;
       clearResolvedExpand(cur?.id ?? commentId);
       toggleResolveComment(commentId, resolved);
     },
-    [timeline, clearResolvedExpand, toggleResolveComment],
+    [displayTimeline, clearResolvedExpand, toggleResolveComment],
   );
 
   // Memoized timeline grouping. Each render rebuilds the per-parent map from
@@ -1512,11 +1567,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     // bucketed under their parent's id and rendered nested inside CommentCard.
     // No orphan rescue needed: the timeline is fetched in full, so every
     // reply's parent is always in the same array.
-    const topLevel = timeline.filter(
+    const topLevel = displayTimeline.filter(
       (e) => e.type === "activity" || !e.parent_id,
     );
     const repliesByParent = new Map<string, TimelineEntry[]>();
-    for (const e of timeline) {
+    for (const e of displayTimeline) {
       if (e.type === "comment" && e.parent_id) {
         const list = repliesByParent.get(e.parent_id) ?? [];
         list.push(e);
@@ -1547,13 +1602,24 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     const COALESCE_MS = 2 * 60 * 1000;
     const NO_TIME_LIMIT_ACTIONS = new Set(["task_completed", "task_failed"]);
     const NEVER_COALESCE_ACTIONS = new Set(["squad_leader_evaluated"]);
-    const coalesced: TimelineEntry[] = [];
-    for (const entry of topLevel) {
+    // Unanchored runs separate activity groups at their actual start position.
+    const standaloneReplyIds = new Set(standaloneRuns.filter((run) => run.hasReply).map((run) => run.commentId));
+    const chronological = [...topLevel.filter((entry) => !standaloneReplyIds.has(entry.id)), ...standaloneRuns].sort((a, b) => {
+      const left = "task" in a ? a.task : a;
+      const right = "task" in b ? b.task : b;
+      return Date.parse(left.created_at) - Date.parse(right.created_at);
+    });
+    const coalesced: (TimelineEntry | CommentRun)[] = [];
+    for (const entry of chronological) {
+      if ("task" in entry) {
+        coalesced.push(entry);
+        continue;
+      }
       if (entry.type === "activity") {
         const prev = coalesced[coalesced.length - 1];
         if (
           !NEVER_COALESCE_ACTIONS.has(entry.action!) &&
-          prev?.type === "activity" &&
+          prev && !("task" in prev) && prev.type === "activity" &&
           prev.action === entry.action &&
           prev.actor_type === entry.actor_type &&
           prev.actor_id === entry.actor_id &&
@@ -1568,9 +1634,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     }
 
     // Group consecutive activities together so the connector line works
-    const groups: { type: "activities" | "comment"; entries: TimelineEntry[] }[] = [];
+    const groups: RawTimelineGroup[] = [];
     for (const entry of coalesced) {
-      if (entry.type === "activity") {
+      if ("task" in entry) {
+        groups.push({ type: "run", run: entry, entry: entry.hasReply ? displayTimeline.find((comment) => comment.id === entry.commentId) : undefined });
+      } else if (entry.type === "activity") {
         const last = groups[groups.length - 1];
         if (last?.type === "activities") {
           last.entries.push(entry);
@@ -1583,16 +1651,27 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     }
 
     return { threadReplies, groups };
-  }, [timeline]);
+  }, [displayTimeline, standaloneRuns]);
 
   // Flat array consumed by <Virtuoso>. Recomputed when timelineView.groups
   // changes (timeline events) or expandedResolved flips (user toggles a
   // resolved thread). Kept in a useMemo so Virtuoso's data identity is stable
   // across unrelated re-renders.
+  const { data: approvalsFeed } = useQuery(issueApprovalsOptions(wsId, id));
+  const pendingApprovals = useMemo(() => approvalsFeed?.approvals ?? [], [approvalsFeed]);
   const items = useMemo<TimelineItem[]>(
-    () => flattenGroups(timelineView.groups, expandedResolved),
-    [timelineView.groups, expandedResolved],
+    () => flattenGroups(interleaveApprovals([...timelineView.groups], pendingApprovals), expandedResolved),
+    [timelineView.groups, pendingApprovals, expandedResolved],
   );
+  const scrollToApproval = useCallback((approvalId: string) => {
+    const index = items.findIndex((it) => it.kind === "approval" && it.id === approvalId);
+    if (index < 0) return;
+    if (virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({ index, align: "start", offset: -16 });
+    } else {
+      document.getElementById(`approval-${approvalId}`)?.scrollIntoView({ block: "start" });
+    }
+  }, [items]);
 
   // In-page find (Cmd/Ctrl+F). `items.length` is the content signal that
   // triggers a match recompute when comments are added/removed; text edits
@@ -1655,7 +1734,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const minimapThreads = useMemo<ThreadMinimapThread[]>(
     () =>
       items.flatMap((it) => {
-        if (it.kind !== "comment" && it.kind !== "resolved-bar") return [];
+        if (it.kind === "activity-group" || it.kind === "approval" || !it.entry) return [];
         const replies = timelineView.threadReplies.get(it.id) ?? EMPTY_REPLIES;
         return [
           {
@@ -1926,14 +2005,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     const rootId = replyToRoot.get(highlightCommentId);
     if (rootId && rootId !== highlightCommentId) {
       // Root resolved → the whole thread is a folded bar.
-      if (items[targetIdx]?.kind === "resolved-bar") {
+      const rootItem = items[targetIdx];
+      if (rootItem?.kind === "resolved-bar" || (rootItem?.kind === "run" && rootItem.entry?.resolved_at && !expandedResolved.has(rootId))) {
         toggleResolvedExpand(rootId, true);
         return;
       }
       // A reply is the resolution → the other replies fold behind the
       // "N comments" bar; expand if the target is one of those folded replies.
-      const rootItem = items[targetIdx];
-      if (rootItem?.kind === "comment" && !expandedResolved.has(rootId)) {
+      if ((rootItem?.kind === "comment" || rootItem?.kind === "run") && rootItem.entry && !expandedResolved.has(rootId)) {
         const resolution = deriveThreadResolution(
           rootItem.entry,
           timelineView.threadReplies.get(rootId) ?? EMPTY_REPLIES,
@@ -2059,7 +2138,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       { content: issue?.description, attachments: descEditorAttachments },
     ];
     for (const item of items) {
-      if (item.kind === "activity-group") continue;
+      if (item.kind === "activity-group" || item.kind === "approval" || !item.entry) continue;
       blocks.push({
         content: item.entry.content,
         attachments: item.entry.attachments,
@@ -2296,6 +2375,16 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   }
 
   if (!issue) {
+    if (issueError && !isResourceMissingError(issueError)) {
+      return (
+        <div className="flex flex-1 min-h-0 flex-col">
+          {leadingAction && (
+            <div className={cn("flex h-12 shrink-0 items-center gap-2 border-b", PAGE_GUTTER)}>{leadingAction}</div>
+          )}
+          <LoadErrorState onRetry={() => void refetchIssue()} />
+        </div>
+      );
+    }
     return <IssueNotFound showBackLink={!onDelete} leading={leadingAction} />;
   }
 
@@ -2678,6 +2767,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Run-scoped secrets (K09): which keys each run received as tokens; hides itself until one exists. */}
       <RunSecretsSection issueId={id} />
 
+      {/* Sandbox override (JEF-256): issue-scoped network / sensitive-file restrictions, on top of the project policy. */}
+      <SandboxOverrideSection issueId={id} />
+
       {/* Runtime failover (K28): moves between runtimes; loud when a run is degraded. */}
       <FailoverSection issueId={id} />
 
@@ -2769,6 +2861,21 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Plan verification — the issue plan and its newest verification
           report (F17). Hides itself until a plan is published. */}
       <PlanVerificationSection issueId={id} />
+
+      {/* Goal loop: the agent works this issue toward a stated goal across
+          bounded continuations. Hides itself until a goal exists, except a
+          compact affordance to set one while an agent is assigned. */}
+      <GoalSection issueId={id} issue={issue} />
+
+      {/* Follow-ups: scheduled wake-ups of this issue's agent. Sits under the
+          goal because both answer "what happens next on this issue", one by
+          continuation and one by the clock. */}
+      <FollowupsSection issueId={id} issue={issue} />
+
+      {/* Recurrence: the standing order that raises this issue again. Sits
+          beside the follow-ups because both answer "what happens next by the
+          clock" — one wakes the agent, the other files a new issue. */}
+      <RecurrenceSection issueId={id} />
       </>}
 
       {/* Details — creator and timestamps. Sits below the execution log
@@ -2842,6 +2949,32 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // The wrapper `id="comment-..."` is the deep-link target — equivalent to
   // a native `<a href="#comment-...">` anchor.
   const renderItem = (_i: number, item: TimelineItem): React.ReactElement => {
+    if (item.kind === "approval") {
+      return (
+        <div className="pb-3" id={`approval-${item.id}`}>
+          <ApprovalCard approval={item.approval} wsId={wsId} />
+        </div>
+      );
+    }
+    if (item.kind === "run") {
+      const reply = item.entry;
+      return <div className="pb-3" id={reply ? `comment-${reply.id}` : undefined}>
+        {reply?.resolved_at && !expandedResolved.has(reply.id) ? <ResolvedThreadBar
+          entry={reply} replies={timelineView.threadReplies.get(reply.id) ?? EMPTY_REPLIES}
+          onExpand={() => toggleResolvedExpand(reply.id, true)} /> : <AgentRunComment run={item.run} entering={enteringRunIds.has(item.run.task.id)} standalone
+          commentProps={reply ? {
+            issueId: id, entry: reply, replies: timelineView.threadReplies.get(reply.id) ?? EMPTY_REPLIES,
+            currentUserId: user?.id, canModerate: canModerateComments, onReply: submitReply,
+            onReplyAccepted: scrollToTimelineBottom, onEdit: editComment, onDelete: deleteComment,
+            onToggleReaction: handleToggleReaction, onCreateSubIssue: openCommentSubIssue,
+            onResolveToggle: handleResolveToggle,
+            onCollapseResolved: reply.resolved_at ? () => toggleResolvedExpand(reply.id, false) : undefined,
+            expandedResolvedIds: expandedResolved, onResolvedExpandChange: toggleResolvedExpand,
+            highlightedCommentId: highlightedId,
+            runs: commentRuns.get(reply.id) ?? EMPTY_COMMENT_RUNS, enteringRunIds,
+          } : undefined} />}
+      </div>;
+    }
     if (item.kind === "resolved-bar") {
       return (
         <div className="pb-3" id={`comment-${item.id}`}>
@@ -2859,6 +2992,8 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         <div className="pb-3" id={`comment-${item.id}`}>
           <CommentCard
             issueId={id}
+            runs={commentRuns.get(item.id) ?? EMPTY_COMMENT_RUNS}
+            enteringRunIds={enteringRunIds}
             entry={item.entry}
             replies={timelineView.threadReplies.get(item.id) ?? EMPTY_REPLIES}
             currentUserId={user?.id}
@@ -2978,6 +3113,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       size="icon-sm"
                       className="text-muted-foreground"
                       onClick={() => { handleUpdateField({ status: "done" }); onDone?.(); }}
+                      aria-label={t(($) => $.detail.mark_done_tooltip)}
                     >
                       <CircleCheck />
                     </Button>
@@ -2995,6 +3131,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       size="icon-sm"
                       className="text-muted-foreground"
                       onClick={() => { onDone(); }}
+                      aria-label={t(($) => $.detail.archive_tooltip)}
                     >
                       <Archive />
                     </Button>
@@ -3011,6 +3148,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     size="icon-sm"
                     className={cn("text-muted-foreground", actions.isPinned && "text-foreground")}
                     onClick={actions.togglePin}
+                    aria-label={actions.isPinned ? t(($) => $.detail.unpin_tooltip) : t(($) => $.detail.pin_tooltip)}
                   >
                     {actions.isPinned ? <PinOff /> : <Pin />}
                   </Button>
@@ -3026,7 +3164,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               // to the list we came from, falling back to all issues.
               onDeletedFallbackPath={onDelete ? undefined : paths.issues()}
               trigger={
-                <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-label={t(($) => $.detail.more_actions_tooltip)}
+                >
                   <MoreHorizontal />
                 </Button>
               }
@@ -3039,6 +3182,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     size="icon-sm"
                     className={sidebarOpen ? "" : "text-muted-foreground"}
                     onClick={handleToggleSidebar}
+                    aria-label={t(($) => $.detail.sidebar_tooltip)}
                   >
                     <PanelRight />
                   </Button>
@@ -3336,16 +3480,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                   {/* issue.id, not the route param — the endpoint takes a
                       UUID and the route may carry a human-readable id. */}
                   <SubIssuesAgentWorkingChip parentIssueId={issue.id} />
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={allChildrenSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someChildrenSelected && !allChildrenSelected;
-                    }}
-                    onChange={handleToggleSelectAllChildren}
+                    indeterminate={someChildrenSelected && !allChildrenSelected}
+                    onCheckedChange={handleToggleSelectAllChildren}
                     aria-label={t(($) => $.detail.select_all_sub_issues_aria)}
                     className={cn(
-                      "ml-1 cursor-pointer accent-primary transition-opacity",
+                      "ml-1 cursor-pointer transition-opacity",
                       someChildrenSelected
                         ? "opacity-100"
                         : "opacity-0 group-hover/sub-issues:opacity-100 focus-visible:opacity-100",
@@ -3588,6 +3729,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               // on a target" have fundamentally opposed contracts (estimated
               // heights vs real heights). Trying to satisfy both in one
               // path is what produced the bug history this PR closes.
+              <PendingApprovalsBar approvals={pendingApprovals} onSelect={scrollToApproval} />
+            )}
+            {timelineLoading && timelineView.groups.length === 0 ? null : (
               !highlightCommentId && !find.open ? (
                 !scrollContainerEl ? (
                   // Skeleton while the callback ref populates so the gap
@@ -3603,7 +3747,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       data={items}
                       initialScrollTop={restoredScrollTop}
                       increaseViewportBy={{ top: 800, bottom: 800 }}
-                      computeItemKey={(_i, item) => `${item.kind}:${item.id}`}
+                      computeItemKey={(_i, item) => `${item.kind}:${item.kind === "run" ? item.run.task.id : item.id}`}
                       skipAnimationFrameInResizeObserver
                       // followOutput intentionally NOT set. Virtuoso treats
                       // it as a sticky "is at bottom" flag and resets
@@ -3616,7 +3760,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               ) : (
                 <div className="mt-4">
                   {items.map((item, i) => (
-                    <Fragment key={`${item.kind}:${item.id}`}>
+                    <Fragment key={`${item.kind}:${item.kind === "run" ? item.run.task.id : item.id}`}>
                       {renderItem(i, item)}
                     </Fragment>
                   ))}

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { effectiveMergeReady, unknownMergeBlockers } from "./merge-readiness";
+import { effectiveMergeReady, isKnownMergeBlockerKind, unknownMergeBlockers } from "./merge-readiness";
 
 function stubFetchJson(body: unknown, status = 200) {
   vi.stubGlobal(
@@ -26,6 +26,14 @@ describe("effectiveMergeReady", () => {
     expect(effectiveMergeReady({ ready: true, blockers })).toBe(false);
     expect(unknownMergeBlockers(blockers)).toEqual(blockers);
     expect(unknownMergeBlockers([{ kind: "checks_failing", label: "x" }])).toEqual([]);
+  });
+
+  // server/internal/handler/decision_record.go emits blockerADRRequired =
+  // "adr_required"; merge-readiness-panel.tsx already handles it as a known
+  // case, so the list here must not lag behind and call it unknown.
+  it("knows the ADR-required blocker kind emitted by the server", () => {
+    expect(isKnownMergeBlockerKind("adr_required")).toBe(true);
+    expect(unknownMergeBlockers([{ kind: "adr_required", label: "ADR required" }])).toEqual([]);
   });
 });
 

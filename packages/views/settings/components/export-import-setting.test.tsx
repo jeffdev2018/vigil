@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { TransferPreview, TransferRun } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -63,7 +64,7 @@ describe("ExportImportSetting", () => {
     const blob = new Blob(["zip"]);
     mocks.exportWorkspace.mockResolvedValue({ blob, filename: "agency.zip", runId: "run-1" });
     renderSetting();
-    fireEvent.click(screen.getByLabelText("Include issues"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include issues" }));
     fireEvent.click(screen.getByRole("switch", { name: "Save as template" }));
     fireEvent.change(screen.getByLabelText("Template name"), { target: { value: "Starter" } });
     fireEvent.click(screen.getByRole("button", { name: "Export" }));
@@ -88,7 +89,9 @@ describe("ExportImportSetting", () => {
     expect(screen.getByText("agent · Mika")).toBeInTheDocument();
     expect(screen.getByText("agent · Mika · OPENAI_API_KEY")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("On collision"), { target: { value: "merge" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "On collision" }));
+    await user.click(await screen.findByRole("option", { name: "Merge into the existing item" }));
     fireEvent.change(screen.getByLabelText("Mika.OPENAI_API_KEY"), { target: { value: "sk-test" } });
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
@@ -111,7 +114,9 @@ describe("ExportImportSetting", () => {
     expect(history).toHaveTextContent("Template");
     expect(history).toHaveTextContent("Agency HQ");
     expect(history).toHaveTextContent("Failed");
-    expect(history).toHaveTextContent("skip");
+    // Strategy renders through the same strategy_* label the picker above
+    // uses, not the raw "skip" wire value.
+    expect(history).toHaveTextContent("Skip the imported item");
   });
 
   it("shows the empty history state and disables controls without edit rights", async () => {

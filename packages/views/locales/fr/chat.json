@@ -31,7 +31,8 @@
     "change_project_context": "Modifier le contexte du projet",
     "remove_project_context": "Supprimer le contexte du projet",
     "no_projects": "Aucun projet pour le moment",
-    "project_context_unsupported": "La description du projet ne s'appliquera pas — le daemon de cet agent nécessite une mise à jour"
+    "project_context_unsupported": "La description du projet ne s'appliquera pas — le daemon de cet agent nécessite une mise à jour",
+    "run_notice": "Envoyer lance un run de {{name}} ; cela peut prendre quelques minutes."
   },
   "queue": {
     "title_one": "{{count}} message en attente",
@@ -247,7 +248,8 @@
     "rename": "Renommer le chat",
     "archive": "Archiver le chat",
     "unarchive": "Désarchiver le chat",
-    "delete": "Supprimer le chat"
+    "delete": "Supprimer le chat",
+    "more_actions_aria": "Plus d'actions"
   },
   "voice": {
     "start": "Dicter un message",
@@ -258,7 +260,10 @@
     "error_not_configured": "La transcription n'est pas configurée sur ce serveur.",
     "error_failed": "L'enregistrement n'a pas pu être transcrit.",
     "listen": "Écouter",
-    "stop_listening": "Arrêter l'écoute"
+    "stop_listening": "Arrêter l'écoute",
+    "conversation_start": "Mode conversation",
+    "conversation_stop": "Arrêter la conversation",
+    "conversation_transcribing": "Transcription…"
   },
   "participants": {
     "add": "Ajouter un membre",
@@ -269,5 +274,9 @@
     "typing_name": "{{name}} est en train d'écrire…",
     "typing_count": "{{count}} personnes sont en train d'écrire…",
     "author_badge": "Envoyé par {{name}}"
+  },
+  "approvals": {
+    "strip_title_one": "{{count}} approbation en attente",
+    "strip_title_other": "{{count}} approbations en attente"
   }
 }

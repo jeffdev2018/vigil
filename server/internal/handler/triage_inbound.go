@@ -203,6 +203,7 @@ func (h *Handler) HandleInboundTriageEmail(w http.ResponseWriter, r *http.Reques
 		BodyMarkdown:    body,
 		TriggerPayload:  raw,
 		State:           triage.StatePending,
+		DedupeKey:       strings.TrimSpace(req.MessageID),
 	}
 	if triage.Decide(source.Mode) == triage.RouteDrop {
 		// A blocked inbox still records what it refused, and still answers 202:

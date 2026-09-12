@@ -7,7 +7,8 @@
     "mark_all_read": "Mark all as read",
     "archive_all": "Archive all",
     "archive_all_read": "Archive all read",
-    "archive_completed": "Archive completed"
+    "archive_completed": "Archive completed",
+    "more_actions_aria": "More actions"
   },
   "filters": {
     "tooltip": "Filter inbox",
@@ -31,6 +32,7 @@
   },
   "list": {
     "empty": "No notifications",
+    "empty_hint": "Comments, assignments and agent updates land here as they happen.",
     "mark_done_tooltip": "Mark as done",
     "archive_tooltip": "Archive",
     "time": {
@@ -47,10 +49,13 @@
     "attention_empty": "Nothing needs your attention.",
     "briefing_title": "This morning",
     "retro_title": "Weekly retro",
-    "decisions_title": "Decisions waiting for you"
+    "decisions_title": "Decisions waiting for you",
+    "approval_action_failed": "Could not record the answer"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
+    "select_prompt_hint": "Pick a notification on the left to read it and act on it.",
+    "empty_hint": "Comments, assignments and agent updates land here as they happen.",
     "empty": "Your inbox is empty",
     "original_input": "Original input",
     "retry_with_context": "Retry with context",
@@ -58,7 +63,9 @@
     "autopilot_quota_exceeded_body": "This workspace has reached its limit of {{limit}} autopilot runs for the current period. Further autopilot runs will not start until the allowance resets {{resetAt}}.",
     "autopilot_quota_upgrade": "View upgrade options",
     "archive": "Archive",
-    "unarchive": "Unarchive"
+    "unarchive": "Unarchive",
+    "already_decided": "Already decided",
+    "open_doctrine": "Open the doctrine"
   },
   "types": {
     "issue_assigned": "Assigned",
@@ -95,6 +102,7 @@
     "trust_promotion_suggested": "Trust promotion suggested",
     "triage_stale": "Triage is stalling",
     "transition_approval_requested": "Approval needed",
+    "goal_question": "Question from the agent",
     "critic_degraded": "Adversarial review skipped",
     "critic_budget": "Adversarial review stopped",
     "cycle_rollover_orphaned": "Work left a cycle with nowhere to go",
@@ -108,7 +116,15 @@
     "residency_policy_blocked": "Blocked by data residency",
     "linear_alert": "Linear is disconnected",
     "code_health_report": "Code health report",
-    "doc_drift_report": "Agent context drift"
+    "doc_drift_report": "Agent context drift",
+    "calendar_invitation": "Invited to an event",
+    "calendar_reminder": "Starting soon",
+    "doctrine_review": "Doctrine review",
+    "doctrine_report": "Doctrine report",
+    "confidence_review": "Delivery flagged for review",
+    "run_limit_warn": "Run nearing its limit",
+    "run_limit_exceeded": "Run over its limit",
+    "run_limit_stopped": "Run stopped: limit reached"
   },
   "labels": {
     "set_status_to": "Set status to",

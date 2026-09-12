@@ -29,9 +29,12 @@ interface Props {
 
 export function ProjectResourcesSection({ projectId, onAdd }: Props) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  const { data: resources, isLoading } = useQuery(
-    projectResourcesOptions(wsId, projectId),
-  );
+  const {
+    data: resources,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery(projectResourcesOptions(wsId, projectId));
   const remove = useDeleteProjectResource(projectId);
 
   const onOpen = async (resource: ProjectResource) => {
@@ -71,6 +74,15 @@ export function ProjectResourcesSection({ projectId, onAdd }: Props) {
       {isLoading ? (
         <View className="px-4 py-4 items-center">
           <ActivityIndicator size="small" />
+        </View>
+      ) : error ? (
+        <View className="px-4 py-3 gap-2">
+          <Text className="text-sm text-destructive">
+            Failed to load resources.
+          </Text>
+          <Pressable onPress={() => refetch()} className="self-start">
+            <Text className="text-xs text-brand">Retry</Text>
+          </Pressable>
         </View>
       ) : !resources || resources.length === 0 ? (
         <View className="px-4 py-3">
@@ -136,7 +148,7 @@ function iconFor(type: string): keyof typeof Ionicons.glyphMap {
 function getResourceUrl(resource: ProjectResource): string | null {
   if (resource.resource_type === "github_repo") {
     const ref = resource.resource_ref as GithubRepoResourceRef | undefined;
-    return ref?.url ?? null;
+    return typeof ref?.url === "string" ? ref.url : null;
   }
   // Unknown type — try a `.url` field as a generic fallback.
   const ref = resource.resource_ref as { url?: unknown } | undefined;

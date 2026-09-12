@@ -219,6 +219,7 @@ function LinkHoverCard({
         className="text-muted-foreground"
         onClick={handleCopy}
         title={t(($) => $.link_hover.copy_link)}
+        aria-label={t(($) => $.link_hover.copy_link)}
       >
         <Copy className="size-3.5" />
       </Button>
@@ -228,6 +229,7 @@ function LinkHoverCard({
         className="text-muted-foreground"
         onClick={handleOpen}
         title={t(($) => $.link_hover.open_link)}
+        aria-label={t(($) => $.link_hover.open_link)}
       >
         <ExternalLink className="size-3.5" />
       </Button>

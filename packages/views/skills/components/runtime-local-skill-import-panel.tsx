@@ -123,13 +123,13 @@ function defaultRenameName(name: string): string {
 function ResultIcon({ status }: { status: BulkImportResult["status"] }) {
   switch (status) {
     case "created":
-      return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />;
+      return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />;
     case "updated":
-      return <RefreshCw className="h-3.5 w-3.5 shrink-0 text-blue-600" />;
+      return <RefreshCw className="h-3.5 w-3.5 shrink-0 text-info" />;
     case "conflict":
-      return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />;
+      return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />;
     case "skipped":
-      return <SkipForward className="h-3.5 w-3.5 shrink-0 text-yellow-600" />;
+      return <SkipForward className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
     case "failed":
       return <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />;
   }
@@ -402,7 +402,7 @@ function ConflictResolutionPanel({
           return (
             <div key={r.key} className="rounded-lg border bg-card p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium">{r.name}</div>
                   {r.error && (
@@ -1108,14 +1108,10 @@ export function RuntimeLocalSkillImportPanel({
           <>
             {/* Select all header */}
             <label className="flex cursor-pointer items-center gap-2 px-1 py-1">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected;
-                }}
-                onChange={toggleAll}
-                className="cursor-pointer accent-primary"
+                indeterminate={someSelected}
+                onCheckedChange={toggleAll}
               />
               <span className="text-caption text-muted-foreground">
                 {t(($) => $.runtime_import.select_all, {

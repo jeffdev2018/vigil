@@ -7,6 +7,7 @@ import {
   calendarMonthIsEmpty,
   currentCalendarMonth,
   shiftMonth,
+  weekStartsOnFor,
   type CalendarCell,
   type CalendarMonth,
 } from "@multica/core/issues/calendar-grid";
@@ -171,8 +172,8 @@ export function CalendarView({ issues }: { issues: Issue[] }) {
   const today = useMemo(() => new Date(), []);
 
   const cells = useMemo(
-    () => buildCalendarGrid(month, issues, (issue) => issue.due_date, { today }),
-    [issues, month, today],
+    () => buildCalendarGrid(month, issues, (issue) => issue.due_date, { today, weekStartsOn: weekStartsOnFor(locale) }),
+    [issues, month, today, locale],
   );
   const isEmpty = calendarMonthIsEmpty(cells);
 

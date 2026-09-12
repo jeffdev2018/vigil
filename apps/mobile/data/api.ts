@@ -14,6 +14,8 @@
  *   4. Bearer auth + X-Workspace-Slug — NOT cookie auth (no CSRF, no credentials)
  */
 import type {
+  AgentCostEstimate,
+  CommentTriggerPreview,
   Agent,
   AgentTask,
   Attachment,
@@ -66,6 +68,7 @@ import type {
   PostmortemsResponse,
   Meeting,
   MeetingListResponse,
+  VoiceTranscription,
   UpdateIssueRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -98,8 +101,10 @@ import {
   PostmortemsResponseSchema,
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
+  EMPTY_VOICE_TRANSCRIPTION,
   MeetingListResponseSchema,
   MeetingSchema,
+  VoiceTranscriptionSchema,
   AgentEffectListSchema,
   UndoReportSchema,
   TaskActivityResponseSchema,
@@ -108,6 +113,8 @@ import {
   DeliveryReviewSchema,
   DeliveryCriteriaSchema,
   DeliveryCorrectionSchema,
+  CommentTriggerPreviewSchema,
+  AgentCostEstimateSchema,
   type IssueDelivery,
   type DeliveryReview,
   type DeliveryCorrection,
@@ -186,8 +193,135 @@ import {
   type AgentEffectList,
   type UndoReport,
 } from "./schemas";
+import {
+  EMPTY_ISSUE_GOAL_RESPONSE,
+  IssueGoalResponseSchema,
+  type IssueGoalResponse,
+} from "./schemas";
+import {
+  EMPTY_APPROVALS,
+  ApprovalsResponseSchema,
+  type ApprovalsResponse,
+} from "./schemas";
+import {
+  EMPTY_RUNS_RESPONSE,
+  RunsResponseSchema,
+  type RunsResponse,
+  EMPTY_CANCEL_RUNS_RESPONSE,
+  CancelRunsResponseSchema,
+  type CancelRunsResponse,
+  EMPTY_KILL_SWITCH_RESPONSE,
+  KillSwitchResponseSchema,
+  type KillSwitchResponse,
+  EMPTY_RUN_HALT,
+  RunHaltSchema,
+  type RunHalt,
+} from "./schemas";
+import {
+  DoctrineSchema,
+  DoctrineDiffSchema,
+  DoctrineReportsResponseSchema,
+  DoctrineVersionsResponseSchema,
+  EMPTY_DOCTRINE,
+  EMPTY_DOCTRINE_DIFF,
+  EMPTY_DOCTRINE_REPORTS,
+  EMPTY_DOCTRINE_VERSIONS,
+  type Doctrine,
+  type DoctrineDiff,
+  type DoctrineReportsResponse,
+  type DoctrineVersionsResponse,
+} from "./schemas";
+import {
+  PackCatalogueSchema,
+  PackDetailSchema,
+  PackInstallDetailSchema,
+  PackInstallListSchema,
+  PackInstallResultSchema,
+  PackPreviewSchema,
+  PackUninstallResultSchema,
+  EMPTY_PACK_CATALOGUE,
+  EMPTY_PACK_DETAIL,
+  EMPTY_PACK_INSTALL_DETAIL,
+  EMPTY_PACK_INSTALL_LIST,
+  EMPTY_PACK_INSTALL_RESULT,
+  EMPTY_PACK_PREVIEW,
+  EMPTY_PACK_UNINSTALL_RESULT,
+  type PackCatalogue,
+  type PackDetail,
+  type PackInstallDetail,
+  type PackInstallList,
+  type PackInstallResult,
+  type PackPreview,
+  type PackStrategy,
+  type PackUninstallResult,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
+import {
+  CalendarAgendaSchema,
+  CalendarEventResponseSchema,
+  EMPTY_CALENDAR_AGENDA,
+} from "@multica/core/api/schemas";
+import type { CalendarAgenda, CalendarEventEntry, CalendarEventInput } from "@multica/core/types";
+// Scheduled wake-ups (JEF-373). Schemas and fallbacks are the shared ones in
+// @multica/core/api/schemas — pure zod, on the mobile sharing whitelist — so
+// mobile and web parse the same bytes the same way.
+import {
+  AutopilotDraftResponseSchema,
+  AutopilotProposalResponseSchema,
+  FollowupResponseSchema,
+  IssueFollowupsResponseSchema,
+  EMPTY_AUTOPILOT_DRAFT,
+  EMPTY_AUTOPILOT_PROPOSAL,
+  EMPTY_FOLLOWUP,
+  EMPTY_ISSUE_FOLLOWUPS,
+} from "@multica/core/api/schemas";
+import type {
+  AutopilotDraft,
+  AutopilotProposalResponse,
+  DraftAutopilotInput,
+  Followup,
+  IssueFollowupsResponse,
+  IssueRecurrenceResponse,
+  ProposeAutopilotInput,
+  ScheduleFollowupInput,
+  SetIssueRecurrenceInput,
+} from "@multica/core/types";
+// Recurring issues (OS plan, table stakes). Same shared-zod arrangement as
+// the follow-ups above; there is deliberately no EMPTY_* fallback because
+// "no rule" is a real answer — see the comment on the schema in core.
+import { IssueRecurrenceResponseSchema } from "@multica/core/api/schemas";
+// Workspace Brain (notes + capture inbox + ranked search). Schemas and
+// fallbacks are the shared ones in @multica/core/api/schemas — pure zod, on
+// the mobile sharing whitelist — so mobile and web parse the same bytes the
+// same way instead of drifting through two copies.
+import {
+  BrainCaptureResponseSchema,
+  BrainCapturesResponseSchema,
+  OrganizeBrainCaptureResponseSchema,
+  WorkspaceNoteSchema,
+  WorkspaceNoteSearchResponseSchema,
+  WorkspaceNotesResponseSchema,
+  EMPTY_BRAIN_CAPTURE,
+  EMPTY_BRAIN_CAPTURES_RESPONSE,
+  EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+  EMPTY_WORKSPACE_NOTE,
+  EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
+  EMPTY_WORKSPACE_NOTES_RESPONSE,
+} from "@multica/core/api/schemas";
+import type {
+  BrainCapture,
+  BrainCaptureStatus,
+  BrainCapturesResponse,
+  CreateBrainCaptureInput,
+  CreateWorkspaceNoteInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UpdateWorkspaceNoteInput,
+  WorkspaceNote,
+  WorkspaceNoteSearchResponse,
+  WorkspaceNotesResponse,
+} from "@multica/core/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -243,6 +377,10 @@ export interface ApiClientOptions {
    *  every subsequent request looping on 401. */
   onUnauthorized?: () => void;
 }
+
+// Request tracing is a development aid: a release build must not print
+// every call (with its path and payload sizes) to the device log.
+const apiLog: (...args: unknown[]) => void = __DEV__ ? console.log : () => {};
 
 class ApiClient {
   private token: string | null = null;
@@ -304,7 +442,7 @@ class ApiClient {
       else callerSignal.addEventListener("abort", onCallerAbort);
     }
 
-    console.log(`[api] → ${method} ${path}`, { rid });
+    apiLog(`[api] → ${method} ${path}`, { rid });
 
     let res: Response;
     try {
@@ -368,7 +506,7 @@ class ApiClient {
       throw new ApiError(message, res.status, body);
     }
 
-    console.log(`[api] ← ${res.status} ${path}`, {
+    apiLog(`[api] ← ${res.status} ${path}`, {
       rid,
       duration: `${duration}ms`,
     });
@@ -654,6 +792,36 @@ class ApiClient {
     });
   }
 
+  // Which agents posting this comment would start (web: CommentTriggerChips).
+  // POST /api/issues/{id}/comments/trigger-preview — a malformed answer reads
+  // as "nobody", the composer then simply shows no notice.
+  async previewCommentTriggers(
+    issueId: string,
+    content: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CommentTriggerPreview> {
+    return this.fetchValidatedWith<CommentTriggerPreview>(
+      `/api/issues/${encodeURIComponent(issueId)}/comments/trigger-preview`,
+      CommentTriggerPreviewSchema,
+      { agents: [] },
+      { method: "POST", body: JSON.stringify({ content }) },
+      { signal: opts?.signal, endpoint: "POST /api/issues/:id/comments/trigger-preview" },
+    );
+  }
+
+  // Recent average cost of one run of an agent; null average = unknown.
+  async getAgentCostEstimate(
+    agentId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<AgentCostEstimate> {
+    return this.fetchValidated<AgentCostEstimate>(
+      `/api/agents/${encodeURIComponent(agentId)}/cost-estimate`,
+      AgentCostEstimateSchema,
+      { agent_id: agentId, sample_runs: 0, avg_cost_usd_ticks: null },
+      { signal: opts?.signal, endpoint: "GET /api/agents/:id/cost-estimate" },
+    );
+  }
+
   // --- Run replay (k70) ---
   // GET /api/tasks/{taskId}/replay?cursor=N&limit=N — one page of the
   // hash-chained event log. Read-only on mobile; the resume endpoint is
@@ -825,6 +993,166 @@ class ApiClient {
     );
   }
 
+  // ── Goal loop — mirrors server/internal/handler/issue_goal.go ──────
+  // Every endpoint answers `{goal: State | null}`; schema/fallback are
+  // mobile-local (see EMPTY_ISSUE_GOAL_RESPONSE comment in ./schemas).
+
+  async getIssueGoal(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidated<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { ...opts, endpoint: "GET /api/issues/:id/goal" },
+    );
+  }
+
+  // Server validates (server/internal/service/goal_loop.go SetGoal): goal
+  // <= 6000 chars, max_continuations in [1,20] → 400 with {"error": "..."}
+  // otherwise. Mobile mirrors the same bounds client-side for instant
+  // feedback (lib/issue-goal-display.ts issueGoalFormError) but this is the
+  // authoritative check.
+  async setIssueGoal(
+    issueId: string,
+    body: { goal: string; max_continuations?: number },
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "PUT", body: JSON.stringify(body) },
+      { endpoint: "PUT /api/issues/:id/goal" },
+    );
+  }
+
+  async pauseIssueGoal(issueId: string): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/pause`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST" },
+      { endpoint: "POST /api/issues/:id/goal/pause" },
+    );
+  }
+
+  async resumeIssueGoal(issueId: string): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/resume`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST" },
+      { endpoint: "POST /api/issues/:id/goal/resume" },
+    );
+  }
+
+  // 409 (nothing waiting) surfaces as ApiError with status 409 — the caller
+  // (useAnswerIssueGoal) branches on that instead of a generic error toast.
+  async answerIssueGoal(
+    issueId: string,
+    answer: string,
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/answer`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST", body: JSON.stringify({ answer }) },
+      { endpoint: "POST /api/issues/:id/goal/answer" },
+    );
+  }
+
+  // ── Inline approvals — mirrors packages/core/api/client.ts listApprovals /
+  // decideIssueTransitionRequest. Schema is mobile-local (see the Inline
+  // approvals section of ./schemas — @multica/core/approvals is not on the
+  // mobile sharing whitelist, see the comment there).
+
+  /** Every pending ask, or one issue's, from the unified approvals feed. */
+  async listApprovals(
+    issueId?: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<ApprovalsResponse> {
+    const query = issueId ? `?issue_id=${encodeURIComponent(issueId)}` : "";
+    return this.fetchValidated<ApprovalsResponse>(
+      `/api/approvals${query}`,
+      ApprovalsResponseSchema,
+      EMPTY_APPROVALS,
+      { ...opts, endpoint: "GET /api/approvals" },
+    );
+  }
+
+  // Transition gate (F28): approve/reject a status change held for
+  // approval. Mirrors packages/core/api/client.ts decideIssueTransitionRequest.
+  async decideIssueTransitionRequest(
+    requestId: string,
+    decision: "approve" | "reject",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch(
+      `/api/issue-transition-requests/${encodeURIComponent(requestId)}/${decision}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  // ── Runs fleet (OS plan, chantier 4) — mirrors
+  // server/internal/handler/runs.go / apps/docs/content/docs/runs.mdx.
+  // Schema is mobile-local for the same reason as Inline approvals above.
+
+  /** One page of the fleet, newest first, plus the header counts. */
+  async listRuns(
+    params: { state?: "active" | "terminal" | "all"; cursor?: string; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<RunsResponse> {
+    const search = new URLSearchParams();
+    if (params.state) search.set("state", params.state);
+    if (params.cursor) search.set("cursor", params.cursor);
+    if (params.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    return this.fetchValidated<RunsResponse>(
+      `/api/runs${qs ? `?${qs}` : ""}`,
+      RunsResponseSchema,
+      EMPTY_RUNS_RESPONSE,
+      { ...opts, endpoint: "GET /api/runs" },
+    );
+  }
+
+  /** Stops each run and reports every outcome — a cancel of many never
+   *  gives up because one of them could not stop. */
+  async cancelRuns(taskIds: string[]): Promise<CancelRunsResponse> {
+    return this.fetchValidatedWith<CancelRunsResponse>(
+      "/api/runs/cancel",
+      CancelRunsResponseSchema,
+      EMPTY_CANCEL_RUNS_RESPONSE,
+      { method: "POST", body: JSON.stringify({ task_ids: taskIds }) },
+      { endpoint: "POST /api/runs/cancel" },
+    );
+  }
+
+  /** Owner/admin only: halts the fleet, then cancels every run in flight. */
+  async killSwitch(reason: string): Promise<KillSwitchResponse> {
+    return this.fetchValidatedWith<KillSwitchResponse>(
+      "/api/runs/kill-switch",
+      KillSwitchResponseSchema,
+      EMPTY_KILL_SWITCH_RESPONSE,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      { endpoint: "POST /api/runs/kill-switch" },
+    );
+  }
+
+  /** Lifts (or would set) the halt alone, with no cancellation. The Runs
+   *  banner only ever calls this with `halted: false` — setting the halt
+   *  is the kill switch's job so a halt is never left without the cancel
+   *  sweep that makes it safe to leave on. */
+  async putRunHalt(input: { halted: boolean; reason: string }): Promise<RunHalt> {
+    return this.fetchValidatedWith<RunHalt>(
+      "/api/run-halt",
+      RunHaltSchema,
+      EMPTY_RUN_HALT,
+      { method: "PUT", body: JSON.stringify(input) },
+      { endpoint: "PUT /api/run-halt" },
+    );
+  }
+
   async approvePostmortem(id: string): Promise<Postmortem | null> {
     return this.fetchValidatedWith<Postmortem | null>(
       `/api/postmortems/${encodeURIComponent(id)}/approve`,
@@ -887,6 +1215,370 @@ class ApiClient {
       EMPTY_MEETING,
       { method: "PATCH", body: JSON.stringify(data) },
       { endpoint: "PATCH /api/meetings/:id" },
+    );
+  }
+
+  // --- Native calendar (OS plan, chantier 19) ---
+  // See apps/mobile/data/schemas.ts for why these schemas are mobile-local
+  // rather than @multica/core/api/schemas.
+
+  async getCalendarAgenda(
+    from: string,
+    to: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CalendarAgenda> {
+    const search = new URLSearchParams({ from, to });
+    return this.fetchValidated<CalendarAgenda>(
+      `/api/calendar/agenda?${search.toString()}`,
+      CalendarAgendaSchema,
+      EMPTY_CALENDAR_AGENDA,
+      { ...opts, endpoint: "GET /api/calendar/agenda" },
+    );
+  }
+
+  async getCalendarEvent(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events/${encodeURIComponent(id)}`,
+      { signal: opts?.signal },
+    );
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "GET /api/calendar/events/:id",
+    });
+    return parsed?.event ?? null;
+  }
+
+  async createCalendarEvent(body: CalendarEventInput): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>("/api/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "POST /api/calendar/events",
+    });
+    return parsed?.event ?? null;
+  }
+
+  async respondCalendarEvent(
+    id: string,
+    response: "accepted" | "declined" | "tentative",
+  ): Promise<CalendarEventEntry | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/events/${encodeURIComponent(id)}/respond`,
+      { method: "POST", body: JSON.stringify({ response }) },
+    );
+    const parsed = parseWithFallback<{ event: CalendarEventEntry } | null>(raw, CalendarEventResponseSchema, null, {
+      endpoint: "POST /api/calendar/events/:id/respond",
+    });
+    return parsed?.event ?? null;
+  }
+
+  /** DELETE cancels rather than erasing — 204, nothing to parse. */
+  async cancelCalendarEvent(id: string): Promise<void> {
+    await this.fetch<void>(`/api/calendar/events/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // --- Follow-ups / autopilots from a sentence (JEF-373) ---
+  // A follow-up is a deferred run of the issue's agent
+  // (server/internal/handler/followups.go); an autopilot proposal is a
+  // paused automation behind a Decision Card
+  // (server/internal/handler/autopilot_draft.go).
+
+  async listIssueFollowups(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueFollowupsResponse> {
+    return this.fetchValidated<IssueFollowupsResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups`,
+      IssueFollowupsResponseSchema,
+      EMPTY_ISSUE_FOLLOWUPS,
+      { ...opts, endpoint: "GET /api/issues/:id/followups" },
+    );
+  }
+
+  /** `when` is RFC 3339 or "+<minutes>"; `agent_id` is required unless the
+   *  issue is already assigned to an agent. A 429 carries the budget
+   *  sentence the sheet shows inline. */
+  async scheduleIssueFollowup(
+    issueId: string,
+    body: ScheduleFollowupInput,
+  ): Promise<{ followup: Followup }> {
+    return this.fetchValidatedWith<{ followup: Followup }>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups`,
+      FollowupResponseSchema,
+      { followup: EMPTY_FOLLOWUP },
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/issues/:id/followups" },
+    );
+  }
+
+  /** 204 on success; 409 when it already fired or was cancelled. */
+  async cancelIssueFollowup(issueId: string, followupId: string): Promise<void> {
+    await this.fetch<void>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups/${encodeURIComponent(followupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  // --- Recurring issues (OS plan, table stakes) ---
+  // The rule lives on the source issue and every occurrence carries it, so
+  // the same GET from any member of the series answers with the same rule
+  // (server/internal/handler/issue_recurrence.go).
+
+  /**
+   * The rule of the series this issue belongs to, or null when it doesn't
+   * recur. The 404 the server sends for that case is not an error condition —
+   * it is the answer — so it is caught here rather than turned into a query
+   * error that would put a red state on an issue with nothing wrong with it.
+   * Any other status still throws.
+   */
+  async getIssueRecurrence(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueRecurrenceResponse | null> {
+    try {
+      return await this.fetchValidated<IssueRecurrenceResponse | null>(
+        `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+        IssueRecurrenceResponseSchema,
+        null,
+        { ...opts, endpoint: "GET /api/issues/:id/recurrence" },
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** Creates the rule on this issue, or updates the rule of its series.
+   *  400 for a bad cron / timezone / mode, 403 for a non-member (an agent
+   *  run's task token). Answers with the same payload as the GET. */
+  async setIssueRecurrence(
+    issueId: string,
+    body: SetIssueRecurrenceInput,
+  ): Promise<IssueRecurrenceResponse | null> {
+    return this.fetchValidatedWith<IssueRecurrenceResponse | null>(
+      `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+      IssueRecurrenceResponseSchema,
+      null,
+      { method: "PUT", body: JSON.stringify(body) },
+      { endpoint: "PUT /api/issues/:id/recurrence" },
+    );
+  }
+
+  /** 204 — the series stops and past occurrences stay as ordinary issues. */
+  async clearIssueRecurrence(issueId: string): Promise<void> {
+    await this.fetch<void>(
+      `/api/issues/${encodeURIComponent(issueId)}/recurrence`,
+      { method: "DELETE" },
+    );
+  }
+
+  /** Writes nothing — 503 when the workspace has no model configured. */
+  async draftAutopilot(
+    body: DraftAutopilotInput,
+  ): Promise<{ draft: AutopilotDraft }> {
+    return this.fetchValidatedWith<{ draft: AutopilotDraft }>(
+      "/api/autopilots/draft",
+      AutopilotDraftResponseSchema,
+      { draft: EMPTY_AUTOPILOT_DRAFT },
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/autopilots/draft" },
+    );
+  }
+
+  /** Files the autopilot paused; with `issue_id` a Decision Card lands on
+   *  that issue and its id comes back as `decision_id`. */
+  async proposeAutopilot(
+    body: ProposeAutopilotInput,
+  ): Promise<AutopilotProposalResponse> {
+    return this.fetchValidatedWith<AutopilotProposalResponse>(
+      "/api/autopilots/propose",
+      AutopilotProposalResponseSchema,
+      EMPTY_AUTOPILOT_PROPOSAL,
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/autopilots/propose" },
+    );
+  }
+
+  // --- Workspace doctrine (OS plan, chantier 22) ---
+  // Read + review + resolve only: writing the doctrine (PUT, restore) stays
+  // on web/desktop, so no publish method here.
+
+  async getDoctrine(opts?: { signal?: AbortSignal }): Promise<Doctrine> {
+    return this.fetchValidated<Doctrine>(
+      "/api/workspace/doctrine",
+      DoctrineSchema,
+      EMPTY_DOCTRINE,
+      { ...opts, endpoint: "GET /api/workspace/doctrine" },
+    );
+  }
+
+  async listDoctrineVersions(
+    params?: { cursor?: string | null; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineVersionsResponse> {
+    const search = new URLSearchParams();
+    if (params?.cursor) search.set("cursor", params.cursor);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return this.fetchValidated<DoctrineVersionsResponse>(
+      `/api/workspace/doctrine/versions${query ? `?${query}` : ""}`,
+      DoctrineVersionsResponseSchema,
+      EMPTY_DOCTRINE_VERSIONS,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/versions" },
+    );
+  }
+
+  /** Compares a version with what came before it (the live doctrine for a
+   *  proposal, the previous revision for an activated one). */
+  async getDoctrineVersionDiff(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineDiff> {
+    return this.fetchValidated<DoctrineDiff>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/diff`,
+      DoctrineDiffSchema,
+      EMPTY_DOCTRINE_DIFF,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/versions/:id/diff" },
+    );
+  }
+
+  async listDoctrineReports(
+    status: "open" | "acknowledged" | "dismissed" | "all",
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineReportsResponse> {
+    return this.fetchValidated<DoctrineReportsResponse>(
+      `/api/workspace/doctrine/reports?status=${status}`,
+      DoctrineReportsResponseSchema,
+      EMPTY_DOCTRINE_REPORTS,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/reports" },
+    );
+  }
+
+  /** Approve / reject a pending revision. The response carries the doctrine
+   *  and the reviewed version, but the caller invalidates rather than
+   *  patches (the review moves the live revision, the ledger and the inbox
+   *  at once), so nothing here reaches a render path unparsed. */
+  async reviewDoctrineVersion(
+    id: string,
+    decision: "approve" | "reject",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch<void>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/${decision}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  /** Acknowledge / dismiss a doctrine report. Same reasoning as above. */
+  async resolveDoctrineReport(
+    id: string,
+    resolution: "acknowledge" | "dismiss",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch<void>(
+      `/api/workspace/doctrine/reports/${encodeURIComponent(id)}/${resolution}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  // --- Packs (OS plan, vague B) ---
+  // Read + preview + install + uninstall. Upload and export stay on
+  // web/desktop: both are file-system flows (pick a .yaml, save a download)
+  // that have no phone equivalent worth the surface.
+
+  async listPacks(opts?: { signal?: AbortSignal }): Promise<PackCatalogue> {
+    return this.fetchValidated<PackCatalogue>(
+      "/api/packs",
+      PackCatalogueSchema,
+      EMPTY_PACK_CATALOGUE,
+      { ...opts, endpoint: "GET /api/packs" },
+    );
+  }
+
+  async getPack(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<PackDetail> {
+    return this.fetchValidated<PackDetail>(
+      `/api/packs/${encodeURIComponent(id)}`,
+      PackDetailSchema,
+      EMPTY_PACK_DETAIL,
+      { ...opts, endpoint: "GET /api/packs/:id" },
+    );
+  }
+
+  async listPackInstalls(opts?: {
+    signal?: AbortSignal;
+  }): Promise<PackInstallList> {
+    return this.fetchValidated<PackInstallList>(
+      "/api/packs/installed",
+      PackInstallListSchema,
+      EMPTY_PACK_INSTALL_LIST,
+      { ...opts, endpoint: "GET /api/packs/installed" },
+    );
+  }
+
+  async getPackInstall(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<PackInstallDetail> {
+    return this.fetchValidated<PackInstallDetail>(
+      `/api/packs/installed/${encodeURIComponent(id)}`,
+      PackInstallDetailSchema,
+      EMPTY_PACK_INSTALL_DETAIL,
+      { ...opts, endpoint: "GET /api/packs/installed/:id" },
+    );
+  }
+
+  /** Dry run: collisions, problems, the strategy the server would pick, and
+   *  `blocked` when this pack cannot be installed at all. */
+  async previewPack(
+    id: string,
+    strategy?: PackStrategy,
+  ): Promise<PackPreview> {
+    return this.fetchValidatedWith<PackPreview>(
+      `/api/packs/${encodeURIComponent(id)}/preview`,
+      PackPreviewSchema,
+      EMPTY_PACK_PREVIEW,
+      { method: "POST", body: JSON.stringify({ strategy: strategy ?? "" }) },
+      { endpoint: "POST /api/packs/:id/preview" },
+    );
+  }
+
+  /** 409 when the preview said blocked and `force` is not set. */
+  async installPack(
+    id: string,
+    strategy?: PackStrategy,
+    force?: boolean,
+  ): Promise<PackInstallResult> {
+    return this.fetchValidatedWith<PackInstallResult>(
+      `/api/packs/${encodeURIComponent(id)}/install`,
+      PackInstallResultSchema,
+      EMPTY_PACK_INSTALL_RESULT,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          strategy: strategy ?? "",
+          force: force === true,
+        }),
+      },
+      { endpoint: "POST /api/packs/:id/install" },
+    );
+  }
+
+  /** Removes the configuration the pack created; the content it brought stays. */
+  async uninstallPack(id: string): Promise<PackUninstallResult> {
+    return this.fetchValidatedWith<PackUninstallResult>(
+      `/api/packs/installed/${encodeURIComponent(id)}/uninstall`,
+      PackUninstallResultSchema,
+      EMPTY_PACK_UNINSTALL_RESULT,
+      { method: "POST" },
+      { endpoint: "POST /api/packs/installed/:id/uninstall" },
     );
   }
 
@@ -1555,8 +2247,9 @@ class ApiClient {
 
   // --- Chat ---
   // Mirrors the surface area of packages/core/api/client.ts chat methods.
-  // v1 omits getChatSession + updateChatSession (rename) — see the v1 cut
-  // list in /Users/qingnaiyuan/.claude/plans/plan-velvety-puddle.md.
+  // v1 omits getChatSession (session metadata alone, no messages — no
+  // mobile screen reads it standalone) and updateChatSession (rename —
+  // no mobile UI exposes renaming a session yet).
 
   async listChatSessions(
     opts?: { signal?: AbortSignal },
@@ -1759,36 +2452,257 @@ class ApiClient {
     });
   }
 
-  // --- File Upload ---
+  // --- Workspace Brain: notes ---
 
   /**
-   * Multipart-stream a file to `/api/upload-file`. Mirrors the web
-   * implementation in `packages/core/api/client.ts:uploadFile` but with the
-   * RN-shaped `FileAsset` instead of a browser `File`. The fetch FormData
-   * polyfill recognises `{ uri, name, type }` and reads the file off disk.
-   *
-   * `opts.issueId` / `opts.commentId` link the attachment record. Pass
-   * `issueId` when uploading from a comment composer / reply input; leave
-   * both empty when uploading from a not-yet-created issue (the attachment
-   * is hooked to the issue once it's created — same flow as web).
-   *
-   * Does NOT use `this.fetch` because:
-   *   - FormData must not have a `Content-Type` header preset (the browser /
-   *     RN fetch needs to set the multipart boundary itself).
-   *   - `this.fetch` hard-codes `application/json`.
-   *
-   * So we re-implement the auth + slug + logging shell inline.
+   * The Brain listing. `search` and `tag` are server filters (full-text runs
+   * on the GIN index), and `tags` ships alongside the items because the chips
+   * need every live tag, not just the tags of the filtered page — mirrors
+   * `packages/core/api/client.ts:listWorkspaceNotes` parameter for parameter.
    */
-  async uploadFile(
+  async listWorkspaceNotes(
+    params?: { search?: string; tag?: string; archived?: boolean; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNotesResponse> {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.tag) qs.set("tag", params.tag);
+    if (params?.archived === true) qs.set("archived", "true");
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return this.fetchValidated(
+      `/api/workspace/notes${query ? `?${query}` : ""}`,
+      WorkspaceNotesResponseSchema,
+      EMPTY_WORKSPACE_NOTES_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes" },
+    );
+  }
+
+  async getWorkspaceNote(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidated(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes/:id" },
+    );
+  }
+
+  /**
+   * Ranked search: lexical rank fused with a pgvector rank by RRF when an
+   * embeddings model is configured (`vector` says which). Separate endpoint
+   * from the listing because a hit carries a score and a `<mark>`-annotated
+   * snippet instead of the tag facets.
+   */
+  async searchWorkspaceNotes(
+    params: { q: string; tag?: string; archived?: boolean; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNoteSearchResponse> {
+    const qs = new URLSearchParams({ q: params.q });
+    if (params.tag) qs.set("tag", params.tag);
+    if (params.archived === true) qs.set("archived", "true");
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    return this.fetchValidated(
+      `/api/workspace/notes/search?${qs.toString()}`,
+      WorkspaceNoteSearchResponseSchema,
+      EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes/search" },
+    );
+  }
+
+  async createWorkspaceNote(
+    input: CreateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      "/api/workspace/notes",
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "POST", body: JSON.stringify(input) },
+      { endpoint: "POST /api/workspace/notes" },
+    );
+  }
+
+  /** `input.revision` is the value the client read; a 409 means someone (or
+   *  the curation pass) wrote first. */
+  async updateWorkspaceNote(
+    id: string,
+    input: UpdateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "PATCH", body: JSON.stringify(input) },
+      { endpoint: "PATCH /api/workspace/notes/:id" },
+    );
+  }
+
+  async setWorkspaceNoteArchived(
+    id: string,
+    archived: boolean,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      `/api/workspace/notes/${encodeURIComponent(id)}/${archived ? "archive" : "unarchive"}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "POST" },
+      { endpoint: "POST /api/workspace/notes/:id/archive" },
+    );
+  }
+
+  /** 403 unless the caller is a workspace owner/admin or the note's author
+   *  (server/internal/handler/workspace_note.go canDeleteWorkspaceNote). */
+  async deleteWorkspaceNote(id: string): Promise<void> {
+    await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // --- Workspace Brain: capture inbox ---
+
+  async listBrainCaptures(
+    params?: { status?: BrainCaptureStatus | "all"; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<BrainCapturesResponse> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return this.fetchValidated(
+      `/api/brain/captures${query ? `?${query}` : ""}`,
+      BrainCapturesResponseSchema,
+      EMPTY_BRAIN_CAPTURES_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/brain/captures" },
+    );
+  }
+
+  async getBrainCapture(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidated(
+        `/api/brain/captures/${encodeURIComponent(id)}`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { signal: opts?.signal, endpoint: "GET /api/brain/captures/:id" },
+      ),
+    );
+  }
+
+  /** Text / link / todo. `origin` is "mobile" so the inbox can say where a
+   *  capture came in from; image, audio and file go through the upload route
+   *  (the server rejects those kinds here with a 400). */
+  async createBrainCapture(
+    input: CreateBrainCaptureInput,
+  ): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        "/api/brain/captures",
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST", body: JSON.stringify({ origin: "mobile", ...input }) },
+        { endpoint: "POST /api/brain/captures" },
+      ),
+    );
+  }
+
+  /**
+   * A photo, a voice memo or any file, multipart. The server derives the kind
+   * from the content type (image/* → image, audio/* → audio, else file) and
+   * queues transcription for audio. 503 when no storage is configured.
+   */
+  async uploadBrainCapture(
     asset: FileAsset,
-    opts?: { issueId?: string; commentId?: string },
-  ): Promise<Attachment> {
+    fields?: { content?: string; title_hint?: string },
+  ): Promise<BrainCapture> {
+    const raw = await this.postMultipart("/api/brain/captures/upload", asset, {
+      origin: "mobile",
+      content: fields?.content ?? "",
+      title_hint: fields?.title_hint ?? "",
+    });
+    return parseWithFallback(
+      raw,
+      BrainCaptureResponseSchema,
+      { capture: EMPTY_BRAIN_CAPTURE },
+      { endpoint: "POST /api/brain/captures/upload" },
+    ).capture as BrainCapture;
+  }
+
+  /** Re-ask the model. 503 when none is configured, 502 when the call failed —
+   *  neither is an error the user caused, so callers say so rather than toast. */
+  async suggestBrainCapture(id: string): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        `/api/brain/captures/${encodeURIComponent(id)}/suggest`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST" },
+        { endpoint: "POST /api/brain/captures/:id/suggest" },
+      ),
+    );
+  }
+
+  /** note | merge | discard. Only from status "raw" (409 otherwise). */
+  async organizeBrainCapture(
+    id: string,
+    input: OrganizeBrainCaptureInput,
+  ): Promise<OrganizeBrainCaptureResponse> {
+    return this.fetchValidatedWith(
+      `/api/brain/captures/${encodeURIComponent(id)}/organize`,
+      OrganizeBrainCaptureResponseSchema,
+      EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+      { method: "POST", body: JSON.stringify(input) },
+      { endpoint: "POST /api/brain/captures/:id/organize" },
+    );
+  }
+
+  /** A discarded capture back to raw (409 from any other status). */
+  async reopenBrainCapture(id: string): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        `/api/brain/captures/${encodeURIComponent(id)}/reopen`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST" },
+        { endpoint: "POST /api/brain/captures/:id/reopen" },
+      ),
+    );
+  }
+
+  /** Gone for good, with its file unless a note already holds it. */
+  async deleteBrainCapture(id: string): Promise<void> {
+    await this.fetch<void>(`/api/brain/captures/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Every capture read/write answers `{capture}`; unwrap it once. */
+  private async captureFrom(
+    envelope: Promise<{ capture: BrainCapture }>,
+  ): Promise<BrainCapture> {
+    return (await envelope).capture;
+  }
+
+  /**
+   * Voice memo / conversation turn: one audio file in, its text out
+   * (POST /api/voice/transcribe). Mirrors `packages/core/api/client.ts:transcribeVoice`
+   * with the RN-shaped `FileAsset` instead of a browser `Blob`.
+   *
+   * `language` is an ISO-639-1 code; "" leaves the server on MULTICA_STT_LANGUAGE.
+   * 409 `stt_not_configured` surfaces as ApiError with that `code` on the body.
+   */
+  async transcribeVoice(
+    asset: FileAsset,
+    language = "",
+  ): Promise<VoiceTranscription> {
     const rid = createRequestId();
     const start = Date.now();
-    const path = "/api/upload-file";
+    const path = "/api/voice/transcribe";
 
     const headers: Record<string, string> = {
-      // No Content-Type — let fetch set the multipart boundary.
       "X-Client-Platform": "mobile",
       "X-Client-OS": "ios",
       "X-Client-Version": "0.1.0",
@@ -1799,16 +2713,13 @@ class ApiClient {
     if (slug) headers["X-Workspace-Slug"] = slug;
 
     const formData = new FormData();
-    // RN's FormData accepts `{ uri, name, type }` as the file value.
-    // `as never` quiets TS (the global FormData type expects `Blob | string`).
     formData.append(
       "file",
       { uri: asset.uri, name: asset.name, type: asset.type } as never,
     );
-    if (opts?.issueId) formData.append("issue_id", opts.issueId);
-    if (opts?.commentId) formData.append("comment_id", opts.commentId);
+    if (language) formData.append("language", language);
 
-    console.log(`[api] → POST ${path}`, { rid, filename: asset.name });
+    apiLog(`[api] → POST ${path}`, { rid, filename: asset.name });
 
     const res = await fetch(`${API_URL}${path}`, {
       method: "POST",
@@ -1828,7 +2739,7 @@ class ApiClient {
       const message =
         (body && typeof body === "object" && "message" in body
           ? String((body as { message: unknown }).message)
-          : null) ?? `Upload failed: ${res.status}`;
+          : null) ?? `Transcription failed: ${res.status}`;
       console.error(`[api] ← ${res.status} ${path}`, {
         rid,
         duration: `${duration}ms`,
@@ -1837,24 +2748,140 @@ class ApiClient {
       throw new ApiError(message, res.status, body);
     }
 
-    console.log(`[api] ← ${res.status} ${path}`, {
+    const raw = (await res.json()) as unknown;
+    apiLog(`[api] ← ${res.status} ${path}`, {
       rid,
       duration: `${duration}ms`,
     });
+    return parseWithFallback(
+      raw,
+      VoiceTranscriptionSchema,
+      EMPTY_VOICE_TRANSCRIPTION,
+      { endpoint: "POST /api/voice/transcribe" },
+    );
+  }
+
+  // --- File Upload ---
+
+  /**
+   * The multipart shell every file-upload endpoint shares: auth + slug
+   * headers, request id, structured logging, 401 hook, ApiError on non-2xx,
+   * parsed JSON body back.
+   *
+   * Does NOT go through `this.fetch` because:
+   *   - FormData must not have a `Content-Type` header preset (the RN fetch
+   *     polyfill needs to set the multipart boundary itself).
+   *   - `this.fetch` hard-codes `application/json`.
+   *
+   * No timeout / signal plumbing, unlike `this.fetch`: uploads are mutations
+   * (TanStack Query hands `mutationFn` no signal) and a 30s ceiling would
+   * abort a legitimate 40 MB upload on cellular. The 401 hook and the
+   * ApiError contract are the parts callers depend on, so they stay.
+   */
+  private async postMultipart(
+    path: string,
+    asset: FileAsset,
+    fields: Record<string, string> = {},
+  ): Promise<unknown> {
+    const rid = createRequestId();
+    const start = Date.now();
+
+    const headers: Record<string, string> = {
+      // No Content-Type — let fetch set the multipart boundary.
+      "X-Client-Platform": "mobile",
+      "X-Client-OS": "ios",
+      "X-Client-Version": "0.1.0",
+      "X-Request-ID": rid,
+    };
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+    const slug = getCurrentSlug();
+    if (slug) headers["X-Workspace-Slug"] = slug;
+
+    const formData = new FormData();
+    // RN's FormData accepts `{ uri, name, type }` as the file value.
+    // `as never` quiets TS (the global FormData type expects `Blob | string`).
+    formData.append(
+      "file",
+      { uri: asset.uri, name: asset.name, type: asset.type } as never,
+    );
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== "") formData.append(key, value);
+    }
+
+    apiLog(`[api] → POST ${path}`, { rid, filename: asset.name });
+
+    const res = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const duration = Date.now() - start;
+
+    if (!res.ok) {
+      if (res.status === 401) this.options.onUnauthorized?.();
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        body = undefined;
+      }
+      // The Go handlers answer `{"error": "..."}` (handler.go writeError);
+      // `message` is checked first only because a few endpoints predate it.
+      const message =
+        (body && typeof body === "object" && "message" in body
+          ? String((body as { message: unknown }).message)
+          : body && typeof body === "object" && "error" in body
+            ? String((body as { error: unknown }).error)
+            : null) ?? `Upload failed: ${res.status}`;
+      console.error(`[api] ← ${res.status} ${path}`, {
+        rid,
+        duration: `${duration}ms`,
+        error: message,
+      });
+      throw new ApiError(message, res.status, body);
+    }
+
+    apiLog(`[api] ← ${res.status} ${path}`, {
+      rid,
+      duration: `${duration}ms`,
+    });
+    return (await res.json()) as unknown;
+  }
+
+  /**
+   * Multipart-stream a file to `/api/upload-file`. Mirrors the web
+   * implementation in `packages/core/api/client.ts:uploadFile` but with the
+   * RN-shaped `FileAsset` instead of a browser `File`. The fetch FormData
+   * polyfill recognises `{ uri, name, type }` and reads the file off disk.
+   *
+   * `opts.issueId` / `opts.commentId` link the attachment record. Pass
+   * `issueId` when uploading from a comment composer / reply input; leave
+   * both empty when uploading from a not-yet-created issue (the attachment
+   * is hooked to the issue once it's created — same flow as web).
+   */
+  async uploadFile(
+    asset: FileAsset,
+    opts?: { issueId?: string; commentId?: string },
+  ): Promise<Attachment> {
+    const path = "/api/upload-file";
+    const fields: Record<string, string> = {};
+    if (opts?.issueId) fields["issue_id"] = opts.issueId;
+    if (opts?.commentId) fields["comment_id"] = opts.commentId;
 
     // Strict validation: parseWithFallback's silent-fallback pattern doesn't
     // fit here — an attachment without a `url` would be inserted into the
     // user's text as `![](undefined)`. Throw on shape mismatch so the
     // caller's Alert path fires instead of letting a broken link land in
     // the editor.
-    const json: unknown = await res.json();
+    const json = await this.postMultipart(path, asset, fields);
     const parsed = AttachmentSchema.safeParse(json);
     if (!parsed.success) {
       console.error(`[api] ← shape mismatch ${path}`, {
-        rid,
         error: parsed.error.message,
       });
-      throw new ApiError("Upload response invalid", res.status, json);
+      // 200 with a body we cannot use: the upload did happen, so the status
+      // is honest, but the caller must treat it as a failure.
+      throw new ApiError("Upload response invalid", 200, json);
     }
     return parsed.data;
   }

@@ -130,6 +130,7 @@
     "local_on_device": "{{device}} にバインド済み",
     "local_this_machine": "このマシン",
     "local_daemon_offline": "デーモンがオフラインです。ローカルディレクトリをバインドするには起動してください。",
+    "local_daemon_dropped": "フォルダ選択中にデーモンがオフラインになりました。プロジェクトを作成する前に再接続してください。",
     "local_pick": "ディレクトリを選択…",
     "local_picking": "選択画面を開いています…",
     "local_change": "ディレクトリを変更…",
@@ -241,7 +242,8 @@
       "error_agent_unavailable_fallback": "エージェントを利用できません。別のエージェントを選択してください。",
       "error_daemon_version": "このエージェントのデーモン CLI（{{current}}）が必要なバージョン {{min}} を下回っています。エージェントで作成を使用するには、デーモンをアップグレードしてください。",
       "error_unknown": "送信できませんでした。再試行してください。",
-      "sub_issue_of": "{{identifier}} のサブ課題"
+      "sub_issue_of": "{{identifier}} のサブ課題",
+      "run_notice": "作成すると {{name}} の実行が始まり、エージェントが説明から課題を作成します。"
     },
     "scoping_toggle": "数文から下書きを作成",
     "scoping_placeholder": "イシューを数文で説明してください…",
@@ -257,6 +259,13 @@
     "title_blocked_by": "ブロック元を選択",
     "description": "この課題に関連付ける課題を検索してください",
     "toast_failed": "依存関係を追加できませんでした",
-    "toast_success": "{{identifier}} を関連付けました"
+    "toast_success": "{{identifier}} を関連付けました",
+    "title": "関連を追加",
+    "type_labels": {
+      "blocks": "ブロック",
+      "blocked_by": "ブロックされる",
+      "related": "関連",
+      "duplicate": "重複"
+    }
   }
 }

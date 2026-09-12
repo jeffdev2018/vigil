@@ -1,0 +1,72 @@
+---
+title: 캘린더
+description: 멤버와 에이전트가 참가자가 되는 이벤트, 이슈 기한과 사이클과 회의를 한데 모으는 어젠다, 빈 시간 찾기, 에이전트가 제안하고 사람이 수락하는 제안, ICS 피드와 Google 캘린더.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+워크스페이스에는 자체 캘린더가 있습니다. **이벤트**에는 제목, 타임존이 있는 시간 범위, 선택적인 장소, 그것이 관련된 선택적인 이슈나 프로젝트, 그리고 멤버 또는 에이전트인 **참가자**가 있습니다 — 에이전트는 사람과 마찬가지로 리뷰에 참석하며, 그 실행은 이를 알고 있습니다.
+
+## 페이지
+
+사이드바의 **캘린더**는 월간 또는 주간 보기를 보여줍니다. 매일 워크스페이스의 이벤트, 그날이 기한인 **이슈**, 그날을 지나가는 **사이클**, 기록된 **회의**가 함께 표시됩니다. 이벤트를 클릭하면 누가 참가하는지 볼 수 있고, 본인의 참석 여부(수락, 거절, 미정)를 답하거나 이동하거나 취소할 수 있습니다. 취소된 이벤트는 취소됨으로 계속 표시되어, 구독 중인 피드도 해당 이벤트가 취소되었음을 알 수 있습니다.
+
+**어젠다** 뷰는 같은 내용에 같은 기간의 **예약된 깨우기**를 더해 목록으로 보여주며, `GET /api/calendar/agenda`는 그것을 스크립트에 제공합니다.
+
+## 제안
+
+에이전트는 혼자서는 누구의 캘린더에도 무언가를 올릴 수 없습니다. 실행으로부터 — 네이티브 런타임의 `propose_event` 도구, MCP의 `vigil_calendar` 도구, 또는 `multica calendar propose`를 통해 — 에이전트는 자신이 작업 중인 이슈에 대해 해당 이벤트를 **제안됨**으로 등록하며, 이슈의 관계자들이 [판단하는](/decisions#어디서-답변하나요) 모든 곳 — 이슈 타임라인, 인박스, 채팅, 휴대폰, Slack, Telegram, Lark — 에서 볼 수 있는 Decision Card를 함께 답니다. **수락**하면 일정이 잡히고 참가자가 초대되며, **거절**하면 취소됩니다.
+
+에이전트는 제안하기 전에 어젠다를 읽고 빈 시간을 물어보도록, 그리고 제안은 한 번만 하도록 안내받습니다.
+
+## 예약된 깨우기
+
+**후속 작업**은 에이전트가 선택한 시각에 이슈로 돌아오는 것이며, 그때 무엇을 할지 적은 메모를 함께 가져옵니다 — [오토파일럿](/autopilots)의 일회성 사촌입니다. 어젠다는 날짜가 있는 다른 항목들과 나란히 이것을 보여줍니다. `GET /api/calendar/agenda`는 이슈, 에이전트, 발동 시각, 메모를 담은 `followups` 배열을 반환하므로, 깨우기는 같은 날의 이벤트와 기한 옆에 보입니다.
+
+```bash
+multica issue followup ONE-42 --when "+90" --note "배포 확인하기"
+multica issue followups ONE-42
+multica issue followup-cancel ONE-42 <followup-id>
+```
+
+`--when`은 RFC 3339 시각이나 지금부터 `+<분>`을 받으며, 1분에서 30일 사이에 있어야 합니다. 후속 작업은 이슈에도 표시되고 실행 목록에서는 *deferred* 상태로 막힌 실행으로 보이고 막힌 이유에는 그 메모가 나오며, 이슈를 볼 수 있는 사람이라면 누구나 발동 전에 취소할 수 있습니다. 실행이 여기에 쓰는 도구와, 깨우기가 무한 루프가 되지 않게 하는 일일 예산은 [네이티브 런타임](/native-runtime)에 정리되어 있습니다.
+
+## 빈 시간
+
+**빈 시간 찾기**(또는 `GET /api/calendar/slots`)는 참가자, 소요 시간, 기간을 받아 모두가 가능한 첫 시간대를 반환합니다: 멤버는 요청한 타임존에서 평일 09:00~18:00 이내이면서 자신의 이벤트 외의 시간, 에이전트는 자신의 이벤트 외의 시간이라면 언제든 대상입니다.
+
+## 초대와 알림
+
+일정이 잡힌 이벤트에 초대된 멤버는 인박스 항목과 푸시 알림을 받으며, 이벤트를 이동하면 다시 초대됩니다. 이벤트 시작 15분 전, 거절하지 않은 모든 참가자는 인박스와 휴대폰으로 알림을 받습니다.
+
+## 나의 ICS 피드
+
+**설정 → 캘린더 → 캘린더 앱에서 구독**은 Apple 캘린더, Google 캘린더, Outlook이 구독할 수 있는 비공개 URL(`/api/calendar/ics/<token>`)을 발급합니다. 여기에는 당신이 참여했거나 만든 이벤트가 지난 한 달과 앞으로 1년 치, 취소된 항목은 표시된 채로 담깁니다. 이 URL 자체가 인증 수단이므로, 다시 발급하면 회전되고 해지하면 무효화됩니다.
+
+<Callout title="두 방향, 두 설정">
+**당신이 구독하는 피드**(Multica가 당신의 미팅 이름을 알아내기 위해 읽는 외부 ICS)는 **설정 → 회의**에 있습니다. **Multica가 당신을 위해 발행하는 피드**는 바로 이것입니다.
+</Callout>
+
+## Google 캘린더
+
+**설정 → 통합 → Composio** 아래에서 `googlecalendar` 툴킷을 연결하면, **Google에서 가져오기**가 지정한 기간의 Google 이벤트를 워크스페이스 캘린더로 가져오고(소스는 *google*, 해당 id를 키로 사용하므로 두 번째 가져오기는 중복 대신 갱신이 됩니다), 여기서 예약한 이벤트는 당신의 Google 캘린더에 미러링됩니다. 에이전트는 이 작업을 위해 Google에 직접 접근하지 않습니다 — 두 작업 모두 당신 자신의 연결을 통해 서버 측에서 실행됩니다.
+
+## 도구와 CLI
+
+- 네이티브 런타임: `list_events`, `find_slot`, `propose_event`.
+- MCP: `vigil_calendar`, 액션은 `events`, `agenda`, `slots`, `propose`.
+- CLI: `multica calendar agenda | events | slots | propose`. 어젠다에 나오는 깨우기는 `multica issue followup | followups | followup-cancel`로 다룹니다.
+
+## API
+
+- `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`, `POST /api/calendar/events`, `GET/PUT/DELETE /api/calendar/events/{id}`, `POST /api/calendar/events/{id}/respond {response}`.
+- `GET /api/calendar/agenda?from&to`(이벤트, 이슈 기한, 사이클, 회의, 그리고 해당 기간의 `followups`), `GET /api/calendar/slots?participants&duration&from&to&tz`.
+- `POST /api/issues/{id}/followups {when, note?, agent_id?}`, `GET /api/issues/{id}/followups`, `DELETE /api/issues/{id}/followups/{followupId}`. 실시간 이벤트는 `followup:changed`.
+- `GET/POST/DELETE /api/calendar/feed-token`, 공개 `GET /api/calendar/ics/{token}`.
+- `POST /api/calendar/google/import {from, to}`.
+- 이벤트 `calendar:changed`는 열려 있는 페이지를 최신 상태로 유지합니다. 인박스 유형은 `calendar_invitation`과 `calendar_reminder`.
+
+## 다음 단계
+
+- [결정](/decisions) — 제안이 수락되는 곳.
+- [회의](/meetings) — 어젠다에 표시되는 기록된 회의.

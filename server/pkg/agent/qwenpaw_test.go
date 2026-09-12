@@ -775,3 +775,25 @@ done
 		t.Fatalf("expected daemon-injected workspace path in command args, got:\n%s", args)
 	}
 }
+
+// A prompt the ACP server ends with stopReason "cancelled" did not complete;
+// reporting it as completed would pass an interrupted run off as a success.
+func TestQwenpawCancelledStopReasonAborts(t *testing.T) {
+	t.Parallel()
+	script := strings.Replace(fakeQwenpawACPScript(), `"stopReason":"end_turn"`, `"stopReason":"cancelled"`, 1)
+	bin := writeFakeQwenpawScript(t, script)
+	b, err := New("qwenpaw", Config{ExecutablePath: bin, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("New(qwenpaw): %v", err)
+	}
+	session, err := b.Execute(context.Background(), "finish", ExecOptions{Cwd: t.TempDir(), Timeout: 10 * time.Second})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	for range session.Messages {
+	}
+	result := <-session.Result
+	if result.Status != "aborted" || !strings.Contains(result.Error, "cancelled") {
+		t.Fatalf("result = %+v, want aborted", result)
+	}
+}

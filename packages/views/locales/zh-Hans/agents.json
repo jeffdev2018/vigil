@@ -44,7 +44,9 @@
   },
   "empty": {
     "title": "还没有智能体",
-    "description": "创建一个智能体，像分配给同事那样把任务交给它。本地智能体在你的机器上运行，云智能体在 Multica 运行时上运行。"
+    "description": "创建一个智能体，像分配给同事那样把任务交给它。本地智能体在你的机器上运行，云智能体在 Multica 运行时上运行。",
+    "description_run_explainer": "智能体可以在浏览器里的原生运行时上运行，也可以在你连接的电脑上运行。",
+    "description_run_explainer_link": "查看运行时"
   },
   "no_matches": {
     "title": "无匹配项",
@@ -106,6 +108,7 @@
     "set_access_skipped": "{{count}} 个已跳过(不是你所有)。",
     "set_access_dialog_confirm": "应用",
     "set_access_bulk_partial": "已应用 {{succeeded}} 个;{{failed}} 个失败(保持当前状态)。",
+    "bulk_partial": "成功 {{succeeded}} 个,失败 {{failed}} 个。",
     "agent_archived_toast": "已归档智能体",
     "archive_failed_toast": "归档智能体失败",
     "agent_restored_toast": "已恢复智能体",
@@ -123,6 +126,7 @@
     "cancel_dialog_keep": "保留",
     "cancel_dialog_confirm": "取消全部运行",
     "archive_dialog_title": "归档\"{{name}}\"？",
+    "archive_dialog_title_bulk_other": "归档 {{count}} 个智能体？",
     "archive_dialog_description": "归档后这个智能体将无法被分配或提及，进行中的运行会被取消。所有历史会被保留，可以稍后恢复。",
     "archive_dialog_cancel": "取消",
     "archive_dialog_confirm": "归档"
@@ -267,7 +271,9 @@
     "managed_by_runtime_title": "模型选择由该运行时管理。",
     "managed_by_runtime_hint": "请在运行时主机上配置模型（例如 Hermes 会从自身配置文件读取）。",
     "discovery_failed": "发现失败",
-    "clear_full": "清除选择（使用提供方默认）"
+    "clear_full": "清除选择（使用提供方默认）",
+    "custom_label": "自定义",
+    "provider_fallback_label": "模型"
   },
   "tabs": {
     "overview": "概览",
@@ -434,6 +440,7 @@
     "create_failed_toast": "创建智能体失败",
     "skill_attach_failed_toast": "智能体已创建，但 skill 关联失败：{{error}}",
     "squad_join_failed_toast": "智能体\"{{name}}\"已创建，但加入小队失败：{{error}}。你可以在 Members 标签里手动添加。",
+    "squad_join_unknown_error": "未知错误",
     "instructions": {
       "label": "指令",
       "placeholder_blank": "点击撰写指令…",
@@ -719,6 +726,7 @@
       "assigned_hint": "工作区 skill 会跟随智能体。你可以临时关闭，而不必将其移除。",
       "runtime_title": "从运行时继承",
       "runtime_hint": "自动从 {{runtime}} 发现；只要该智能体在这个运行时执行，就可以直接使用。",
+      "runtime_hint_unset": "自动从已分配的运行时发现；只要该智能体在这个运行时执行，就可以直接使用。",
       "workspace_badge": "工作区",
       "inherited_badge": "继承",
       "refresh_action": "刷新",
@@ -1031,6 +1039,7 @@
   "live_peek": {
     "current_issue_label": "正在处理",
     "no_current_issue": "暂无任务",
+    "issue_load_error": "无法加载该任务",
     "last_activity_label": "最近活动",
     "no_recent_activity": "暂无活动",
     "failed_indicator": "失败"
@@ -1364,5 +1373,13 @@
     "safe_hint": "安全模式会保留所有 Multica 写入等待你批准，并要求智能体描述外部操作而不是执行；保留的负载就是证据。",
     "safe_started": "安全回放已启动",
     "safe_failed": "无法启动安全回放"
+  },
+  "run_details": {
+    "details": "在 {{runtime}} 上运行 · {{cost}}",
+    "details_auto": "在 {{runtime}} 或自动选择的运行时上运行 · {{cost}}",
+    "runtime_unknown": "你无权查看的运行时",
+    "cost_average_other": "每次运行约 {{cost}}（最近 {{count}} 次已计价运行的平均值）",
+    "cost_loading": "正在估算成本…",
+    "cost_unknown": "成本未知（尚无已计价的运行）"
   }
 }

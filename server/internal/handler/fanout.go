@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -72,7 +73,10 @@ func (h *Handler) fanoutToResponse(ctx context.Context, b db.FanoutBatch) Fanout
 		ExpectedCount: b.ExpectedCount, CompletedCount: b.CompletedCount, FailedCount: b.FailedCount, SynthesisTaskID: uuidToPtr(b.SynthesisTaskID),
 		Members: []FanoutMemberResponse{}, CreatedAt: timestampToString(b.CreatedAt), CompletedAt: timestampToPtr(b.CompletedAt),
 	}
-	rows, _ := h.Queries.ListFanoutBatchMembers(ctx, b.ID)
+	rows, err := h.Queries.ListFanoutBatchMembers(ctx, b.ID)
+	if err != nil {
+		slog.Warn("fanout: list batch members failed", "batch_id", uuidToString(b.ID), "error", err)
+	}
 	for _, m := range rows {
 		out.Members = append(out.Members, FanoutMemberResponse{
 			ID: uuidToString(m.ID), ChildIssueID: uuidToString(m.ChildIssueID), TaskID: uuidToString(m.TaskID), TaskStatus: m.TaskStatus, AssigneeAgentID: uuidToString(m.AssigneeAgentID),
@@ -115,6 +119,21 @@ func (h *Handler) parseFanoutSubTasks(w http.ResponseWriter, r *http.Request, is
 	return subs, true
 }
 
+// fanoutSubTaskTitle derives a child issue's title from its sub-task
+// description: the first line, capped at 120 bytes without splitting a
+// multi-byte UTF-8 rune (the description is free-form agent/user text and
+// may be CJK — conventions.zh.mdx).
+func fanoutSubTaskTitle(desc string) string {
+	title := desc
+	if nl := strings.IndexByte(title, '\n'); nl > 0 {
+		title = title[:nl]
+	}
+	if len(title) > 120 {
+		title = util.TruncateUTF8Bytes(title, 117) + "..."
+	}
+	return title
+}
+
 // launchFanout creates the batch, one child issue per sub-task (assigned,
 // with its run queued) and the member rows. On error it returns the HTTP
 // status and message to write.
@@ -130,13 +149,7 @@ func (h *Handler) launchFanout(ctx context.Context, issue db.Issue, leader db.Ag
 	prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
 	members := make([]db.FanoutBatchMember, 0, len(subs))
 	for i, st := range subs {
-		title := st.desc
-		if nl := strings.IndexByte(title, '\n'); nl > 0 {
-			title = title[:nl]
-		}
-		if len(title) > 120 {
-			title = title[:117] + "..."
-		}
+		title := fanoutSubTaskTitle(st.desc)
 		res, err := h.IssueService.Create(ctx, service.IssueCreateParams{
 			WorkspaceID: issue.WorkspaceID, Title: title,
 			Description: pgtype.Text{String: fmt.Sprintf("Sub-task %d of the fan-out on %s-%d.\n\n%s", i+1, prefix, issue.Number, st.desc), Valid: true},
@@ -166,6 +179,9 @@ func (h *Handler) launchFanout(ctx context.Context, issue db.Issue, leader db.Ag
 func (h *Handler) StartFanout(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	var req FanoutRequest
@@ -272,7 +288,9 @@ func (h *Handler) updateFanoutBarrier(ctx context.Context, task db.AgentTaskQueu
 		return
 	}
 	if counts.Completed+counts.Failed < batch.ExpectedCount {
-		_ = h.Queries.UpdateFanoutCounts(ctx, db.UpdateFanoutCountsParams{ID: batch.ID, CompletedCount: counts.Completed, FailedCount: counts.Failed})
+		if err := h.Queries.UpdateFanoutCounts(ctx, db.UpdateFanoutCountsParams{ID: batch.ID, CompletedCount: counts.Completed, FailedCount: counts.Failed}); err != nil {
+			slog.Warn("fanout: update counts failed", "batch_id", uuidToString(batch.ID), "error", err)
+		}
 		h.publishFanoutProgress(ctx, batch)
 		return
 	}

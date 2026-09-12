@@ -61,6 +61,7 @@ describe("pending custom runtime rows", () => {
       ownerId: "user-1",
       localDaemonId: "daemon-1",
       localMachineName: "MacBook",
+      fallbackMachineName: "Fallback machine",
     });
 
     expect(pending.id).toBe(pendingRuntimeId("profile-1"));
@@ -89,6 +90,7 @@ describe("pending custom runtime rows", () => {
         ownerId: "user-1",
         localDaemonId: "daemon-1",
         localMachineName: "MacBook",
+        fallbackMachineName: "Fallback machine",
       }).map((item) => item.id),
     ).toEqual(["runtime-1", pendingRuntimeId(prof.id)]);
 
@@ -99,6 +101,7 @@ describe("pending custom runtime rows", () => {
         ownerId: "user-1",
         localDaemonId: "daemon-1",
         localMachineName: "MacBook",
+        fallbackMachineName: "Fallback machine",
       }).map((item) => item.id),
     ).toEqual(["runtime-1", "runtime-custom"]);
   });
@@ -108,6 +111,7 @@ describe("pending custom runtime rows", () => {
     const pending = pendingRuntimeFromProfile({
       profile: profile(),
       createdAt,
+      fallbackMachineName: "Fallback machine",
     });
 
     expect(
@@ -128,6 +132,7 @@ describe("pending custom runtime rows", () => {
     const pending = pendingRuntimeFromProfile({
       profile: profile({ enabled: false }),
       createdAt: Date.parse("2026-01-01T00:00:00Z"),
+      fallbackMachineName: "Fallback machine",
     });
 
     expect(isPendingCustomRuntime(pending)).toBe(true);

@@ -17,7 +17,8 @@
     "no_matches": "No projects match",
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
-    "clear_selection": "Clear selection"
+    "clear_selection": "Clear selection",
+    "pin_partial": "Pinned {{succeeded}}, {{failed}} failed"
   },
   "table": {
     "name": "Name",
@@ -81,7 +82,8 @@
     "toast_link_copied": "Link copied",
     "toast_project_deleted": "Project deleted",
     "toast_move_issue_failed": "Failed to move issue",
-    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate."
+    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate.",
+    "more_actions_aria": "More actions"
   },
   "resources": {
     "section_header": "Resources",
@@ -151,7 +153,8 @@
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",
     "confirm": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "partial": "Deleted {{succeeded}}, {{failed}} failed"
   },
   "picker": {
     "no_project": "No project",
@@ -224,6 +227,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "The rule could not be saved"
   },
+  "sandbox_policy": {
+    "section": "Sandbox policy",
+    "description": "Restrict agent runs in this project: which network hosts they may reach, and whether they may read sensitive files. Workspace, project and issue policies combine, and the most restrictive wins.",
+    "capability_hint": "Allowlist and no-network modes need a container-capable runtime: runs on runtimes without that capability are refused and fail over (fail-closed).",
+    "network": "Network access",
+    "mode": {
+      "unrestricted": "Unrestricted",
+      "allowlist": "Allowlist",
+      "none": "No network"
+    },
+    "hint": {
+      "unrestricted": "Runs may reach any host.",
+      "allowlist": "Only the listed hosts and the platform defaults are reachable.",
+      "none": "No network egress beyond what the platform needs."
+    },
+    "hosts_label": "Allowed hosts",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "One host per line. The platform defaults stay reachable.",
+    "block_sensitive": "Block sensitive files",
+    "block_sensitive_help": "Agents must not read .env files (best effort).",
+    "effective": "Effective for this project: {{mode}}",
+    "effective_blocked": "sensitive files blocked",
+    "effective_inherited": "inherited from the workspace default",
+    "empty": "No project policy: the workspace default applies.",
+    "save": "Save policy",
+    "saving": "Saving...",
+    "reset": "Reset to workspace default",
+    "toast_saved": "Sandbox policy saved",
+    "toast_reset": "Sandbox policy reset to the workspace default",
+    "failed": "The sandbox policy could not be saved",
+    "load_failed": "The sandbox policy could not be loaded"
+  },
   "members": {
     "section": "Members and roles",
     "description": "Roles here only restrict: a member or agent never gets more in this project than its workspace role allows.",
@@ -239,7 +274,12 @@
     "agent": "agent",
     "updated": "Role updated",
     "update_failed": "Failed to update the role",
-    "read_only": "Only workspace owners, admins and project admins can change roles."
+    "read_only": "Only workspace owners, admins and project admins can change roles.",
+    "roles": {
+      "viewer": "Viewer",
+      "contributor": "Contributor",
+      "admin": "Admin"
+    }
   },
   "review": {
     "section": "Agent review",

@@ -35,6 +35,12 @@ const PRIORITY_LABEL: Record<IssuePriority, string> = {
 
 // Mirrors useTypeLabels in packages/views/inbox/components/inbox-detail-label.tsx
 const TYPE_LABEL: Record<InboxItemType, string> = {
+  // Workspace doctrine (OS plan, chantier 22).
+  doctrine_review: "Doctrine review",
+  doctrine_report: "Doctrine report",
+  // Native calendar (OS plan, chantier 19).
+  calendar_invitation: "Invitation",
+  calendar_reminder: "Reminder",
   issue_assigned: "Assigned",
   issue_subscribed: "Subscribed",
   unassigned: "Unassigned",
@@ -69,6 +75,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   postmortem_ready: "Postmortem ready",
   triage_stale: "Triage is stalling",
   transition_approval_requested: "Approval needed",
+  goal_question: "Question from the agent",
   critic_degraded: "Adversarial review skipped",
   critic_budget: "Adversarial review stopped",
   cycle_rollover_orphaned: "Work left a cycle with nowhere to go",
@@ -83,6 +90,11 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   residency_policy_blocked: "Blocked by data residency",
   linear_alert: "Linear is disconnected",
   decision_auto_decided: "Decided for you",
+  // Delivery confidence and run limits (audit: mobile showed the raw codes).
+  confidence_review: "Delivery flagged for review",
+  run_limit_warn: "Run nearing its limit",
+  run_limit_exceeded: "Run over its limit",
+  run_limit_stopped: "Run stopped: limit reached",
 };
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).
@@ -106,9 +118,10 @@ export function InboxDetailLabel({
   // and glyph all resolve through the workspace catalog. (MUL-6243)
   const { categoryOf, colorOf, labelOf } = useIssueStatuses();
   const details = item.details ?? {};
+  const type = item.type;
 
   // Cases with inline icons → Row layout.
-  if (item.type === "status_changed" && details.to) {
+  if (type === "status_changed" && details.to) {
     const status = details.to;
     return (
       <View className={cn("flex-row items-center gap-1", className)}>
@@ -126,7 +139,7 @@ export function InboxDetailLabel({
     );
   }
 
-  if (item.type === "priority_changed" && details.to) {
+  if (type === "priority_changed" && details.to) {
     const priority = details.to as IssuePriority;
     return (
       <View className={cn("flex-row items-center gap-1", className)}>
@@ -141,7 +154,7 @@ export function InboxDetailLabel({
 
   // Single-string cases.
   const text = (() => {
-    switch (item.type) {
+    switch (type) {
       case "issue_assigned":
       case "assignee_changed":
         if (details.new_assignee_id) {
@@ -151,7 +164,7 @@ export function InboxDetailLabel({
           );
           return `Assigned to ${name}`;
         }
-        return TYPE_LABEL[item.type];
+        return TYPE_LABEL[type];
       case "delegate_assigned":
         if (details.new_delegate_id) {
           const name = getName(
@@ -160,7 +173,7 @@ export function InboxDetailLabel({
           );
           return `Delegated to ${name}`;
         }
-        return TYPE_LABEL[item.type];
+        return TYPE_LABEL[type];
       case "unassigned":
         return "Removed assignee";
       case "due_date_changed":
@@ -168,30 +181,47 @@ export function InboxDetailLabel({
           ? `Set due date to ${shortDate(details.to)}`
           : "Removed due date";
       case "new_comment":
-        return singleLine(item.body) || TYPE_LABEL[item.type];
+        return singleLine(item.body) || TYPE_LABEL[type];
       case "reaction_added":
         return details.emoji
           ? `Reacted with ${details.emoji}`
-          : TYPE_LABEL[item.type];
+          : TYPE_LABEL[type];
       case "quick_create_done":
         return details.identifier
           ? `Created with agent: ${details.identifier}`
-          : TYPE_LABEL[item.type];
+          : TYPE_LABEL[type];
       case "quick_create_failed": {
         const detail = singleLine(details.error) || singleLine(item.body);
-        return detail ? `Failed: ${detail}` : TYPE_LABEL[item.type];
+        return detail ? `Failed: ${detail}` : TYPE_LABEL[type];
       }
       // Mirrors packages/views/inbox/components/inbox-detail-label.tsx: the
       // unconfirmed outcome deliberately drops the "Failed:" prefix, because
       // the issue may actually have been created.
       case "quick_create_unconfirmed": {
         const detail = singleLine(details.error) || singleLine(item.body);
-        return detail || TYPE_LABEL[item.type];
+        return detail || TYPE_LABEL[type];
       }
       case "autopilot_quota_exceeded":
         return "Run blocked because the limit was reached";
+      // Native calendar (OS plan, chantier 19): the server already renders
+      // a ready-to-read body ("Mon 2 Jan 2006 15:04 – 15:04 (tz) · location"
+      // for an invitation, "Starts in N min · location" for a reminder —
+      // see notifyCalendarInvitations / RemindCalendarEvents in
+      // server/internal/handler/calendar_events.go), so this mirrors the
+      // new_comment case: show the body, fall back to the type label.
+      case "calendar_invitation":
+      case "calendar_reminder":
+        return singleLine(item.body) || TYPE_LABEL[type];
+      // Workspace doctrine (OS plan, chantier 22): same reasoning — the
+      // server writes a ready-to-read body ("A new doctrine revision is
+      // waiting for your review.", "…now live as revision N.", or the
+      // report summary — notifyDoctrineReview / notifyDoctrineReport in
+      // server/internal/handler/workspace_doctrine.go).
+      case "doctrine_review":
+      case "doctrine_report":
+        return singleLine(item.body) || TYPE_LABEL[type];
       default:
-        return TYPE_LABEL[item.type] ?? item.type;
+        return TYPE_LABEL[type] ?? type;
     }
   })();
 

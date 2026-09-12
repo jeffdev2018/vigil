@@ -98,15 +98,21 @@ type WorkspaceResponse struct {
 	// Template / TemplateError (K76) report the template seed of a workspace just created from one.
 	Template      map[string]any `json:"template,omitempty"`
 	TemplateError string         `json:"template_error,omitempty"`
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Slug          string         `json:"slug"`
-	Description   *string        `json:"description"`
-	Context       *string        `json:"context"`
-	Settings      any            `json:"settings"`
-	Repos         any            `json:"repos"`
-	IssuePrefix   string         `json:"issue_prefix"`
-	AvatarURL     *string        `json:"avatar_url"`
+	// Pack / PackError report a catalogue pack seed, kept separate from
+	// Template/TemplateError: a create request can supply both
+	// template_run_id and pack_id, and the two outcomes must not be able to
+	// silently clobber each other in the response.
+	Pack        map[string]any `json:"pack,omitempty"`
+	PackError   string         `json:"pack_error,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Slug        string         `json:"slug"`
+	Description *string        `json:"description"`
+	Context     *string        `json:"context"`
+	Settings    any            `json:"settings"`
+	Repos       any            `json:"repos"`
+	IssuePrefix string         `json:"issue_prefix"`
+	AvatarURL   *string        `json:"avatar_url"`
 	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
 	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
 	// null disables the trigger, which is every workspace's default.
@@ -207,6 +213,8 @@ type CreateWorkspaceRequest struct {
 	IssuePrefix *string `json:"issue_prefix"`
 	// TemplateRunID (K76) seeds the new workspace from a template export the creator can read.
 	TemplateRunID *string `json:"template_run_id"`
+	// PackID (packs, vague B) seeds the new workspace from a catalogue pack.
+	PackID *string `json:"pack_id"`
 }
 
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -228,6 +236,12 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	var req CreateWorkspaceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	// Seeding from a template or pack imports its doctrine, agents and
+	// autopilots — human-only, like installing a pack into a workspace.
+	if ((req.TemplateRunID != nil && *req.TemplateRunID != "") || (req.PackID != nil && *req.PackID != "")) && isMachineCredentialActor(r) {
+		writeError(w, http.StatusForbidden, "only a human can seed a workspace from a template or pack")
 		return
 	}
 
@@ -315,6 +329,16 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
 		return
 	}
+	// Native onboarding (OS plan, chantier 5): the in-server runtime exists
+	// the moment the workspace does, so the runtime step can offer "run in
+	// the browser" without racing the ten-second server tick. Only when the
+	// server can actually run it — an unusable runtime is worse than none.
+	if h.NativeAgents.Available() {
+		if _, err := qtx.SeedNativeRuntimeForWorkspace(r.Context(), db.SeedNativeRuntimeForWorkspaceParams{WorkspaceID: ws.ID, OwnerID: parseUUID(userID)}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to seed the native runtime: "+err.Error())
+			return
+		}
+	}
 
 	// NOTE: CreateWorkspace deliberately does NOT mark the user as
 	// onboarded. The `onboarded_at` flag is owned by CompleteOnboarding
@@ -348,6 +372,14 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 			resp.TemplateError = err.Error()
 		} else {
 			resp.Template = result
+		}
+	}
+	if req.PackID != nil && *req.PackID != "" {
+		if result, err := h.applyWorkspacePack(r.Context(), ws.ID, *req.PackID, userID); err != nil {
+			slog.Warn("workspace pack failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "pack_id", *req.PackID, "error", err)...)
+			resp.PackError = err.Error()
+		} else {
+			resp.Pack = result
 		}
 	}
 	writeJSON(w, http.StatusCreated, resp)
@@ -437,7 +469,30 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		params.Description = pgtype.Text{String: *req.Description, Valid: true}
 	}
 	if req.Context != nil {
-		params.Context = pgtype.Text{String: *req.Context, Valid: true}
+		// The context field is the doctrine's legacy door (installed clients,
+		// `multica workspace update --context`). It goes through the same
+		// ledger as PUT /api/workspace/doctrine; an older client knows no
+		// revision, so it publishes against whatever is live. "Unchanged" is
+		// not an error on this door.
+		if isMachineCredentialActor(r) {
+			writeError(w, http.StatusForbidden, "the doctrine can only be changed by a human")
+			return
+		}
+		member, ok := h.requireWorkspaceMember(w, r, id, "workspace not found")
+		if !ok {
+			return
+		}
+		if !isWorkspaceManager(member) {
+			writeError(w, http.StatusForbidden, "only workspace owners and admins can change the doctrine")
+			return
+		}
+		if _, _, err := h.publishDoctrine(r.Context(), idUUID, member, doctrinePublication{Content: *req.Context}); err != nil {
+			var de *doctrineError
+			if !errors.As(err, &de) || de.msg != "the doctrine is unchanged" {
+				writeDoctrineError(w, err)
+				return
+			}
+		}
 	}
 	if req.Settings != nil {
 		s, _ := json.Marshal(req.Settings)
@@ -1293,6 +1348,38 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			name: "purge calendar events",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarEvents(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge calendar participants",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarEventParticipants(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge doctrine versions",
+			run:  func() error { return qtx.PurgeWorkspaceDoctrineVersions(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge doctrine reports",
+			run:  func() error { return qtx.PurgeWorkspaceDoctrineReports(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pack items",
+			run:  func() error { return qtx.PurgeWorkspacePackItems(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pack installs",
+			run:  func() error { return qtx.PurgeWorkspacePackInstalls(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge calendar feed tokens",
+			run:  func() error { return qtx.PurgeWorkspaceCalendarFeedTokens(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge twenty connection",
+			run:  func() error { return qtx.PurgeWorkspaceTwentyConnections(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge decision records",
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
@@ -1467,6 +1554,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceHandoffPackets(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge issue goals",
+			run:  func() error { return qtx.PurgeWorkspaceIssueGoals(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge runtime pools",
 			run:  func() error { return qtx.PurgeWorkspaceRuntimePools(ctx, requester.WorkspaceID) },
 		},
@@ -1613,6 +1704,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceWorktreeRevertRequests(ctx, requester.WorkspaceID) },
 		},
 		{
+			// JEF-255: same shape as the revert requests above — before the
+			// runs they target, and nothing outside the workspace reads them.
+			name: "delete run branch action requests",
+			run:  func() error { return qtx.DeleteWorkspaceRunBranchActionRequests(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete comments",
 			run:  func() error { return qtx.DeleteWorkspaceComments(ctx, requester.WorkspaceID) },
 		},
@@ -1705,6 +1802,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspacePostmortems(ctx, requester.WorkspaceID) },
 		},
 		{
+			// agent_consult (JEF-12) carries no FK; sweep it before the agent
+			// rows it logically hangs off.
+			name: "delete agent consults",
+			run:  func() error { return qtx.DeleteWorkspaceAgentConsults(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete agent effects",
 			run:  func() error { return qtx.DeleteWorkspaceAgentEffects(ctx, requester.WorkspaceID) },
 		},
@@ -1712,6 +1815,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			// workspace_note (Brain) carries no FK; sweep it with the workspace.
 			name: "delete workspace notes",
 			run:  func() error { return qtx.DeleteWorkspaceNotes(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete issue recurrences",
+			run:  func() error { return qtx.PurgeWorkspaceIssueRecurrences(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete brain captures",
+			run:  func() error { return qtx.PurgeWorkspaceBrainCaptures(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete workspace note passages",
+			run:  func() error { return qtx.PurgeWorkspaceNotePassages(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete agents",

@@ -21,9 +21,10 @@ import {
 } from "@multica/ui/components/ui/input-otp";
 import { useAuthStore } from "@multica/core/auth";
 import { workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
+import { api, errorCode } from "@multica/core/api";
 import type { User } from "@multica/core/types";
 import { useT } from "../i18n";
+import { clearSessionResume, readSessionResume, saveSessionResume } from "../common/session-resume";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,7 +33,8 @@ import { useT } from "../i18n";
 interface GoogleAuthConfig {
   clientId: string;
   redirectUri: string;
-  /** Opaque state passed through Google OAuth (e.g. "platform:desktop"). */
+  /** Opaque state passed through Google OAuth (e.g. "platform:desktop").
+   *  An `oauth:<state>` part binding the flow to this browser is appended. */
   state?: string;
 }
 
@@ -111,6 +113,49 @@ export function ssoRequiredSlug(err: unknown): string | null {
   return typeof workspace_slug === "string" ? workspace_slug : "";
 }
 
+// A sent code stays usable this long (server: auth.go, verification code
+// expiry), so a reload inside that window resumes on the code step.
+const PENDING_CODE_KEY = "multica_login_pending_code";
+const PENDING_CODE_TTL_MS = 10 * 60 * 1000;
+const RESEND_COOLDOWN_S = 60;
+
+interface PendingCode {
+  email: string;
+  sentAt: number;
+}
+
+function isPendingCode(value: unknown): value is PendingCode {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<PendingCode>;
+  return typeof v.email === "string" && v.email.length > 0 && typeof v.sentAt === "number";
+}
+
+function rememberPendingCode(email: string) {
+  saveSessionResume(PENDING_CODE_KEY, { email, sentAt: Date.now() } satisfies PendingCode, PENDING_CODE_TTL_MS);
+}
+
+/**
+ * Translates a login failure from its stable `code` (server/internal/handler
+ * /auth.go — account_disabled, signup_prohibited, email_not_allowed,
+ * code_invalid, rate_limited) instead of showing the server's English
+ * sentence, which every entry point (send-code, verify-code, Google) leaked
+ * verbatim to a French-locale user (UX audit).
+ *
+ * `fallback` is used for an unrecognized or missing code — never the raw
+ * `err.message` — so an older server (or a code this build predates) still
+ * shows a localized, if generic, sentence.
+ */
+function authErrorMessage(t: ReturnType<typeof useT<"auth">>["t"], err: unknown, fallback: string): string {
+  switch (errorCode(err)) {
+    case "account_disabled": return t(($) => $.errors.account_disabled);
+    case "signup_prohibited": return t(($) => $.errors.signup_prohibited);
+    case "email_not_allowed": return t(($) => $.errors.email_not_allowed);
+    case "code_invalid": return t(($) => $.errors.code_invalid);
+    case "rate_limited": return t(($) => $.errors.rate_limited);
+    default: return fallback;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -187,6 +232,18 @@ export function LoginPage({
       });
   }, [cliCallback]);
 
+  // Resume the code step after a reload: the emailed code is still valid, and
+  // asking for a new one would sit behind the resend cooldown. The CLI flow
+  // decides its own step from the existing session.
+  useEffect(() => {
+    if (cliCallback) return;
+    const pending = readSessionResume(PENDING_CODE_KEY, isPendingCode);
+    if (!pending) return;
+    setEmail(pending.email);
+    setStep("code");
+    setCooldown(Math.max(0, RESEND_COOLDOWN_S - Math.floor((Date.now() - pending.sentAt) / 1000)));
+  }, [cliCallback]);
+
   // Cooldown timer for resend
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -205,14 +262,13 @@ export function LoginPage({
       setError("");
       try {
         await useAuthStore.getState().sendCode(email);
+        rememberPendingCode(email);
         setStep("code");
         setCode("");
-        setCooldown(60);
+        setCooldown(RESEND_COOLDOWN_S);
       } catch (err) {
         setError(
-          err instanceof Error
-            ? err.message
-            : `${t(($) => $.errors.send_failed)} ${t(($) => $.errors.server_unreachable)}`,
+          authErrorMessage(t, err, `${t(($) => $.errors.send_failed)} ${t(($) => $.errors.server_unreachable)}`),
         );
       } finally {
         setLoading(false);
@@ -230,6 +286,7 @@ export function LoginPage({
         if (cliCallback) {
           // CLI path: get token directly for the redirect URL
           const { token } = await api.verifyCode(email, value);
+          clearSessionResume(PENDING_CODE_KEY);
           localStorage.setItem("multica_token", token);
           api.setToken(token);
           onTokenObtained?.();
@@ -242,6 +299,7 @@ export function LoginPage({
         // URL (first workspace's slug, or /workspaces/new for zero-workspace
         // users).
         await useAuthStore.getState().verifyCode(email, value);
+        clearSessionResume(PENDING_CODE_KEY);
         const wsList = await api.listWorkspaces();
         qc.setQueryData(workspaceKeys.list(), wsList);
         onTokenObtained?.();
@@ -253,11 +311,7 @@ export function LoginPage({
           setSsoRequired(true);
           setError(t(($) => $.sso.required_hint));
         } else {
-          setError(
-            err instanceof Error
-              ? err.message
-              : t(($) => $.errors.code_invalid),
-          );
+          setError(authErrorMessage(t, err, t(($) => $.errors.code_invalid)));
         }
         setCode("");
         setLoading(false);
@@ -271,11 +325,10 @@ export function LoginPage({
     setError("");
     try {
       await useAuthStore.getState().sendCode(email);
-      setCooldown(60);
+      rememberPendingCode(email);
+      setCooldown(RESEND_COOLDOWN_S);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t(($) => $.errors.resend_failed),
-      );
+      setError(authErrorMessage(t, err, t(($) => $.errors.resend_failed)));
     }
   };
 
@@ -307,12 +360,24 @@ export function LoginPage({
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     if (onGoogleLogin) {
       onGoogleLogin();
       return;
     }
     if (!google) return;
+    setLoading(true);
+    setError("");
+    let oauthState: string;
+    try {
+      // The server pins this state to the browser (HttpOnly cookie); the
+      // callback page sends it back so a code is only exchanged here.
+      oauthState = await api.startGoogleLogin();
+    } catch {
+      setError(t(($) => $.web.callback.login_failed));
+      setLoading(false);
+      return;
+    }
     const params = new URLSearchParams({
       client_id: google.clientId,
       redirect_uri: google.redirectUri,
@@ -320,8 +385,8 @@ export function LoginPage({
       scope: "openid email profile",
       access_type: "offline",
       prompt: "select_account",
+      state: [google.state, `oauth:${oauthState}`].filter(Boolean).join(","),
     });
-    if (google.state) params.set("state", google.state);
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
 
@@ -521,6 +586,7 @@ export function LoginPage({
               variant="ghost"
               className="w-full"
               onClick={() => {
+                clearSessionResume(PENDING_CODE_KEY);
                 setStep("email");
                 setCode("");
                 setError("");

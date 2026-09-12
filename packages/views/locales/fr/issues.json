@@ -80,7 +80,9 @@
     "breadcrumb_workspace_fallback": "Workspace",
     "empty_title": "Aucune issue pour le moment",
     "empty_hint": "Créez une issue pour commencer.",
-    "move_failed": "Échec du déplacement de l'issue"
+    "move_failed": "Échec du déplacement de l'issue",
+    "empty_run_explainer": "Les agents s'exécutent dans le navigateur sur le runtime natif — ou sur un ordinateur que vous connectez.",
+    "empty_run_explainer_link": "Créer un agent"
   },
   "status": {
     "backlog": "Backlog",
@@ -220,6 +222,7 @@
     "empty": "Aucune issue ne correspond à cette vue.",
     "search_placeholder": "Rechercher par titre ou ID d'issue…",
     "search_clear": "Effacer la recherche",
+    "resize_column": "Redimensionner la colonne {{label}}",
     "load_failed": "Échec du chargement des issues.",
     "load_failed_retry": "Réessayer",
     "load_more_failed_retry": "Échec du chargement supplémentaire — Réessayer",
@@ -324,7 +327,8 @@
     "empty_column": "Aucun issue",
     "empty_grouping": "Aucun issue correspondant",
     "no_value": "Aucune valeur",
-    "ordered_by": "Tableau trié par {{field}}"
+    "ordered_by": "Tableau trié par {{field}}",
+    "column_menu_aria": "Options de la colonne"
   },
   "detail": {
     "not_found": "Cet issue n'existe pas ou a été supprimé dans cet workspace.",
@@ -478,7 +482,10 @@
       "hint_select": "sélectionner",
       "hint_jump": "accéder",
       "hint_close": "fermer"
-    }
+    },
+    "section_related": "Liées à",
+    "section_duplicate": "Doublons",
+    "more_actions_tooltip": "Plus d'actions"
   },
   "timeline": {
     "loading": "Chargement..."
@@ -595,7 +602,10 @@
       "bar_authors_more_other": "{{names}} et {{count}} autres",
       "resolve_failed": "Échec de la résolution du fil",
       "unresolve_failed": "Échec de la réouverture du fil"
-    }
+    },
+    "add_reaction": "Ajouter une réaction",
+    "collapse_thread": "Replier le fil",
+    "expand_thread": "Déplier le fil"
   },
   "reply": {
     "placeholder": "Laisser une réponse..."
@@ -696,7 +706,38 @@
     "revert_dialog_confirm": "Revenir en arrière",
     "revert_pending": "Retour en cours…",
     "revert_done": "Revenu à ce tour",
-    "revert_failed": "Le retour en arrière n'a pas abouti"
+    "revert_failed": "Le retour en arrière n'a pas abouti",
+    "branch_promote": "Promouvoir",
+    "branch_promote_pending": "Promotion…",
+    "branch_promoted": "Promue",
+    "branch_promoted_view_pr": "Promue · Voir la PR",
+    "branch_discard": "Abandonner",
+    "branch_discard_pending": "Abandon…",
+    "branch_discarded": "Abandonnée",
+    "branch_show_diff": "Afficher le diff",
+    "branch_hide_diff": "Masquer le diff",
+    "branch_diff_loading": "Chargement du diff…",
+    "branch_promote_dialog_title": "Promouvoir cette branche ?",
+    "branch_promote_dialog_body": "Pousser {{branch}} et ouvrir une pull request.",
+    "branch_promote_dialog_confirm": "Pousser et ouvrir la PR",
+    "branch_discard_dialog_title": "Abandonner cette branche ?",
+    "branch_discard_dialog_body": "La branche {{branch}} et son worktree sont supprimés. Cette action est irréversible.",
+    "branch_discard_dialog_confirm": "Supprimer la branche",
+    "branch_dialog_cancel": "Annuler",
+    "branch_action_failed": "L'action sur la branche n'a pas abouti",
+    "branch_error_not_promotable": "Ce run ne peut plus être promu — la liste a été rafraîchie.",
+    "branch_error_not_discardable": "Ce run ne peut plus être abandonné — la liste a été rafraîchie.",
+    "branch_error_pending": "Une autre action sur la branche est déjà en cours pour ce run.",
+    "consult": {
+      "answered": "{{model}} consulté · {{cost}}",
+      "pending": "Consultation de {{model}}…",
+      "failed": "La consultation de {{model}} a échoué",
+      "refused": "Consultation de {{model}} refusée · {{reason}}",
+      "refused_no_reason": "Consultation de {{model}} refusée",
+      "cost_unreported": "coût non rapporté",
+      "reason_budget_exceeded": "budget quotidien de consultations épuisé",
+      "reason_llm_disabled": "aucun LLM configuré pour les consultations"
+    }
   },
   "legs": {
     "workflow": "Workflow",
@@ -717,9 +758,17 @@
       "fanout": "Répartition",
       "shard": "Fragment",
       "eval": "Évaluation",
+      "benchmark": "Benchmark",
       "escalation": "Escalade",
-      "other": "Étape"
-    }
+      "pr_walkthrough": "Parcours",
+      "epic_step": "Étape d'épopée",
+      "other": "Étape",
+      "continuation": "Continuation",
+      "subagent": "Sous-agent"
+    },
+    "total_unknown": "coût inconnu",
+    "total_partial_one": "{{cost}} + {{count}} exécution au coût inconnu",
+    "total_partial_other": "{{cost}} + {{count}} exécutions au coût inconnu"
   },
   "usage_detail": {
     "title": "Détail de l'utilisation",
@@ -779,7 +828,7 @@
   },
   "card": {
     "update_failed": "Échec de la mise à jour de l'issue",
-    "updated_ago": "Mis à jour il y a {{time}}"
+    "updated_ago": "Mis à jour {{time}}"
   },
   "actions": {
     "status": "Statut",
@@ -811,7 +860,9 @@
     "delete_issue": "Supprimer l'issue",
     "add_blocking": "Marquer comme bloquante...",
     "add_blocked_by": "Marquer comme bloquée par...",
-    "remove_dependency": "Retirer la dépendance"
+    "remove_dependency": "Retirer la dépendance",
+    "remove_dependency_failed": "Impossible de retirer la dépendance.",
+    "add_relation": "Ajouter une relation…"
   },
   "pickers": {
     "custom_property": {
@@ -1175,6 +1226,39 @@
       "expired": "expiré"
     }
   },
+  "sandbox_override": {
+    "section": "Dérogation de sandbox",
+    "description": "Restreint les exécutions d'agents pour ce ticket au-delà des politiques de l'espace de travail et du projet. La plus restrictive des trois l'emporte, appliquée en fail-closed.",
+    "capability_hint": "Les modes liste d'autorisation et sans réseau exigent un runtime compatible conteneur : les exécutions sur un runtime sans cette capacité sont refusées et basculent (fail-closed).",
+    "none": "Aucune dérogation — hérite de la politique du projet",
+    "edit": "Modifier la dérogation",
+    "dialog_title": "Dérogation de sandbox",
+    "network": "Accès réseau",
+    "mode": {
+      "unrestricted": "Non restreint",
+      "allowlist": "Liste d'autorisation",
+      "none": "Aucun réseau"
+    },
+    "hint": {
+      "unrestricted": "Les exécutions peuvent atteindre n'importe quel hôte.",
+      "allowlist": "Seuls les hôtes listés et ceux par défaut de la plateforme sont accessibles.",
+      "none": "Aucune sortie réseau au-delà de ce dont la plateforme a besoin."
+    },
+    "hosts_label": "Hôtes autorisés",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "Un hôte par ligne. Les hôtes par défaut de la plateforme restent accessibles.",
+    "block_sensitive": "Bloquer les fichiers sensibles",
+    "block_sensitive_help": "Les agents ne doivent pas lire les fichiers .env (au mieux).",
+    "effective": "Effectif pour ce ticket : {{mode}}",
+    "effective_blocked": "fichiers sensibles bloqués",
+    "save": "Enregistrer la dérogation",
+    "saving": "Enregistrement...",
+    "remove": "Supprimer la dérogation",
+    "toast_saved": "Dérogation de sandbox enregistrée",
+    "toast_removed": "Dérogation de sandbox supprimée — la politique du projet s'applique",
+    "failed": "La dérogation de sandbox n'a pas pu être enregistrée",
+    "load_failed": "La dérogation de sandbox n'a pas pu être chargée"
+  },
   "decisions": {
     "section": "Décisions",
     "recommended": "recommandé",
@@ -1190,7 +1274,10 @@
     "sla_overdue": "En retard, escalade en cours",
     "sla_substitute": "En retard · escaladé vers le remplaçant",
     "sla_leads": "En retard · escaladé vers les leads du workspace",
-    "learned": "Tu as choisi « {{label}} » {{count}} fois sur {{total}} pour ce type de demande."
+    "learned": "Tu as choisi « {{label}} » {{count}} fois sur {{total}} pour ce type de demande.",
+    "urgency_high": "Élevée",
+    "urgency_normal": "Normale",
+    "urgency_low": "Faible"
   },
   "acceptance": {
     "section": "Critères d'acceptation",
@@ -1248,7 +1335,13 @@
     "failed_sections": "Certaines sections n'ont pas pu être chargées : {{sections}}.",
     "error": "Le cockpit de revue n'a pas pu être chargé.",
     "retry": "Réessayer",
-    "move_failed": "Échec du changement de statut de l'issue"
+    "move_failed": "Échec du changement de statut de l'issue",
+    "changes_label": "Qu'est-ce qui doit changer ?",
+    "changes_hint": "Votre demande est publiée en commentaire sur l'issue, puis l'issue repasse En cours.",
+    "changes_cancel": "Annuler",
+    "changes_send": "Envoyer la demande",
+    "changes_requested": "Modifications demandées : commentaire publié, issue repassée En cours.",
+    "request_changes_failed": "La demande n'a pas pu être publiée. Votre texte est conservé ; réessayez."
   },
   "ownership": {
     "section": "Propriétaire suggéré",
@@ -1297,6 +1390,7 @@
     "winner": "Gagnant : {{side}}",
     "winner_tie": "Égalité déclarée",
     "open": "Lancer un duel",
+    "open_hint": "Fait travailler deux agents en parallèle sur la même issue pour comparer leurs résultats.",
     "agent_a": "Agent A",
     "agent_b": "Agent B",
     "pick_agent": "Choisissez un agent…",
@@ -1322,6 +1416,7 @@
     "start_confirm": "Lancer la course",
     "attempt_agent": "Tentative {{index}} — agent",
     "attempt_model": "Tentative {{index}} — modèle",
+    "attempt_runtime": "Tentative {{index}} — runtime",
     "remove_attempt": "Retirer la tentative {{index}}",
     "add_attempt": "Ajouter une tentative",
     "pick_agent": "Choisissez un agent…",
@@ -1330,6 +1425,10 @@
     "note_placeholder": "Note pour toutes les tentatives (facultatif)",
     "model": "Modèle",
     "default_model": "modèle de l'agent",
+    "runtime": "Runtime",
+    "default_runtime": "Par défaut (liaison de l'agent)",
+    "cost": "Coût",
+    "duration": "Durée",
     "run_status": "Exécution",
     "diff_stat": "Diff",
     "diff_truncated": "Diff trop volumineux pour être stocké — stat seulement ; lisez la branche.",
@@ -1346,7 +1445,13 @@
     "cancel": "Annuler",
     "failed": "La demande de course a échoué",
     "error_already_active": "Une course est déjà en cours sur cette issue.",
-    "error_already_settled": "Cette course n'est plus en cours."
+    "error_already_settled": "Cette course n'est plus en cours.",
+    "ask_judge": "Demander au juge",
+    "judging": "Jugement en cours…",
+    "recommended": "Recommandée",
+    "judge_score": "Score du juge",
+    "judge_failed": "Le juge n'a pas pu donner de verdict — comparez les tentatives vous-même.",
+    "error_not_judgeable": "Le juge a besoin d'au moins 2 tentatives terminées."
   },
   "campaign": {
     "section": "Campagne de refactorisation",
@@ -1370,6 +1475,7 @@
     "conflict_hint": "Intervention humaine requise : résolvez le conflit ou ignorez le shard pour débloquer la file.",
     "skip": "Ignorer le shard #{{n}}",
     "open": "Lancer une campagne de refactorisation",
+    "open_hint": "Exécute la même refactorisation en parallèle sur plusieurs branches, chacune fusionnée indépendamment.",
     "name": "Nom de la campagne",
     "target_branch": "Branche cible",
     "leader": "Agent leader",
@@ -1383,7 +1489,8 @@
     "add": "Ajouter un shard",
     "launch": "Lancer la campagne",
     "cancel": "Annuler",
-    "failed": "La requête de campagne a échoué"
+    "failed": "La requête de campagne a échoué",
+    "unknown_agent": "Agent inconnu"
   },
   "competency": {
     "section": "Historique de réussite pour ce type de tâche",
@@ -1520,6 +1627,75 @@
       "none": "aucune action"
     }
   },
+  "goal_loop": {
+    "section": "Objectif",
+    "intro": "Donne à cet agent un objectif à poursuivre sur plusieurs exécutions.",
+    "goal_label": "Objectif",
+    "goal_placeholder": "Qu'est-ce que cette issue doit accomplir ?",
+    "max_continuations": "Continuations max",
+    "save": "Enregistrer l'objectif",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "save_failed": "Impossible d'enregistrer l'objectif",
+    "saved": "Objectif enregistré",
+    "pause": "Mettre en pause",
+    "resume": "Reprendre",
+    "pause_failed": "Impossible de mettre l'objectif en pause",
+    "resume_failed": "Impossible de reprendre l'objectif",
+    "paused": "Objectif en pause",
+    "resumed": "Objectif repris",
+    "continuation_progress": "Continuation {{n}} / {{max}}",
+    "blocker": "Blocage",
+    "reason": "Raison",
+    "next_step": "Prochaine étape",
+    "evidence": "Preuves",
+    "evidence_show_all": "Tout afficher ({{count}})",
+    "evidence_collapse": "Afficher moins",
+    "status": {
+      "active": "Actif",
+      "paused": "En pause",
+      "waiting_user": "En attente de réponse",
+      "satisfied": "Objectif atteint",
+      "stopped": "Arrêté"
+    },
+    "outcomes": {
+      "none": "Pas encore de résultat",
+      "satisfied": "Atteint",
+      "continued": "Poursuivi",
+      "stopped_exhausted": "Budget de continuations épuisé",
+      "stopped_stagnation": "Bloqué — aucun progrès",
+      "stopped_needs_user_input": "A besoin de ta réponse",
+      "stopped_external_wait": "En attente d'un élément externe",
+      "stopped_run_failed": "L'exécution a échoué",
+      "stopped_judge_unavailable": "Le juge était indisponible",
+      "stopped_paused": "En pause",
+      "stopped_issue_changed": "L'issue a changé",
+      "stopped_unknown": "Arrêté",
+      "other": "Résultat inconnu"
+    },
+    "badge": {
+      "continued": "Objectif : poursuivi {{n}}/{{max}}",
+      "satisfied": "Objectif atteint",
+      "waiting": "Objectif : en attente de réponse",
+      "stopped": "Objectif : arrêté ({{reason}})"
+    },
+    "question": {
+      "answer_placeholder": "Écris ta réponse…",
+      "answer": "Répondre",
+      "answer_failed": "Impossible d'envoyer la réponse",
+      "answered": "Réponse envoyée",
+      "answered_line": "Répondu {{when}}",
+      "answered_by_line": "Répondu par {{by}} · {{when}}"
+    },
+    "blockers": {
+      "goal_not_met_yet": "Objectif pas encore atteint",
+      "missing_evidence": "Preuves manquantes",
+      "needs_user_input": "Votre réponse est attendue",
+      "external_wait": "En attente d'un élément externe",
+      "run_failed": "L'exécution a échoué",
+      "other": "Autre"
+    }
+  },
   "eval_promote": {
     "promote": "Promouvoir en cas d'évaluation",
     "added": "Ajouté au labo d'évaluation",
@@ -1598,6 +1774,9 @@
     "reject": "Refuser",
     "note_placeholder": "Note (facultative)",
     "decide_failed": "Impossible d'enregistrer la décision.",
+    "cancel_request": "Annuler ma demande",
+    "cancelled_toast": "Demande annulée.",
+    "cancel_failed": "Impossible d'annuler la demande.",
     "pending_toast": "Envoyé pour approbation. Le statut n'a pas encore changé."
   },
   "run_preview": {
@@ -1722,6 +1901,173 @@
     "human_effort": "Temps de revue actif rapporté par ce client : {{seconds}} s (chronométré automatiquement pendant que le formulaire de revue était ouvert ; pas un délai en temps réel).",
     "result_counts": "{{accepted}} / {{reviewed}} résultats examinés actuellement acceptés",
     "correction_counts": "{{corrections}} demandes de correction · {{reversals}} corrections après acceptation",
-    "metrics_hint": "Un résultat est un instantané de preuve distinct. L'acceptation répétée du même instantané ne compte qu'une fois ; une décision de correction ultérieure retire son acceptation."
+    "metrics_hint": "Un résultat est un instantané de preuve distinct. L'acceptation répétée du même instantané ne compte qu'une fois ; une décision de correction ultérieure retire son acceptation.",
+    "result_pr": "Pull request",
+    "technical_details": "Détails techniques"
+  },
+  "approvals": {
+    "kind_gate_git_push": "Git push retenu",
+    "kind_gate_tool": "Appel d'outil retenu",
+    "kind_gate_spend": "Dépense retenue",
+    "kind_plan": "Approbation du plan",
+    "kind_interview": "Question d'interview",
+    "kind_preview": "Montre-moi d'abord",
+    "kind_watchdog": "Verdict du watchdog",
+    "kind_pipeline": "Étape de pipeline",
+    "kind_goal_attach": "Rattachement d'objectif",
+    "kind_org_assign": "Affectation routée",
+    "kind_transition": "Changement de statut retenu",
+    "kind_goal_question": "Question du run",
+    "kind_decision": "Décision",
+    "asked_by": "demandé par {{name}}",
+    "expires_in": "{{time}} restantes",
+    "expired": "Expiré",
+    "details_show": "Ce que ça ferait",
+    "details_hide": "Masquer les détails",
+    "gate_type": "Gate",
+    "paths": "Chemins",
+    "blast_radius": "Rayon d'action",
+    "dual_approval": "{{have}}/{{need}} approbations",
+    "cannot_decide_policy": "Cet espace réserve les gates d'approbation aux propriétaires et administrateurs.",
+    "cannot_decide_role": "Vous n'êtes pas approbateur de cette demande.",
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "note_placeholder": "Note pour le demandeur (facultatif)",
+    "answer_placeholder": "Votre réponse",
+    "send": "Envoyer",
+    "answered": "Réponse enregistrée",
+    "answer_failed": "Impossible d'enregistrer la réponse",
+    "pending_banner_one": "{{count}} en attente de décision",
+    "pending_banner_other": "{{count}} en attente de décision",
+    "run_halt_title": "Agents à l'arrêt",
+    "run_halt_body": "Toute action soumise à approbation est refusée tant que l'arrêt est actif.",
+    "run_halt_by": "Arrêté par {{who}} {{when}}",
+    "run_halt_reason_prefix": "Motif : {{reason}}",
+    "run_halt_unknown_actor": "un propriétaire",
+    "run_halt_lift": "Lever l'arrêt",
+    "run_halt_lift_failed": "Impossible de lever l'arrêt",
+    "run_halt_frozen_count": "{{count}} runs figés",
+    "kind_calendar_proposal": "Proposition de réunion",
+    "kind_autopilot_proposal": "Proposition d'autopilot"
+  },
+  "inline_run": {
+    "label": "Run de {{name}}",
+    "stop": "Arrêter",
+    "stopping": "Arrêt en cours...",
+    "queued": "En attente d'un agent disponible.",
+    "starting": "Préparation de la session de l'agent.",
+    "waiting_directory": "En attente qu'un autre run libère le répertoire de travail.",
+    "thinking": "Réflexion",
+    "waiting_response": "En attente de la réponse de l'agent.",
+    "view_activity": "Voir l'activité",
+    "steps_one": "{{count}} étape",
+    "steps_other": "{{count}} étapes",
+    "loading": "Chargement de l'activité...",
+    "load_failed": "Impossible de charger l'activité.",
+    "try_again": "Réessayer",
+    "empty": "Aucune activité enregistrée pour l'instant.",
+    "show_earlier": "Afficher les {{count}} étapes précédentes",
+    "full_log": "Ouvrir le journal complet",
+    "message": "Message de l'agent",
+    "error": "Erreur",
+    "waiting_result": "En attente du résultat de l'outil..."
+  },
+  "followups": {
+    "section": "Rappels",
+    "schedule": "Programmer un rappel",
+    "empty": "Aucun réveil programmé.",
+    "fires_in": "dans {{countdown}}",
+    "scheduled_by": "par {{by}}",
+    "cancel": "Annuler ce rappel",
+    "cancelled": "Rappel annulé",
+    "cancel_failed": "Impossible d'annuler le rappel",
+    "scheduled": "Rappel programmé",
+    "schedule_failed": "Impossible de programmer le rappel",
+    "budget_reached": "Budget quotidien de rappels atteint.",
+    "budget_line": "Au plus {{agent}} par agent et {{workspace}} par espace de travail chaque jour.",
+    "quick": {
+      "in_1h": "Dans 1 h",
+      "tomorrow_9": "Demain 9:00",
+      "next_monday_9": "Lundi prochain 9:00",
+      "custom": "Choisir un moment"
+    },
+    "cancel_dialog": {
+      "title": "Annuler ce rappel ?",
+      "description": "{{agent}} ne se réveillera pas sur ce ticket.",
+      "keep": "Le garder",
+      "confirm": "Annuler le rappel"
+    },
+    "dialog": {
+      "title": "Programmer un rappel",
+      "description": "L’agent revient sur ce ticket avec votre note.",
+      "custom_label": "Date et heure",
+      "agent_label": "Agent",
+      "agent_placeholder": "Quel agent se réveille ?",
+      "note_label": "Note",
+      "note_placeholder": "Que doit-il vérifier ?",
+      "budget_hint": "Au plus {{agent}} rappels par agent et par jour.",
+      "cancel": "Annuler",
+      "confirm": "Programmer"
+    }
+  },
+  "recurrence": {
+    "section": "Récurrence",
+    "empty": "Ce ticket n'a lieu qu'une fois.",
+    "make_recurring": "Rendre récurrente",
+    "edit": "Modifier",
+    "stop": "Arrêter la récurrence",
+    "active": "Active",
+    "paused": "En pause — aucune prochaine occurrence.",
+    "next_runs": "Prochaines occurrences",
+    "next_on": "prochaine le {{when}}",
+    "in_time": "dans {{countdown}}",
+    "series": "Occurrences",
+    "source": "Source",
+    "part_of_series": "Fait partie de la série {{identifier}}",
+    "occurrence_created": "créée le {{when}}",
+    "occurrence_due": "échéance {{when}}",
+    "saved": "Récurrence enregistrée",
+    "save_failed": "Impossible d'enregistrer la récurrence",
+    "stopped": "Récurrence arrêtée",
+    "stop_failed": "Impossible d'arrêter la récurrence",
+    "forbidden": "Seul un membre peut modifier une récurrence.",
+    "sentence": {
+      "daily": "Chaque jour à {{time}} ({{tz}})",
+      "weekdays": "Chaque jour ouvré à {{time}} ({{tz}})",
+      "weekly": "Chaque {{weekday}} à {{time}} ({{tz}})",
+      "monthly": "Chaque mois le {{day}} à {{time}} ({{tz}})",
+      "custom": "Personnalisé ({{cron}})",
+      "on_close": "À la clôture de la précédente"
+    },
+    "dialog": {
+      "title": "Récurrence",
+      "description": "Un nouveau ticket est créé à partir de celui-ci au rythme choisi.",
+      "preset": {
+        "daily": "Chaque jour à",
+        "weekdays": "Jours ouvrés",
+        "weekly": "Chaque semaine le",
+        "monthly": "Chaque mois le",
+        "custom": "Cron personnalisé",
+        "on_close": "À la clôture"
+      },
+      "time_label": "Heure",
+      "weekday_label": "Jour de la semaine",
+      "day_label": "Jour du mois",
+      "cron_label": "Expression cron",
+      "timezone_label": "Fuseau horaire",
+      "preview": "Prochaines : {{runs}}",
+      "preview_empty": "Cette expression ne se déclenche jamais.",
+      "preview_unreadable": "Impossible de prévisualiser cette expression.",
+      "enabled_label": "Active",
+      "cancel": "Annuler",
+      "confirm": "Enregistrer"
+    },
+    "stop_dialog": {
+      "title": "Arrêter cette récurrence ?",
+      "description": "Aucun nouveau ticket ne sera créé. Ceux déjà créés restent.",
+      "keep": "La garder",
+      "confirm": "Arrêter la récurrence"
+    },
+    "badge": "Récurrente"
   }
 }

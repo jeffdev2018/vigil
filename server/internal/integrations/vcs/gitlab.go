@@ -326,3 +326,44 @@ func (gitlabProvider) MergePullRequest(ctx context.Context, instanceURL, token, 
 	}
 	return MergeResult{}, fmt.Errorf("gitlab merge: status %d", status)
 }
+
+// CreatePullRequest: POST /api/v4/projects/{owner%2Frepo}/merge_requests with
+// {title, source_branch, target_branch, description}. An empty target_branch
+// is omitted — GitLab then targets the repository's default branch.
+func (gitlabProvider) CreatePullRequest(ctx context.Context, instanceURL, token, owner, repo string, in CreatePullRequestInput) (CreatedPullRequest, error) {
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests", NormalizeInstanceURL(instanceURL), url.PathEscape(owner+"/"+repo))
+	payload := map[string]string{"title": in.Title, "source_branch": in.Head, "description": in.Body}
+	if in.Base != "" {
+		payload["target_branch"] = in.Base
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(raw)))
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return CreatedPullRequest{}, ErrUnauthorized
+	}
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return CreatedPullRequest{}, fmt.Errorf("gitlab create merge request: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var created struct {
+		IID    int    `json:"iid"`
+		WebURL string `json:"web_url"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		return CreatedPullRequest{}, fmt.Errorf("gitlab create merge request: decode: %w", err)
+	}
+	return CreatedPullRequest{HTMLURL: created.WebURL, Number: created.IID}, nil
+}

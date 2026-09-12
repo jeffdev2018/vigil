@@ -32,8 +32,12 @@ vi.mock("@multica/core/api", async () => {
     },
   };
 });
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
 
 import { ApiError } from "@multica/core/api";
+import { toast } from "sonner";
 import { InsightsTab } from "./insights-tab";
 
 const countQuery = { entity: "issue", metric: "count", group_by: [], filters: [] };
@@ -53,6 +57,7 @@ describe("InsightsTab", () => {
     mockListInsightWidgets.mockResolvedValue([]);
     mockRunInsight.mockResolvedValue({ rows: [], shape: "number", warnings: [], duration_ms: 1 });
   });
+  afterEach(() => vi.mocked(toast.error).mockClear());
   afterEach(() => cleanup());
 
   it("shows the answer and the question that produced it", async () => {
@@ -268,5 +273,80 @@ describe("InsightsTab", () => {
 
     // Falls back to the locally derived donut: the legend row is the proof.
     expect(await screen.findByText("blocked")).toBeInTheDocument();
+  });
+
+  // Regression: usePinInsight/useUpdateInsightWidget/useDeleteInsightWidget
+  // had no onError anywhere — a failed pin/reorder/remove silently
+  // resynced on the next query settle with zero feedback.
+  it("shows a toast when pinning the answer fails", async () => {
+    mockAskInsight.mockResolvedValue({
+      query: countQuery,
+      rows: [{ value: 2 }],
+      shape: "number",
+      warnings: [],
+      duration_ms: 1,
+    });
+    mockCreateInsightWidget.mockRejectedValue(new Error("server unavailable"));
+    renderTab();
+
+    await userEvent.type(screen.getByLabelText("Ask a question about this workspace"), "q");
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByText("2");
+    await userEvent.click(screen.getByRole("button", { name: "Pin" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("server unavailable"));
+  });
+
+  it("shows a toast when reordering a card fails", async () => {
+    const widget = (id: string, position: number, revision: number) => ({
+      id,
+      workspace_id: "ws-1",
+      owner_id: "u1",
+      name: id,
+      question: "q",
+      definition_version: 1,
+      query: countQuery,
+      display: {},
+      visibility: "private",
+      position,
+      revision,
+      created_at: "",
+      updated_at: "",
+    });
+    mockListInsightWidgets.mockResolvedValue([widget("first", 0, 3), widget("second", 1, 5)]);
+    mockUpdateInsightWidget.mockRejectedValue(new Error("conflict"));
+    renderTab();
+
+    await screen.findByText("first");
+    await userEvent.click(screen.getAllByRole("button", { name: "Move down" })[0]!);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("conflict"));
+  });
+
+  it("shows a toast when removing a card fails", async () => {
+    mockListInsightWidgets.mockResolvedValue([
+      {
+        id: "w1",
+        workspace_id: "ws-1",
+        owner_id: "u1",
+        name: "Blocked work",
+        question: "q",
+        definition_version: 1,
+        query: countQuery,
+        display: {},
+        visibility: "private",
+        position: 0,
+        revision: 1,
+        created_at: "",
+        updated_at: "",
+      },
+    ]);
+    mockDeleteInsightWidget.mockRejectedValue(new Error("in use"));
+    renderTab();
+
+    await screen.findByText("Blocked work");
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("in use"));
   });
 });
