@@ -1755,6 +1755,9 @@
     "reject": "却下",
     "note_placeholder": "メモ（任意）",
     "decide_failed": "判断を記録できませんでした。",
+    "cancel_request": "申請を取り消す",
+    "cancelled_toast": "申請を取り消しました。",
+    "cancel_failed": "申請を取り消せませんでした。",
     "pending_toast": "承認に送りました。ステータスはまだ変わっていません。"
   },
   "run_preview": {

@@ -12,10 +12,13 @@ const state = vi.hoisted(() => ({
   requests: [] as IssueTransitionRequest[],
   role: "member" as string,
   decide: vi.fn(),
+  cancel: vi.fn(),
 }));
 
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast }));
 vi.mock("@multica/core/auth", () => ({ useAuthStore: (sel: (s: unknown) => unknown) => sel({ user: { id: "u1" } }) }));
 vi.mock("@multica/core/workspace/queries", () => ({
   memberListOptions: () => ({
@@ -30,6 +33,7 @@ vi.mock("@multica/core/issue-transitions", async (importOriginal) => ({
     queryFn: async () => ({ requests: state.requests }),
   }),
   useDecideIssueTransitionRequest: () => ({ mutate: state.decide, isPending: false }),
+  useCancelIssueTransitionRequest: () => ({ mutate: state.cancel, isPending: false }),
 }));
 
 import { TransitionApprovalBanner } from "./transition-approval-banner";
@@ -65,6 +69,9 @@ beforeEach(() => {
   state.requests = [];
   state.role = "member";
   state.decide.mockReset();
+  state.cancel.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
 });
 
 describe("TransitionApprovalBanner", () => {
@@ -119,5 +126,49 @@ describe("TransitionApprovalBanner", () => {
       { requestId: "q1", decision: "reject", note: undefined },
       expect.anything(),
     );
+  });
+
+  it("lets the requester cancel their own request", async () => {
+    state.requests = [request({ requested_by_id: "u1" })];
+    render();
+    await screen.findByTestId("transition-approval-banner");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel my request" }));
+
+    expect(state.cancel).toHaveBeenCalledWith("q1", expect.anything());
+  });
+
+  it("hides the cancel action from a member who did not file the request", async () => {
+    state.requests = [request({ requested_by_id: "u2" })];
+    render();
+    await screen.findByTestId("transition-approval-banner");
+    expect(screen.queryByRole("button", { name: "Cancel my request" })).toBeNull();
+  });
+
+  it("does not treat an agent request with a colliding id as the user's own", async () => {
+    state.requests = [request({ requested_by_type: "agent", requested_by_id: "u1" })];
+    render();
+    await screen.findByTestId("transition-approval-banner");
+    expect(screen.queryByRole("button", { name: "Cancel my request" })).toBeNull();
+  });
+
+  it("gives an admin who did not file the request the decision, not the cancel", async () => {
+    state.requests = [request({ requested_by_id: "u2" })];
+    state.role = "admin";
+    render();
+    await screen.findByTestId("transition-approval-banner");
+    await screen.findByRole("button", { name: "Approve" });
+    expect(screen.queryByRole("button", { name: "Cancel my request" })).toBeNull();
+  });
+
+  it("toasts when the cancel fails", async () => {
+    state.requests = [request({ requested_by_id: "u1" })];
+    state.cancel.mockImplementation((_id: string, opts: { onError: (e: Error) => void }) => opts.onError(new Error("boom")));
+    render();
+    await screen.findByTestId("transition-approval-banner");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel my request" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Could not cancel the request.");
   });
 });

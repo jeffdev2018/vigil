@@ -1796,6 +1796,9 @@
     "reject": "Reject",
     "note_placeholder": "Note (optional)",
     "decide_failed": "Could not record the decision.",
+    "cancel_request": "Cancel my request",
+    "cancelled_toast": "Request cancelled.",
+    "cancel_failed": "Could not cancel the request.",
     "pending_toast": "Sent for approval. The status has not changed yet."
   },
   "run_preview": {

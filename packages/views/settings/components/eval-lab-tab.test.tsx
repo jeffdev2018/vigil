@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { BenchmarkCorpus, BenchmarkRun, EvalCase, EvalRun, EvalSuite } from "@multica/core/eval";
+import type { BenchmarkCorpus, BenchmarkPolicyOutcome, BenchmarkPolicySearch, BenchmarkRun, EvalCase, EvalRun, EvalSuite } from "@multica/core/eval";
 import { renderWithI18n } from "../../test/i18n";
 
 // Opens a Select's popup by its trigger accessible name and clicks the
@@ -34,6 +34,10 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   run: vi.fn(),
   benchmark: vi.fn(),
+  policySearch: vi.fn(),
+  policyData: undefined as BenchmarkPolicySearch | null | undefined,
+  policyPending: false,
+  policyError: false,
   refetchCases: vi.fn(),
   refetchSuites: vi.fn(),
   refetchRuns: vi.fn(),
@@ -68,6 +72,12 @@ vi.mock("@multica/core/eval", async (importOriginal) => ({
   useCreateEvalSuite: () => ({ mutateAsync: state.create, isPending: false }),
   useRunEvalSuite: () => ({ mutate: state.run, isPending: false }),
   useRunBenchmark: () => ({ mutate: state.benchmark, isPending: false }),
+  useBenchmarkPolicySearch: () => ({
+    mutate: state.policySearch,
+    data: state.policyData,
+    isPending: state.policyPending,
+    isError: state.policyError,
+  }),
 }));
 
 // The real runtimeDisplayLabel is kept: rendering a raw `runtime.name` in a
@@ -134,6 +144,9 @@ beforeEach(() => {
   state.suitesError = false;
   state.runsError = false;
   state.benchmarksError = false;
+  state.policyData = undefined;
+  state.policyPending = false;
+  state.policyError = false;
   state.create.mockResolvedValue({});
 });
 
@@ -415,5 +428,92 @@ describe("EvalLabTab benchmarks", () => {
     expect(row.getByText("Default")).toBeTruthy();
     // No movement is a warning, not a regression.
     expect(row.getByTestId("benchmark-delta").className).toContain("text-warning");
+  });
+});
+
+const outcome = (over: Partial<BenchmarkPolicyOutcome> = {}): BenchmarkPolicyOutcome => ({
+  policy: { cost_weight: 0.3, duration_weight: 0.1, min_samples: 5 }, baseline: true, scored_classes: 2,
+  cases: 4, passed: 3, passed_rate: 0.75, avg_cost_usd: 0.42, picks: [], ...over,
+});
+
+// Parsing of the policy search payload: packages/core/eval/schemas.test.ts.
+describe("EvalLabTab routing policy search", () => {
+  it("is not offered before any benchmark exists", () => {
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.queryByTestId("benchmark-policy-search")).toBeNull();
+  });
+
+  it("replays the listed benchmark runs", () => {
+    state.benchmarks = [benchmarkRun({ id: "bench-2" }), benchmarkRun({ id: "bench-1" })];
+    renderWithI18n(<EvalLabTab />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search policies" }));
+
+    expect(state.policySearch).toHaveBeenCalledWith({ runs: ["bench-2", "bench-1"] });
+  });
+
+  it("disables the action while the search runs", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyPending = true;
+    renderWithI18n(<EvalLabTab />);
+    expect((screen.getByRole("button", { name: "Search policies" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows the proposed policy next to the current one and says nothing is applied", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = {
+      improved: true,
+      grid: [],
+      baseline: outcome(),
+      winner: outcome({ baseline: false, policy: { cost_weight: 0.5, duration_weight: 0, min_samples: 3 }, passed: 4, passed_rate: 1, avg_cost_usd: 0.21 }),
+    };
+    renderWithI18n(<EvalLabTab />);
+
+    const panel = within(screen.getByTestId("policy-search-result"));
+    expect(panel.getByText("A different policy would have picked better on these benchmarks.")).toBeTruthy();
+    const rows = panel.getAllByRole("row").map((row) => Array.from(row.children).map((cell) => cell.textContent));
+    expect(rows).toEqual([
+      ["", "Current", "Proposed"],
+      ["Pass rate", "75%", "100%"],
+      ["Pass rate gap", "—", "+25 pts"],
+      ["Avg. cost", "$0.42", "$0.21"],
+      ["Cost weight", "0.3", "0.5"],
+      ["Duration weight", "0.1", "0"],
+      ["Minimum samples", "5", "3"],
+    ]);
+    expect(panel.getByTestId("policy-search-gap").className).toContain("text-success");
+    expect(panel.getByTestId("policy-search-not-applied").textContent).toContain("Nothing is applied");
+  });
+
+  it("says the current policy already picks best when nothing beats it", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = { improved: false, grid: [], baseline: outcome(), winner: outcome() };
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByText("The current policy already picks best on these benchmarks.")).toBeTruthy();
+  });
+
+  it("reports when no class had enough measured cases to score", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyData = {
+      improved: false, grid: [],
+      baseline: outcome({ scored_classes: 0, cases: 0, passed: 0, passed_rate: 0 }),
+      winner: outcome({ scored_classes: 0, cases: 0, passed: 0, passed_rate: 0 }),
+    };
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByTestId("policy-search-empty")).toBeTruthy();
+    expect(screen.queryByTestId("policy-search-result")).toBeNull();
+  });
+
+  it("reports a failed or unreadable search", () => {
+    state.benchmarks = [benchmarkRun()];
+    state.policyError = true;
+    const { unmount } = renderWithI18n(<EvalLabTab />);
+    expect(screen.getByRole("alert").textContent).toBe("Could not run the policy search.");
+    unmount();
+
+    state.policyError = false;
+    state.policyData = null;
+    renderWithI18n(<EvalLabTab />);
+    expect(screen.getByRole("alert").textContent).toBe("Could not run the policy search.");
   });
 });
