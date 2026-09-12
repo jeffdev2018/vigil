@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FlaskRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
   useCreateEvalSuite,
   useRunBenchmark,
   useRunEvalSuite,
+  useBenchmarkPolicySearch,
   type BenchmarkCandidate,
   type BenchmarkRun,
   type EvalRun,
@@ -46,6 +47,7 @@ import {
 } from "@multica/core/eval";
 import { useT, useTimeAgo } from "../../i18n";
 import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
+import { formatUsd } from "../../runtimes/utils";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -324,6 +326,13 @@ export function EvalLabTab() {
               </TableBody>
             </Table>
           )}
+          {!benchmarksQuery.isError && benchmarks.length > 0 ? (
+            <BenchmarkPolicySearchPanel
+              wsId={wsId}
+              // The server takes at most 100 runs; the list is newest first.
+              runIds={benchmarks.slice(0, 100).map((run) => run.id)}
+            />
+          ) : null}
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>
@@ -842,6 +851,104 @@ function Delta({ delta }: { delta: number | null }) {
   return (
     <span className={`font-mono ${TONE_CLASS[benchmarkDeltaTone(delta)]}`} data-testid="benchmark-delta">
       {delta > 0 ? `+${delta}` : String(delta)}
+    </span>
+  );
+}
+
+/**
+ * Routing policy search (JEF-276): the server replays the router's scoring over
+ * the listed benchmark runs and reports the weights that would have picked
+ * best. It is a report only — nothing is applied — and the panel says so.
+ */
+function BenchmarkPolicySearchPanel({ wsId, runIds }: { wsId: string; runIds: string[] }) {
+  const { t } = useT("settings");
+  const search = useBenchmarkPolicySearch(wsId);
+  const result = search.data;
+  // null is the parse fallback: the answer was unreadable, which is a failure.
+  const failed = search.isError || result === null;
+  const empty = result != null && result.baseline.scored_classes === 0 && result.winner.scored_classes === 0;
+  const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+  const cost = (usd: number | null) => (usd != null ? formatUsd(usd) : "—");
+
+  return (
+    <div className="space-y-3 border-t p-4" data-testid="benchmark-policy-search">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-body font-medium">{t(($) => $.eval_lab.policy_search_title)}</p>
+          <p className="text-caption text-muted-foreground">{t(($) => $.eval_lab.policy_search_hint)}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={search.isPending}
+          onClick={() => search.mutate({ runs: runIds })}
+        >
+          {search.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+          {t(($) => $.eval_lab.policy_search_action)}
+        </Button>
+      </div>
+      {failed ? (
+        <p role="alert" className="text-caption text-destructive">
+          {t(($) => $.eval_lab.policy_search_failed)}
+        </p>
+      ) : empty ? (
+        <p className="text-caption text-muted-foreground" data-testid="policy-search-empty">
+          {t(($) => $.eval_lab.policy_search_empty)}
+        </p>
+      ) : result ? (
+        <div className="space-y-2" data-testid="policy-search-result">
+          <p className="text-caption font-medium">
+            {result.improved === true
+              ? t(($) => $.eval_lab.policy_search_improved)
+              : t(($) => $.eval_lab.policy_search_unchanged)}
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead />
+                <TableHead className="text-right">{t(($) => $.eval_lab.policy_current)}</TableHead>
+                <TableHead className="text-right">{t(($) => $.eval_lab.policy_proposed)}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="tabular-nums">
+              <PolicyRow label={t(($) => $.eval_lab.policy_pass_rate)} current={pct(result.baseline.passed_rate)} proposed={pct(result.winner.passed_rate)} />
+              <PolicyRow
+                label={t(($) => $.eval_lab.policy_gap)}
+                current="—"
+                proposed={
+                  <PassRateGap gap={Math.round((result.winner.passed_rate - result.baseline.passed_rate) * 100)} />
+                }
+              />
+              <PolicyRow label={t(($) => $.eval_lab.policy_avg_cost)} current={cost(result.baseline.avg_cost_usd)} proposed={cost(result.winner.avg_cost_usd)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_cost_weight)} current={String(result.baseline.policy.cost_weight)} proposed={String(result.winner.policy.cost_weight)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_duration_weight)} current={String(result.baseline.policy.duration_weight)} proposed={String(result.winner.policy.duration_weight)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_min_samples)} current={String(result.baseline.policy.min_samples)} proposed={String(result.winner.policy.min_samples)} />
+            </TableBody>
+          </Table>
+          <p className="text-caption text-muted-foreground" data-testid="policy-search-not-applied">
+            {t(($) => $.eval_lab.policy_search_not_applied)}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PolicyRow({ label, current, proposed }: { label: string; current: string; proposed: ReactNode }) {
+  return (
+    <TableRow>
+      <TableCell className="text-muted-foreground">{label}</TableCell>
+      <TableCell className="text-right">{current}</TableCell>
+      <TableCell className="text-right font-medium">{proposed}</TableCell>
+    </TableRow>
+  );
+}
+
+function PassRateGap({ gap }: { gap: number }) {
+  const { t } = useT("settings");
+  return (
+    <span className={`font-mono ${TONE_CLASS[benchmarkDeltaTone(gap)]}`} data-testid="policy-search-gap">
+      {t(($) => $.eval_lab.policy_gap_value, { gap: gap > 0 ? `+${gap}` : String(gap) })}
     </span>
   );
 }
