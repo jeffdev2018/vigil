@@ -4970,6 +4970,44 @@ export const DashboardAgentRoiSchema = z.object({
   agents: z.array(AgentRoiRowSchema).catch([]).default([]),
 }).loose();
 
+// Mixed member/agent velocity (JEF-251). Medians stay nullable all the way
+// through: a period that closed nothing has no median, and defaulting it to 0
+// would read as "instant delivery" on the trend cards.
+const DashboardThroughputWeekSchema = z.object({
+  week_start: z.string().catch(""),
+  member_count: z.number().catch(0),
+  agent_count: z.number().catch(0),
+}).loose();
+
+const DashboardVelocityCycleTimeSchema = z.object({
+  member_median_days: z.number().nullable().catch(null).default(null),
+  agent_median_days: z.number().nullable().catch(null).default(null),
+  prev_member_median_days: z.number().nullable().catch(null).default(null),
+  prev_agent_median_days: z.number().nullable().catch(null).default(null),
+  member_count: z.number().catch(0),
+  agent_count: z.number().catch(0),
+}).loose();
+
+const DashboardCostPerClosedIssueWeekSchema = z.object({
+  week_start: z.string().catch(""),
+  issue_count: z.number().catch(0),
+  total_cost_usd_ticks: z.number().catch(0),
+  mean_cost_usd_ticks: z.number().catch(0),
+}).loose();
+
+export const DashboardVelocityWeeklySchema = z.object({
+  throughput: z.array(DashboardThroughputWeekSchema).catch([]).default([]),
+  cycle_time: DashboardVelocityCycleTimeSchema.catch({
+    member_median_days: null,
+    agent_median_days: null,
+    prev_member_median_days: null,
+    prev_agent_median_days: null,
+    member_count: 0,
+    agent_count: 0,
+  }),
+  cost_per_closed_issue: z.array(DashboardCostPerClosedIssueWeekSchema).catch([]).default([]),
+}).loose();
+
 // Module ownership (K33).
 export const ModuleOwnershipRuleSchema = z.object({
   id: z.string(),

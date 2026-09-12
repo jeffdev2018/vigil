@@ -214,5 +214,28 @@
     "pin_failed": "无法固定此回答。",
     "reorder_failed": "无法重新排序此卡片。",
     "remove_failed": "无法删除此卡片。"
+  },
+  "velocity": {
+    "title": "速率",
+    "kpi_member_cycle": "成员周期时间 · {{days}}天",
+    "kpi_agent_cycle": "智能体周期时间 · {{days}}天",
+    "kpi_throughput": "已关闭议题 · {{days}}天",
+    "throughput_hint": "成员 {{member}} 个 · 智能体 {{agent}} 个",
+    "closed_hint": "已关闭 {{count}} 个",
+    "no_closed": "该时段内没有关闭的议题",
+    "days_unit": "天",
+    "legend_member": "成员",
+    "legend_agent": "智能体",
+    "throughput_title": "每周吞吐量",
+    "throughput_empty": "该时段内没有关闭的议题。",
+    "tooltip_total": "总计",
+    "cost_title": "每个已关闭议题的成本",
+    "cost_series": "平均成本",
+    "cost_caption": "带智能体运行的已关闭议题——成本仅涵盖这些运行。",
+    "cost_empty": "该时段内没有带智能体运行的已关闭议题。",
+    "empty_title": "暂无速率数据",
+    "empty_body": "当成员或智能体关闭议题后,最近 {{days}} 天的周期时间和每周吞吐量将显示在这里。",
+    "load_error": "无法加载速率数据。",
+    "retry": "重试"
   }
 }

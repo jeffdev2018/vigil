@@ -514,6 +514,12 @@ export type {
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
 export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
 export type { AgentRoiRow, DashboardAgentRoi } from "./agent";
+export type {
+  DashboardCostPerClosedIssueWeek,
+  DashboardThroughputWeek,
+  DashboardVelocityCycleTime,
+  DashboardVelocityWeekly,
+} from "./dashboard-velocity";
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
 export type { AgentScorecard, AgentCostEstimate, ScorecardTotals, WorkspaceScorecardRow } from "./agent";

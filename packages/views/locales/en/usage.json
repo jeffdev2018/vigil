@@ -214,5 +214,28 @@
     "pin_failed": "Could not pin this answer.",
     "reorder_failed": "Could not reorder this card.",
     "remove_failed": "Could not remove this card."
+  },
+  "velocity": {
+    "title": "Velocity",
+    "kpi_member_cycle": "Member cycle time · {{days}}D",
+    "kpi_agent_cycle": "Agent cycle time · {{days}}D",
+    "kpi_throughput": "Issues closed · {{days}}D",
+    "throughput_hint": "{{member}} by members · {{agent}} by agents",
+    "closed_hint": "{{count}} closed",
+    "no_closed": "Nothing closed in this period",
+    "days_unit": "d",
+    "legend_member": "Members",
+    "legend_agent": "Agents",
+    "throughput_title": "Weekly throughput",
+    "throughput_empty": "No closed issues in this period.",
+    "tooltip_total": "Total",
+    "cost_title": "Cost per closed issue",
+    "cost_series": "Mean cost",
+    "cost_caption": "Issues closed with agent runs — cost covers those runs only.",
+    "cost_empty": "No issue closed with an agent run in this period.",
+    "empty_title": "No velocity yet",
+    "empty_body": "Once members or agents close issues, cycle time and weekly throughput for the last {{days}} days will appear here.",
+    "load_error": "Could not load velocity.",
+    "retry": "Retry"
   }
 }

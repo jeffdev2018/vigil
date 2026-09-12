@@ -1,5 +1,6 @@
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
+import type { DashboardThroughputWeek } from "../types";
 
 export const dashboardKeys = {
   all: (wsId: string) => ["dashboard", wsId] as const,
@@ -44,6 +45,11 @@ export const dashboardKeys = {
     [...dashboardKeys.all(wsId), "routing-stats"] as const,
   workflowStats: (wsId: string) =>
     [...dashboardKeys.all(wsId), "workflow-stats"] as const,
+  velocityWeekly: (
+    wsId: string,
+    days: number,
+    projectId: string | null,
+  ) => [...dashboardKeys.all(wsId), "velocity-weekly", days, projectId] as const,
 };
 
 // The server materializes these rollups on a 5-minute cadence, so a mounted
@@ -135,6 +141,108 @@ export function dashboardAgentRoiOptions(
     enabled: !!wsId,
     staleTime: 60_000,
   });
+}
+
+// Mixed member/agent velocity (JEF-251). The server buckets weeks in UTC, so
+// unlike the day-sliced rollups above there is no `tz` in the key.
+export function dashboardVelocityWeeklyOptions(
+  wsId: string,
+  days: number,
+  projectId: string | null,
+) {
+  return queryOptions({
+    queryKey: dashboardKeys.velocityWeekly(wsId, days, projectId),
+    queryFn: () =>
+      api.getDashboardVelocityWeekly({
+        days,
+        projectId: projectId ?? undefined,
+      }),
+    enabled: !!wsId,
+    staleTime: 60_000,
+  });
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+
+function mondayUtcMs(date: Date): number {
+  const dayMs = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+  );
+  // getUTCDay: 0 = Sunday … 6 = Saturday; shift so Monday is offset 0.
+  return dayMs - ((new Date(dayMs).getUTCDay() + 6) % 7) * MS_PER_DAY;
+}
+
+function isoDate(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Fills the holes in the server-bucketed throughput series so a chart renders
+ * one continuous week axis: every Monday from the oldest returned week to the
+ * current week, with zero-count rows where the server had nothing. Duplicate
+ * `week_start` rows are summed. When the server returned no weeks at all, the
+ * `days` window still yields an all-zero axis so an empty chart has an x-axis.
+ * Output is ascending by `week_start`.
+ */
+export function mergeThroughputWeeks(
+  weeks: DashboardThroughputWeek[],
+  days: number,
+  now: Date = new Date(),
+): DashboardThroughputWeek[] {
+  const counts = new Map<string, { member_count: number; agent_count: number }>();
+  let oldestMs: number | null = null;
+  for (const week of weeks) {
+    const ms = Date.parse(`${week.week_start}T00:00:00Z`);
+    if (Number.isNaN(ms)) continue;
+    const startMs = mondayUtcMs(new Date(ms));
+    if (oldestMs === null || startMs < oldestMs) oldestMs = startMs;
+    const existing = counts.get(isoDate(startMs));
+    if (existing) {
+      existing.member_count += week.member_count;
+      existing.agent_count += week.agent_count;
+    } else {
+      counts.set(isoDate(startMs), {
+        member_count: week.member_count,
+        agent_count: week.agent_count,
+      });
+    }
+  }
+
+  const endMs = mondayUtcMs(now);
+  let startMs: number;
+  if (oldestMs !== null) {
+    startMs = Math.min(oldestMs, endMs);
+  } else {
+    const windowWeeks = Math.max(1, Math.ceil(days / 7));
+    startMs = endMs - (windowWeeks - 1) * MS_PER_WEEK;
+  }
+
+  const merged: DashboardThroughputWeek[] = [];
+  for (let ms = startMs; ms <= endMs; ms += MS_PER_WEEK) {
+    const weekStart = isoDate(ms);
+    const row = counts.get(weekStart);
+    merged.push({
+      week_start: weekStart,
+      member_count: row?.member_count ?? 0,
+      agent_count: row?.agent_count ?? 0,
+    });
+  }
+  return merged;
+}
+
+/**
+ * Percentage change of a median cycle time against the previous period,
+ * positive when delivery got slower. null when either side is missing or the
+ * previous period was zero — same null rules as `roiTrendPct`.
+ */
+export function formatCycleTimeTrend(
+  current: number | null,
+  previous: number | null,
+): number | null {
+  return roiTrendPct(current, previous);
 }
 
 /**

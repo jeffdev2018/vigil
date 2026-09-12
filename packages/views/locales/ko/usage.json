@@ -214,5 +214,28 @@
     "pin_failed": "이 답변을 고정할 수 없습니다.",
     "reorder_failed": "이 카드를 재정렬할 수 없습니다.",
     "remove_failed": "이 카드를 삭제할 수 없습니다."
+  },
+  "velocity": {
+    "title": "벨로시티",
+    "kpi_member_cycle": "멤버 사이클 타임 · {{days}}일",
+    "kpi_agent_cycle": "에이전트 사이클 타임 · {{days}}일",
+    "kpi_throughput": "완료된 이슈 · {{days}}일",
+    "throughput_hint": "멤버 {{member}}건 · 에이전트 {{agent}}건",
+    "closed_hint": "{{count}}건 완료",
+    "no_closed": "이 기간에 완료된 이슈가 없습니다",
+    "days_unit": "일",
+    "legend_member": "멤버",
+    "legend_agent": "에이전트",
+    "throughput_title": "주간 처리량",
+    "throughput_empty": "이 기간에 완료된 이슈가 없습니다.",
+    "tooltip_total": "합계",
+    "cost_title": "완료 이슈당 비용",
+    "cost_series": "평균 비용",
+    "cost_caption": "에이전트 실행이 있는 완료 이슈 — 비용은 해당 실행만 포함합니다.",
+    "cost_empty": "이 기간에 에이전트 실행이 있는 완료 이슈가 없습니다.",
+    "empty_title": "아직 벨로시티가 없습니다",
+    "empty_body": "멤버나 에이전트가 이슈를 완료하면 지난 {{days}}일의 사이클 타임과 주간 처리량이 여기에 표시됩니다.",
+    "load_error": "벨로시티를 불러올 수 없습니다.",
+    "retry": "다시 시도"
   }
 }
