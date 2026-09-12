@@ -429,16 +429,7 @@ import {
   type CreateBudgetPolicyRequest,
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
-import {
-  AgentConsultListSchema,
-  FleetCostListSchema,
-  FleetHistoryListSchema,
-  FleetStatusListSchema,
-  type AgentConsult,
-  type FleetCostRow,
-  type FleetHistoryRow,
-  type FleetStatusRow,
-} from "../fleet/schemas";
+import { AgentConsultListSchema, type AgentConsult } from "../fleet/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
 import { ApprovalsResponseSchema, EMPTY_APPROVALS, RunHaltSchema, EMPTY_RUN_HALT, type ApprovalsResponse, type RunHalt } from "../approvals/schemas";
 import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, TwentyStatusSchema, type TwentyConnectInput, type TwentyConnection, type TwentyMemberLink, type TwentySettingsInput, type TwentyStatus } from "../twenty/schemas";
@@ -1304,14 +1295,6 @@ function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
   if (params.installationId) search.set("installation_id", params.installationId);
   if (params.offset !== undefined) search.set("offset", String(params.offset));
   if (params.limit !== undefined) search.set("limit", String(params.limit));
-  const encoded = search.toString();
-  return encoded ? `?${encoded}` : "";
-}
-
-function fleetWindowSuffix(window: { since?: string; agentId?: string }): string {
-  const search = new URLSearchParams();
-  if (window.since) search.set("since", window.since);
-  if (window.agentId) search.set("agent_id", window.agentId);
   const encoded = search.toString();
   return encoded ? `?${encoded}` : "";
 }
@@ -9112,23 +9095,7 @@ export class ApiClient {
     return parseWithFallback(raw, BudgetOverrideSchema, EMPTY_BUDGET_OVERRIDE, { endpoint: "POST /api/budgets/:id/override" });
   }
 
-  // Fleet reads (JEF-12): small stable aggregations for the fleet skill and
-  // the execution log's consult lines. ?since= accepts RFC3339 or YYYY-MM-DD.
-  async getFleetStatus(window: { since?: string; agentId?: string } = {}): Promise<FleetStatusRow[]> {
-    const raw = await this.fetch<unknown>(`/api/fleet/status${fleetWindowSuffix(window)}`);
-    return parseWithFallback(raw, FleetStatusListSchema, [], { endpoint: "GET /api/fleet/status" });
-  }
-
-  async getFleetCost(window: { since?: string; agentId?: string } = {}): Promise<FleetCostRow[]> {
-    const raw = await this.fetch<unknown>(`/api/fleet/cost${fleetWindowSuffix(window)}`);
-    return parseWithFallback(raw, FleetCostListSchema, [], { endpoint: "GET /api/fleet/cost" });
-  }
-
-  async getFleetHistory(window: { since?: string; agentId?: string } = {}): Promise<FleetHistoryRow[]> {
-    const raw = await this.fetch<unknown>(`/api/fleet/history${fleetWindowSuffix(window)}`);
-    return parseWithFallback(raw, FleetHistoryListSchema, [], { endpoint: "GET /api/fleet/history" });
-  }
-
+  // Agent consults of one run (JEF-12), for the execution log's consult lines.
   async listTaskConsults(taskId: string): Promise<AgentConsult[]> {
     const raw = await this.fetch<unknown>(`/api/consult?task_id=${encodeURIComponent(taskId)}`);
     return parseWithFallback(raw, AgentConsultListSchema, [], { endpoint: "GET /api/consult" });
