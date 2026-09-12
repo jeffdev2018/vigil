@@ -24,10 +24,13 @@ multica brain show <note-id>
 ```
 
 `search` is how you look for something; `list` is how you browse. Search ranks by
-relevance and returns a score and the matching snippet per hit. The query takes
-`"a quoted phrase"`, `-negation` and `OR`. When the workspace has an embeddings model
-configured, the ranking also finds notes that word the same fact differently — the
-output says so when it does not.
+relevance and returns, per hit, a score, the section of the note that matched
+(`passage_heading`) and a snippet from it. Ask in plain words or a whole question, in
+any language: accents are optional, Chinese, Japanese and Korean words match inside
+longer text, and a note needs only half of the words to rank. `"a quoted phrase"` must
+appear as written and `-word` excludes; with either, every word is required. When the
+workspace has an embeddings model configured, the ranking also finds notes that word
+the same fact differently — the output says so when it does not.
 
 ## What belongs in the Brain
 

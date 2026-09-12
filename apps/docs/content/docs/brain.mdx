@@ -95,17 +95,21 @@ The suggestion is a proposal on the card, never an action. You can also ask for 
 
 ## Finding things
 
-Note search is ranked, not filtered: results come back best match first, each with a score and a snippet of what matched.
+Note search is ranked, not filtered: results come back best match first, each with a score, the section of the note that matched and a snippet from it.
 
-The query understands a little syntax:
+Ask the way you would ask a colleague:
 
-- `"a quoted phrase"` — the words together, in order.
-- `-word` — exclude notes containing it.
-- `a OR b` — either.
+- Plain words or a whole question both work. Common words such as "how", "the" or "est-ce que" are ignored, and a note does not need every word: it needs at least half of them, and the more it holds, the higher it ranks.
+- Accents are optional: `securite` finds "sécurité".
+- Chinese, Japanese and Korean words match inside longer text: `部署` finds "生产环境部署流程".
+- Longer English and French words match their variants: `deploy` finds "deployment".
+- `"a quoted phrase"` — the words together, in order. `-word` — exclude notes containing it. With either, the notes returned hold every word of the query. `OR` is accepted and changes nothing: words are alternatives already.
 
-Two rankers are fused. The first is lexical, over title and body. The second is semantic: if the workspace has an embeddings model configured (`MULTICA_LLM_EMBEDDING_MODEL`), every note also carries a vector, and the notes that match the query's words are ordered by meaning as well — the search UI marks that ranking **semantic**. A note must still share a word with the query to appear: nearest vectors alone always exist, even for a query nothing answers. Without that model the search is purely lexical and says so.
+Notes are indexed section by section (cut at their Markdown headings, long sections in overlapping windows), so a long note answers with the section that holds the answer, its heading shown before the snippet.
 
-Vectors are written when a note is saved or edited. A background pass every ten minutes catches up to 200 notes whose vector is missing, stale or from another model, which is what makes search whole again after an outage or a model change. Nothing has to be re-imported by hand.
+Two rankers are fused. The first is lexical, over title, section headings and body. The second is semantic and needs an embeddings model configured (`MULTICA_LLM_EMBEDDING_MODEL`): every section also carries a vector, the notes that match the query's words are ordered by meaning as well — the search UI marks that ranking **semantic** — and a note that shares no word with the query appears only when its meaning is close enough. That threshold is calibrated for the model the first time the server searches with it; while calibration fails, a result still needs a word in common with the query. Without that model the search is purely lexical and says so.
+
+Vectors are written when a note is saved or edited, and only for the sections whose text changed. A background pass every ten minutes indexes any note no search has indexed yet and catches up to 200 sections whose vector is missing or from another model, which is what makes search whole again after an outage or a model change. Nothing has to be re-imported by hand.
 
 ## Voice memos
 
