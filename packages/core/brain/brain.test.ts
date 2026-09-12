@@ -282,7 +282,14 @@ describe("searchWorkspaceNotes", () => {
   it("parses hits with their snippet, score and ranks", async () => {
     stubFetchJson({
       notes: [
-        { ...validNote, score: 0.83, snippet: "push <mark>v0.x.x</mark>", lex_rank: 1, vec_rank: 2 },
+        {
+          ...validNote,
+          score: 0.83,
+          snippet: "push <mark>v0.x.x</mark>",
+          passage_heading: "Release › Tags",
+          lex_rank: 1,
+          vec_rank: 2,
+        },
       ],
       vector: true,
     });
@@ -291,6 +298,7 @@ describe("searchWorkspaceNotes", () => {
     });
     expect(res.vector).toBe(true);
     expect(res.notes[0]?.snippet).toBe("push <mark>v0.x.x</mark>");
+    expect(res.notes[0]?.passage_heading).toBe("Release › Tags");
     expect(res.notes[0]?.lex_rank).toBe(1);
   });
 
@@ -301,7 +309,17 @@ describe("searchWorkspaceNotes", () => {
     });
     expect(res.notes[0]?.score).toBe(0);
     expect(res.notes[0]?.snippet).toBe("");
+    expect(res.notes[0]?.passage_heading).toBe("");
     expect(res.vector).toBe(false);
+  });
+
+  it("keeps the hits when a server sends a malformed passage_heading", async () => {
+    stubFetchJson({ notes: [{ ...validNote, snippet: "x", passage_heading: 42 }], vector: false });
+    const res = await new ApiClient("https://api.example.test").searchWorkspaceNotes({
+      q: "release",
+    });
+    expect(res.notes).toHaveLength(1);
+    expect(res.notes[0]?.passage_heading).toBe("");
   });
 
   it("degrades a malformed body to the empty fallback instead of throwing", async () => {

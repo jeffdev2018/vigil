@@ -2053,11 +2053,14 @@ export const OrganizeBrainCaptureResponseSchema = z.object({
 }).loose();
 
 // Ranked note search. `snippet` is the note's own text with <mark> inserted by
-// ts_headline — raw, unescaped. It is rendered through `renderSnippet`
-// (packages/core/brain/snippet.ts), never as HTML.
+// the server — raw, unescaped. It is rendered through `renderSnippet`
+// (packages/core/brain/snippet.ts), never as HTML. `passage_heading` names the
+// section it comes from; a malformed one degrades to "" rather than dropping
+// the results.
 export const WorkspaceNoteSearchHitSchema = WorkspaceNoteSchema.extend({
   score: z.number().default(0),
   snippet: z.string().default(""),
+  passage_heading: z.string().catch(""),
   lex_rank: z.number().nullable().optional(),
   vec_rank: z.number().nullable().optional(),
 }).loose();

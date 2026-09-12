@@ -84,11 +84,14 @@ export function BrainSearchGroup({
             <span className="truncate">
               <HighlightText text={note.title} query={trimmed} />
             </span>
-            {note.snippet ? (
+            {note.snippet || note.passage_heading ? (
               // The marks are dropped here: the palette highlights the query
-              // itself, and the raw snippet must never reach innerHTML.
+              // itself, and the raw snippet must never reach innerHTML. The
+              // section it comes from goes first: `Section · excerpt`.
               <span className="line-clamp-1 text-muted-foreground">
-                {snippetText(note.snippet)}
+                {[note.passage_heading, snippetText(note.snippet)]
+                  .filter((part) => part !== "")
+                  .join(" · ")}
               </span>
             ) : null}
           </span>

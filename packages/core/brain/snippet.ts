@@ -1,6 +1,6 @@
 /**
- * Ranked-search snippets come from PostgreSQL `ts_headline`, which inserts
- * `<mark>` markers into the note's own text and escapes nothing else. Handing
+ * Ranked-search snippets come from the server, which inserts `<mark>`
+ * markers into the note's own text and escapes nothing else. Handing
  * that to `dangerouslySetInnerHTML` would execute whatever a note happens to
  * contain — a note is member-writable text, so that is a stored-XSS hole.
  *
