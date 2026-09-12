@@ -185,6 +185,7 @@
     "./permissions": "./permissions/index.ts",
     "./search/cancelled-rank": "./search/cancelled-rank.ts",
     "./projects": "./projects/index.ts",
+    "./roadmap": "./roadmap/index.ts",
     "./projects/queries": "./projects/queries.ts",
     "./projects/mutations": "./projects/mutations.ts",
     "./projects/config": "./projects/config.ts",
@@ -297,6 +298,7 @@
     "./org/draft-store": "./org/draft-store.ts"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "@formatjs/intl-localematcher": "catalog:",
     "@tanstack/react-query": "catalog:",
     "i18next": "catalog:",

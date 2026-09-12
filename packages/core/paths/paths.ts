@@ -41,6 +41,8 @@ function workspaceScoped(slug: string) {
     // Native calendar (OS plan, chantier 19): events, agenda, cycles and
     // issue due dates joined into one workspace calendar.
     calendar: () => `${ws}/calendar`,
+    // Roadmap (JEF-247): projects on a timeline plus the issue dependency graph.
+    roadmap: () => `${ws}/roadmap`,
     // Executable org chart (K75): the structures routing work in this workspace.
     org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,

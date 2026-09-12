@@ -23,6 +23,7 @@ import enAutopilots from "./en/autopilots.json";
 import enSkills from "./en/skills.json";
 import enGoals from "./en/goals.json";
 import enCycles from "./en/cycles.json";
+import enRoadmap from "./en/roadmap.json";
 import enCalendarEvents from "./en/calendar-events.json";
 import enOrg from "./en/org.json";
 import enContests from "./en/contests.json";
@@ -59,6 +60,7 @@ import zhHansAutopilots from "./zh-Hans/autopilots.json";
 import zhHansSkills from "./zh-Hans/skills.json";
 import zhHansGoals from "./zh-Hans/goals.json";
 import zhHansCycles from "./zh-Hans/cycles.json";
+import zhHansRoadmap from "./zh-Hans/roadmap.json";
 import zhHansCalendarEvents from "./zh-Hans/calendar-events.json";
 import zhHansOrg from "./zh-Hans/org.json";
 import zhHansContests from "./zh-Hans/contests.json";
@@ -95,6 +97,7 @@ import koAutopilots from "./ko/autopilots.json";
 import koSkills from "./ko/skills.json";
 import koGoals from "./ko/goals.json";
 import koCycles from "./ko/cycles.json";
+import koRoadmap from "./ko/roadmap.json";
 import koCalendarEvents from "./ko/calendar-events.json";
 import koOrg from "./ko/org.json";
 import koContests from "./ko/contests.json";
@@ -131,6 +134,7 @@ import jaAutopilots from "./ja/autopilots.json";
 import jaSkills from "./ja/skills.json";
 import jaGoals from "./ja/goals.json";
 import jaCycles from "./ja/cycles.json";
+import jaRoadmap from "./ja/roadmap.json";
 import jaCalendarEvents from "./ja/calendar-events.json";
 import jaOrg from "./ja/org.json";
 import jaContests from "./ja/contests.json";
@@ -166,6 +170,7 @@ import frAutopilots from "./fr/autopilots.json";
 import frSkills from "./fr/skills.json";
 import frGoals from "./fr/goals.json";
 import frCycles from "./fr/cycles.json";
+import frRoadmap from "./fr/roadmap.json";
 import frCalendarEvents from "./fr/calendar-events.json";
 import frOrg from "./fr/org.json";
 import frContests from "./fr/contests.json";
@@ -208,6 +213,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: frSkills,
     goals: frGoals,
     cycles: frCycles,
+    roadmap: frRoadmap,
     "calendar-events": frCalendarEvents,
     org: frOrg,
     contests: frContests,
@@ -247,6 +253,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: enSkills,
     goals: enGoals,
     cycles: enCycles,
+    roadmap: enRoadmap,
     "calendar-events": enCalendarEvents,
     org: enOrg,
     contests: enContests,
@@ -285,6 +292,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: zhHansSkills,
     goals: zhHansGoals,
     cycles: zhHansCycles,
+    roadmap: zhHansRoadmap,
     "calendar-events": zhHansCalendarEvents,
     org: zhHansOrg,
     contests: zhHansContests,
@@ -323,6 +331,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: koSkills,
     goals: koGoals,
     cycles: koCycles,
+    roadmap: koRoadmap,
     "calendar-events": koCalendarEvents,
     org: koOrg,
     contests: koContests,
@@ -361,6 +370,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     skills: jaSkills,
     goals: jaGoals,
     cycles: jaCycles,
+    roadmap: jaRoadmap,
     "calendar-events": jaCalendarEvents,
     org: jaOrg,
     contests: jaContests,
