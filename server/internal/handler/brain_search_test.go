@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // Brain search over passages (JEF-412). The query matrix itself (parsing,
@@ -124,6 +126,46 @@ func TestBrainSearchIndexFollowsEveryWrite(t *testing.T) {
 	}
 	if n := dbfx.Count(t, `SELECT count(*) FROM workspace_note_passage WHERE workspace_id = $1`, workspaceID); n != 0 {
 		t.Errorf("workspace teardown left %d passages", n)
+	}
+}
+
+// TestBrainPassageIndexIgnoresAStaleRevision is the race a slow indexer
+// opens: it cut an older revision into more passages than the current one
+// has, and finishes last. Upserting only existing ordinals would still insert
+// the extra ones, which the staleness check (ordinal 1 only) never repairs,
+// so the old text would keep answering searches.
+func TestBrainPassageIndexIgnoresAStaleRevision(t *testing.T) {
+	ctx := context.Background()
+	workspaceID := brainWorkspace(t)
+	note := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Rota", Content: "## One\nfirst\n## Two\nsecond\n## Three\nthird"})
+	searchQ(t, workspaceID, "rota")
+	content := "Just one section now."
+	var updated WorkspaceNoteResponse
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+note.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Content: &content, Revision: note.Revision}), "id", note.ID)).
+		Want(http.StatusOK).
+		JSON(&updated)
+	searchQ(t, workspaceID, "rota")
+	if n := dbfx.Count(t, `SELECT count(*) FROM workspace_note_passage WHERE note_id = $1`, note.ID); n != 1 {
+		t.Fatalf("passages after the edit = %d, want 1", n)
+	}
+
+	// The indexer of the first revision lands now, with its three passages.
+	stale := db.ReplaceNotePassagesParams{
+		NoteID: parseUUID(note.ID), WorkspaceID: parseUUID(workspaceID), SearchTitle: "rota",
+		NoteRevision: note.Revision, ChunkerVersion: service.BrainChunkerVersion,
+		Ordinals: []int32{1, 2, 3}, Headings: []string{"One", "Two", "Three"}, Bodies: []string{"first", "second", "third"},
+		SearchHeadings: []string{"one", "two", "three"}, SearchBodies: []string{"first", "second", "third"}, ContentHashes: []string{"a", "b", "c"},
+	}
+	if err := testHandler.Queries.ReplaceNotePassages(ctx, stale); err != nil {
+		t.Fatalf("stale replace: %v", err)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM workspace_note_passage WHERE note_id = $1`, note.ID); n != 1 {
+		t.Errorf("a stale indexer left %d passages, want the current single one", n)
+	}
+	if hits := searchQ(t, workspaceID, "third"); len(hits) != 0 {
+		t.Errorf("old text still answers: %v", hits)
 	}
 }
 

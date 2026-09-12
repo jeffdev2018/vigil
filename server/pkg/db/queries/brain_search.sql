@@ -24,8 +24,10 @@ LIMIT sqlc.arg('row_limit')::int;
 -- name: ReplaceNotePassages :exec
 -- One statement, so a search sees the old passages or the new ones, never a
 -- mix: ordinals 1..n are upserted, ordinals above n deleted. A passage whose
--- content_hash is unchanged keeps its vector. The revision guard keeps a slow
--- indexer from overwriting what a newer revision already wrote.
+-- content_hash is unchanged keeps its vector. Nothing is written unless the
+-- note still is at the revision that was cut: a slow indexer of an older
+-- revision could otherwise insert ordinals the newer cut no longer has, and
+-- the staleness check (ordinal 1 only) would never notice them.
 WITH input AS (
     -- Set-returning functions in one select list zip arrays of equal length.
     SELECT unnest(sqlc.arg('ordinals')::int[]) AS ordinal,
@@ -39,6 +41,7 @@ WITH input AS (
     WHERE old.note_id = sqlc.arg('note_id')::uuid
       AND old.ordinal > cardinality(sqlc.arg('ordinals')::int[])
       AND old.note_revision <= sqlc.arg('note_revision')::bigint
+      AND EXISTS (SELECT 1 FROM workspace_note wn WHERE wn.id = sqlc.arg('note_id')::uuid AND wn.revision = sqlc.arg('note_revision')::bigint)
 )
 INSERT INTO workspace_note_passage AS p (
     note_id, workspace_id, ordinal, heading, body, search_title, search_heading, search_body,
@@ -48,6 +51,7 @@ SELECT sqlc.arg('note_id')::uuid, sqlc.arg('workspace_id')::uuid, i.ordinal, i.h
        sqlc.arg('search_title')::text, i.search_heading, i.search_body,
        sqlc.arg('note_revision')::bigint, sqlc.arg('chunker_version')::int, i.content_hash
 FROM input i
+WHERE EXISTS (SELECT 1 FROM workspace_note wn WHERE wn.id = sqlc.arg('note_id')::uuid AND wn.revision = sqlc.arg('note_revision')::bigint)
 ON CONFLICT (note_id, ordinal) DO UPDATE SET
     workspace_id = EXCLUDED.workspace_id,
     heading = EXCLUDED.heading,

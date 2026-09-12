@@ -176,6 +176,7 @@ WITH input AS (
     WHERE old.note_id = $1::uuid
       AND old.ordinal > cardinality($6::int[])
       AND old.note_revision <= $4::bigint
+      AND EXISTS (SELECT 1 FROM workspace_note wn WHERE wn.id = $1::uuid AND wn.revision = $4::bigint)
 )
 INSERT INTO workspace_note_passage AS p (
     note_id, workspace_id, ordinal, heading, body, search_title, search_heading, search_body,
@@ -185,6 +186,7 @@ SELECT $1::uuid, $2::uuid, i.ordinal, i.heading, i.body,
        $3::text, i.search_heading, i.search_body,
        $4::bigint, $5::int, i.content_hash
 FROM input i
+WHERE EXISTS (SELECT 1 FROM workspace_note wn WHERE wn.id = $1::uuid AND wn.revision = $4::bigint)
 ON CONFLICT (note_id, ordinal) DO UPDATE SET
     workspace_id = EXCLUDED.workspace_id,
     heading = EXCLUDED.heading,
@@ -218,8 +220,10 @@ type ReplaceNotePassagesParams struct {
 
 // One statement, so a search sees the old passages or the new ones, never a
 // mix: ordinals 1..n are upserted, ordinals above n deleted. A passage whose
-// content_hash is unchanged keeps its vector. The revision guard keeps a slow
-// indexer from overwriting what a newer revision already wrote.
+// content_hash is unchanged keeps its vector. Nothing is written unless the
+// note still is at the revision that was cut: a slow indexer of an older
+// revision could otherwise insert ordinals the newer cut no longer has, and
+// the staleness check (ordinal 1 only) would never notice them.
 func (q *Queries) ReplaceNotePassages(ctx context.Context, arg ReplaceNotePassagesParams) error {
 	_, err := q.db.Exec(ctx, replaceNotePassages,
 		arg.NoteID,
