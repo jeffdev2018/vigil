@@ -52,6 +52,28 @@
     "empty_issues_hint": "新建一个任务，或把已有的任务关联到这个周期。",
     "empty_issues_new_button": "新建任务"
   },
+  "actors": {
+    "title": "按执行者划分的容量",
+    "empty": "尚未声明任何执行者的容量。",
+    "empty_hint": "声明每个人员或智能体在本周期可以承担的工作量。",
+    "add": "添加执行者",
+    "actor_label": "执行者",
+    "actor_placeholder": "选择人员或智能体",
+    "points_label": "点数",
+    "remove": "移除执行者",
+    "save": "保存容量",
+    "error": "无法保存容量",
+    "points_invalid": "点数必须是 0 到 10000 之间的整数。"
+  },
+  "velocity": {
+    "title": "速率",
+    "loading": "正在加载速率",
+    "empty": "本周期还没有完成的工作。",
+    "empty_hint": "当人员和智能体完成任务后，速率会显示在这里。",
+    "other": "未指派或小组工作",
+    "done_value": "已完成 {{points}}",
+    "history_title": "历史周期"
+  },
   "form": {
     "create_title": "新建周期",
     "edit_title": "编辑周期",

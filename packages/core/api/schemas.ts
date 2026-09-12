@@ -6484,6 +6484,39 @@ export const CycleBurndownSchema = z.object({
   load_property_id: z.string().nullable().catch(null).default(null),
   approximate_before: z.string().nullable().catch(null).default(null),
 }).loose();
+
+// Per-actor capacity + velocity (JEF-246). Same leniency as the cycle schemas
+// above: a newer actor type or a dropped name must not blank the section.
+export const CycleActorTypeSchema = z.enum(["member", "agent"]).catch("member").default("member");
+export const CycleActorCapacitySchema = z.object({
+  actor_type: CycleActorTypeSchema,
+  actor_id: z.string().catch(""),
+  name: z.string().catch("").default(""),
+  points: z.number().int().catch(0).default(0),
+}).loose();
+export const CycleCapacitiesResponseSchema = z.object({
+  capacities: z.array(CycleActorCapacitySchema).catch([]).default([]),
+}).loose();
+export const CycleVelocitySchema = z.object({
+  cycle_id: z.string().catch(""),
+  actors: z.array(z.object({
+    actor_type: CycleActorTypeSchema,
+    actor_id: z.string().catch(""),
+    name: z.string().catch("").default(""),
+    capacity_points: z.number().nullable().catch(null).default(null),
+    done_points: z.number().catch(0).default(0),
+    done_count: z.number().catch(0).default(0),
+  }).loose()).catch([]).default([]),
+  other_done_points: z.number().catch(0).default(0),
+  history: z.array(z.object({
+    cycle_id: z.string().catch(""),
+    name: z.string().catch("").default(""),
+    start_date: z.string().catch("").default(""),
+    end_date: z.string().catch("").default(""),
+    done_points: z.number().catch(0).default(0),
+    done_count: z.number().catch(0).default(0),
+  }).loose()).catch([]).default([]),
+}).loose();
 export const GoalProgressSchema = z.object({
   goal_id: z.string().catch(""),
   projects: z.array(z.object({

@@ -111,6 +111,90 @@ describe("getCycleBurndown", () => {
   });
 });
 
+describe("getCycleCapacities", () => {
+  it("parses the per-actor rows of the JEF-246 contract", async () => {
+    const client = respondWith({
+      capacities: [
+        { actor_type: "member", actor_id: "u-1", name: "Ada", points: 20 },
+        { actor_type: "agent", actor_id: "a-1", name: "Mika", points: 40 },
+      ],
+    });
+    const out = await client.getCycleCapacities("cycle-1");
+    expect(out.capacities).toHaveLength(2);
+    expect(out.capacities[1]?.actor_type).toBe("agent");
+    expect(out.capacities[1]?.points).toBe(40);
+  });
+
+  it("falls back to no declared capacities on a malformed envelope", async () => {
+    const client = respondWith({ capacities: "nope" });
+    await expect(client.getCycleCapacities("cycle-1")).resolves.toEqual({ capacities: [] });
+  });
+});
+
+describe("putCycleCapacities", () => {
+  it("sends the full-replace body and parses the response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          capacities: [{ actor_type: "member", actor_id: "u-1", name: "Ada", points: 12 }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+    const rows = [
+      { actor_type: "member" as const, actor_id: "u-1", points: 12 },
+      { actor_type: "agent" as const, actor_id: "a-1", points: 0 },
+    ];
+    const out = await client.putCycleCapacities("cycle-1", rows);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.example.test/api/cycles/cycle-1/capacities");
+    expect(init.method).toBe("PUT");
+    // `name` is server-derived: the write body carries only the write shape.
+    expect(JSON.parse(String(init.body))).toEqual({ capacities: rows });
+    expect(out.capacities[0]?.name).toBe("Ada");
+  });
+});
+
+describe("getCycleVelocity", () => {
+  const validVelocity = {
+    cycle_id: "cycle-1",
+    actors: [
+      { actor_type: "member", actor_id: "u-1", name: "Ada", capacity_points: 20, done_points: 14, done_count: 3 },
+      { actor_type: "agent", actor_id: "a-1", name: "Mika", capacity_points: null, done_points: 8, done_count: 2 },
+    ],
+    other_done_points: 5,
+    history: [
+      { cycle_id: "cycle-0", name: "Sprint 12", start_date: "2026-02-16", end_date: "2026-02-27", done_points: 30, done_count: 7 },
+    ],
+  };
+
+  it("parses actors, other work, and history; keeps a null capacity null", async () => {
+    // A null capacity_points is "nothing declared", not zero — coercing it
+    // would draw every undeclared actor as over capacity.
+    const client = respondWith(validVelocity);
+    const out = await client.getCycleVelocity("cycle-1");
+    expect(out.actors).toHaveLength(2);
+    expect(out.actors[1]?.capacity_points).toBeNull();
+    expect(out.other_done_points).toBe(5);
+    expect(out.history[0]?.done_points).toBe(30);
+  });
+
+  it("falls back to an empty velocity on a malformed payload", async () => {
+    const client = respondWith("nope");
+    const out = await client.getCycleVelocity("cycle-1");
+    expect(out).toEqual({ cycle_id: "cycle-1", actors: [], other_done_points: 0, history: [] });
+  });
+
+  it("repairs a bad actors field rather than losing the history", async () => {
+    const client = respondWith({ ...validVelocity, actors: { nope: true } });
+    const out = await client.getCycleVelocity("cycle-1");
+    expect(out.actors).toEqual([]);
+    expect(out.history).toHaveLength(1);
+  });
+});
+
 describe("getGoalProgress", () => {
   it("parses the per-project rows and the aggregate", async () => {
     const client = respondWith({

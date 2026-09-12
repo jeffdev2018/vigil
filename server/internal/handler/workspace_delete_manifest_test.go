@@ -220,6 +220,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"goal":                           workspaceDelete,
 	"cycle":                          workspaceDelete,
 	"cycle_snapshot":                 workspaceDelete,
+	"cycle_actor_capacity":           workspaceDelete,
 	"project_resource":               workspaceDelete,
 	"quick_action":                   workspaceDelete,
 	"meeting":                        workspaceDelete,

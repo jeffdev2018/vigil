@@ -28,6 +28,8 @@ import { IssueSurface } from "../../issues/surface/issue-surface";
 import { useT } from "../../i18n";
 import { BurndownChart } from "./burndown-chart";
 import { CapacityBar } from "./capacity-bar";
+import { CapacityByActor } from "./capacity-by-actor";
+import { VelocityPanel } from "./velocity-panel";
 import { CycleFormDialog, type CycleFormTarget } from "./cycle-form-dialog";
 
 const errorMessage = (e: unknown, fallback: string) =>
@@ -145,6 +147,11 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
             <p className="text-caption text-muted-foreground">{t(($) => $.detail.loading)}</p>
           )}
         </section>
+      </div>
+
+      <div className="grid gap-4 border-b px-4 py-3 md:grid-cols-2">
+        <CapacityByActor cycleId={cycle.id} />
+        <VelocityPanel cycleId={cycle.id} />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">

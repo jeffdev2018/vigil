@@ -554,6 +554,8 @@ import {
   CycleSchema,
   ListCyclesResponseSchema,
   CycleBurndownSchema,
+  CycleCapacitiesResponseSchema,
+  CycleVelocitySchema,
   GoalProgressSchema,
   SkillDraftListSchema,
   WatchdogVerdictListSchema,
@@ -7922,6 +7924,26 @@ export class ApiClient {
     return parseWithFallback(raw, CycleBurndownSchema, {
       days: [], capacity: { human: null, agent: null }, load_unit: "issues" as const, load_property_id: null, approximate_before: null,
     }, { endpoint: "GET /api/cycles/:id/burndown" });
+  }
+
+  // Per-actor capacity + velocity (JEF-246)
+  async getCycleCapacities(id: string): Promise<import("../types").CycleCapacitiesResponse> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}/capacities`);
+    return parseWithFallback(raw, CycleCapacitiesResponseSchema, { capacities: [] }, { endpoint: "GET /api/cycles/:id/capacities" });
+  }
+
+  async putCycleCapacities(id: string, capacities: import("../types").CycleActorCapacityWrite[]): Promise<import("../types").CycleCapacitiesResponse> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}/capacities`, {
+      method: "PUT", body: JSON.stringify({ capacities }),
+    });
+    return parseWithFallback(raw, CycleCapacitiesResponseSchema, { capacities: [] }, { endpoint: "PUT /api/cycles/:id/capacities" });
+  }
+
+  async getCycleVelocity(id: string): Promise<import("../types").CycleVelocity> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}/velocity`);
+    return parseWithFallback(raw, CycleVelocitySchema, {
+      cycle_id: id, actors: [], other_done_points: 0, history: [],
+    }, { endpoint: "GET /api/cycles/:id/velocity" });
   }
 
   // Project resources

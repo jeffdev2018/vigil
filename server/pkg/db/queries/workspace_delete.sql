@@ -759,6 +759,9 @@ deleted_project_goals AS (
 deleted_cycle_snapshots AS (
     DELETE FROM cycle_snapshot WHERE cycle_snapshot.workspace_id = $1
 ),
+deleted_cycle_actor_capacities AS (
+    DELETE FROM cycle_actor_capacity WHERE cycle_actor_capacity.workspace_id = $1
+),
 deleted_cycles AS (
     DELETE FROM cycle WHERE cycle.workspace_id = $1
 ),

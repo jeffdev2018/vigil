@@ -1211,6 +1211,19 @@ type Cycle struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+// JEF-246: per-actor declared velocity capacity for one cycle. Row present = declared; no row means undeclared, which is different from zero.
+type CycleActorCapacity struct {
+	ID          pgtype.UUID `json:"id"`
+	CycleID     pgtype.UUID `json:"cycle_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	ActorType   string      `json:"actor_type"`
+	// user id when actor_type = 'member' (matching issue.assignee_id), agent id when actor_type = 'agent'.
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	Points    int32              `json:"points"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 // F29: one daily row per open cycle. The only burndown history there is — status changes are not journaled in a queryable shape.
 type CycleSnapshot struct {
 	CycleID      pgtype.UUID        `json:"cycle_id"`

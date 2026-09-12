@@ -1,22 +1,37 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
-import type { Cycle, CycleBurndown } from "@multica/core/types";
+import { fireEvent, screen, within } from "@testing-library/react";
+import type { Cycle, CycleActorCapacity, CycleBurndown, CycleVelocity } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
 // The capacity math itself is pinned in packages/core/cycles/queries.test.ts;
 // this suite covers what the DETAIL has to get right — two separate bars, an
-// honest overflow, and a burndown that states what it cannot know.
+// honest overflow, and a burndown that states what it cannot know. The
+// JEF-246 blocks mock the frozen server contract: per-actor capacities saved
+// as one full-replace PUT, and a velocity payload with actors, other work,
+// and history.
 
 const state = vi.hoisted(() => ({
   cycle: null as Cycle | null,
   burndown: null as CycleBurndown | null,
+  capacities: [] as CycleActorCapacity[],
+  velocity: null as CycleVelocity | null,
+  members: [] as { user_id: string; name: string }[],
+  agents: [] as { id: string; name: string; archived_at: string | null }[],
+  putMutate: vi.fn(),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/projects/queries", () => ({ projectListOptions: () => ({ queryKey: ["projects"] }) }));
 vi.mock("@multica/core/properties/queries", () => ({ propertyListOptions: () => ({ queryKey: ["properties"] }) }));
+vi.mock("@multica/core/workspace/queries", () => ({
+  memberListOptions: () => ({ queryKey: ["workspaces", "ws-1", "members"] }),
+  agentListOptions: () => ({ queryKey: ["workspaces", "ws-1", "agents"] }),
+}));
+vi.mock("@multica/core/paths", () => ({
+  useWorkspacePaths: () => ({ cycleDetail: (id: string) => `/acme/cycles/${id}` }),
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 // The issue surface pulls in the whole query/table stack; the detail's job is
 // to hand it the cycle scope, which is asserted through this stub. It also
@@ -41,6 +56,10 @@ vi.mock("@tanstack/react-query", () => ({
     const key = o.queryKey?.[2];
     if (key === "detail") return { data: state.cycle, isPending: false };
     if (key === "burndown") return { data: state.burndown, isPending: false };
+    if (key === "capacities") return { data: state.capacities, isPending: false };
+    if (key === "velocity") return { data: state.velocity, isPending: false };
+    if (key === "members") return { data: state.members, isPending: false };
+    if (key === "agents") return { data: state.agents, isPending: false };
     return { data: [], isPending: false };
   },
 }));
@@ -50,9 +69,12 @@ vi.mock("@multica/core/cycles", async (importOriginal) => {
     ...actual,
     cycleDetailOptions: (_ws: string, id: string) => ({ queryKey: ["cycles", "ws-1", "detail", id] }),
     cycleBurndownOptions: (_ws: string, id: string) => ({ queryKey: ["cycles", "ws-1", "burndown", id] }),
+    cycleCapacitiesOptions: (_ws: string, id: string) => ({ queryKey: ["cycles", "ws-1", "capacities", id] }),
+    cycleVelocityOptions: (_ws: string, id: string) => ({ queryKey: ["cycles", "ws-1", "velocity", id] }),
     useCloseCycle: () => ({ isPending: false, mutate: vi.fn() }),
     useCreateCycle: () => ({ isPending: false, mutate: vi.fn() }),
     useUpdateCycle: () => ({ isPending: false, mutate: vi.fn() }),
+    usePutCycleCapacities: () => ({ isPending: false, mutate: state.putMutate }),
   };
 });
 
@@ -103,6 +125,19 @@ const burndown = (over: Partial<CycleBurndown> = {}): CycleBurndown => ({
 beforeEach(() => {
   state.cycle = cycle();
   state.burndown = burndown();
+  state.capacities = [];
+  state.velocity = velocity();
+  state.members = [];
+  state.agents = [];
+  state.putMutate = vi.fn();
+});
+
+const velocity = (over: Partial<CycleVelocity> = {}): CycleVelocity => ({
+  cycle_id: "c1",
+  actors: [],
+  other_done_points: 0,
+  history: [],
+  ...over,
 });
 
 describe("CycleDetail", () => {
@@ -204,5 +239,110 @@ describe("CycleDetail", () => {
     state.cycle = null;
     renderDetail();
     expect(screen.getByText("This cycle no longer exists.")).toBeInTheDocument();
+  });
+});
+
+describe("CycleDetail · capacity by actor", () => {
+  it("shows the empty state when no per-actor capacity is declared", () => {
+    renderDetail();
+    expect(screen.getByTestId("actor-capacity-empty")).toHaveTextContent(
+      "No per-actor capacity declared yet.",
+    );
+  });
+
+  it("saves edited points through the full-replace PUT", () => {
+    state.capacities = [
+      { actor_type: "member", actor_id: "u-1", name: "Ada", points: 20 },
+      { actor_type: "agent", actor_id: "a-1", name: "Mika", points: 40 },
+    ];
+    renderDetail();
+    const rows = screen.getAllByTestId("actor-capacity-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Ada");
+    fireEvent.change(within(rows[0]!).getByLabelText("Points"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save capacities" }));
+    expect(state.putMutate).toHaveBeenCalledWith(
+      [
+        { actor_type: "member", actor_id: "u-1", points: 25 },
+        { actor_type: "agent", actor_id: "a-1", points: 40 },
+      ],
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("drops a removed row from the PUT body", () => {
+    state.capacities = [
+      { actor_type: "member", actor_id: "u-1", name: "Ada", points: 20 },
+      { actor_type: "agent", actor_id: "a-1", name: "Mika", points: 40 },
+    ];
+    renderDetail();
+    const rows = screen.getAllByTestId("actor-capacity-row");
+    fireEvent.click(within(rows[1]!).getByRole("button", { name: "Remove actor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save capacities" }));
+    expect(state.putMutate).toHaveBeenCalledWith(
+      [{ actor_type: "member", actor_id: "u-1", points: 20 }],
+      expect.anything(),
+    );
+  });
+
+  it("blocks saving while a row has no actor or no valid points", () => {
+    state.capacities = [{ actor_type: "member", actor_id: "u-1", name: "Ada", points: 20 }];
+    state.members = [{ user_id: "u-2", name: "Grace" }];
+    renderDetail();
+    // A fresh row with no actor picked yet: saving it would send a row the
+    // server cannot attribute, so the button stays disabled.
+    fireEvent.click(screen.getByRole("button", { name: "Add actor" }));
+    expect(screen.getAllByTestId("actor-capacity-row")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Save capacities" })).toBeDisabled();
+
+    fireEvent.change(screen.getAllByLabelText("Points")[0]!, { target: { value: "10001" } });
+    expect(screen.getByText(/whole number from 0 to 10000/)).toBeInTheDocument();
+  });
+});
+
+describe("CycleDetail · velocity", () => {
+  it("draws one bar per actor, done-only when no capacity was declared", () => {
+    state.velocity = velocity({
+      actors: [
+        { actor_type: "member", actor_id: "u-1", name: "Ada", capacity_points: 20, done_points: 14, done_count: 3 },
+        { actor_type: "agent", actor_id: "a-1", name: "Mika", capacity_points: null, done_points: 8, done_count: 2 },
+      ],
+    });
+    renderDetail();
+    const section = screen.getByRole("region", { name: "Velocity" });
+    const bars = within(section).getAllByTestId("capacity-bar");
+    expect(bars.map((b) => b.getAttribute("data-side"))).toEqual(["Ada", "Mika"]);
+    expect(bars[0]?.textContent).toContain("14 of 20");
+    expect(bars[1]?.textContent).toContain("no capacity declared");
+    expect(within(bars[1]!).queryByRole("progressbar")).toBeNull();
+  });
+
+  it("shows unassigned or squad work as its own line", () => {
+    state.velocity = velocity({ other_done_points: 5 });
+    renderDetail();
+    expect(screen.getByTestId("velocity-other")).toHaveTextContent(
+      "Unassigned or squad work: 5 done",
+    );
+  });
+
+  it("renders the history strip with links to past cycles", () => {
+    state.velocity = velocity({
+      history: [
+        { cycle_id: "c0", name: "Sprint 12", start_date: "2026-02-16", end_date: "2026-02-27", done_points: 30, done_count: 7 },
+      ],
+    });
+    renderDetail();
+    const link = within(screen.getByTestId("velocity-history")).getByRole("link", {
+      name: "Sprint 12",
+    });
+    expect(link).toHaveAttribute("href", "/acme/cycles/c0");
+    expect(screen.getByTestId("velocity-history")).toHaveTextContent("30 done");
+  });
+
+  it("shows the empty state when nothing is done and no capacity is declared", () => {
+    renderDetail();
+    expect(screen.getByTestId("velocity-empty")).toHaveTextContent(
+      "No done work in this cycle yet.",
+    );
   });
 });
