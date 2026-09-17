@@ -7,7 +7,28 @@ export const brainKeys = {
   list: (wsId: string, search: string, tag: string, archived: boolean) =>
     [...brainKeys.all(wsId), "list", search, tag, archived] as const,
   detail: (wsId: string, id: string) => [...brainKeys.all(wsId), "detail", id] as const,
+  usage: (wsId: string, id: string) => [...brainKeys.all(wsId), "usage", id] as const,
+  taskUsage: (wsId: string, taskId: string) =>
+    [...brainKeys.all(wsId), "task-usage", taskId] as const,
 };
+
+/** The runs that used one note, and how (JEF-413). */
+export function noteUsageOptions(wsId: string, id: string) {
+  return queryOptions({
+    queryKey: brainKeys.usage(wsId, id),
+    queryFn: ({ signal }) => api.getWorkspaceNoteUsage(id, undefined, { signal }),
+    enabled: wsId !== "" && id !== "",
+  });
+}
+
+/** The Brain notes one run used. */
+export function taskNoteUsageOptions(wsId: string, taskId: string) {
+  return queryOptions({
+    queryKey: brainKeys.taskUsage(wsId, taskId),
+    queryFn: ({ signal }) => api.listTaskNoteUsage(taskId, { signal }),
+    enabled: wsId !== "" && taskId !== "",
+  });
+}
 
 /**
  * The Brain listing. Search and tag are part of the key because the server

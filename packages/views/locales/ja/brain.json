@@ -177,5 +177,20 @@
     "confirm": "削除",
     "deleted_toast": "ノートを削除しました",
     "error": "ノートを削除できませんでした"
+  },
+  "usage": {
+    "heading": "利用状況",
+    "error": "利用状況を読み込めませんでした。",
+    "empty": "このノートを使った実行はまだありません。",
+    "used_by_runs_other": "{{count}} 件の実行で使用",
+    "kind_injected": "注入",
+    "kind_retrieved": "検索",
+    "kind_opened": "開いた",
+    "kind_viewed": "閲覧",
+    "viewers_other": "{{count}} 人が閲覧",
+    "last_used": "最終利用：{{time}}",
+    "recent_runs": "最近の実行",
+    "private_run": "非公開チャットの実行",
+    "open_run": "実行を開く"
   }
 }

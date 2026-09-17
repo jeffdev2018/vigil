@@ -81,6 +81,8 @@ import type {
   BrainCapturesResponse,
   OrganizeBrainCaptureResponse,
   WorkspaceNoteSearchResponse,
+  WorkspaceNoteUsage,
+  TaskNoteUsageResponse,
   Label,
   AgentMemory,
   ProjectMemory,
@@ -2104,6 +2106,70 @@ export const EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE: WorkspaceNoteSearchResponse =
     notes: [],
     vector: false,
   }) as WorkspaceNoteSearchResponse;
+
+// Brain note usage (JEF-413). Counts default to zero and a malformed run is
+// dropped from the list rather than failing the whole summary.
+export const WorkspaceNoteUsageRunSchema = z.object({
+  task_id: z.string().default(""),
+  agent_id: z.string().default(""),
+  agent_name: z.string().default(""),
+  issue_id: z.string().default(""),
+  issue_identifier: z.string().default(""),
+  kinds: z.array(z.string()).default([]),
+  first_at: z.string().default(""),
+  private: z.boolean().default(false),
+}).loose();
+
+const UsageCountSchema = z.number().int().nonnegative().catch(0).default(0);
+
+export const WorkspaceNoteUsageSchema = z.object({
+  counts: z.object({
+    injected: UsageCountSchema,
+    retrieved: UsageCountSchema,
+    opened: UsageCountSchema,
+    viewed: UsageCountSchema,
+  }).loose().catch({ injected: 0, retrieved: 0, opened: 0, viewed: 0 }).default({ injected: 0, retrieved: 0, opened: 0, viewed: 0 }),
+  runs_count: UsageCountSchema,
+  viewers_count: UsageCountSchema,
+  last_used_at: z.string().nullable().catch(null).default(null),
+  runs: z.array(z.unknown()).catch([]).default([]).transform((rows) =>
+    rows.flatMap((row) => {
+      const parsed = WorkspaceNoteUsageRunSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  ),
+}).loose();
+
+export const EMPTY_WORKSPACE_NOTE_USAGE: WorkspaceNoteUsage = Object.freeze({
+  counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0 },
+  runs_count: 0,
+  viewers_count: 0,
+  last_used_at: null,
+  runs: [],
+}) as WorkspaceNoteUsage;
+
+export const TaskNoteUsageItemSchema = z.object({
+  note_id: z.string(),
+  title: z.string().default(""),
+  revision: z.number().default(0),
+  kinds: z.array(z.string()).default([]),
+  channels: z.array(z.string()).default([]),
+  first_at: z.string().nullable().default(null),
+  deleted: z.boolean().default(false),
+}).loose();
+
+export const TaskNoteUsageResponseSchema = z.object({
+  notes: z.array(z.unknown()).catch([]).default([]).transform((rows) =>
+    rows.flatMap((row) => {
+      const parsed = TaskNoteUsageItemSchema.safeParse(row);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  ),
+}).loose();
+
+export const EMPTY_TASK_NOTE_USAGE_RESPONSE: TaskNoteUsageResponse = Object.freeze({
+  notes: [],
+}) as TaskNoteUsageResponse;
 
 export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
   items: [],

@@ -543,6 +543,10 @@ type AgentTaskResponse struct {
 	// memories they are shared by every agent in the workspace. Omitted when
 	// the Brain is empty and by older servers.
 	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
+	// WorkspaceNotesOmitted counts the notes left out to fit the knowledge
+	// byte budget: WorkspaceNotes is already the kept prefix, so the daemon
+	// needs this to keep the README's "left out" line truthful.
+	WorkspaceNotesOmitted int `json:"workspace_notes_omitted,omitempty"`
 	// AutopilotMemory is the execution memory of the daemon that started this
 	// run (F24 / JEF-15) — notes a previous run of THIS autopilot left for the
 	// next one. Autopilot-scoped, not agent-scoped: the same agent serving

@@ -31,6 +31,8 @@ export const brainKeys = {
   ) => [...brainKeys.all(wsId), "list", search, tag, archived] as const,
   detail: (wsId: string | null, id: string) =>
     [...brainKeys.all(wsId), "detail", id] as const,
+  usage: (wsId: string | null, id: string) =>
+    [...brainKeys.all(wsId), "usage", id] as const,
 };
 
 export const brainCaptureKeys = {
@@ -84,6 +86,14 @@ export const brainNoteOptions = (wsId: string | null, id: string) =>
   queryOptions({
     queryKey: brainKeys.detail(wsId, id),
     queryFn: ({ signal }) => api.getWorkspaceNote(id, { signal }),
+    enabled: !!wsId && id.length > 0,
+  });
+
+/** Runs that used one note (JEF-413). Mirrors core `noteUsageOptions`. */
+export const noteUsageOptions = (wsId: string | null, id: string) =>
+  queryOptions({
+    queryKey: brainKeys.usage(wsId, id),
+    queryFn: ({ signal }) => api.getWorkspaceNoteUsage(id, { signal }),
     enabled: !!wsId && id.length > 0,
   });
 

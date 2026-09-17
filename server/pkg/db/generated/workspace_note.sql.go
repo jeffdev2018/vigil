@@ -97,6 +97,9 @@ const deleteWorkspaceNote = `-- name: DeleteWorkspaceNote :execrows
 WITH passages AS (
     DELETE FROM workspace_note_passage
     WHERE note_id = $1::uuid AND workspace_id = $2::uuid
+), usage AS (
+    DELETE FROM workspace_note_usage
+    WHERE note_id = $1::uuid AND workspace_id = $2::uuid
 )
 DELETE FROM workspace_note WHERE id = $1::uuid AND workspace_id = $2::uuid
 `
@@ -107,7 +110,7 @@ type DeleteWorkspaceNoteParams struct {
 }
 
 // Defense-in-depth: workspace_id is a SQL-layer tenant guard. The note's
-// search passages go in the same statement (no FK, no cascade).
+// search passages and usage rows go in the same statement (no FK, no cascade).
 func (q *Queries) DeleteWorkspaceNote(ctx context.Context, arg DeleteWorkspaceNoteParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWorkspaceNote, arg.ID, arg.WorkspaceID)
 	if err != nil {

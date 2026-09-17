@@ -177,5 +177,22 @@
     "confirm": "Delete",
     "deleted_toast": "Note deleted",
     "error": "The note could not be deleted"
+  },
+  "usage": {
+    "heading": "Usage",
+    "error": "Usage could not be loaded.",
+    "empty": "No run has used this note yet.",
+    "used_by_runs_one": "Used by {{count}} run",
+    "used_by_runs_other": "Used by {{count}} runs",
+    "kind_injected": "Injected",
+    "kind_retrieved": "Retrieved",
+    "kind_opened": "Opened",
+    "kind_viewed": "Viewed",
+    "viewers_one": "Read by {{count}} person",
+    "viewers_other": "Read by {{count}} people",
+    "last_used": "Last used {{time}}",
+    "recent_runs": "Recent runs",
+    "private_run": "Private chat run",
+    "open_run": "Open run"
   }
 }

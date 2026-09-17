@@ -1203,10 +1203,10 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 		}
 		// Living document (N15): autopilot instructions may pin a note.
 		if nt, ok := ParseNoteTargetFromAutopilotDescription(ap.Description.String); ok {
-			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			nativeAppendNoteTargetBrief(ctx, s.Queries, task, agent, nt, &b)
 		}
 		if nt, ok := ParseNoteTargetContext(task.Context); ok {
-			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			nativeAppendNoteTargetBrief(ctx, s.Queries, task, agent, nt, &b)
 		}
 		return b.String(), nil, nil
 
@@ -1215,7 +1215,7 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 			var b strings.Builder
 			b.WriteString("Living-document run: your job is to update the targeted workspace note so it reflects the latest facts. ")
 			b.WriteString("Use get_note / update_note; do not settle for a comment alone.\n")
-			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			nativeAppendNoteTargetBrief(ctx, s.Queries, task, agent, nt, &b)
 			return b.String(), nil, nil
 		}
 		var qc QuickCreateContext
@@ -1236,7 +1236,7 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 		if nt, ok := ParseNoteTargetContext(task.Context); ok {
 			var b strings.Builder
 			b.WriteString(brief)
-			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			nativeAppendNoteTargetBrief(ctx, s.Queries, task, agent, nt, &b)
 			return b.String(), &issue, nil
 		}
 		return brief, &issue, nil

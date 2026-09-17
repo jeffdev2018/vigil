@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -74,7 +73,7 @@ func ParseNoteTargetFromAutopilotDescription(description string) (NoteTargetCont
 // nativeAppendNoteTargetBrief loads the note and appends the living-document
 // contract to the brief. Failures are soft: a missing note must not kill a
 // run that still has other work.
-func nativeAppendNoteTargetBrief(ctx context.Context, q *db.Queries, workspaceID pgtype.UUID, nt NoteTargetContext, b *strings.Builder) {
+func nativeAppendNoteTargetBrief(ctx context.Context, q *db.Queries, task db.AgentTaskQueue, agent db.Agent, nt NoteTargetContext, b *strings.Builder) {
 	if q == nil || b == nil || nt.NoteID == "" {
 		return
 	}
@@ -83,11 +82,13 @@ func nativeAppendNoteTargetBrief(ctx context.Context, q *db.Queries, workspaceID
 		fmt.Fprintf(b, "\nLiving document: note_id %q is not a valid uuid — create or find the note, then update_note.\n", nt.NoteID)
 		return
 	}
-	note, err := q.GetWorkspaceNote(ctx, db.GetWorkspaceNoteParams{ID: noteUUID, WorkspaceID: workspaceID})
+	note, err := q.GetWorkspaceNote(ctx, db.GetWorkspaceNoteParams{ID: noteUUID, WorkspaceID: agent.WorkspaceID})
 	if err != nil {
 		fmt.Fprintf(b, "\nLiving document: note %s could not be loaded — search_notes or save_note, then update it.\n", nt.NoteID)
 		return
 	}
+	// The note's content goes into the prompt: that is an injection (JEF-413).
+	RecordRunNoteUsage(ctx, q, task.ID, agent.ID, "injected", "native_tool", NoteVersionsOf(note))
 	b.WriteString("\nLiving document (your deliverable for this run):\n")
 	fmt.Fprintf(b, "- note_id: %s\n", util.UUIDToString(note.ID))
 	fmt.Fprintf(b, "- title: %s\n", nativeDataFence("note title", note.Title))

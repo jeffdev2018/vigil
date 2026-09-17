@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/multica-ai/multica/server/internal/brainknowledge"
 )
 
 func note(id, title, body string, pinned bool) WorkspaceNoteForEnv {
@@ -92,8 +94,8 @@ func TestWriteWorkspaceKnowledgeRespectsTheByteBudget(t *testing.T) {
 		}
 		total += int(info.Size())
 	}
-	if total > knowledgeByteBudget {
-		t.Fatalf("wrote %d bytes of notes, over the %d budget", total, knowledgeByteBudget)
+	if total > brainknowledge.ByteBudget {
+		t.Fatalf("wrote %d bytes of notes, over the %d budget", total, brainknowledge.ByteBudget)
 	}
 	// 6 × 60 KiB cannot fit in 200 KiB, so the tail must have been dropped.
 	if len(entries) >= len(notes)+1 {
@@ -114,7 +116,7 @@ func TestWriteWorkspaceKnowledgeKeepsAnOversizedFirstNote(t *testing.T) {
 	t.Parallel()
 	workDir := t.TempDir()
 
-	notes := []WorkspaceNoteForEnv{note("11111111-2222-3333-4444-555555555555", "Huge", strings.Repeat("y", knowledgeByteBudget+1024), false)}
+	notes := []WorkspaceNoteForEnv{note("11111111-2222-3333-4444-555555555555", "Huge", strings.Repeat("y", brainknowledge.ByteBudget+1024), false)}
 	if err := writeWorkspaceKnowledge(workDir, TaskContextForEnv{WorkspaceNotes: notes}, nil); err != nil {
 		t.Fatalf("writeWorkspaceKnowledge: %v", err)
 	}
@@ -163,38 +165,26 @@ func TestWorkspaceKnowledgeBriefSection(t *testing.T) {
 	}
 }
 
-// Regression test for the budget bug: once the running total would exceed
-// the budget, selection must stop (prefix truncation), not skip the
-// over-budget note and keep scanning for a smaller one further down the
-// list. [pinned 150KiB, recent 60KiB, older 30KiB] against a 200KiB budget:
-// pinned+recent already exceeds it, so recent AND older must both be
-// dropped -- the buggy `continue` kept [pinned, older], silently admitting
-// the older, lower-priority note while dropping the more recent one, which
-// also contradicted the very README message it produced.
-func TestSelectKnowledgeNotesIsPrefixTruncation(t *testing.T) {
-	pinned := note("11111111-1111-1111-1111-111111111111", "Pinned", strings.Repeat("p", 150*1024), true)
-	recent := note("22222222-2222-2222-2222-222222222222", "Recent", strings.Repeat("r", 60*1024), false)
-	older := note("33333333-3333-3333-3333-333333333333", "Older", strings.Repeat("o", 30*1024), false)
+// A current server applies the budget itself and sends only the kept notes
+// plus how many it dropped. The daemon writes exactly what it received and
+// the README still discloses the server's count.
+func TestWriteWorkspaceKnowledgeDisclosesTheServerOmittedCount(t *testing.T) {
+	t.Parallel()
+	workDir := t.TempDir()
 
-	pinnedSize := len(knowledgeNoteBody(pinned))
-	recentSize := len(knowledgeNoteBody(recent))
-	olderSize := len(knowledgeNoteBody(older))
-	if pinnedSize+recentSize <= knowledgeByteBudget {
-		t.Fatalf("test fixture assumption broken: pinned+recent (%d) must exceed the budget (%d)", pinnedSize+recentSize, knowledgeByteBudget)
+	notes := []WorkspaceNoteForEnv{note("11111111-2222-3333-4444-555555555555", "Kept", "body", false)}
+	if err := writeWorkspaceKnowledge(workDir, TaskContextForEnv{WorkspaceNotes: notes, WorkspaceNotesOmitted: 3}, nil); err != nil {
+		t.Fatalf("writeWorkspaceKnowledge: %v", err)
 	}
-	if pinnedSize+olderSize > knowledgeByteBudget {
-		t.Fatalf("test fixture assumption broken: pinned+older (%d) must fit the budget (%d) -- otherwise this doesn't distinguish break from continue", pinnedSize+olderSize, knowledgeByteBudget)
+	dir := filepath.Join(workDir, ".multica", "knowledge")
+	index, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	kept, omitted := selectKnowledgeNotes([]WorkspaceNoteForEnv{pinned, recent, older})
-	if len(kept) != 1 || kept[0].ID != pinned.ID {
-		ids := make([]string, len(kept))
-		for i, n := range kept {
-			ids[i] = n.Title
-		}
-		t.Fatalf("kept = %v, want only [Pinned] -- recent and older must both be dropped, not just recent", ids)
+	if !strings.Contains(string(index), "3 older note(s) were left out") {
+		t.Errorf("index does not carry the server's omitted count\n---\n%s", index)
 	}
-	if omitted != 2 {
-		t.Fatalf("omitted = %d, want 2", omitted)
+	if _, err := os.Stat(filepath.Join(dir, "kept-11111111.md")); err != nil {
+		t.Fatalf("kept note not written: %v", err)
 	}
 }

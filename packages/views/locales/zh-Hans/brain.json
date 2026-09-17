@@ -177,5 +177,20 @@
     "confirm": "删除",
     "deleted_toast": "笔记已删除",
     "error": "无法删除这条笔记"
+  },
+  "usage": {
+    "heading": "使用情况",
+    "error": "无法加载使用情况。",
+    "empty": "还没有运行使用过这条笔记。",
+    "used_by_runs_other": "被 {{count}} 次运行使用",
+    "kind_injected": "注入",
+    "kind_retrieved": "检索",
+    "kind_opened": "打开",
+    "kind_viewed": "阅读",
+    "viewers_other": "{{count}} 人阅读过",
+    "last_used": "最近使用：{{time}}",
+    "recent_runs": "最近的运行",
+    "private_run": "私人聊天运行",
+    "open_run": "查看运行"
   }
 }

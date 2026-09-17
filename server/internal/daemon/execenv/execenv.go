@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
+
+	"github.com/multica-ai/multica/server/internal/brainknowledge"
 )
 
 // RepoContextForEnv describes a workspace repo available for checkout.
@@ -77,17 +79,9 @@ type OrgContextForEnv struct {
 }
 
 // WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
-// is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
-// daemon decodes straight into it.
-type WorkspaceNoteForEnv struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Content string   `json:"content,omitempty"`
-	Tags    []string `json:"tags,omitempty"`
-	Pinned  bool     `json:"pinned,omitempty"`
-	Source  string   `json:"source,omitempty"`
-	Updated string   `json:"updated_at,omitempty"`
-}
+// is the claim wire shape too, shared with the server through brainknowledge
+// so both sides select and name notes with the same rules.
+type WorkspaceNoteForEnv = brainknowledge.Note
 
 // RepoIndexHintForEnv is one hit from the workspace's shared repo index (K47)
 // as the run receives it. It is the wire shape too (json tags mirror
@@ -248,6 +242,10 @@ type TaskContextForEnv struct {
 	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
 	// they are shared by every agent in the workspace.
 	WorkspaceNotes []WorkspaceNoteForEnv
+	// WorkspaceNotesOmitted is how many notes the server already left out for
+	// the byte budget before sending WorkspaceNotes. Zero from older servers,
+	// which send every note and let the daemon's own selection drop the tail.
+	WorkspaceNotesOmitted int
 	// AutopilotMemory is the execution memory of the daemon that started this
 	// run (F24 / JEF-15): what a previous run of the SAME autopilot left for
 	// the next one. Autopilot-scoped, so unlike AgentMemories it never

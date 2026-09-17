@@ -177,5 +177,20 @@
     "confirm": "삭제",
     "deleted_toast": "노트를 삭제했습니다",
     "error": "노트를 삭제할 수 없습니다"
+  },
+  "usage": {
+    "heading": "사용 현황",
+    "error": "사용 현황을 불러오지 못했습니다.",
+    "empty": "아직 이 노트를 사용한 실행이 없습니다.",
+    "used_by_runs_other": "{{count}}개 실행에서 사용",
+    "kind_injected": "주입",
+    "kind_retrieved": "검색",
+    "kind_opened": "열람",
+    "kind_viewed": "읽음",
+    "viewers_other": "{{count}}명이 읽음",
+    "last_used": "마지막 사용: {{time}}",
+    "recent_runs": "최근 실행",
+    "private_run": "비공개 채팅 실행",
+    "open_run": "실행 열기"
   }
 }

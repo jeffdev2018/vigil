@@ -21,7 +21,7 @@ func TestNativeAppendNoteTargetBriefFencesTheTitle(t *testing.T) {
 	noteID := seedBrainNote(t, pool, ws, maliciousTitle, "irrelevant content", nil, false)
 
 	var b strings.Builder
-	nativeAppendNoteTargetBrief(context.Background(), db.New(pool), util.MustParseUUID(ws), NoteTargetContext{NoteID: noteID}, &b)
+	nativeAppendNoteTargetBrief(context.Background(), db.New(pool), db.AgentTaskQueue{}, db.Agent{WorkspaceID: util.MustParseUUID(ws)}, NoteTargetContext{NoteID: noteID}, &b)
 	got := b.String()
 
 	open, close := nativeFencePattern()

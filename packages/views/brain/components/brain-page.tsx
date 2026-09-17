@@ -55,6 +55,7 @@ import { cn } from "@multica/ui/lib/utils";
 import { AppLink, useNavigation } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
 import { useDebouncedValue } from "../../common/use-debounced-value";
+import { NoteUsageSection, useRecordNoteViewOnce } from "./note-usage-section";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
@@ -547,6 +548,7 @@ function NoteDetailBody({
   const setArchived = useSetWorkspaceNoteArchived(wsId);
   const remove = useDeleteWorkspaceNote(wsId);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  useRecordNoteViewOnce(wsId, note.id);
 
   const [editing, setEditing] = useState(false);
   // The revision the draft was opened on. `note.revision` keeps moving while
@@ -743,6 +745,9 @@ function NoteDetailBody({
               </p>
             )}
           </>
+        )}
+        {editing ? null : (
+          <NoteUsageSection wsId={wsId} noteId={note.id} />
         )}
       </div>
 

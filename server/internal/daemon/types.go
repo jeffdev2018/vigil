@@ -168,6 +168,8 @@ type Task struct {
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.
 	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	// WorkspaceNotesOmitted mirrors handler.AgentTaskResponse.WorkspaceNotesOmitted.
+	WorkspaceNotesOmitted int `json:"workspace_notes_omitted,omitempty"`
 	// AutopilotMemory mirrors handler.AgentTaskResponse.AutopilotMemory: the
 	// execution memory of the daemon that started this run (F24 / JEF-15).
 	// Empty when the run has no autopilot, when the memory is empty, and on

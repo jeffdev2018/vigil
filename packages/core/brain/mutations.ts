@@ -60,6 +60,21 @@ export function useDeleteWorkspaceNote(wsId: string) {
 }
 
 /**
+ * Counts a member's read of a note (JEF-413). Fire-and-forget: nothing is
+ * optimistic, a failure is not the reader's problem and shows no toast, and
+ * the note's usage summary refreshes once the server has counted it.
+ */
+export function useRecordNoteView(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.recordWorkspaceNoteView(id),
+    onSettled: (_data, _error, id) => {
+      qc.invalidateQueries({ queryKey: brainKeys.usage(wsId, id) });
+    },
+  });
+}
+
+/**
  * Brain capture inbox. Nothing here is optimistic either: a capture's kind,
  * its suggestion and (for a voice memo) its transcript are all decided
  * server-side, and organizing one moves it out of the inbox and may create or
