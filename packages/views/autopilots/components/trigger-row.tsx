@@ -205,12 +205,12 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
           )}
           {/* The switch already states this for anyone who can flip it. */}
           {!trigger.enabled && !canWrite && (
-            <span className="text-caption bg-muted px-1.5 py-0.5 rounded">
+            <span className="text-caption bg-muted px-1.5 py-0.5 rounded-xs">
               {t(($) => $.trigger_row.disabled_badge)}
             </span>
           )}
           {isApi && (
-            <span className="text-caption bg-muted px-1.5 py-0.5 rounded">
+            <span className="text-caption bg-muted px-1.5 py-0.5 rounded-xs">
               {t(($) => $.trigger_row.deprecated_badge)}
             </span>
           )}
@@ -380,7 +380,7 @@ function ScheduleNextRuns({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex items-center gap-1 rounded text-caption text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-1 rounded-xs text-caption text-muted-foreground hover:text-foreground transition-colors"
       >
         <ToggleIcon className="h-3.5 w-3.5" />
         {t(($) => $.next_runs.label)}

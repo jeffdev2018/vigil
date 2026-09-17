@@ -55,6 +55,10 @@ interface ConfigState {
   // MULTICA_LLM_API_KEY set — the onboarding native-runtime card stays
   // disabled and the getting-started checklist hides the native row.
   nativeRuntimeAvailable: boolean;
+  // Whether deleting a comment keeps its replies (#8296). Older servers
+  // deleted the replies too, so absent must fail closed: the client then
+  // promises nothing about replies and uses the legacy delete route.
+  commentDeleteKeepRepliesSupported: boolean;
   setCdnConfig: (config: { cdnDomain: string; cdnSigned?: boolean }) => void;
   setAuthConfig: (config: {
     allowSignup: boolean;
@@ -75,6 +79,7 @@ interface ConfigState {
   setTtsAvailable: (available?: boolean) => void;
   setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
   setNativeRuntimeAvailable: (available?: boolean) => void;
+  setCommentDeleteKeepRepliesSupported: (supported?: boolean) => void;
 }
 
 
@@ -96,6 +101,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   ttsAvailable: false,
   runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
   nativeRuntimeAvailable: false,
+  commentDeleteKeepRepliesSupported: false,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
     allowSignup,
@@ -125,6 +131,8 @@ export const configStore = createStore<ConfigState>((set) => ({
     }),
   setNativeRuntimeAvailable: (available = false) =>
     set({ nativeRuntimeAvailable: available === true }),
+  setCommentDeleteKeepRepliesSupported: (supported = false) =>
+    set({ commentDeleteKeepRepliesSupported: supported === true }),
 }));
 
 export function useConfigStore(): ConfigState;

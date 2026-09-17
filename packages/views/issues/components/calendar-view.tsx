@@ -44,14 +44,13 @@ import { useLocale, useT } from "../../i18n";
 // a six-row grid inside a laptop viewport without a scrollbar per cell.
 const MAX_CHIPS_PER_CELL = 4;
 
+// Four lifecycle categories since MUL-6243; the seven built-in status keys
+// resolve into them through issueStatusCategory.
 const STATUS_DOT: Record<IssueStatusCategory, string> = {
-  backlog: "bg-muted-foreground/60",
-  todo: "bg-muted-foreground/70",
-  in_progress: "bg-warning",
-  in_review: "bg-success",
+  unstarted: "bg-muted-foreground/70",
+  started: "bg-warning",
   done: "bg-info",
-  blocked: "bg-destructive",
-  cancelled: "bg-muted-foreground/40",
+  closed: "bg-muted-foreground/40",
 };
 
 function IssueChip({ issue }: { issue: Issue }) {
@@ -66,7 +65,7 @@ function IssueChip({ issue }: { issue: Issue }) {
         <span
           className={cn(
             "size-1.5 shrink-0 rounded-full",
-            STATUS_DOT[issueStatusCategory(issue) ?? "todo"],
+            STATUS_DOT[issueStatusCategory(issue) ?? "unstarted"],
           )}
         />
         <span className="truncate">{issue.title}</span>

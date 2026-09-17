@@ -43,12 +43,12 @@ issue_statuses:
   - key: awaiting_decision
     name: Awaiting decision
     description: The brief is ready and the named owner has to decide.
-    category: in_review
+    category: started
     color: "#f59e0b"
   - key: deferred
     name: Deferred
     description: Consciously postponed, with the date or the event that reopens it written in the item.
-    category: blocked
+    category: started
     color: "#94a3b8"
 
 issue_types:

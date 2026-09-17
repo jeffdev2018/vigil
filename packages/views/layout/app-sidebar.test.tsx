@@ -1,20 +1,30 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { buildIssueStatusCatalog } from "@multica/core/issue-statuses/queries";
+
+vi.mock("@multica/core/issue-statuses/hooks", () => ({
+  useIssueStatuses: () => buildIssueStatusCatalog([]),
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
 import { toast } from "sonner";
 import { renderWithI18n } from "../test/i18n";
 import { AppSidebar, hasOverflowBelow } from "./app-sidebar";
 
-const { appForeground, chatSessions, chatStore, detail, deletePin, acceptInvitation, declineInvitation, inboxItems, myInvitations, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
+const { appForeground, chatSessions, chatStore, detail, deletePin, invitationApi, myInvitations, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
   chatStore: { current: { activeSessionId: null as string | null, isOpen: false } },
   detail: { current: { isPending: false, isError: false, data: null as unknown, error: null as unknown } },
   deletePin: vi.fn(),
-  acceptInvitation: vi.fn(),
-  declineInvitation: vi.fn(),
-  inboxItems: { current: [] as { id: string; read: boolean }[] },
+  // Captures the sidebar's invitation accept/decline mutations so the
+  // self-heal wiring (error → invalidate the pending list) is observable.
+  invitationApi: {
+    accept: vi.fn(),
+    decline: vi.fn(),
+    invalidateQueries: vi.fn(),
+    mutations: [] as Array<Record<string, unknown>>,
+  },
   myInvitations: { current: [] as { id: string; workspace_id: string; workspace_name?: string }[] },
   navigation: { current: { pathname: "/acme/issues" } },
   summary: { current: [] as { workspace_id: string; count: number }[] },
@@ -171,15 +181,17 @@ vi.mock("@multica/core/api", async (importOriginal) => {
     api: {
       ...actual.api,
       getBaseUrl: () => "http://127.0.0.1:8080",
-      acceptInvitation: (id: string) => acceptInvitation(id),
-      declineInvitation: (id: string) => declineInvitation(id),
+      acceptInvitation: invitationApi.accept,
+      declineInvitation: invitationApi.decline,
     },
   };
 });
 vi.mock("@multica/core/inbox/queries", () => ({
-  deduplicateInboxItems: (items: unknown[]) => items,
-  inboxKeys: { list: () => ["inbox"], unreadSummary: () => ["inbox", "unread-summary"] },
   inboxUnreadSummaryOptions: () => ({ queryKey: ["inbox", "unread-summary"] }),
+  // The nav badge and the switcher dot read the SAME cross-workspace summary,
+  // so the fixture that drives one drives the other.
+  useInboxUnreadCount: (currentWsId: string | null) =>
+    summary.current.find((s) => s.workspace_id === currentWsId)?.count ?? 0,
   hasOtherWorkspaceUnread: (
     entries: { workspace_id: string; count: number }[],
     currentWsId: string | null,
@@ -212,26 +224,36 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   // Only acceptInvitationMut/declineInvitationMut in app-sidebar.tsx call
   // this hook directly (pins go through useReorderPins/useDeletePin, mocked
-  // separately below) — real enough to run mutationFn and invoke
-  // onSuccess/onError so their error handling is exercisable here.
+  // separately below). Real enough to run mutationFn and invoke
+  // onSuccess/onError/onSettled — and every config is captured, so a test can
+  // also drive one handler in isolation.
   useMutation: <TVars,>(config: {
     mutationFn: (vars: TVars) => Promise<unknown>;
     onSuccess?: (data: unknown, vars: TVars) => void;
     onError?: (err: unknown, vars: TVars) => void;
-  }) => ({
-    isPending: false,
-    mutate: (vars: TVars) => {
-      config
-        .mutationFn(vars)
-        .then((data) => config.onSuccess?.(data, vars))
-        .catch((err: unknown) => config.onError?.(err, vars));
-    },
-  }),
+    onSettled?: (data: unknown, err: unknown, vars: TVars) => void;
+  }) => {
+    invitationApi.mutations.push(config as unknown as Record<string, unknown>);
+    return {
+      isPending: false,
+      mutate: (vars: TVars) => {
+        config
+          .mutationFn(vars)
+          .then((data) => {
+            config.onSuccess?.(data, vars);
+            config.onSettled?.(data, null, vars);
+          })
+          .catch((err: unknown) => {
+            config.onError?.(err, vars);
+            config.onSettled?.(undefined, err, vars);
+          });
+      },
+    };
+  },
   useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => {
     if (queryKey[0] === "pins") return { data: pins.current };
     if (queryKey[0] === "issue") return detail.current;
     if (queryKey[0] === "inbox" && queryKey[1] === "unread-summary") return { data: summary.current };
-    if (queryKey[0] === "inbox") return { data: inboxItems.current };
     if (queryKey[0] === "workspaces") return { data: workspaces.current };
     if (queryKey[0] === "invitations") return { data: myInvitations.current };
     if (queryKey[0] === "chat" && queryKey[2] === "sessions") return { data: chatSessions.current };
@@ -239,7 +261,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
     if (queryKey[0] === "postmortem") return { data: postmortemStats.current };
     return { data: [] };
   },
-  useQueryClient: () => ({ fetchQuery: vi.fn(), invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ fetchQuery: vi.fn(), invalidateQueries: invitationApi.invalidateQueries }),
 }));
 
 describe("PinRow", () => {
@@ -465,7 +487,7 @@ describe("personal nav scroll container", () => {
 describe("personal nav — Chat", () => {
   beforeEach(() => {
     chatSessions.current = [];
-    inboxItems.current = [];
+    summary.current = [];
     navigation.current = { pathname: "/acme/issues" };
     chatStore.current = { activeSessionId: null, isOpen: false };
     appForeground.current = true;
@@ -479,7 +501,7 @@ describe("personal nav — Chat", () => {
     chatNav(container)?.querySelector("number-flow-react") ?? null;
 
   it("keeps persistent Inbox and Chat counters static", () => {
-    inboxItems.current = [{ id: "inbox-1", read: false }];
+    summary.current = [{ workspace_id: "ws-1", count: 1 }];
     chatSessions.current = [{ id: "chat-1", unread_count: 2 }];
     const { container } = render(<AppSidebar />);
     const inboxBadge = container
@@ -612,13 +634,13 @@ describe("hasOverflowBelow", () => {
 describe("AppSidebar — pending invitations", () => {
   beforeEach(() => {
     myInvitations.current = [{ id: "inv-1", workspace_id: "ws-2", workspace_name: "Other Co" }];
-    acceptInvitation.mockReset();
-    declineInvitation.mockReset();
+    invitationApi.accept.mockReset();
+    invitationApi.decline.mockReset();
     vi.mocked(toast.error).mockClear();
   });
 
   it("shows a toast when accepting an invitation fails", async () => {
-    acceptInvitation.mockRejectedValue(new Error("invitation expired"));
+    invitationApi.accept.mockRejectedValue(new Error("invitation expired"));
     render(<AppSidebar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
@@ -627,7 +649,7 @@ describe("AppSidebar — pending invitations", () => {
   });
 
   it("shows a toast when declining an invitation fails", async () => {
-    declineInvitation.mockRejectedValue(new Error("already accepted"));
+    invitationApi.decline.mockRejectedValue(new Error("already accepted"));
     render(<AppSidebar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Decline" }));
@@ -648,5 +670,45 @@ describe("New issue from a project page", () => {
     fireEvent.click(screen.getByRole("button", { name: /New Issue/ }));
 
     expect(openCreateIssueWithPreference).toHaveBeenLastCalledWith({ project_id: "project-1" });
+  });
+});
+
+describe("Pending invitation self-heal", () => {
+  beforeEach(() => {
+    invitationApi.accept.mockReset();
+    invitationApi.decline.mockReset();
+    invitationApi.invalidateQueries.mockClear();
+    invitationApi.mutations.length = 0;
+    invitationApi.accept.mockRejectedValue(new Error("invitation is not pending"));
+    invitationApi.decline.mockRejectedValue(new Error("invitation is not pending"));
+    navigation.current.pathname = "/acme/issues";
+    workspaces.current = [];
+  });
+
+  // "invitation is not pending" means the row on screen was concluded from
+  // another surface. Both mutations must invalidate the pending list on
+  // failure so the stale row drops instead of surviving until restart.
+  it("invalidates the pending-invitations list when accept or decline fails", async () => {
+    render(<AppSidebar />);
+    expect(invitationApi.mutations).toHaveLength(2);
+
+    for (const options of invitationApi.mutations as Array<{
+      mutationFn: (id: string) => Promise<unknown>;
+      onError?: (err: unknown, vars: unknown) => unknown;
+      onSettled?: (data: unknown, err: unknown, vars: unknown) => unknown;
+    }>) {
+      // Run the whole failure path, not one hand-picked handler: either
+      // mutation may invalidate from onError, from onSettled, or (accept vs
+      // decline today) split the toast and the invalidation between them.
+      expect(options.onError ?? options.onSettled).toBeTypeOf("function");
+      invitationApi.invalidateQueries.mockClear();
+      const err = new Error("invitation is not pending");
+      await expect(options.mutationFn("inv-1")).rejects.toThrow("invitation is not pending");
+      await options.onError?.(err, "inv-1");
+      await options.onSettled?.(undefined, err, "inv-1");
+      expect(invitationApi.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["invitations"] });
+    }
+    expect(invitationApi.accept).toHaveBeenCalledTimes(1);
+    expect(invitationApi.decline).toHaveBeenCalledTimes(1);
   });
 });

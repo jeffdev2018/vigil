@@ -137,7 +137,7 @@ func TestRefusedClaimFinalizationLeavesNoUsage(t *testing.T) {
 	task.DispatchedAt.Time = task.DispatchedAt.Time.Add(-time.Hour) // no longer the live claim
 	_, err = testHandler.TaskService.FinalizeTaskClaim(context.Background(), task, db.CreateTaskTokenParams{}, nil, false,
 		&service.TaskMemoryContext{AgentStatus: "loaded", AgentVersions: []service.MemoryVersion{}, WorkspaceNotesStatus: "loaded",
-			WorkspaceNotes: []service.NoteVersion{{ID: note, Revision: 1}}})
+			WorkspaceNotes: []service.NoteVersion{{ID: note, Revision: 1}}}, nil)
 	if err == nil {
 		t.Fatal("stale finalize succeeded")
 	}

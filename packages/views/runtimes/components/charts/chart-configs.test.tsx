@@ -32,7 +32,7 @@ describe("chart series configs", () => {
 
     const fr = renderHook(() => useCostStackConfig(), { wrapper: wrapper("fr") });
     expect(fr.result.current.input!.label).toBe("Entrée");
-    expect(fr.result.current.cacheRead!.label).toBe("Lecture cache");
+    expect(fr.result.current.cacheRead!.label).toBe("Lecture de cache");
   });
 
   it("useTasksChartConfig translates every segment label", () => {

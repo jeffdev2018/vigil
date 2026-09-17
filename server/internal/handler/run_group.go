@@ -238,7 +238,7 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 	for i, agent := range agents {
 		task, err := h.TaskService.EnqueueRunGroupAttempt(r.Context(), issue, agent.ID, group.ID, strings.TrimSpace(req.Attempts[i].Model), runtimeOverrides[i], note, userID)
 		if err != nil {
-			h.unwindRunGroup(r, group, queued)
+			h.unwindRunGroup(r, issue, group, queued)
 			// The runtime was verified above; this is the TOCTOU half of that
 			// check (deleted between resolve and enqueue).
 			if errors.Is(err, service.ErrRunGroupRuntimeNotFound) {
@@ -262,9 +262,10 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 // unwindRunGroup rolls a partial fan-out back: the attempts already queued are
 // cancelled and the group is abandoned, so the issue's one open-race slot is
 // released instead of being held by a group that will never run.
-func (h *Handler) unwindRunGroup(r *http.Request, group db.RunGroup, queued []db.AgentTaskQueue) {
+func (h *Handler) unwindRunGroup(r *http.Request, issue db.Issue, group db.RunGroup, queued []db.AgentTaskQueue) {
+	actor := h.runGroupActor(r, issue)
 	for _, task := range queued {
-		if _, err := h.TaskService.CancelTaskByUser(r.Context(), task.ID); err != nil {
+		if _, err := h.TaskService.CancelTaskByUser(r.Context(), task.ID, actor); err != nil {
 			slog.Warn("run group: unwind cancel failed", "task_id", uuidToString(task.ID), "error", err)
 		}
 	}
@@ -362,7 +363,7 @@ func (h *Handler) SettleRunGroup(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusConflict, ErrCodeRunGroupSettled, "this race is no longer running")
 		return
 	}
-	h.cancelRunGroupLosers(r, attempts, winnerID)
+	h.cancelRunGroupLosers(r, h.runGroupActor(r, issue), attempts, winnerID)
 	h.finishRunGroup(w, r, settled, issue, map[string]any{
 		"run_group_id": uuidToString(settled.ID), "winner_task_id": uuidToString(winnerID), "settled": true,
 	})
@@ -385,7 +386,7 @@ func (h *Handler) AbandonRunGroup(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusConflict, ErrCodeRunGroupSettled, "this race is no longer running")
 		return
 	}
-	h.cancelRunGroupLosers(r, attempts, pgtype.UUID{})
+	h.cancelRunGroupLosers(r, h.runGroupActor(r, issue), attempts, pgtype.UUID{})
 	h.finishRunGroup(w, r, abandoned, issue, map[string]any{
 		"run_group_id": uuidToString(abandoned.ID), "abandoned": true,
 	})
@@ -404,7 +405,11 @@ func runGroupContainsTask(attempts []db.AgentTaskQueue, taskID pgtype.UUID) bool
 // reached a terminal status yet. CancelTaskByUser, not a raw status update: the
 // human decided, and only that path settles the delegated-failure recovery
 // signal, broadcasts task:cancelled and lets the daemon clean up.
-func (h *Handler) cancelRunGroupLosers(r *http.Request, attempts []db.AgentTaskQueue, winnerID pgtype.UUID) {
+//
+// The actor is required, not decorative: a user-initiated cancellation without
+// a member or agent identity is refused outright, so an empty one left every
+// losing attempt running while only logging a warning.
+func (h *Handler) cancelRunGroupLosers(r *http.Request, actor service.TaskCancellationActor, attempts []db.AgentTaskQueue, winnerID pgtype.UUID) {
 	for _, task := range attempts {
 		if winnerID.Valid && task.ID == winnerID {
 			continue
@@ -414,10 +419,17 @@ func (h *Handler) cancelRunGroupLosers(r *http.Request, attempts []db.AgentTaskQ
 		default:
 			continue
 		}
-		if _, err := h.TaskService.CancelTaskByUser(r.Context(), task.ID); err != nil {
+		if _, err := h.TaskService.CancelTaskByUser(r.Context(), task.ID, actor); err != nil {
 			slog.Warn("run group: cancel losing attempt failed", "task_id", uuidToString(task.ID), "error", err)
 		}
 	}
+}
+
+// runGroupActor resolves the request's actor for a cancellation that this
+// request causes.
+func (h *Handler) runGroupActor(r *http.Request, issue db.Issue) service.TaskCancellationActor {
+	actorType, actorID := h.resolveActor(r, requestUserID(r), uuidToString(issue.WorkspaceID))
+	return h.taskCancellationActor(r.Context(), actorType, actorID)
 }
 
 func (h *Handler) finishRunGroup(w http.ResponseWriter, r *http.Request, group db.RunGroup, issue db.Issue, details map[string]any) {

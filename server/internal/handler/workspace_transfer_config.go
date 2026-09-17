@@ -171,7 +171,7 @@ func validateTransferBundle(b *transferBundle) []string {
 			add("issue_statuses[%d]: name is required", i)
 		}
 		if !issuestatus.IsCategory(s.Category) {
-			add("issue_statuses[%d] %q: category must be one of %s", i, s.Name, strings.Join(issuestatus.Canonical(), ", "))
+			add("issue_statuses[%d] %q: category must be one of %s", i, s.Name, strings.Join(issuestatus.Categories(), ", "))
 		}
 		if _, err := normalizeColor(s.Color); err != nil {
 			add("issue_statuses[%d] %q: %v", i, s.Name, err)
@@ -265,11 +265,15 @@ func validateTransferBundle(b *transferBundle) []string {
 		}
 	}
 	for i, t := range b.TransitionRules {
-		if !issuestatus.IsCategory(t.ToCategory) {
+		// A rule's from/to are behavior keys, not lifecycle categories — see
+		// validateTransitionRuleBody. A status's own `category` above is the
+		// stored lifecycle value, so the two fields validate against different
+		// vocabularies on purpose.
+		if !issuestatus.IsBuiltIn(t.ToCategory) {
 			add("transition_rules[%d]: to_category must be one of %s", i, strings.Join(issuestatus.Canonical(), ", "))
 		}
-		if t.FromCategory != "" && !issuestatus.IsCategory(t.FromCategory) {
-			add("transition_rules[%d]: from_category must be a category", i)
+		if t.FromCategory != "" && !issuestatus.IsBuiltIn(t.FromCategory) {
+			add("transition_rules[%d]: from_category must be one of %s", i, strings.Join(issuestatus.Canonical(), ", "))
 		}
 		for _, role := range append(append([]string{}, t.AllowedRoles...), t.ApproverRoles...) {
 			if !containsStr(validTransitionRoles, role) {
@@ -802,7 +806,10 @@ func (h *Handler) importTransferDoctrine(ctx context.Context, wsUUID pgtype.UUID
 // --- export --------------------------------------------------------------------------
 
 func (h *Handler) exportTransferConfig(ctx context.Context, ws db.Workspace, b *transferBundle) error {
-	for _, cat := range issuestatus.Canonical() {
+	// issue_status.category stores the four lifecycle values; iterating the
+	// seven built-in KEYS here matched only `done` and dropped every other
+	// custom status from the export.
+	for _, cat := range issuestatus.Categories() {
 		rows, err := h.Queries.ListActiveCustomIssueStatusEntries(ctx, db.ListActiveCustomIssueStatusEntriesParams{WorkspaceID: ws.ID, Category: cat})
 		if err != nil {
 			return fmt.Errorf("statuses: %w", err)

@@ -98,7 +98,7 @@ func (h *Handler) PauseIssueGoal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "the goal loop is not available on this server")
 		return
 	}
-	goal, err := h.GoalLoop.Pause(r.Context(), issue)
+	goal, err := h.GoalLoop.Pause(r.Context(), issue, h.taskCancellationActor(r.Context(), "member", userID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to pause the goal loop")
 		return

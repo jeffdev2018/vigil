@@ -26,7 +26,7 @@
     "progress": "進捗",
     "lead": "リード",
     "created": "作成日",
-    "issues": "課題数"
+    "issues": "タスク数"
   },
   "status": {
     "planned": "計画中",
@@ -74,13 +74,13 @@
     "no_due_date": "期限なし",
     "description_placeholder": "説明を追加...",
     "description_hint": "このプロジェクトのすべての実行で、コンテキストとしてエージェントに共有されます。",
-    "empty_issues_title": "リンクされた課題はありません",
-    "empty_issues_hint": "新しい課題を作成するか、既存の課題をこのプロジェクトに割り当ててください。",
-    "empty_issues_new_button": "新規課題",
-    "no_issues_yet": "課題はまだありません",
+    "empty_issues_title": "リンクされたタスクはありません",
+    "empty_issues_hint": "既存のタスクをこのプロジェクトに追加することもできます。",
+    "empty_issues_new_button": "新規タスク",
+    "no_issues_yet": "タスクはまだありません",
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
-    "toast_move_issue_failed": "課題を移動できませんでした",
+    "toast_move_issue_failed": "タスクを移動できませんでした",
     "progress_hint": "完了とキャンセルを含みます。納品率ではありません。",
     "more_actions_aria": "その他の操作"
   },
@@ -150,7 +150,7 @@
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",
-    "description": "プロジェクトが削除されます。課題は削除されませんが、リンクが解除されます。",
+    "description": "プロジェクトが削除されます。タスクは削除されませんが、リンクが解除されます。",
     "confirm": "削除",
     "cancel": "キャンセル",
     "partial": "{{succeeded}} 件削除、{{failed}} 件失敗"

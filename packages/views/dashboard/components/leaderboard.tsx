@@ -109,6 +109,22 @@ export function Leaderboard({
   const colClass = (key: LeaderboardSort) =>
     `text-right ${sortBy === key ? "text-foreground" : "text-muted-foreground"}`;
 
+  const getCoverageText = (
+    unreportedTaskCount: number,
+    totalsPending: boolean,
+  ) => {
+    if (unreportedTaskCount > 0) {
+      return totalsPending
+        ? t(($) => $.leaderboard.usage_unreported_pending, {
+            count: unreportedTaskCount,
+          })
+        : t(($) => $.leaderboard.usage_unreported, {
+            count: unreportedTaskCount,
+          });
+    }
+    return totalsPending ? t(($) => $.leaderboard.usage_totals_pending) : null;
+  };
+
   return (
     <div className="rounded-lg border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 pt-4 pb-3">
@@ -203,6 +219,20 @@ export function Leaderboard({
                 const agent = agents.find((a) => a.id === row.agentId);
                 const value = SORT_METRIC[sortBy](row);
                 const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
+                const usageUnavailable = !row.hasUsageTotals;
+                const usageIncomplete = row.unreportedTaskCount > 0;
+                const usageTotalsPending =
+                  row.hasReportedUsage && !row.hasUsageTotals;
+                const tokenText = usageUnavailable
+                  ? "—"
+                  : `${usageIncomplete ? "≥" : ""}${formatTokens(row.tokens)}`;
+                const costText = usageUnavailable
+                  ? "—"
+                  : `${usageIncomplete ? "≥" : ""}$${row.cost.toFixed(2)}`;
+                const coverageText = getCoverageText(
+                  row.unreportedTaskCount,
+                  usageTotalsPending,
+                );
                 return (
                   <li
                     key={row.agentId}
@@ -219,10 +249,20 @@ export function Leaderboard({
                               <EyeOff className="h-3 w-3" />
                             )}
                           </span>
-                          <span className="truncate text-body font-medium italic text-muted-foreground">
-                            {isDeletedBucket
-                              ? t(($) => $.leaderboard.deleted_agents)
-                              : t(($) => $.leaderboard.other_agents)}
+                          <span className="min-w-0">
+                            <span className="block truncate text-body font-medium italic text-muted-foreground">
+                              {isDeletedBucket
+                                ? t(($) => $.leaderboard.deleted_agents)
+                                : t(($) => $.leaderboard.other_agents)}
+                            </span>
+                            {coverageText ? (
+                              <span
+                                className="block truncate text-caption text-muted-foreground"
+                                title={coverageText}
+                              >
+                                {coverageText}
+                              </span>
+                            ) : null}
                           </span>
                         </>
                       ) : (
@@ -233,8 +273,18 @@ export function Leaderboard({
                             size="md"
                             enableHoverCard
                           />
-                          <span className="cursor-pointer truncate text-body font-medium">
-                            {agent?.name ?? row.agentId}
+                          <span className="min-w-0">
+                            <span className="block cursor-pointer truncate text-body font-medium">
+                              {agent?.name ?? row.agentId}
+                            </span>
+                            {coverageText ? (
+                              <span
+                                className="block truncate text-caption text-muted-foreground"
+                                title={coverageText}
+                              >
+                                {coverageText}
+                              </span>
+                            ) : null}
                           </span>
                         </>
                       )}
@@ -248,12 +298,19 @@ export function Leaderboard({
                     <div
                       className={`text-right text-caption tabular-nums ${sortBy === "tokens" ? "font-medium text-foreground" : "text-muted-foreground"}`}
                     >
-                      {formatTokens(row.tokens)}
+                      {tokenText}
                     </div>
                     <div
                       className={`text-right tabular-nums ${sortBy === "cost" ? "text-body font-medium" : "text-caption text-muted-foreground"}`}
                     >
-                      <CurrencyNumberFlow value={row.cost} locales={locales} />
+                      {/* Animate a real total; fall back to the coverage text
+                          ("—", "≥$1.20") when the number is unknown or a floor,
+                          which a counter cannot say. */}
+                      {usageUnavailable || usageIncomplete ? (
+                        costText
+                      ) : (
+                        <CurrencyNumberFlow value={row.cost} locales={locales} />
+                      )}
                     </div>
                     <div
                       className={`text-right text-caption tabular-nums ${sortBy === "time" ? "font-medium text-foreground" : "text-muted-foreground"}`}

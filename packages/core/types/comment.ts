@@ -94,6 +94,10 @@ export interface Comment {
   // no field for it — so the chip it drives cannot be forged. A free string: an
   // intent this build cannot label renders as an ordinary comment.
   a2a_intent?: string | null;
+  // Set only on a comment deleted while it still had replies (#8296): the
+  // server keeps an empty tombstone so the replies keep their parent. Older
+  // servers omit it.
+  deleted_at?: string | null;
   // Per-target result of every explicit @agent / @squad mention in this comment
   // (MUL-4525 §2). Present only on create/edit responses; older servers omit it.
   trigger_outcomes?: CommentTriggerOutcome[];

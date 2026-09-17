@@ -135,26 +135,45 @@ func (h *Handler) issueDomainKeyWith(ctx context.Context, issue db.Issue, labels
 	return competencyDomainKey(labels, paths)
 }
 
-// issueCategory resolves the workflow category of the issue's status.
-func (h *Handler) issueCategory(ctx context.Context, issue db.Issue) string {
-	if entry, err := issuestatus.Resolve(ctx, h.Queries, issue.WorkspaceID, issue.Status); err == nil {
-		return entry.Category
-	}
-	return issue.Status
+// issueEffectiveStatus resolves the issue's status to the built-in behavior it
+// acts as: a built-in stays itself, a custom terminal status collapses to done
+// or cancelled, and a custom nonterminal status stays its own key.
+//
+// Review rejection and cancellation are key-level rules, so they must compare
+// behavior keys. The stored category now holds only the four lifecycle values
+// (unstarted / started / done / closed), so comparing it against `in_review` or
+// `cancelled` silently matched nothing (MUL-7365).
+func (h *Handler) issueEffectiveStatus(ctx context.Context, issue db.Issue) string {
+	return issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, issue.Status)
 }
 
 func (h *Handler) issueCancelled(ctx context.Context, issue db.Issue) bool {
-	if issue.Status == "cancelled" || issue.Status == "canceled" {
+	// "canceled" is an installed-client spelling that never reaches the
+	// catalog, so it is matched before the resolve.
+	if issue.Status == "canceled" {
 		return true
 	}
-	entry, err := issuestatus.Resolve(ctx, h.Queries, issue.WorkspaceID, issue.Status)
-	return err == nil && (entry.Category == "cancelled" || entry.Category == "canceled")
+	return h.issueEffectiveStatus(ctx, issue) == issuestatus.Cancelled
 }
 
 func (h *Handler) bumpCompetency(ctx context.Context, wsID, agentID pgtype.UUID, domain string, success, total, wins, losses int32) {
 	if _, err := h.Queries.BumpAgentDomainCompetency(ctx, db.BumpAgentDomainCompetencyParams{ID: dbid.NewV7(), WorkspaceID: wsID, AgentID: agentID, DomainKey: domain, SuccessDelta: success, TotalDelta: total, WinsDelta: wins, LossesDelta: losses}); err != nil {
 		slog.Warn("competency: bump failed", "agent_id", uuidToString(agentID), "domain", domain, "error", err)
 	}
+}
+
+// reviewSentBack reports a move out of review and back into open work. Only
+// built-in behavior keys count: a custom status inherits lifecycle, not review
+// semantics, so it can neither reject nor be rejected into.
+func (h *Handler) reviewSentBack(ctx context.Context, prev, issue db.Issue) bool {
+	if h.issueEffectiveStatus(ctx, prev) != issuestatus.InReview {
+		return false
+	}
+	switch h.issueEffectiveStatus(ctx, issue) {
+	case issuestatus.InProgress, issuestatus.Todo, issuestatus.Backlog:
+		return true
+	}
+	return false
 }
 
 // recordCompetencyOutcome runs on a status transition of an agent-assigned
@@ -173,7 +192,7 @@ func (h *Handler) recordCompetencyOutcome(ctx context.Context, prev, issue db.Is
 		success, event = -1, "reopened"
 	case !wasDone && h.issueCancelled(ctx, issue):
 		total, event = 1, "cancelled"
-	case !wasDone && h.issueCategory(ctx, prev) == "in_review" && (h.issueCategory(ctx, issue) == "in_progress" || h.issueCategory(ctx, issue) == "todo" || h.issueCategory(ctx, issue) == "backlog"):
+	case !wasDone && h.reviewSentBack(ctx, prev, issue):
 		// A review that sends the work back is a rejected attempt.
 		total, event = 1, "review_rejected"
 	default:

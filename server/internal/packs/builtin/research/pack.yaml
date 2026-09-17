@@ -46,12 +46,12 @@ issue_statuses:
   - key: evidence_review
     name: Evidence review
     description: A draft synthesis exists and someone who did not write it is checking the sources.
-    category: in_review
+    category: started
     color: "#8b5cf6"
   - key: no_source
     name: No source available
     description: The question cannot be answered from anything we can reach, and that is the finding.
-    category: blocked
+    category: started
     color: "#f59e0b"
 
 issue_types:

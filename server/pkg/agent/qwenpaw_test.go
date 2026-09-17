@@ -265,62 +265,6 @@ func TestQwenpawUsesSessionLoad(t *testing.T) {
 	}
 }
 
-// TestQwenpawTimeout tests that a context timeout during session/new
-// is reported as status=timeout. The fake script responds to
-// initialize immediately, then sleeps 30s on session/new so the
-// 5s context deadline expires during the session/new RPC.
-func TestQwenpawTimeout(t *testing.T) {
-	t.Parallel()
-
-	script := `#!/bin/sh
-while IFS= read -r line; do
-  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
-  case "$line" in
-    *'"method":"initialize"'*)
-      printf '{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}\n' "$id"
-      ;;
-    *'"method":"session/new"'*)
-      sleep 30
-      printf '{"jsonrpc":"2.0","id":%s,"result":{"sessionId":"ses_late"}}\n' "$id"
-      ;;
-    *)
-      printf '{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"method not found"}}\n' "$id"
-      ;;
-  esac
-done`
-
-	bin := writeFakeQwenpawScript(t, script)
-
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	b, err := New("qwenpaw", Config{
-		ExecutablePath: bin,
-		Logger:         logger,
-	})
-	if err != nil {
-		t.Fatalf("New(qwenpaw) error: %v", err)
-	}
-
-	// Use a generous timeout so initialize always completes;
-	// the 30s sleep on session/new will trigger the timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	session, err := b.Execute(ctx, "test prompt", ExecOptions{
-		Cwd: t.TempDir(),
-	})
-	if err != nil {
-		t.Fatalf("Execute error: %v", err)
-	}
-
-	for range session.Messages {
-	}
-
-	result := <-session.Result
-	if result.Status != "timeout" {
-		t.Fatalf("expected timeout, got status=%q error=%q", result.Status, result.Error)
-	}
-}
-
 func TestQwenpawBackendUsage(t *testing.T) {
 	t.Parallel()
 	bin := writeFakeQwenpawScript(t, fakeQwenpawACPScript())

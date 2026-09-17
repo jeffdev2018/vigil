@@ -73,7 +73,7 @@ func TestClaimedTaskCarriesAutopilotMemory(t *testing.T) {
 
 	req := newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+runtimeID+"/tasks/claim", nil,
 		testWorkspaceID, "autopilot-memory-brief")
-	resp, _, _, _, failure := testHandler.buildClaimedTaskResponse(req, task, runtime, runtimeID, testWorkspaceID)
+	resp, _, _, _, _, failure := testHandler.buildClaimedTaskResponse(req, task, runtime, runtimeID, testWorkspaceID)
 	if failure != nil {
 		t.Fatalf("claim build failed: %+v", failure)
 	}
@@ -114,7 +114,7 @@ func TestClaimedTaskWithoutAutopilotCarriesNoDaemonMemory(t *testing.T) {
 	}
 	req := newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+runtimeID+"/tasks/claim", nil,
 		testWorkspaceID, "no-autopilot-memory")
-	resp, _, _, _, failure := testHandler.buildClaimedTaskResponse(req, task, runtime, runtimeID, testWorkspaceID)
+	resp, _, _, _, _, failure := testHandler.buildClaimedTaskResponse(req, task, runtime, runtimeID, testWorkspaceID)
 	if failure != nil {
 		t.Fatalf("claim build failed: %+v", failure)
 	}

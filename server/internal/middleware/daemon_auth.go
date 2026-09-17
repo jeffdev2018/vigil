@@ -243,7 +243,7 @@ func DaemonAuth(queries *db.Queries, patCache *auth.PATCache, daemonCache *auth.
 			}
 
 			// Fallback: JWT tokens.
-			sub, email, err := auth.ParseSessionJWT(r.Context(), tokenString, Revocations)
+			sub, email, _, err := auth.ParseSessionJWT(r.Context(), tokenString, Revocations)
 			switch {
 			case errors.Is(err, auth.ErrSessionRevoked):
 				writeError(w, http.StatusUnauthorized, "session revoked")

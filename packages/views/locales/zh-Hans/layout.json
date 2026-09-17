@@ -77,7 +77,10 @@
   },
   "history": {
     "go_back": "后退",
-    "go_forward": "前进"
+    "go_forward": "前进",
+    "history": "历史",
+    "go_back_hint": "后退（长按查看历史）",
+    "go_forward_hint": "前进（长按查看历史）"
   },
   "tab_bar": {
     "pin_tab": "固定标签页",

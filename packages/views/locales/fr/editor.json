@@ -12,7 +12,7 @@
     "url_aria_label": "URL",
     "link_edit": {
       "apply": "Appliquer le lien",
-      "remove": "Retirer le lien",
+      "remove": "Supprimer le lien",
       "close": "Fermer l'éditeur de lien"
     },
     "heading_dropdown": {
@@ -24,23 +24,23 @@
     },
     "list_dropdown": {
       "bullet_list": "Liste à puces",
-      "ordered_list": "Liste ordonnée",
+      "ordered_list": "Liste numérotée",
       "task_list": "Liste de tâches"
     },
     "sub_issue": {
-      "tooltip": "Créer une sous-issue à partir de la sélection",
-      "created": "{{identifier}} créée",
-      "create_failed": "Échec de la création de la sous-issue"
+      "tooltip": "Créer une sous-tâche à partir de la sélection",
+      "created": "{{identifier}} créé",
+      "create_failed": "Échec de la création de la sous-tâche"
     }
   },
   "image": {
-    "view": "Afficher l'image",
+    "view": "Voir l'image",
     "download": "Télécharger",
     "copy_link": "Copier le lien",
     "delete": "Supprimer",
     "link_copied": "Lien copié",
     "copy_link_failed": "Échec de la copie du lien",
-    "canvas_label": "Canevas d'image. Faites glisser pour déplacer, défilez pour zoomer, double-cliquez pour afficher la taille réelle.",
+    "canvas_label": "Zone d'image. Faites glisser pour déplacer, faites défiler pour zoomer, double-cliquez pour basculer en taille réelle.",
     "previous": "Image précédente",
     "next": "Image suivante",
     "sequence_position": "{{index}} / {{total}}",
@@ -53,12 +53,12 @@
     "zoom_actual": "Taille réelle"
   },
   "attachment": {
-    "download_failed": "Impossible de récupérer le lien de téléchargement. Veuillez réessayer dans un instant.",
+    "download_failed": "Impossible d'obtenir un lien de téléchargement. Réessayez dans un instant.",
     "preview_fallback_title": "Pièce jointe HTML",
     "preview": "Aperçu",
     "preview_loading": "Chargement de l'aperçu…",
     "preview_failed": "Impossible de charger l'aperçu",
-    "preview_too_large": "Le fichier est trop volumineux pour être prévisualisé. Veuillez le télécharger.",
+    "preview_too_large": "Le fichier est trop volumineux pour un aperçu. Veuillez le télécharger.",
     "preview_unsupported": "Ce type de fichier ne peut pas être prévisualisé.",
     "close": "Fermer",
     "open_in_new_tab": "Ouvrir dans un nouvel onglet",
@@ -72,7 +72,7 @@
   },
   "mention": {
     "group_users": "Utilisateurs",
-    "group_issues": "Issues",
+    "group_issues": "Tâches",
     "all_members": "Tous les membres",
     "agent_badge": "Agent",
     "squad_badge": "Squad",
@@ -84,8 +84,8 @@
     "group_cancelled": "Annulés"
   },
   "slash_command": {
-    "no_skills_configured": "Aucune compétence configurée",
-    "no_results": "Aucune compétence correspondante",
+    "no_skills_configured": "Aucun skill configuré",
+    "no_results": "Aucun skill correspondant",
     "commands": {
       "note": "Ajouter une note — ne déclenchera aucun agent"
     }
@@ -102,11 +102,11 @@
   },
   "upload": {
     "failed": "Impossible d'envoyer {{filename}} : {{reason}}",
-    "in_progress": "Envoi en cours…",
-    "interrupted": "Envoi interrompu — le fichier n'a pas été enregistré. Veuillez le joindre à nouveau.",
-    "remove": "Retirer",
-    "uploading_label": "Téléversement de {{filename}}…",
-    "failed_label": "Impossible de téléverser {{filename}}"
+    "in_progress": "Envoi…",
+    "interrupted": "Envoi interrompu — le fichier n'a pas été enregistré. Joignez-le de nouveau.",
+    "remove": "Supprimer",
+    "uploading_label": "Envoi de {{filename}}…",
+    "failed_label": "Impossible d'envoyer {{filename}}"
   },
   "title_editor": {
     "title_aria_label": "Titre"
@@ -115,10 +115,10 @@
     "diagram_label": "Diagramme Mermaid",
     "render_error": "Impossible d'afficher le diagramme Mermaid.",
     "render_error_detail": "Échec de l'affichage du diagramme.",
-    "rendering": "Génération du diagramme…",
+    "rendering": "Rendu du diagramme…",
     "viewer_title": "Diagramme",
-    "canvas_label": "Canevas du diagramme. Glissez pour déplacer, défilez pour zoomer.",
-    "open_viewer": "Ouvrir le visualiseur de diagramme",
+    "canvas_label": "Zone de diagramme. Faites glisser pour déplacer, faites défiler pour zoomer.",
+    "open_viewer": "Ouvrir la visionneuse de diagramme",
     "close_viewer": "Fermer",
     "copy_source": "Copier la source du diagramme",
     "show_source": "Afficher la source",
@@ -126,6 +126,6 @@
     "export": "Exporter",
     "export_png": "Télécharger en PNG",
     "export_svg": "Télécharger en SVG",
-    "export_source": "Télécharger en .mmd"
+    "export_source": "Télécharger le .mmd"
   }
 }

@@ -443,7 +443,7 @@ func TestGoalLoopPauseAndResume(t *testing.T) {
 	if q := f.queued(t); len(q) != 1 {
 		t.Fatalf("expected a queued continuation, got %+v", q)
 	}
-	if _, err := f.goal.Pause(ctx, f.issue(t)); err != nil {
+	if _, err := f.goal.Pause(ctx, f.issue(t), TaskCancellationActor{Type: "member", ID: util.MustParseUUID(f.userID)}); err != nil {
 		t.Fatal(err)
 	}
 	if q := f.queued(t); len(q) != 0 {

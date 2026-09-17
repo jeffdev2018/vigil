@@ -324,7 +324,7 @@ function DeliveryDetailDialog({
             </div>
             {reasonLabel !== null && <Badge variant="secondary">{reasonLabel}</Badge>}
             <Badge variant="outline">{full.provider || "—"}</Badge>
-            <code className="rounded bg-muted px-2 py-0.5 text-caption font-mono">
+            <code className="rounded-xs bg-muted px-2 py-0.5 text-caption font-mono">
               {full.event || t(($) => $.webhook_payload.unknown_event)}
             </code>
             <SignatureBadge status={full.signature_status as WebhookSignatureStatus} />
@@ -535,7 +535,7 @@ function CodeBlock({ label, value }: { label: string; value: string }) {
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-2 py-0.5 hover:bg-accent transition-colors"
+          className="flex items-center gap-1 rounded-xs px-2 py-0.5 hover:bg-accent transition-colors"
         >
           {copied ? (
             <Check className="h-3 w-3 text-success" />

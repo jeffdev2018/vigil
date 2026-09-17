@@ -411,7 +411,7 @@ function NameCell({ row }: { row: AgentListRow }) {
             <VisibilityBadge value="private" compact className="text-faint-foreground" />
           )}
           {isOwnedByMe && (
-            <span className="shrink-0 rounded bg-muted px-1 text-micro font-medium text-muted-foreground">
+            <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
               {t(($) => $.row.you)}
             </span>
           )}

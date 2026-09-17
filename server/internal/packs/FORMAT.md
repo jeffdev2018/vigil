@@ -25,9 +25,11 @@ or uninstalled.
 - Autopilots are imported **disabled** whatever the file says; say so in the
   description. Business rules are imported as **drafts**. Triage sources are
   imported without secrets.
-- Statuses: only add what the function needs beyond the 7 built-ins
+- Statuses: only add what the function needs beyond the 7 built-in keys
   (`backlog, todo, in_progress, in_review, done, blocked, cancelled`); each
-  custom status names its `category` (one of those 7).
+  custom status names its lifecycle `category` (`unstarted | started | done |
+  closed`). A custom status inherits its category's lifecycle only — review,
+  blocked and parked behavior stay on the built-in keys.
 - Sample issues are examples and say so in their title or first line.
 - Every pack declares its `metric`.
 
@@ -70,7 +72,7 @@ issue_statuses:
   - key: waiting_on_requester  # optional, derived from name
     name: Waiting on requester
     description: The ticket cannot move until the requester answers.
-    category: blocked          # backlog | todo | in_progress | in_review | done | blocked | cancelled
+    category: started          # unstarted | started | done | closed
     color: "#f59e0b"
 
 issue_types:
@@ -110,7 +112,7 @@ views:
     display: {}                # display settings, optional
 
 transition_rules:
-  - from_category: in_review   # optional
+  - from_category: in_review   # optional; built-in status KEYS here, not lifecycle categories
     to_category: done
     allowed_roles: [owner, admin, member]
     allow_actor_types: [member]          # member | agent

@@ -1,6 +1,12 @@
 export type SupportedLocale = "en" | "zh-Hans" | "ko" | "ja" | "fr";
 
-export const SUPPORTED_LOCALES: SupportedLocale[] = ["en", "zh-Hans", "ko", "ja", "fr"];
+export const SUPPORTED_LOCALES: SupportedLocale[] = [
+  "en",
+  "zh-Hans",
+  "ko",
+  "ja",
+  "fr",
+];
 export const DEFAULT_LOCALE: SupportedLocale = "en";
 
 // BCP-47 region tags for <html lang>, widely recognized by screen readers and

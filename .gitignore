@@ -78,6 +78,7 @@ data/
 # Python (agent tooling)
 __pycache__/
 *.pyc
+perf-report/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/

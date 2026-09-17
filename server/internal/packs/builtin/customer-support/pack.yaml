@@ -48,17 +48,17 @@ issue_statuses:
   - key: waiting_on_customer
     name: Waiting on customer
     description: The desk asked the customer something and the SLA clock is paused until they answer.
-    category: blocked
+    category: started
     color: "#f59e0b"
   - key: escalated
     name: Escalated
     description: Handed to engineering, finance or a manager, and still owned by the desk.
-    category: in_progress
+    category: started
     color: "#ef4444"
   - key: awaiting_approval
     name: Awaiting approval
     description: A refund, credit or goodwill gesture is drafted and waiting for someone who can authorise it.
-    category: in_review
+    category: started
     color: "#8b5cf6"
 
 issue_types:

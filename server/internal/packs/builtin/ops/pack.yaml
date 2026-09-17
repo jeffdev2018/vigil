@@ -43,17 +43,17 @@ issue_statuses:
   - key: scheduled
     name: Scheduled
     description: The run has a date and an owner and has not started yet.
-    category: todo
+    category: unstarted
     color: "#0ea5e9"
   - key: monitoring
     name: Monitoring
     description: The fix or the change is applied and the desk is watching before it calls it done.
-    category: in_progress
+    category: started
     color: "#eab308"
   - key: awaiting_vendor
     name: Awaiting vendor
     description: A supplier, landlord or external service has to act before the desk can move.
-    category: blocked
+    category: started
     color: "#a855f7"
 
 issue_types:

@@ -97,7 +97,7 @@ function LeadIcon({
       <StatusIcon
         status={details.to}
         category={catalog.categoryOf(details.to)}
-        color={catalog.colorOf(details.to)}
+        icon={catalog.iconOf(details.to)} color={catalog.colorOf(details.to)}
         size={14}
       />
     );
@@ -157,7 +157,7 @@ export function ActivityRow({ entry }: { entry: TimelineEntry }) {
         ) : null}
       </Text>
       {showCoalesceBadge ? (
-        <View className="bg-muted rounded px-1.5 py-0.5 shrink-0">
+        <View className="bg-muted rounded-xs px-1.5 py-0.5 shrink-0">
           <Text
             className="text-xs font-medium text-muted-foreground"
             style={TABULAR_NUMS}

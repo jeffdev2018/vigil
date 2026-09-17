@@ -48,7 +48,11 @@
     "briefing_title": "今晨简报",
     "retro_title": "每周回顾",
     "decisions_title": "待你决定",
-    "approval_action_failed": "无法记录该回答"
+    "approval_action_failed": "无法记录该回答",
+    "loading_selection": "正在加载通知…",
+    "load_more": "加载更多",
+    "loading_more": "加载中...",
+    "retry": "重试"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -158,7 +162,9 @@
     "archive_completed_failed": "归档已完成失败",
     "unarchive_failed": "取消归档失败",
     "archived_load_failed": "无法加载已归档通知",
-    "attention_load_failed": "无法加载需处理列表。"
+    "attention_load_failed": "无法加载需处理列表。",
+    "archived_lookup_failed": "无法加载链接指向的通知",
+    "filters_load_failed": "无法加载筛选项"
   },
   "briefing": {
     "loading": "正在生成今晨简报…",

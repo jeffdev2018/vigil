@@ -935,7 +935,11 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 
 // Pause stops the chain: no continuation is queued after the next verdict,
 // and the ones already waiting are cancelled. A run in flight finishes.
-func (s *GoalLoopService) Pause(ctx context.Context, issue db.Issue) (db.IssueGoal, error) {
+//
+// actor is the member or agent that asked for the pause. It is required by the
+// user-initiated cancellation path, which refuses an anonymous one — an empty
+// actor left every queued continuation alive behind a warning.
+func (s *GoalLoopService) Pause(ctx context.Context, issue db.Issue, actor TaskCancellationActor) (db.IssueGoal, error) {
 	goal, err := s.Queries.EnsureIssueGoal(ctx, db.EnsureIssueGoalParams{
 		ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, IssueID: issue.ID, MaxContinuations: int32(s.settings(ctx, issue.WorkspaceID).MaxContinuations),
 	})
@@ -949,7 +953,7 @@ func (s *GoalLoopService) Pause(ctx context.Context, issue db.Issue) (db.IssueGo
 	queued, err := s.Queries.ListQueuedContinuationsForIssue(ctx, issue.ID)
 	if err == nil {
 		for _, t := range queued {
-			if _, err := s.Tasks.CancelTaskByUser(ctx, t.ID); err != nil {
+			if _, err := s.Tasks.CancelTaskByUser(ctx, t.ID, actor); err != nil {
 				slog.Warn("goal loop: pause could not cancel a queued continuation", "task_id", util.UUIDToString(t.ID), "error", err)
 			}
 		}

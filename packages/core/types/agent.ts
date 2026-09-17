@@ -1,4 +1,5 @@
 import type { ChatSession } from "./chat";
+import type { Label } from "./label";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
@@ -388,6 +389,10 @@ export interface AgentActivityBucket {
   bucket_at: string;
   task_count: number;
   failed_count: number;
+  // task_count = completed_count + failed_count + cancelled_count; the
+  // back-end always reports all three.
+  completed_count: number;
+  cancelled_count: number;
 }
 
 // 30-day total run count per agent, drives the Agents-list RUNS column.
@@ -472,6 +477,13 @@ export type TaskStatus =
   | "cancelled"
   /** Pause, steer, resume (K19): stopped at a safe boundary, waiting for a human. */
   | "paused";
+/** Point-in-time identity of the actor that cancelled a run. */
+export interface TaskCancellationActor {
+  /** Open wire value; current servers emit member, agent, or system. */
+  type: string;
+  id?: string;
+  name?: string;
+}
 
 export interface AgentTask {
   id: string;
@@ -534,6 +546,8 @@ export interface AgentTask {
   routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
   /** The input comment was edited or deleted, invalidating this run. */
   cancelled_by_comment_change?: boolean;
+  /** Present on cancellations recorded by a backend with actor provenance. */
+  cancelled_by?: TaskCancellationActor;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -1197,10 +1211,12 @@ export interface SkillSummary {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-	/** Present only when returned from an agent-scoped assignment endpoint. */
-	enabled?: boolean;
+  /** Present only when returned from an agent-scoped assignment endpoint. */
+  enabled?: boolean;
   /** Skill Miner (K58): a draft waits for a human before any agent gets it. */
   status?: "draft" | "published" | (string & {});
+  /** Present on workspace skill lists after a backend that bulk-attaches labels. */
+  labels?: Label[];
 }
 
 export interface Skill extends SkillSummary {
@@ -1265,6 +1281,11 @@ export interface IssueUsageSummary {
   uncosted_output_tokens?: number;
   uncosted_cache_read_tokens?: number;
   uncosted_cache_write_tokens?: number;
+  // Coverage fields are optional for compatibility with older backends.
+  // task_count remains the legacy count of runs represented by usage rows.
+  terminal_task_count?: number;
+  metered_task_count?: number;
+  unreported_task_count?: number;
   task_count: number;
 }
 
@@ -1387,6 +1408,10 @@ export interface DashboardAgentRunTime {
   agent_id: string;
   total_seconds: number;
   task_count: number;
+  // Optional for compatibility with backends predating usage-coverage
+  // reporting. Consumers can still identify the fully-unreported case when
+  // this is absent by checking whether the agent has any usage rows.
+  metered_task_count?: number;
   failed_count: number;
   // Runs the user stopped mid-flight. Disjoint from `failed_count`, and
   // both are subsets of `task_count` — the succeeded count is the

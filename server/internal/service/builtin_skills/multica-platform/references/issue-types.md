@@ -78,3 +78,70 @@ and safe to undo, and you never need to copy values out first.
 
 The corollary: a hidden value is still there. If you are reading an issue to
 answer a question, an out-of-scope value is real data, not a leftover.
+
+## Custom properties: typed workflow state
+
+Workspaces may define custom issue properties (Severity, Environment, QA
+Status, Reviewer, ...). They are the place for durable, typed issue state:
+values are validated against the definition (select options, date format,
+http(s) URL, member reference), visible in the issue sidebar, and addressed
+by name.
+
+- Read what exists before writing: `multica property list` shows the catalog;
+  `multica issue property list <issue-id>` shows values set on the issue.
+- Set values by property name and option name — the CLI translates to ids:
+
+```bash
+multica issue property set <issue-id> --name Environment --value staging
+multica issue property set <issue-id> --name Platforms --value "iOS,Android"
+multica issue property set <issue-id> --name Reviewer --value Bohan
+multica issue property unset <issue-id> --name Environment
+```
+
+- A validation error lists the legal options — fix the value and retry.
+- `actor` / `multi_actor` properties (Reviewer, Escalation contact, ...) hold
+  workspace members only. `--value` takes a member name, email, UUID, short id,
+  or an explicit `member:<uuid>`; `multi_actor` takes a comma-separated list
+  (duplicates dropped, order kept, max 20).
+- Definitions may include an optional catalog icon for visual identification;
+  it does not change the property's type or value validation.
+- Agents cannot create or edit property definitions (owner/admin humans only).
+  If a needed property does not exist, propose it in a comment instead.
+- Where state belongs: workflow state a human should see and filter by goes in
+  a property; the stage the issue is at goes in its status; everything else —
+  what you did this run, what you found — goes in the result comment.
+- `issue list` filters and sorts by property with the same name addressing:
+
+```bash
+multica issue list --property "Impact=High" --property "Impact=Medium" --output json
+multica issue list --property "QA Status=__none__" --status in_review --output json
+multica issue list --sort property:Impact --direction desc --output json
+```
+
+- `--property` takes one `Name=Value` per flag. Repeating the same property
+  matches ANY of its values; different properties must ALL match. Values are
+  option names or ids (select types), `true`/`false` (checkbox), a member
+  name/email/id (actor types), or the value itself for text, url, number,
+  and date (`YYYY-MM-DD`). The reserved value `__none__` matches
+  issues where the property is unset (works for every type; it is not
+  index-backed, so use it for targeted audits rather than as a default
+  listing filter). Only `=` is supported today; the `>=`, `<=` and `!=`
+  spellings are reserved for comparison filters and are rejected.
+- `--sort property:<name-or-id>` orders select properties by option order —
+  an ordinal scale (Low < Medium < High) sorts by meaning — and number/date/
+  text/url by value; issues without the property sort last either way.
+  Archived properties and types without an order (multi_select, checkbox,
+  actor kinds) are rejected up front.
+- `issue list` and `issue get` return `properties` as a map of definition id
+  to stored value. Add `--resolve-properties` in JSON mode to get the rows
+  `issue property list` prints instead (name, type, stored value, display
+  names); the CLI makes at most one catalog request for the whole page, so
+  no `property list` call is needed:
+
+```bash
+multica issue list --status in_progress --output json --resolve-properties
+multica issue get <issue-id> --resolve-properties
+```
+
+  Read `display` for a single value and `display_values` for a multi_select
+  or multi_actor value; `value` keeps the stored ids.

@@ -52,7 +52,6 @@ export function PreferencesTab() {
   return (
     <SettingsTab
       title={t(($) => $.page.tabs.preferences)}
-      description={t(($) => $.preferences.description)}
     >
       <Tabs
         value={section}
@@ -315,7 +314,6 @@ function StickyCommentBarRow() {
   return (
     <SettingsRow
       label={t(($) => $.preferences.sticky_comment_bar.title)}
-      description={t(($) => $.preferences.sticky_comment_bar.hint)}
     >
       <Switch
         checked={sticky}
