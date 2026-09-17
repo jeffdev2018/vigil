@@ -130,6 +130,22 @@ The run's brief points at that directory instead of embedding the notes, so a la
 
 Captures are **not** part of what a run receives. They are somebody's unsorted thoughts, and a run reading them would be acting on things nobody vouched for yet.
 
+## Who uses a note
+
+Every note shows a **Usage** section: how many runs used it, how, when last, and the most recent runs, each one click from its transcript. A run's transcript lists the other way round: the Brain notes that run used.
+
+What is counted, once per run and per kind:
+
+- **Injected** — the note was written into the run's `.multica/knowledge` directory. Only the notes that fit the 200 KB budget count, since only those reach the run.
+- **Retrieved** — a search by the run returned the note: `multica brain search`, the MCP tools, or a native agent's `search_notes` / `search_workspace`.
+- **Opened** — the run read the whole note: `multica brain show`, the MCP tools, `get_note`, or a tool call that read the note's file in `.multica/knowledge`. An opened note file is recognised from the file path in the agent's tool call; `README.md` is not a note.
+
+People count too, but never by name: opening a note in the app, or fetching it, counts one read per person per day, and the section only says how many people read it.
+
+What is not counted: a file opened by a command whose path the agent never wrote out, what the model actually did with a note, and captures.
+
+A run from a private chat stays private: it counts in the totals, but only the people in that chat see which run it was.
+
 ## Agents write to it too
 
 Agents save what they learn through the CLI, and the built-in `multica-workspace-brain` skill teaches them when to.
