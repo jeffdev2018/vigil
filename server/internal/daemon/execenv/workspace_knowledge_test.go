@@ -188,3 +188,58 @@ func TestWriteWorkspaceKnowledgeDisclosesTheServerOmittedCount(t *testing.T) {
 		t.Fatalf("kept note not written: %v", err)
 	}
 }
+
+// The index says why each note is there (JEF-414), so a run can tell the note
+// that answers its task from the one that is merely recent — and an older
+// server, which sends no reason at all, still gets the index it always got.
+func TestKnowledgeIndexRendersWhyEachNoteIsThere(t *testing.T) {
+	t.Parallel()
+
+	pinned := note("11111111-2222-3333-4444-555555555555", "Astreinte", "call ops", true)
+	pinned.Reason = brainknowledge.ReasonPinned
+	relevant := note("22222222-2222-3333-4444-555555555555", "Deploy procedure", "signed tag", false)
+	relevant.Reason, relevant.Score = brainknowledge.ReasonRelevant, 0.8312
+	recent := note("33333333-2222-3333-4444-555555555555", "Weekly notes", "nothing", false)
+	recent.Reason = brainknowledge.ReasonRecent
+
+	index := knowledgeIndex([]WorkspaceNoteForEnv{pinned, relevant, recent}, 0, "deploy fails from a branch")
+	for _, want := range []string{
+		`· relevant to "deploy fails from a branch" (score 0.83)`,
+		"· recent",
+		"· pinned",
+	} {
+		if !strings.Contains(index, want) {
+			t.Errorf("index does not carry %q\n---\n%s", want, index)
+		}
+	}
+	// ReasonPinned adds nothing of its own: the pinned marker already said it.
+	if strings.Count(index, "pinned") != 1 {
+		t.Errorf("the pinned note is labelled twice\n---\n%s", index)
+	}
+
+	// No reasons and no query: byte-identical to the index that predates this.
+	bare := []WorkspaceNoteForEnv{
+		note("11111111-2222-3333-4444-555555555555", "Astreinte", "call ops", true),
+		note("22222222-2222-3333-4444-555555555555", "Deploy procedure", "signed tag", false),
+	}
+	withReason := knowledgeIndex(bare, 0, "")
+	if strings.Contains(withReason, "relevant") || strings.Contains(withReason, "recent") {
+		t.Errorf("an index built from reasonless notes gained a reason\n---\n%s", withReason)
+	}
+}
+
+// A relevant note without a query still says so, rather than printing an
+// empty pair of quotes: an older daemon field, or a claim whose query was
+// dropped, must not corrupt the line.
+func TestKnowledgeIndexRelevantWithoutQuery(t *testing.T) {
+	t.Parallel()
+	relevant := note("22222222-2222-3333-4444-555555555555", "Deploy procedure", "signed tag", false)
+	relevant.Reason = brainknowledge.ReasonRelevant
+	index := knowledgeIndex([]WorkspaceNoteForEnv{relevant}, 0, "")
+	if !strings.Contains(index, "· relevant ·") {
+		t.Errorf("index line = %q, want a bare relevant marker", index)
+	}
+	if strings.Contains(index, `""`) {
+		t.Errorf("index printed empty quotes\n---\n%s", index)
+	}
+}

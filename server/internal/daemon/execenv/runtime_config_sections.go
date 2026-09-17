@@ -211,7 +211,7 @@ func writeWorkspaceKnowledgeSection(b *strings.Builder, ctx TaskContextForEnv) {
 		return
 	}
 	b.WriteString("## Workspace Knowledge\n\n")
-	fmt.Fprintf(b, "This workspace keeps %d shared note(s) under `%s`. Read `%s/README.md` first: it indexes every note by title, tags and id, and each note is its own markdown file next to it.\n\n",
+	fmt.Fprintf(b, "This workspace keeps %d shared note(s) under `%s`. Read `%s/README.md` first: it indexes every note by title, tags and id, says why each one is in this run's selection, and each note is its own markdown file next to it.\n\n",
 		len(ctx.WorkspaceNotes), KnowledgeDirRelPath, KnowledgeDirRelPath)
 	// Same contract as Memory above: a note is a record another run wrote, so
 	// it outranks your assumptions about the workspace and never outranks the

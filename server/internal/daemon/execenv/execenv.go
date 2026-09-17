@@ -237,11 +237,15 @@ type TaskContextForEnv struct {
 	// heading, drafts apart under an "unverified" sub-heading.
 	AgentMemories []AgentMemoryForEnv
 	// WorkspaceNotes are the workspace Brain notes injected into this run:
-	// every pinned note plus the most recently updated ones. They are written
-	// as files under .multica/knowledge/ and announced by the brief's
-	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
-	// they are shared by every agent in the workspace.
+	// every pinned note, the ones relevant to the task, then a few recent
+	// others. They are written as files under .multica/knowledge/ and
+	// announced by the brief's Workspace Knowledge section. Workspace-scoped,
+	// so unlike AgentMemories they are shared by every agent in the workspace.
 	WorkspaceNotes []WorkspaceNoteForEnv
+	// WorkspaceNotesQuery is what the Brain was searched with to pick the
+	// notes marked relevant, for the index to name. Empty when the run had no
+	// searchable subject and from older servers.
+	WorkspaceNotesQuery string
 	// WorkspaceNotesOmitted is how many notes the server already left out for
 	// the byte budget before sending WorkspaceNotes. Zero from older servers,
 	// which send every note and let the daemon's own selection drop the tail.

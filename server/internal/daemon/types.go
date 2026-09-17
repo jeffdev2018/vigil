@@ -170,6 +170,9 @@ type Task struct {
 	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
 	// WorkspaceNotesOmitted mirrors handler.AgentTaskResponse.WorkspaceNotesOmitted.
 	WorkspaceNotesOmitted int `json:"workspace_notes_omitted,omitempty"`
+	// WorkspaceNotesQuery mirrors handler.AgentTaskResponse.WorkspaceNotesQuery:
+	// what the Brain was searched with to pick this run's relevant notes.
+	WorkspaceNotesQuery string `json:"workspace_notes_query,omitempty"`
 	// AutopilotMemory mirrors handler.AgentTaskResponse.AutopilotMemory: the
 	// execution memory of the daemon that started this run (F24 / JEF-15).
 	// Empty when the run has no autopilot, when the memory is empty, and on

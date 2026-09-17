@@ -7713,6 +7713,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentMemories:                    memories,
 		WorkspaceNotes:                   task.WorkspaceNotes,
 		WorkspaceNotesOmitted:            task.WorkspaceNotesOmitted,
+		WorkspaceNotesQuery:              task.WorkspaceNotesQuery,
 		AutopilotMemory:                  task.AutopilotMemory,
 		RepoIndexHints:                   task.RepoIndexHints,
 		AgentSkills:                      convertSkillsForEnv(skills),

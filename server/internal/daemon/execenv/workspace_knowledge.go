@@ -23,7 +23,7 @@ const KnowledgeDirRelPath = ".multica/knowledge"
 // knowledgeIndex is .multica/knowledge/README.md: every injected note's title,
 // tags, id and file name, so the run can pick what to open without reading
 // every body.
-func knowledgeIndex(notes []WorkspaceNoteForEnv, omitted int) string {
+func knowledgeIndex(notes []WorkspaceNoteForEnv, omitted int, query string) string {
 	var b strings.Builder
 	b.WriteString("# Workspace knowledge\n\n")
 	b.WriteString("Durable notes this workspace shares: decisions, conventions, facts about the codebase, contacts.\n")
@@ -36,12 +36,38 @@ func knowledgeIndex(notes []WorkspaceNoteForEnv, omitted int) string {
 		if note.Pinned {
 			b.WriteString(" · pinned")
 		}
+		b.WriteString(noteReasonSuffix(note, query))
 		fmt.Fprintf(&b, " · id: `%s`\n", note.ID)
 	}
 	if omitted > 0 {
 		fmt.Fprintf(&b, "\n%d older note(s) were left out of this run to stay within the knowledge size budget; find them with `multica brain list`.\n", omitted)
 	}
 	return b.String()
+}
+
+// noteReasonSuffix says why this note is in the run's selection: relevant to
+// what the run is doing (with the score that ranked it), or merely recent.
+// ReasonPinned adds nothing — the pinned marker above already said it — and an
+// empty Reason, which is what an older server sends, adds nothing either, so
+// the index stays byte-identical to the one that predates this.
+func noteReasonSuffix(note WorkspaceNoteForEnv, query string) string {
+	switch note.Reason {
+	case brainknowledge.ReasonRelevant:
+		var b strings.Builder
+		if query != "" {
+			fmt.Fprintf(&b, " · relevant to %q", query)
+		} else {
+			b.WriteString(" · relevant")
+		}
+		if note.Score != 0 {
+			fmt.Fprintf(&b, " (score %.2f)", note.Score)
+		}
+		return b.String()
+	case brainknowledge.ReasonRecent:
+		return " · recent"
+	default:
+		return ""
+	}
 }
 
 // writeWorkspaceKnowledge materializes the Brain under
@@ -66,7 +92,7 @@ func writeWorkspaceKnowledge(workDir string, ctx TaskContextForEnv, manifest *si
 	// the whole list and this is the only selection there is.
 	notes, omitted := brainknowledge.Select(ctx.WorkspaceNotes)
 	omitted += ctx.WorkspaceNotesOmitted
-	if err := recordWriteFile(filepath.Join(dir, "README.md"), []byte(knowledgeIndex(notes, omitted)), 0o644, manifest); err != nil {
+	if err := recordWriteFile(filepath.Join(dir, "README.md"), []byte(knowledgeIndex(notes, omitted, ctx.WorkspaceNotesQuery)), 0o644, manifest); err != nil {
 		if !errors.Is(err, errPathPreExists) {
 			return err
 		}
