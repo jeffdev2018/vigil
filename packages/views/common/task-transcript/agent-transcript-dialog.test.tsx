@@ -13,6 +13,8 @@ import { AgentTranscriptDialog } from "./agent-transcript-dialog";
 import type { TimelineItem } from "./build-timeline";
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "workspace" }));
+// The Brain notes row reads through React Query; its own suite is run-brain-notes.test.tsx.
+vi.mock("./run-brain-notes", () => ({ RunBrainNotes: () => null }));
 vi.mock("./use-trace-issue-labels", () => ({
   useTraceIssueLabels: () => (text: string) => text.replaceAll("01a07eca-8e82-775e-be06-e4a97ccfa299", "DEV-17"),
 }));

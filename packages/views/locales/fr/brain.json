@@ -177,5 +177,22 @@
     "confirm": "Supprimer",
     "deleted_toast": "Note supprimée",
     "error": "La note n'a pas pu être supprimée"
+  },
+  "usage": {
+    "heading": "Utilisation",
+    "error": "Impossible de charger l'utilisation.",
+    "empty": "Aucun run n'a encore utilisé cette note.",
+    "used_by_runs_one": "Utilisée par {{count}} run",
+    "used_by_runs_other": "Utilisée par {{count}} runs",
+    "kind_injected": "Injectée",
+    "kind_retrieved": "Récupérée",
+    "kind_opened": "Ouverte",
+    "kind_viewed": "Lue",
+    "viewers_one": "Lue par {{count}} personne",
+    "viewers_other": "Lue par {{count}} personnes",
+    "last_used": "Dernière utilisation {{time}}",
+    "recent_runs": "Derniers runs",
+    "private_run": "Run de chat privé",
+    "open_run": "Ouvrir le run"
   }
 }

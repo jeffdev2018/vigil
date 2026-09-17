@@ -75,6 +75,10 @@ vi.mock("@multica/core/brain/queries", () => ({
     queryFn: async () => ({ captures: [], raw_count: data.rawCount }),
   }),
   useBrainRawCount: () => ({ data: data.rawCount }),
+  noteUsageOptions: (_wsId: string, id: string) => ({
+    queryKey: ["brain", "ws-1", "usage", id],
+    queryFn: async () => ({ counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0 }, runs_count: 0, viewers_count: 0, last_used_at: null, runs: [] }),
+  }),
 }));
 
 const mutations = vi.hoisted(() => ({
@@ -96,6 +100,7 @@ vi.mock("@multica/core/brain/mutations", () => ({
   useOrganizeCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
   useReopenCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
   useDeleteCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useRecordNoteView: () => ({ mutate: mutations.noop }),
 }));
 
 function renderPage() {

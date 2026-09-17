@@ -1058,7 +1058,12 @@
     "remediation_rerun": "再実行",
     "remediation_runtime_settings": "ランタイム設定を開く",
     "remediation_install_cli": "エージェント CLI をインストール",
-    "remediation_failed": "新しい実行を開始できませんでした"
+    "remediation_failed": "新しい実行を開始できませんでした",
+    "brain_notes_heading": "Brain のノート",
+    "brain_note_deleted": "削除されたノート",
+    "brain_kind_injected": "注入",
+    "brain_kind_retrieved": "検索",
+    "brain_kind_opened": "開いた"
   },
   "task_failure": {
     "cancelled_by_system": "システムによってキャンセルされました",

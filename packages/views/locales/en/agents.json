@@ -1185,7 +1185,12 @@
     "remediation_rerun": "Run again",
     "remediation_runtime_settings": "Open runtime settings",
     "remediation_install_cli": "Install the agent CLI",
-    "remediation_failed": "Could not start a new run"
+    "remediation_failed": "Could not start a new run",
+    "brain_notes_heading": "Brain notes",
+    "brain_note_deleted": "Deleted note",
+    "brain_kind_injected": "Injected",
+    "brain_kind_retrieved": "Retrieved",
+    "brain_kind_opened": "Opened"
   },
   "task_failure": {
     "cancelled_by_system": "Cancelled by the system",

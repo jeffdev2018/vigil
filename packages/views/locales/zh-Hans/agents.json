@@ -1165,7 +1165,12 @@
     "remediation_rerun": "重新运行",
     "remediation_runtime_settings": "打开运行时设置",
     "remediation_install_cli": "安装智能体 CLI",
-    "remediation_failed": "无法启动新的运行"
+    "remediation_failed": "无法启动新的运行",
+    "brain_notes_heading": "知识库笔记",
+    "brain_note_deleted": "已删除的笔记",
+    "brain_kind_injected": "注入",
+    "brain_kind_retrieved": "检索",
+    "brain_kind_opened": "打开"
   },
   "task_failure": {
     "cancelled_by_system": "系统已取消",

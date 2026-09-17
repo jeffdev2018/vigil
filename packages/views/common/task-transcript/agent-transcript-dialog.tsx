@@ -91,6 +91,7 @@ import {
 } from "./build-steps";
 import { buildRunOutcome } from "./run-outcome";
 import { RunTimeline } from "./run-timeline";
+import { RunBrainNotes } from "./run-brain-notes";
 import {
   base64ByteLength,
   readImageResult,
@@ -349,7 +350,8 @@ export function AgentTranscriptDialog({
   const navigate = useOptionalNavigation();
   const workspaceSlug = useWorkspaceSlug();
   const locale = useLocale();
-  const formatText = useTraceIssueLabels(useWorkspaceId(), task.issue_id, items, open);
+  const wsId = useWorkspaceId();
+  const formatText = useTraceIssueLabels(wsId, task.issue_id, items, open);
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set());
   const [query, setQuery] = useState("");
@@ -1434,6 +1436,9 @@ export function AgentTranscriptDialog({
 
         {/* ── What the run produced ──────────────────────────────────── */}
         <RunOutcomeRow outcome={outcome} branch={task.branch_name} />
+
+        {/* ── Brain notes the run used (JEF-413) ─────────────────────── */}
+        <RunBrainNotes wsId={wsId} taskId={task.id} />
 
         {/* ── Where the time went ────────────────────────────────────── */}
         {lanes && (
