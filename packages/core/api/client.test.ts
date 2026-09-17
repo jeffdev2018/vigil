@@ -3106,3 +3106,70 @@ describe("ApiClient Google sign-in state", () => {
     await expect(client.startGoogleLogin()).rejects.toThrow(/malformed/);
   });
 });
+
+describe("ApiClient Brain note usage (JEF-413)", () => {
+  const respond = (body: unknown) =>
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+
+  it("parses a note's usage and calls the usage endpoint", async () => {
+    const fetchMock = respond({
+      counts: { injected: 3, retrieved: 1, opened: 2, viewed: 4 },
+      runs_count: 2,
+      viewers_count: 1,
+      last_used_at: "2026-09-12T10:00:00Z",
+      runs: [
+        { task_id: "t1", agent_id: "a1", agent_name: "Ada", issue_id: "i1", issue_identifier: "HAN-1", kinds: ["injected"], first_at: "2026-09-12T09:00:00Z", private: false },
+        { agent_id: "a1", agent_name: "Ada", kinds: ["retrieved"], first_at: "2026-09-12T08:00:00Z", private: true },
+      ],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1", { limit: 5 });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/workspace/notes/note-1/usage?limit=5");
+    expect(usage.counts).toEqual({ injected: 3, retrieved: 1, opened: 2, viewed: 4 });
+    expect(usage.runs).toHaveLength(2);
+    expect(usage.runs[1]).toMatchObject({ task_id: "", private: true });
+  });
+
+  it("degrades a malformed usage response to zero counts and drops bad runs", async () => {
+    vi.stubGlobal("fetch", respond({ counts: "lots", runs_count: -4, viewers_count: "x", last_used_at: 7, runs: [{ private: "no" }, { agent_name: "Kept" }] }));
+    const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1");
+    expect(usage.counts).toEqual({ injected: 0, retrieved: 0, opened: 0, viewed: 0 });
+    expect(usage.runs_count).toBe(0);
+    expect(usage.viewers_count).toBe(0);
+    expect(usage.last_used_at).toBeNull();
+    expect(usage.runs.map((run) => run.agent_name)).toEqual(["Kept"]);
+  });
+
+  it("falls back to an empty usage summary for a non-object body", async () => {
+    vi.stubGlobal("fetch", respond("nope"));
+    const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1");
+    expect(usage.runs).toEqual([]);
+    expect(usage.runs_count).toBe(0);
+  });
+
+  it("posts a view without a body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await new ApiClient("https://api.example.test").recordWorkspaceNoteView("note-1");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/workspace/notes/note-1/view");
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
+  });
+
+  it("lists a run's notes and keeps a deleted note, dropping rows without an id", async () => {
+    vi.stubGlobal("fetch", respond({ notes: [
+      { note_id: "n1", title: "Deploys", revision: 2, kinds: ["injected", "opened"], channels: ["daemon_brief"], first_at: "2026-09-12T09:00:00Z" },
+      { note_id: "n2", deleted: true },
+      { title: "no id" },
+    ] }));
+    const res = await new ApiClient("https://api.example.test").listTaskNoteUsage("task-1");
+    expect(res.notes.map((n) => n.note_id)).toEqual(["n1", "n2"]);
+    expect(res.notes[1]).toMatchObject({ deleted: true, title: "", kinds: [] });
+  });
+
+  it("falls back to no notes for a malformed run note-usage response", async () => {
+    vi.stubGlobal("fetch", respond({ notes: "broken" }));
+    await expect(new ApiClient("https://api.example.test").listTaskNoteUsage("task-1")).resolves.toEqual({ notes: [] });
+  });
+});

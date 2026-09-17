@@ -352,6 +352,8 @@ import type {
   OrganizeBrainCaptureResponse,
   UploadBrainCaptureInput,
   WorkspaceNoteSearchResponse,
+  WorkspaceNoteUsage,
+  TaskNoteUsageResponse,
   TransferPreview,
   TransferReport,
   TransferImportResult,
@@ -764,6 +766,10 @@ import {
   BrainCapturesResponseSchema,
   OrganizeBrainCaptureResponseSchema,
   WorkspaceNoteSearchResponseSchema,
+  WorkspaceNoteUsageSchema,
+  EMPTY_WORKSPACE_NOTE_USAGE,
+  TaskNoteUsageResponseSchema,
+  EMPTY_TASK_NOTE_USAGE_RESPONSE,
   EMPTY_BRAIN_CAPTURE,
   EMPTY_BRAIN_CAPTURES_RESPONSE,
   EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
@@ -3010,6 +3016,40 @@ export class ApiClient {
       EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
       { endpoint: "GET /api/workspace/notes/search" },
     );
+  }
+
+  /** Runs that used a note, with counts (JEF-413). People are counted, never named. */
+  async getWorkspaceNoteUsage(
+    id: string,
+    params?: { limit?: number },
+    init?: RequestInit,
+  ): Promise<WorkspaceNoteUsage> {
+    const qs = params?.limit !== undefined ? `?limit=${params.limit}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/${encodeURIComponent(id)}/usage${qs}`,
+      init,
+    );
+    return parseWithFallback<WorkspaceNoteUsage>(raw, WorkspaceNoteUsageSchema, EMPTY_WORKSPACE_NOTE_USAGE, {
+      endpoint: "GET /api/workspace/notes/:id/usage",
+    });
+  }
+
+  /** A member read the note here; the server counts it once a day. */
+  async recordWorkspaceNoteView(id: string): Promise<void> {
+    await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}/view`, {
+      method: "POST",
+    });
+  }
+
+  /** The Brain notes one run received, retrieved or opened. */
+  async listTaskNoteUsage(taskId: string, init?: RequestInit): Promise<TaskNoteUsageResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/tasks/${encodeURIComponent(taskId)}/note-usage`,
+      init,
+    );
+    return parseWithFallback<TaskNoteUsageResponse>(raw, TaskNoteUsageResponseSchema, EMPTY_TASK_NOTE_USAGE_RESPONSE, {
+      endpoint: "GET /api/tasks/:id/note-usage",
+    });
   }
 
   // Brain capture inbox: capture first, organize later.

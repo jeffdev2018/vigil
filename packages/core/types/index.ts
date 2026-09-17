@@ -184,6 +184,11 @@ export type {
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
+  WorkspaceNoteUsage,
+  WorkspaceNoteUsageKind,
+  WorkspaceNoteUsageRun,
+  TaskNoteUsageItem,
+  TaskNoteUsageResponse,
 } from "./workspace-note";
 export type {
   BrainCapture,
