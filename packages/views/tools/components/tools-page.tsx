@@ -233,11 +233,13 @@ export function ToolsPage() {
           title={t(($) => $.page.empty_servers)}
           description={t(($) => $.page.empty_servers_description)}
           actions={
-            <AppLink href={`${paths.settings()}?tab=mcp`}>
-              <Button variant="outline" size="sm" render={<span />}>
-                {t(($) => $.page.empty_servers_action)}
-              </Button>
-            </AppLink>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<AppLink href={`${paths.settings()}?tab=mcp`} />}
+            >
+              {t(($) => $.page.empty_servers_action)}
+            </Button>
           }
         />
       ) : rows.length === 0 ? (
