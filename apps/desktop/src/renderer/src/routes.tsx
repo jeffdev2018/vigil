@@ -20,6 +20,7 @@ import { ProjectsPage } from "@multica/views/projects/components";
 import { GoalsPage } from "@multica/views/goals/components";
 import { CyclesPage } from "@multica/views/cycles/components";
 import { CalendarPage } from "@multica/views/calendar/components";
+import { RoadmapPage } from "@multica/views/roadmap/components";
 import { OrgPage } from "@multica/views/org/components";
 import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
@@ -161,6 +162,14 @@ export const appRoutes: RouteObject[] = [
             path: "projects",
             element: <ProjectsPage />,
             handle: { title: "Projects" },
+          },
+          {
+            // JEF-247 shipped the Roadmap page with web wiring only, so the
+            // shared sidebar linked desktop tabs at a route that did not
+            // exist. Same view, same title as the sidebar entry.
+            path: "roadmap",
+            element: <RoadmapPage />,
+            handle: { title: "Roadmap" },
           },
           {
             path: "projects/:id",
