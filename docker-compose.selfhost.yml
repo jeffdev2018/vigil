@@ -149,6 +149,11 @@ services:
       MULTICA_PLUGIN_SURFACE_ORIGIN: ${MULTICA_PLUGIN_SURFACE_ORIGIN:-}
       MULTICA_PLUGIN_API_URL: ${MULTICA_PLUGIN_API_URL:-}
       MULTICA_PLUGIN_DIR: ${MULTICA_PLUGIN_DIR:-}
+      # Exact origins whose MCP/hook endpoints skip the public-HTTPS
+      # requirement, comma-separated (e.g. http://host.docker.internal:3020).
+      # Unset in production; lets a self-host operator point a workspace MCP
+      # server at a gateway running on the Docker host.
+      MULTICA_PLUGIN_DEV_ORIGINS: ${MULTICA_PLUGIN_DEV_ORIGINS:-}
       # Optional API URL shown in self-host daemon setup commands. Set this
       # when the daemon reaches the API through a different URL than the one
       # used for public webhook URLs; otherwise MULTICA_PUBLIC_URL is used.

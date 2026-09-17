@@ -243,6 +243,7 @@ Redis 也为实时事件（推送到打开的浏览器标签页的任务和对�
 | 插件 | `MULTICA_PLUGIN_SURFACE_ORIGIN` | 路由到后端的独立无 Cookie 浏览器 origin；必须不同于 app/API origin，并保留 `Host` |
 | 插件 | `MULTICA_PLUGIN_API_URL` | 带版本的插件 Public API 完整 Base URL，例如 `https://plugin-api.example.com/v1`；未设置时使用 `MULTICA_PUBLIC_URL` + `/v1` |
 | 插件 | `MULTICA_PLUGIN_DIR` | 开发时用于发布本地插件包的可选绝对目录 |
+| 插件 | `MULTICA_PLUGIN_DEV_ORIGINS` | 以逗号分隔的精确来源（协议、主机、端口）：这些来源的插件 hook 与 MCP 端点可使用普通 HTTP 并解析到私有地址，其他限制不变。生产环境留空 |
 | 模型密钥（BYOK） | `MULTICA_MODEL_KEY_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密工作区和项目在「设置 → 模型密钥」中填写的服务商 API key；未设置时显示为"未配置"，并拒绝保存密钥 |
 | SSO | `MULTICA_SSO_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 OIDC client secret；未设置时"安全"标签页显示为"未配置" |
 | Twenty CRM | `MULTICA_TWENTY_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 Twenty API 密钥和 Webhook 密钥；未设置时集成被禁用（设置 → 集成显示为"未配置"）。Webhook 投递到 `MULTICA_PUBLIC_URL` |
