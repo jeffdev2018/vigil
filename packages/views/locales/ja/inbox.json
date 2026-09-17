@@ -48,7 +48,11 @@
     "briefing_title": "今朝のブリーフィング",
     "retro_title": "週次レトロ",
     "decisions_title": "判断待ち",
-    "approval_action_failed": "回答を記録できませんでした"
+    "approval_action_failed": "回答を記録できませんでした",
+    "loading_selection": "通知を読み込み中…",
+    "load_more": "さらに読み込む",
+    "loading_more": "読み込み中…",
+    "retry": "再試行"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -158,7 +162,9 @@
     "archive_completed_failed": "完了した項目をアーカイブできませんでした",
     "unarchive_failed": "アーカイブ解除に失敗しました",
     "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
-    "attention_load_failed": "要対応リストを読み込めませんでした。"
+    "attention_load_failed": "要対応リストを読み込めませんでした。",
+    "archived_lookup_failed": "リンク先の通知を読み込めませんでした",
+    "filters_load_failed": "フィルターを読み込めませんでした"
   },
   "briefing": {
     "loading": "今朝のブリーフィングを作成中…",

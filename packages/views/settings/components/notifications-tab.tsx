@@ -114,10 +114,7 @@ export function NotificationsTab() {
               </Button>
             </div>
           ) : (
-            <SettingsRow
-              label={t(($) => $.notifications.system.label)}
-              description={t(($) => $.notifications.system.hint)}
-            >
+            <SettingsRow label={t(($) => $.notifications.system.label)}>
               <Switch
                 checked={systemEnabled}
                 aria-label={t(($) => $.notifications.system.label)}

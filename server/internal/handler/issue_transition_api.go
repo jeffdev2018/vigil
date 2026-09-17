@@ -170,10 +170,16 @@ var validTransitionRoles = []string{"owner", "admin", "member"}
 // validateTransitionRuleBody checks the caller-supplied halves of a rule and
 // returns a message when one is wrong.
 func (h *Handler) validateTransitionRuleBody(r *http.Request, wsUUID pgtype.UUID, req IssueTransitionRuleWriteRequest, toCategory string) string {
-	if toCategory == "" || !issuestatus.IsCategory(toCategory) {
+	// A rule's from/to are the BEHAVIOR keys the gate compares against, not the
+	// four stored lifecycle categories: DecideIssueTransition resolves both ends
+	// through issuestatus.Effective, which yields a built-in key. Validating
+	// against the lifecycle categories instead would refuse `in_review` — the
+	// origin the review rules exist for — and accept `started`, which nothing
+	// ever matches. Same vocabulary the list endpoint advertises.
+	if toCategory == "" || !issuestatus.IsBuiltIn(toCategory) {
 		return "to_category must be one of: " + strings.Join(issuestatus.Canonical(), ", ")
 	}
-	if req.FromCategory != nil && *req.FromCategory != "" && !issuestatus.IsCategory(*req.FromCategory) {
+	if req.FromCategory != nil && *req.FromCategory != "" && !issuestatus.IsBuiltIn(*req.FromCategory) {
 		return "from_category must be one of: " + strings.Join(issuestatus.Canonical(), ", ")
 	}
 	for _, role := range append(append([]string{}, req.AllowedRoles...), req.ApproverRoles...) {

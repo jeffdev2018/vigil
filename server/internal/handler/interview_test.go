@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"net/http"
 	"strings"
 	"testing"
@@ -23,13 +24,6 @@ func interviewQuestion(text string) map[string]any {
 		"question": text,
 		"options":  []map[string]any{{"id": "a", "label": "Option A"}, {"id": "b", "label": "Option B"}},
 	}
-}
-
-func issueStatusOf(t *testing.T, issueID string) string {
-	t.Helper()
-	var status string
-	dbfx.QueryRow(t, `SELECT status FROM issue WHERE id = $1`, issueID).Scan(&status)
-	return status
 }
 
 func cleanupInterview(t *testing.T, issueID string) {
@@ -70,8 +64,11 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 	}
 	var category string
 	dbfx.QueryRow(t, `SELECT category FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey).Scan(&category)
-	if category != "blocked" {
-		t.Fatalf("Waiting for PM category = %q, want blocked", category)
+	// `blocked` was a category before the enumeration collapsed to the four
+	// lifecycle values; parked work is in flight, so Waiting for PM is stored
+	// as `started` and its parking rides on the key.
+	if category != issuestatus.CategoryStarted {
+		t.Fatalf("Waiting for PM category = %q, want %q", category, issuestatus.CategoryStarted)
 	}
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM inbox_item WHERE issue_id = $1 AND type = 'decision_request'`, issue); n != 3 {
 		t.Fatalf("inbox items = %d, want one per question", n)

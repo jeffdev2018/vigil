@@ -112,11 +112,11 @@ func Capture(ctx context.Context, q *db.Queries, p CaptureParams) (db.TriageItem
 	}
 
 	item, err := q.UpsertTriageItem(ctx, db.UpsertTriageItemParams{
-		WorkspaceID:     p.WorkspaceID,
-		SourceID:        source.ID,
-		OriginType:      p.OriginType,
-		OriginID:        p.OriginID,
-		DedupeKey: pgtype.Text{String: p.DedupeKey, Valid: true},
+		WorkspaceID: p.WorkspaceID,
+		SourceID:    source.ID,
+		OriginType:  p.OriginType,
+		OriginID:    p.OriginID,
+		DedupeKey:   pgtype.Text{String: p.DedupeKey, Valid: true},
 		// content_digest is intentionally left empty: as defined, it hashes
 		// normalized_title + payload, so a matching digest always implies a
 		// matching normalized_title — which the uq_triage_item_pending_title

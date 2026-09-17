@@ -205,3 +205,16 @@ export interface WeeklyRetro {
   narrative: string;
   generated_at: string | null;
 }
+
+export interface ArchivedInboxPage {
+  items: InboxItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface ArchivedInboxFacets {
+  statuses: Record<string, number>;
+  priorities: Record<string, number>;
+  actors: Record<string, number>;
+  unreadCount: number;
+}

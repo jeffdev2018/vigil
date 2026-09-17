@@ -692,7 +692,7 @@ func authenticateToken(tokenStr string, pr PATResolver, revocations *auth.Sessio
 		return uid, ""
 	}
 
-	uid, email, err := auth.ParseSessionJWT(ctx, tokenStr, revocations)
+	uid, email, _, err := auth.ParseSessionJWT(ctx, tokenStr, revocations)
 	switch {
 	case errors.Is(err, auth.ErrSessionRevoked):
 		return "", `{"error":"session revoked"}`

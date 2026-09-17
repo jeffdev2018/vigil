@@ -1,12 +1,12 @@
 {
   "issue_statuses": {
-    "title": "이슈 상태",
+    "title": "태스크 상태",
     "description": "이슈가 거치는 워크플로를 정의합니다. 각 상태의 동작은 속한 카테고리가 결정합니다.",
     "loading": "상태를 불러오는 중…",
     "add": "상태 추가",
     "show_archived": "보관됨 표시 ({{count}})",
     "archived_badge": "보관됨",
-    "archived_hint": "새로 지정할 수 없습니다. 이미 이 상태인 이슈는 그대로 유지됩니다.",
+    "archived_hint": "새로 지정할 수 없습니다. 이미 이 상태인 태스크는 그대로 유지됩니다.",
     "reorder_failed": "새 순서를 저장하지 못했습니다.",
     "load_error": "상태를 불러올 수 없습니다.",
     "retry": "다시 시도",
@@ -14,7 +14,9 @@
       "open": "{{name}} 작업",
       "edit": "편집",
       "archive": "보관",
-      "reorder": "{{name}} 순서 변경"
+      "reorder": "{{name}} 순서 변경",
+      "move_up": "위로 이동",
+      "move_down": "아래로 이동"
     },
     "editor": {
       "create_title": "새 상태",
@@ -25,35 +27,75 @@
       "key_hint": "API와 CLI에서는 {{key}}로 참조합니다.",
       "created": "상태를 만들었습니다. API와 CLI에서는 {{key}}로 참조합니다.",
       "category": "카테고리",
-      "category_locked": "카테고리는 변경할 수 없습니다. 이미 이 상태인 이슈가 이에 의존합니다.",
+      "category_locked": "상태를 만든 뒤에는 카테고리를 변경할 수 없습니다.",
       "description": "설명",
       "description_placeholder": "팀에게 이 상태가 의미하는 것",
       "color": "색상",
       "cancel": "취소",
       "save": "저장",
       "saving": "저장 중…",
-      "save_failed": "상태를 저장하지 못했습니다."
+      "save_failed": "상태를 저장하지 못했습니다.",
+      "icon": "아이콘 모양",
+      "icon_shapes": {
+        "default": "기본값",
+        "dotted": "점선 원",
+        "circle": "원",
+        "half": "반원 채우기",
+        "three_quarters": "4분의 3 채우기",
+        "check": "체크",
+        "slash": "사선",
+        "cross": "엑스"
+      }
     },
     "archive_dialog": {
       "title": "이 상태를 보관할까요?",
-      "description": "\"{{name}}\"은(는) 새 이슈에 지정할 수 없게 됩니다. 이미 이 상태인 이슈는 그대로 유지되며 동작도 달라지지 않습니다.",
+      "description": "\"{{name}}\"의 모든 태스크를 다른 상태로 이동하세요. 비어 있을 때 보관할 수 있으며, 보관하면 보드와 상태 선택 목록에서 제거됩니다.",
       "cancel": "취소",
       "confirm": "보관",
-      "failed": "보관하지 못했습니다."
+      "failed": "보관하지 못했습니다.",
+      "retry": "보관 다시 시도",
+      "in_use_title": "보관 전에 태스크 이동",
+      "in_use": "아직 {{count}}개의 태스크가 이 상태를 사용합니다. 완료되거나 취소된 태스크도 다른 상태로 이동한 후 다시 시도하세요.",
+      "view_issues": "태스크 보기",
+      "archiving": "보관 중..."
     },
     "categories": {
       "backlog": "보류. 여기로 옮겨도 에이전트가 시작되지 않습니다.",
       "todo": "대기 중. 여기로 옮기면 담당 에이전트가 시작됩니다.",
       "in_progress": "진행 중.",
       "in_review": "전달 완료, 리뷰 대기. 오토파일럿 실행을 마무리합니다.",
-      "done": "완료.",
+      "done": "완료된 작업입니다.",
       "blocked": "외부 의존성으로 중단됨.",
+      "cancelled": "진행하지 않기로 함.",
+      "unstarted": "백로그와 계획된 작업을 포함하여 아직 시작하지 않은 작업입니다.",
+      "started": "진행 중이거나 리뷰 또는 차단 상태인 작업입니다.",
+      "closed": "완료하지 않기로 한 작업입니다."
+    },
+    "reorder_hint": "카테고리 안에서 드래그하면 보드, 목록, 메뉴의 순서가 바뀝니다.",
+    "built_in_dialog": {
+      "title": "기본 상태는 변경할 수 없습니다",
+      "description": "기본 상태는 Multica 시스템 동작에 사용되므로 편집하거나 보관할 수 없습니다. 카테고리 내 순서는 변경할 수 있습니다.",
+      "confirm": "확인"
+    },
+    "category_labels": {
+      "unstarted": "시작 전",
+      "started": "시작됨",
+      "done": "완료",
+      "closed": "종료"
+    },
+    "built_in_descriptions": {
+      "backlog": "보류. 여기로 옮겨도 에이전트가 시작되지 않습니다.",
+      "todo": "대기 중. 여기로 옮기면 담당 에이전트가 시작됩니다.",
+      "in_progress": "진행 중.",
+      "in_review": "전달 완료, 리뷰 대기. 오토파일럿 실행을 마무리합니다.",
+      "blocked": "외부 의존성으로 중단됨.",
+      "done": "완료.",
       "cancelled": "진행하지 않기로 함."
     }
   },
   "quick_actions": {
     "title": "퀵 액션",
-    "description": "실행할 에이전트와 프롬프트를 미리 설정한 뒤, 어떤 이슈의 사이드바에서든 한 번의 클릭으로 실행합니다.",
+    "description": "태스크 사이드바에서 미리 설정한 에이전트와 프롬프트를 실행합니다.",
     "add": "퀵 액션 만들기",
     "search_placeholder": "퀵 액션 검색",
     "loading": "퀵 액션을 불러오는 중…",
@@ -69,7 +111,7 @@
       "updated": "업데이트"
     },
     "empty_title": "퀵 액션이 없습니다",
-    "empty_hint": "코드 리뷰, 테스트 작성, 보안 점검처럼 에이전트에게 반복해서 맡기는 작업을 등록하세요.",
+    "empty_hint": "예: 코드 검토 또는 테스트 작성.",
     "archived": "보관됨",
     "visibility_public": "팀",
     "visibility_private": "나만",
@@ -89,16 +131,16 @@
     "used_count": "{{count}}회 사용",
     "create_title": "퀵 액션 만들기",
     "edit_title": "퀵 액션 편집",
-    "dialog_description": "@멘션처럼 이슈 댓글로 실행됩니다.",
+    "dialog_description": "@멘션처럼 태스크 댓글로 실행됩니다.",
     "field_name": "이름",
     "field_name_placeholder": "코드 리뷰",
     "field_target": "실행자",
     "field_prompt": "프롬프트",
-    "field_prompt_placeholder": "이 이슈에 연결된 코드를 검토하고 정확성과 예외 상황을 중점적으로 확인하세요.",
-    "prompt_hint": "작성한 그대로 전달됩니다. 에이전트는 이슈를 이미 읽을 수 있습니다.",
-    "template_not_supported": "변수는 아직 지원되지 않습니다. {{token}}을(를) 제거하세요. 에이전트는 이미 이 이슈를 읽습니다.",
+    "field_prompt_placeholder": "이 태스크에 연결된 코드를 검토하고 정확성과 예외 상황을 중점적으로 확인하세요.",
+    "prompt_hint": "작성한 그대로 전달됩니다. 에이전트는 태스크를 이미 읽을 수 있습니다.",
+    "template_not_supported": "변수는 아직 지원되지 않습니다. {{token}}을(를) 제거하세요. 에이전트는 이미 이 태스크를 읽습니다.",
     "delete_title": "이 퀵 액션을 삭제할까요?",
-    "delete_description": "모든 이슈 사이드바에서 사라집니다. 과거 실행 기록은 실행 로그에 남습니다. 다시 쓸 수 있다면 보관을 선택하세요."
+    "delete_description": "모든 태스크 사이드바에서 사라집니다. 과거 실행 기록은 실행 로그에 남습니다. 다시 쓸 수 있다면 보관을 선택하세요."
   },
   "auto_save": {
     "saving": "저장 중…",
@@ -120,25 +162,25 @@
       "chinese": "中文",
       "korean": "한국어",
       "japanese": "日本語",
-      "sync_failed": "이 기기의 언어를 변경했지만 계정에 저장하지 못했습니다. 새 기기는 이전 언어로 시작될 수 있습니다.",
-      "french": "프랑스어",
+      "sync_failed": "이 기기에는 언어가 저장되었지만 계정 동기화에 실패했습니다. 다른 기기에서는 이전 언어가 표시될 수 있습니다.",
+      "french": "Français",
       "applied": "이 기기의 언어를 변경했습니다. 다른 기기는 각자의 언어를 유지합니다."
     },
     "timezone": {
       "title": "표시 시간대",
       "browser_suffix": " (브라우저)",
-      "hint": "대시보드, 차트, 사용자에게 표시되는 '오늘' 레이블에 사용됩니다. 모든 워크스페이스에 적용되는 개인 설정입니다.",
+      "hint": "모든 워크스페이스의 날짜와 차트에 적용됩니다.",
       "sync_failed": "시간대 설정을 저장하지 못했습니다."
     },
     "sticky_comment_bar": {
-      "title": "댓글 입력창 고정",
+      "title": "댓글 입력란을 하단에 고정",
       "hint": "이슈 페이지를 스크롤할 때 댓글 입력창을 항상 하단에 고정합니다."
     },
     "description": "Multica 사용 환경을 맞춤 설정합니다.",
-    "issue_title": "이슈 생성",
+    "issue_title": "태스크 생성",
     "comments_title": "댓글",
     "device_hint": "현재 기기에 저장됩니다.",
-    "issue_scope": "이 설정은 현재 기기의 현재 워크스페이스에 적용되며 이슈 생성 시 표시되는 필드만 변경합니다.",
+    "issue_scope": "이 설정은 현재 기기의 현재 워크스페이스에 적용되며 태스크 생성 시 표시되는 필드만 변경합니다.",
     "meetings_title": "미팅",
     "meeting_detection": {
       "title": "미팅 자동 감지",
@@ -161,7 +203,7 @@
   },
   "shortcuts": {
     "title": "키보드 단축키",
-    "description": "이 기기에서 제품 동작의 단축키를 설정합니다. 단축키를 클릭한 다음 새 키 조합을 누르세요.",
+    "description": "단축키를 클릭하고 새 키 조합을 누르세요. 이 기기에 저장됩니다.",
     "search_placeholder": "동작 검색...",
     "reset_all": "기본값 복원",
     "reset_confirm": {
@@ -191,11 +233,11 @@
     "actions": {
       "openSearch": {
         "label": "검색 열기",
-        "description": "어디서나 검색하고 명령을 실행합니다."
+        "description": "콘텐츠 검색 또는 명령 실행."
       },
       "createIssue": {
-        "label": "이슈 만들기",
-        "description": "선호하는 이슈 만들기 흐름을 엽니다."
+        "label": "태스크 만들기",
+        "description": "선호하는 태스크 만들기 흐름을 엽니다."
       },
       "toggleSidebar": {
         "label": "왼쪽 사이드바 전환",
@@ -203,15 +245,15 @@
       },
       "toggleRightSidebar": {
         "label": "오른쪽 사이드바 전환",
-        "description": "현재 페이지에 오른쪽 사이드바가 있으면 표시하거나 숨깁니다."
+        "description": "오른쪽 사이드바가 있는 페이지에서 사용할 수 있습니다."
       },
       "toggleChat": {
         "label": "채팅 창 전환",
         "description": "플로팅 채팅 창을 열거나 닫습니다. 열면 메시지 입력란에 포커스합니다."
       },
       "findInIssue": {
-        "label": "이슈에서 찾기",
-        "description": "열린 이슈 상세 내용에서 검색합니다."
+        "label": "태스크에서 찾기",
+        "description": "열린 태스크 상세 내용에서 검색합니다."
       },
       "archiveInboxItem": {
         "label": "알림 보관",
@@ -219,7 +261,7 @@
       },
       "send": {
         "label": "보내기",
-        "description": "채팅, 댓글, 답글, 피드백 및 프롬프트를 보내고, 생성 대화상자에서 이슈를 만듭니다."
+        "description": "새 태스크 생성에도 사용됩니다."
       },
       "goBack": {
         "label": "뒤로 가기",
@@ -238,12 +280,12 @@
         "description": "워크스페이스 채팅을 엽니다."
       },
       "goMyIssues": {
-        "label": "내 이슈로 이동",
-        "description": "나에게 할당된 이슈를 엽니다."
+        "label": "내 태스크로 이동",
+        "description": "나에게 할당된 태스크를 엽니다."
       },
       "goIssues": {
-        "label": "이슈로 이동",
-        "description": "이슈 목록을 엽니다."
+        "label": "태스크로 이동",
+        "description": "태스크 목록을 엽니다."
       },
       "goProjects": {
         "label": "프로젝트로 이동",
@@ -316,7 +358,7 @@
     },
     "fixed": {
       "title": "고정 시스템 단축키",
-      "description": "창 및 접근성 단축키는 안정성을 위해 고정됩니다. 확대/축소 및 탭 제어는 데스크톱 앱에 적용됩니다.",
+      "description": "변경할 수 없습니다. 확대 및 탭 단축키는 데스크톱 전용입니다.",
       "open_settings": "설정 열기",
       "close_tab": "활성 탭 닫기",
       "select_tab_1_to_8": "1~8번째 탭 선택",
@@ -332,7 +374,7 @@
   "chat": {
     "floating_title": "플로팅 창",
     "floating_label": "플로팅 채팅 창",
-    "floating_hint": "모든 페이지 모서리에 플로팅 채팅 버튼을 표시합니다. 기본값은 꺼짐 — 켜면 어디서나 채팅을 불러올 수 있고, 꺼면 채팅은 이 탭에서만 사용할 수 있습니다.",
+    "floating_hint": "모든 페이지에 플로팅 채팅 버튼을 표시합니다.",
     "voice_title": "음성",
     "read_aloud_label": "음성 메모 후 에이전트 답변 읽어주기",
     "read_aloud_hint": "메시지를 음성으로 입력하면 그에 대한 답변을 읽어줍니다. 각 답변의 듣기 버튼은 이 설정과 무관하게 동작합니다.",
@@ -349,9 +391,9 @@
   },
   "issue": {
     "description": "각 생성 방식의 툴바에 항상 표시할 필드를 선택합니다. 숨긴 필드는 ⋯ 메뉴에서 계속 사용할 수 있으며, 값이 있는 동안에는 자동으로 표시됩니다.",
-    "quick_create_title": "에이전트로 만들기",
+    "quick_create_title": "에이전트로 생성할 때의 도구 모음 필드",
     "quick_create_description": "빠른 생성 툴바에 표시할 필드입니다.",
-    "manual_create_title": "직접 만들기",
+    "manual_create_title": "수동 생성 도구 모음 필드",
     "manual_create_description": "직접 만들기 툴바에 표시할 필드입니다.",
     "fields": {
       "status": "상태",
@@ -365,7 +407,7 @@
   },
   "mcp": {
     "title": "MCP",
-    "description": "이 워크스페이스의 MCP 서버 라이브러리입니다. 여기에 추가해도 어떤 에이전트에도 할당되지 않으며, 에이전트 소유자가 해당 에이전트의 MCP 탭에서 할당하고 에이전트별로 켜고 끌 수 있습니다.",
+    "description": "추가 후 에이전트의 MCP 탭에서 할당하세요.",
     "servers_title": "공유 서버",
     "write_only_note": "민감한 정보를 보호하기 위해 저장된 URL, 명령, 헤더, 환경 변수는 다시 표시되지 않습니다. 변경하려면 새 설정을 모두 입력하세요. 이름만 바꾸면 현재 설정과 에이전트 할당은 그대로 유지됩니다.",
     "add_server": "서버 추가",
@@ -474,7 +516,7 @@
       "profile": "프로필",
       "preferences": "환경설정",
       "shortcuts": "단축키",
-      "issue": "이슈",
+      "issue": "태스크",
       "chat": "채팅",
       "notifications": "알림",
       "tokens": "API 토큰",
@@ -485,7 +527,7 @@
       "labs": "실험실",
       "members": "멤버",
       "labels": "레이블",
-      "issue_statuses": "이슈 상태",
+      "issue_statuses": "태스크 상태",
       "properties": "속성",
       "quick_actions": "퀵 액션",
       "plugins": "Plugins",
@@ -507,7 +549,7 @@
     "groups": {
       "personal": "개인 설정",
       "workspace": "워크스페이스 관리",
-      "issues": "이슈 설정",
+      "issues": "태스크 설정",
       "connections": "연결 및 확장",
       "device": "데스크톱 앱"
     },
@@ -541,7 +583,7 @@
     },
     "consent": {
       "title": "이 Plugin이 요청하는 접근 권한",
-      "description": "승인하는 것은 특정 버전입니다. 해당 코드는 Multica가 저장하며 업그레이드하기 전까지 변하지 않습니다. Plugin은 이 권한 범위 안에서만 동작하며, 사용자 본인의 권한을 넘어설 수 없습니다.",
+      "description": "승인은 이 버전에만 적용되며, 아래 범위와 사용자 본인의 권한을 넘지 않습니다.",
       "cancel": "취소",
       "confirm": "허용하고 설치",
       "confirm_upgrade": "허용하고 업그레이드",
@@ -569,8 +611,8 @@
       "secret_set": "저장됨 — 새 값을 입력하면 교체됩니다"
     },
     "scopes": {
-      "issues_read": "이슈 읽기",
-      "issues_write": "이슈 생성 및 수정",
+      "issues_read": "태스크 읽기",
+      "issues_write": "태스크 생성 및 수정",
       "comments_read": "댓글 읽기",
       "comments_write": "댓글 작성",
       "tasks_read": "에이전트 실행 읽기",
@@ -586,7 +628,7 @@
     "hook_recent_failures": "최근 훅 호출 {{count}}건이 실패했습니다.",
     "mcp": {
       "badge": "MCP",
-      "description": "이 훅은 플러그인 작성자의 MCP 서버가 제공하는 도구를 채택합니다. 에이전트가 호출할 수 있는 도구를 승인하세요. 나중에 추가된 도구는 승인하기 전까지 채택되지 않습니다.",
+      "description": "에이전트가 호출할 도구를 선택하세요. 새 도구는 별도 승인이 필요합니다.",
       "loading": "도구를 불러오는 중",
       "unreachable": "플러그인의 MCP 서버에 연결할 수 없습니다.",
       "empty": "이 MCP 서버는 현재 제공하는 도구가 없습니다.",
@@ -611,7 +653,7 @@
   },
   "properties": {
     "title": "속성",
-    "description": "이 워크스페이스의 이슈에 타입이 있는 사용자 지정 속성을 정의합니다. 값은 각 이슈에 설정되며 에이전트가 읽고 쓸 수 있습니다.",
+    "description": "태스크에 사용자 지정 필드를 추가합니다.",
     "search_placeholder": "이름으로 필터...",
     "new_property": "새 속성",
     "show_archived": "보관된 항목 표시",
@@ -622,11 +664,11 @@
       "usage": "사용",
       "updated": "업데이트"
     },
-    "usage_count_other": "{{count}}개 이슈",
+    "usage_count_other": "{{count}}개 태스크",
     "loading": "속성을 불러오는 중...",
     "load_error": "속성을 불러올 수 없습니다.",
     "empty": "아직 속성이 없습니다",
-    "empty_hint": "Severity, Environment 같은 타입 필드를 만들어 보세요. 에이전트가 검증과 함께 읽고 씁니다.",
+    "empty_hint": "예: 심각도, 환경.",
     "retry": "다시 시도",
     "no_results": "일치하는 속성이 없습니다",
     "save_failed": "속성을 저장하지 못했습니다",
@@ -672,7 +714,7 @@
     },
     "archive_dialog": {
       "title": "속성을 보관할까요?",
-      "description": "\"{{name}}\"이(가) 선택기와 필터에서 숨겨집니다. 이슈의 기존 값은 유지되며 나중에 복원할 수 있습니다.",
+      "description": "\"{{name}}\"이(가) 선택기와 필터에서 숨겨집니다. 태스크의 기존 값은 유지되며 나중에 복원할 수 있습니다.",
       "cancel": "취소",
       "confirm": "속성 보관",
       "failed": "속성을 보관하지 못했습니다"
@@ -685,9 +727,9 @@
   },
   "labels": {
     "title": "레이블",
-    "description": "이 워크스페이스의 이슈, 스킬 레이블을 각각 관리합니다.",
+    "description": "태스크 라벨과 skill 라벨은 서로 별개입니다.",
     "scopes": {
-      "issue": "이슈",
+      "issue": "태스크",
       "skill": "스킬"
     },
     "search_placeholder": "이름 또는 설명으로 필터링...",
@@ -737,7 +779,7 @@
     "click_avatar_hint": "클릭해서 아바타 업로드",
     "name_label": "이름",
     "profile_description_label": "내 소개",
-    "profile_description_hint": "나를 대신해 작업하는 에이전트에게 공유됩니다. 역할, 기술 스택, 선호 방식, 새 협업자에게 첫날 알려줄 만한 내용을 적어 주세요.",
+    "profile_description_hint": "나를 위해 실행하는 에이전트에게 매번 전달됩니다.",
     "profile_description_placeholder": "예: Go와 Postgres를 쓰는 백엔드 엔지니어. 간결한 PR과 변경사항에 맞춘 테스트를 선호합니다.",
     "profile_description_too_long": "프로필이 너무 깁니다(최대 {{max}}자, 현재 {{count}}자).",
     "save": "프로필 업데이트",
@@ -749,22 +791,22 @@
   },
   "notifications": {
     "title": "인박스 알림",
-    "description": "어떤 이벤트가 인박스 알림을 만들지 제어합니다. 음소거한 이벤트 유형은 조용히 걸러지지만, 이슈를 직접 열면 계속 볼 수 있습니다.",
+    "description": "알림을 꺼도 태스크에서 관련 활동을 볼 수 있습니다.",
     "toast_failed": "알림 설정을 업데이트하지 못했습니다",
     "load_error": "알림 설정을 불러올 수 없습니다.",
     "retry": "다시 시도",
     "groups": {
       "assignments": {
         "label": "할당",
-        "description": "이슈에 할당되거나 할당 해제될 때"
+        "description": "태스크에 할당되거나 할당 해제될 때"
       },
       "status_changes": {
         "label": "상태 변경",
-        "description": "팔로우 중인 이슈의 상태가 바뀔 때(예: 할 일, 진행 중, 완료)"
+        "description": "팔로우 중인 태스크의 상태가 바뀔 때(예: 할 일, 진행 중, 완료)"
       },
       "comments": {
         "label": "댓글",
-        "description": "팔로우 중인 이슈에 새 댓글이 달릴 때"
+        "description": "팔로우 중인 태스크에 새 댓글이 달릴 때"
       },
       "mentions": {
         "label": "멘션",
@@ -772,7 +814,7 @@
       },
       "updates": {
         "label": "우선순위 및 마감일",
-        "description": "팔로우 중인 이슈의 우선순위나 마감일이 바뀔 때"
+        "description": "팔로우 중인 태스크의 우선순위나 마감일이 바뀔 때"
       },
       "agent_activity": {
         "label": "에이전트 활동",
@@ -781,7 +823,7 @@
     },
     "system": {
       "title": "시스템 알림",
-      "description": "Multica가 백그라운드에 있을 때 표시되는 운영체제 알림 배너를 제어합니다.",
+      "description": "Multica가 백그라운드에 있을 때 시스템 알림을 표시합니다.",
       "label": "시스템 알림 표시",
       "hint": "앱에 포커스가 없을 때 새 인박스 항목에 대해 운영체제 배너를 표시합니다."
     },
@@ -798,7 +840,7 @@
     "title": "API 토큰",
     "description": "개인 액세스 토큰을 사용하면 CLI와 외부 연동이 내 계정으로 인증할 수 있습니다. multica login --token 으로 사용하거나 API 호출 시 Bearer 토큰으로 보낼 수 있습니다.",
     "security_note": "토큰은 계정에 대한 전체 접근 권한을 부여하므로 비밀번호처럼 안전하게 보관하세요.",
-    "empty": "아직 API 토큰이 없습니다. 위에서 만들어 시작하세요.",
+    "empty": "API 토큰이 없습니다.",
     "load_failed": "API 토큰을 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",
     "name_placeholder": "토큰 이름(예: 내 CLI)",
     "expiry": {
@@ -835,7 +877,9 @@
       "cli_hint": "다음 명령으로 CLI에 로그인하세요:",
       "copy_command_tooltip": "명령 복사",
       "done": "완료"
-    }
+    },
+    "purpose": "CLI 및 API 인증에 사용합니다.",
+    "usage_help": "사용 방법"
   },
   "workspace": {
     "section_general": "워크스페이스 정보",
@@ -848,10 +892,10 @@
     "description_label": "설명",
     "description_placeholder": "이 워크스페이스는 무엇에 집중하나요?",
     "slug_label": "슬러그",
-    "issue_prefix_label": "이슈 접두사",
-    "issue_prefix_hint": "{{example}} 같은 이슈 번호에 사용됩니다.",
-    "prefix_confirm_title": "이슈 접두사를 변경할까요?",
-    "prefix_confirm_description": "모든 이슈 번호가 {{oldPrefix}}-N에서 {{newPrefix}}-N으로 다시 매겨집니다. Pull request 제목, 브랜치 이름, 문서와 채팅의 링크처럼 {{oldPrefix}}-N을 사용하는 외부 참조는 더 이상 연결되지 않습니다.",
+    "issue_prefix_label": "태스크 접두사",
+    "issue_prefix_hint": "{{example}} 같은 태스크 번호에 사용됩니다.",
+    "prefix_confirm_title": "태스크 접두사를 변경할까요?",
+    "prefix_confirm_description": "모든 태스크 번호가 {{oldPrefix}}-N에서 {{newPrefix}}-N으로 다시 매겨집니다. Pull request 제목, 브랜치 이름, 문서와 채팅의 링크처럼 {{oldPrefix}}-N을 사용하는 외부 참조는 더 이상 연결되지 않습니다.",
     "save": "저장",
     "saving": "저장하는 중...",
     "manage_hint": "관리자와 소유자만 워크스페이스 설정을 업데이트할 수 있습니다.",
@@ -1203,11 +1247,13 @@
     "batch_window_failed": "비혼잡 시간대를 저장하지 못했습니다.",
     "doctrine_moved_label": "행동 지침",
     "doctrine_moved_description": "워크스페이스 컨텍스트는 전용 탭으로 이동해 리비전 관리와 검토가 가능합니다.",
-    "doctrine_moved_action": "행동 지침 열기"
+    "doctrine_moved_action": "행동 지침 열기",
+    "context_label": "맥락",
+    "context_placeholder": "이 워크스페이스에서 작업하는 AI 에이전트가 알아야 할 배경 정보와 맥락"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
-    "description": "이 작업은 되돌릴 수 없습니다. 모든 이슈, 에이전트, 채팅, 실행 기록이 영구 삭제됩니다.",
+    "description": "이 작업은 되돌릴 수 없습니다. 모든 태스크, 에이전트, 채팅, 실행 기록이 영구 삭제됩니다.",
     "type_to_confirm_prefix": "확인하려면 아래에",
     "type_to_confirm_suffix": "을(를) 입력하세요.",
     "cancel": "취소",
@@ -1222,12 +1268,12 @@
   "github": {
     "page_description": "GitHub App을 연결하고, Pull request가 Multica 안에서 표시되는 방식을 제어하며, 에이전트가 커밋 기록에 남기는 정보를 설정합니다.",
     "section_master": "GitHub 기능 사용",
-    "master_description_on": "끄면 모든 GitHub UI가 숨겨지고 새로운 부수 효과가 기록되지 않습니다. 기존 데이터는 백엔드에 유지됩니다. 개발팀이 아니라면 여기서 끄면 됩니다.",
-    "master_description_off": "GitHub 기능이 꺼져 있습니다. PR 사이드바, Co-authored-by 트레일러, 자동 연결이 일시 중지됩니다. 백엔드 데이터는 삭제되지 않습니다.",
+    "master_description_on": "끄면 GitHub 기능을 일시 중지하고 기존 데이터는 유지합니다.",
+    "master_description_off": "GitHub 기능이 일시 중지되었습니다. 기존 데이터는 유지됩니다.",
     "section_connection": "연결",
     "connection_title": "GitHub App",
-    "connection_description_prefix": "이슈를 Pull request에 자동으로 연결합니다. 브랜치, 제목 또는 본문에",
-    "connection_description_suffix": "이(가) 있는 PR이 병합되면 해당 이슈가",
+    "connection_description_prefix": "태스크를 Pull request에 자동으로 연결합니다. PR의 브랜치 이름이나 제목에",
+    "connection_description_suffix": "이(가) 있거나 본문에 Closes MUL-123이 있으면 해당 태스크에 연결되고, 그 종료 키워드가 있는 PR이 병합될 때만 해당 태스크가",
     "connection_description_done": "완료",
     "connection_identifier_example": "MUL-123",
     "connected_to": "{{login}}에 연결됨",
@@ -1251,11 +1297,11 @@
     "toast_disconnected": "GitHub App 연결을 해제했습니다",
     "section_features": "기능",
     "feature_pr_sidebar_label": "Pull request 사이드바",
-    "feature_pr_sidebar_description": "연결된 Pull request를 이슈 상세 사이드바에 표시합니다.",
+    "feature_pr_sidebar_description": "연결된 Pull request를 태스크 상세 사이드바에 표시합니다.",
     "feature_co_author_label": "Co-authored-by 트레일러",
     "feature_co_author_description_prefix": "에이전트가 작성한 커밋에",
     "feature_co_author_description_suffix": "을(를) 추가합니다.",
-    "feature_auto_link_label": "이슈와 PR 자동 연결",
+    "feature_auto_link_label": "태스크와 PR 자동 연결",
     "feature_auto_link_description": "PR 제목, 본문, 브랜치 이름을 이슈 식별자와 대조해 자동으로 연결합니다.",
     "section_repositories": "저장소",
     "repositories_shortcut_label": "저장소 URL은 저장소 탭에 있습니다",
@@ -1264,7 +1310,7 @@
   },
   "vcs": {
     "section_title": "Git providers (self-hosted)",
-    "page_description": "셀프 호스팅 Forgejo, Gitea, GitLab 인스턴스를 연결해 Pull request를 이슈에 미러링합니다. 연결마다 액세스 토큰을 사용하며, 에이전트는 런타임 자체의 Git 자격 증명으로 브랜치를 푸시하고 PR을 엽니다.",
+    "page_description": "셀프 호스팅 Forgejo, Gitea, GitLab 인스턴스를 연결해 Pull request를 태스크에 미러링합니다. 연결마다 액세스 토큰을 사용하며, 에이전트는 런타임 자체의 Git 자격 증명으로 브랜치를 푸시하고 PR을 엽니다.",
     "connect_title": "Connect a provider instance",
     "connected_as": "Connected as {{login}}",
     "form_provider_label": "Provider",
@@ -1287,7 +1333,7 @@
     "copied": "Copied to clipboard",
     "copy_failed": "Could not copy",
     "disconnect_confirm_title": "Disconnect this provider?",
-    "disconnect_confirm_description": "이 연결에서 미러링된 Pull request와 이슈 연결이 제거됩니다. 되돌릴 수 없습니다.",
+    "disconnect_confirm_description": "이 연결에서 미러링된 Pull request와 태스크 연결이 제거됩니다. 되돌릴 수 없습니다.",
     "disconnect_confirm_cancel": "Cancel",
     "disconnect_confirm_action": "Disconnect",
     "toast_connected": "Provider connected",
@@ -1305,13 +1351,13 @@
   },
   "telegram": {
     "section_title": "Telegram",
-    "page_description": "각 Multica 에이전트를 전용 Telegram 봇에 연결하세요. 멤버는 봇에게 DM을 보내거나 그룹에서 @멘션하고, /issue를 입력해 Multica 이슈를 만들고, 에이전트의 답변을 실시간 스트리밍으로 볼 수 있습니다.",
+    "page_description": "Telegram에서 에이전트와 대화하거나 /issue로 태스크를 만드세요.",
     "not_enabled_title": "Telegram 연동이 활성화되지 않았습니다",
     "not_enabled_description_prefix": "서버에서",
     "not_enabled_description_suffix": "를 설정하면 Telegram 봇 설치가 활성화됩니다.",
     "not_enabled_self_host_hint": "셀프 호스팅 사용자는 프로젝트 README를 참고하세요.",
     "preview_title": "Telegram 설치 곧 제공 예정",
-    "preview_description": "암호화 키는 설정되어 있지만 이 배포에서는 아직 설치할 수 없습니다. 가능해지면 연결 버튼이 여기에 표시됩니다.",
+    "preview_description": "이 배포 환경에서는 Telegram 연결이 활성화되지 않았습니다. 관리자에게 문의하세요.",
     "connected_bots": "연결된 봇",
     "loading": "불러오는 중…",
     "load_failed": "Telegram 설치를 불러오지 못했습니다",
@@ -1346,7 +1392,7 @@
   },
   "repositories": {
     "section_title": "저장소",
-    "description": "이 워크스페이스와 연결된 Git 저장소입니다. 에이전트는 이 저장소를 클론해 코드 작업을 합니다.",
+    "description": "에이전트가 이 저장소에서 코드를 작업할 수 있습니다.",
     "url_placeholder": "https://git.example.com/org/repo.git 또는 git@git.example.com:org/repo.git",
     "url_empty": "(빈 URL)",
     "description_placeholder": "설명(예: Go 백엔드 + Next.js 프런트엔드)",
@@ -1357,7 +1403,7 @@
     "github_browse_not_configured": "저장소를 탐색하려면 GITHUB_APP_ID와 GITHUB_APP_PRIVATE_KEY가 필요합니다.",
     "github_connect_failed": "GitHub에 연결하지 못했습니다. 다시 시도해 주세요.",
     "github_picker_title": "GitHub 저장소 선택",
-    "github_picker_description": "이 워크스페이스에 추가할 저장소를 선택하세요. 기존 수동 설정은 변경되지 않습니다.",
+    "github_picker_description": "기존 수동 설정은 변경되지 않습니다.",
     "github_account": "GitHub 계정",
     "github_search_placeholder": "불러온 저장소 검색",
     "github_loading": "저장소 불러오는 중…",
@@ -1399,7 +1445,7 @@
       "automatic_updates_description": "사용하면 앱 실행 직후와 한 시간마다 업데이트를 확인하고 사용 가능한 버전을 백그라운드에서 다운로드합니다.",
       "automatic_updates_save_failed": "자동 업데이트 설정을 저장하지 못했습니다",
       "check_section_title": "업데이트 확인",
-      "check_section_description": "자동 업데이트 설정과 관계없이 지금 확인합니다. 사용 가능한 업데이트는 백그라운드에서 다운로드되며 준비되면 다시 시작 안내가 표시됩니다.",
+      "check_section_description": "다운로드가 완료되면 재시작 안내가 표시됩니다.",
       "up_to_date": "최신 버전입니다.",
       "downloading": "v{{version}}을(를) 백그라운드에서 다운로드 중입니다. 설치 준비가 끝나면 알림을 드립니다.",
       "check_now": "지금 확인",
@@ -1421,9 +1467,9 @@
       "external_description_before": "이 기기의 데몬은 앱 외부(예: WSL2)에서 실행되므로 앱에서 시작하거나 중지할 수 없습니다. 해당 환경에서 다음 명령을 실행하세요:",
       "external_description_after": ".",
       "auto_start_title": "앱 실행 시 자동 시작",
-      "auto_start_description": "로그인할 때 데몬을 시작합니다. 앱이 열려 있는 동안 자동으로 시작된 데몬과 수동으로 시작된 데몬을 모두 관리합니다.",
+      "auto_start_description": "로그인할 때 자동으로 시작합니다.",
       "auto_stop_title": "앱 종료 시 자동 중지",
-      "auto_stop_description": "데스크톱 앱을 닫을 때 데몬을 중지합니다. 끄면 데몬이 백그라운드에서 계속 실행됩니다.",
+      "auto_stop_description": "데스크톱 앱을 닫으면 데몬을 중지합니다.",
       "cli_status": "CLI 상태",
       "cli_checking": "확인 중...",
       "cli_installed": "multica CLI가 설치되어 PATH에서 사용할 수 있습니다.",
@@ -1537,7 +1583,7 @@
       },
       "member": {
         "label": "멤버",
-        "description": "이슈 생성 및 작업"
+        "description": "태스크 생성 및 작업"
       }
     },
     "share_links_title": "공유 링크",
@@ -1564,13 +1610,13 @@
   },
   "lark": {
     "section_title": "Lark",
-    "page_description": "각 Multica 에이전트를 Lark(飞书) PersonalAgent 봇에 연결하세요. 멤버는 봇과 1:1로 대화하거나, 그룹에서 @ 멘션하거나, /issue 를 입력해 새 Multica 이슈를 만들 수 있습니다.",
+    "page_description": "Lark에서 에이전트와 대화하거나 /issue로 태스크를 만드세요.",
     "not_enabled_title": "Lark 연동이 비활성화되어 있어요",
     "not_enabled_description_prefix": "Lark 봇 설치를 활성화하려면 서버에",
     "not_enabled_description_suffix": "을(를) 설정하세요.",
     "not_enabled_self_host_hint": "셀프 호스트 운영자: 자세한 내용은 프로젝트 README를 참고하세요.",
     "preview_title": "Lark 봇 설치 곧 출시 예정",
-    "preview_description": "암호화 키는 설정되어 있지만, 이 빌드에는 Lark HTTP 클라이언트가 연결되어 있지 않습니다. 후속 릴리스에서 전송 계층이 활성화되면 설치 진입점이 여기에 표시됩니다.",
+    "preview_description": "이 배포 환경에서는 Lark 연결이 활성화되지 않았습니다. 관리자에게 문의하세요.",
     "connected_bots": "연결된 봇",
     "loading": "불러오는 중…",
     "empty_title": "아직 연결된 봇이 없어요",
@@ -1584,7 +1630,7 @@
     "disconnect": "연결 해제",
     "disconnecting": "연결을 해제하는 중…",
     "disconnect_confirm_title": "이 Lark 봇의 연결을 해제할까요?",
-    "disconnect_confirm_description": "봇은 더 이상 Lark 메시지를 받지 않으며 WebSocket 연결도 끊깁니다. 감사 로그를 위해 설치 행은 유지되며, 같은 에이전트에서 다시 설치할 수 있습니다.",
+    "disconnect_confirm_description": "봇이 Lark 메시지를 받지 않게 됩니다. 설치 기록은 유지되며 다시 연결할 수 있습니다.",
     "disconnect_confirm_cancel": "취소",
     "toast_disconnected": "Lark 봇 연결을 해제했어요",
     "toast_disconnect_failed": "연결 해제에 실패했어요",
@@ -1639,7 +1685,7 @@
   },
   "composio": {
     "section_title": "Composio",
-    "page_description": "Connect the Composio apps your agents can act on. Only apps configured with an enabled auth config in your Composio project appear here.",
+    "page_description": "에이전트가 사용할 앱을 연결하세요.",
     "not_enabled_title": "Composio integration not enabled",
     "not_enabled_description_prefix": "Set",
     "not_enabled_description_suffix": "on the server to enable Composio toolkit connections.",
@@ -1669,13 +1715,13 @@
   },
   "slack": {
     "section_title": "Slack",
-    "page_description": "각 Multica 에이전트를 전용 Slack 봇에 연결하세요. 멤버는 봇과 1:1로 대화하거나, 채널에서 @ 멘션하거나, /issue 를 입력해 새 Multica 이슈를 만들 수 있습니다.",
+    "page_description": "Slack에서 에이전트와 대화하거나 /issue로 태스크를 만드세요.",
     "not_enabled_title": "Slack 연동이 활성화되지 않았어요",
     "not_enabled_description_prefix": "서버에서",
     "not_enabled_description_suffix": "를 설정하면 Slack 봇 설치가 활성화됩니다.",
     "not_enabled_self_host_hint": "셀프 호스팅: 자세한 내용은 프로젝트 README를 참고하세요.",
     "preview_title": "Slack 설치 곧 지원 예정",
-    "preview_description": "저장용 키는 설정되어 있지만, 이 배포에는 호스팅 Slack 앱의 OAuth 자격 증명이 설정되지 않았어요. 설정하면 연결 버튼이 여기에 표시됩니다.",
+    "preview_description": "이 배포 환경에는 Slack 연결이 설정되지 않았습니다. 관리자에게 문의하세요.",
     "connected_bots": "연결된 봇",
     "loading": "불러오는 중…",
     "empty_title": "아직 연결된 봇이 없어요",
@@ -1712,8 +1758,8 @@
   },
   "dingtalk": {
     "section_title": "DingTalk",
-    "page_description": "각 Multica 에이전트를 전용 DingTalk 로봇에 연결하세요. 멤버는 봇과 1:1로 대화하거나, 그룹에서 @ 멘션하거나, /issue 를 입력해 새 Multica 이슈를 만들 수 있습니다.",
-    "agent_page_description": "전용 DingTalk 로봇을 통해 이 에이전트에게 DM을 보내거나, 그룹에서 @멘션하거나, /issue로 Multica 이슈를 만들 수 있습니다.",
+    "page_description": "DingTalk에서 에이전트와 대화하거나 /issue로 태스크를 만드세요.",
+    "agent_page_description": "DingTalk에서 이 에이전트와 대화하거나 /issue로 태스크를 만드세요.",
     "groups_title": "최근 그룹",
     "groups_description": "워크스페이스 멤버가 DingTalk 계정을 연결하고 그룹에서 이 봇을 @멘션하면 표시됩니다. 기본 목록에는 최근 90일 동안 활동한 그룹만 표시됩니다.",
     "groups_overview_description": "각 연결에 에이전트, DingTalk 로봇, 최근에 상호작용한 그룹을 표시합니다.",
@@ -1776,13 +1822,13 @@
   },
   "wecom": {
     "section_title": "WeCom",
-    "page_description": "각 Multica 에이전트를 전용 WeCom(企业微信) 스마트봇에 연결합니다. 멤버는 봇에게 DM을 보내고, 그룹에서 @ 멘션하고, /issue를 입력해 Multica 이슈를 만들 수 있어요. WebSocket 롱 커넥션으로 응답하므로 공개 콜백 URL이 필요 없어요.",
+    "page_description": "WeCom에서 에이전트와 대화하거나 /issue로 태스크를 만드세요. 공개 콜백 URL은 필요 없습니다.",
     "not_enabled_title": "WeCom 통합이 활성화되지 않았어요",
     "not_enabled_description_prefix": "서버에서",
     "not_enabled_description_suffix": "를 설정하면 WeCom 스마트봇 설치가 활성화돼요.",
     "not_enabled_self_host_hint": "셀프호스팅 사용자는 프로젝트 README를 참고해 주세요.",
     "preview_title": "WeCom 설치는 곧 제공됩니다",
-    "preview_description": "저장 시 암호화 키는 설정되어 있지만, 이 배포에서는 아직 WeCom 설치가 완전히 활성화되지 않았어요.",
+    "preview_description": "이 배포 환경에서는 WeCom 연결이 활성화되지 않았습니다. 관리자에게 문의하세요.",
     "connected_bots": "연결된 봇",
     "loading": "불러오는 중…",
     "empty_title": "아직 연결된 봇이 없어요",
@@ -1838,7 +1884,7 @@
     "status_not_connected": "연결되지 않음",
     "status_loading": "확인 중...",
     "status_unknown": "상태를 확인할 수 없음",
-    "channel_hint": "{{channel}}에서 에이전트와 대화하고 이슈를 생성합니다.",
+    "channel_hint": "{{channel}}에서 에이전트와 대화하고 태스크를 생성합니다.",
     "business_title": "비즈니스"
   },
   "transitions": {

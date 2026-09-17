@@ -44,12 +44,12 @@ issue_statuses:
   - key: qualifying
     name: Qualifying
     description: "Someone is finding out whether this is real: budget, need, who decides, when."
-    category: in_progress
+    category: started
     color: "#0ea5e9"
   - key: awaiting_customer
     name: Awaiting customer
     description: The ball is with the prospect and the next chase date is on the issue.
-    category: blocked
+    category: started
     color: "#f59e0b"
   - key: won
     name: Won

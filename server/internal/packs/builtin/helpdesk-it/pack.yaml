@@ -40,12 +40,12 @@ issue_statuses:
   - key: waiting_on_requester
     name: Waiting on requester
     description: The desk asked the requester something and cannot move until they answer.
-    category: blocked
+    category: started
     color: "#f59e0b"
   - key: waiting_on_vendor
     name: Waiting on vendor
     description: A supplier or external service has to act first.
-    category: blocked
+    category: started
     color: "#a855f7"
 
 issue_types:

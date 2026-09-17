@@ -127,7 +127,7 @@ func (s *TaskService) EnqueueResumeChild(ctx context.Context, issue db.Issue, ta
 		}
 		attempt.RuntimeOverride = task.RuntimeID
 	}
-	child, err := s.enqueueMentionTaskWithCommentPlan(ctx, issue, task.AgentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, attempt)
+	child, err := s.enqueueMentionTaskWithCommentPlan(ctx, issue, task.AgentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, attempt, OriginDerived)
 	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
 		return child, err
 	}

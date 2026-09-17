@@ -401,7 +401,7 @@ function SquadNameEditor({
         <button
           type="button"
           {...triggerProps}
-          className="group -mx-1 inline-flex items-center gap-1.5 self-start rounded px-1 text-left text-title font-semibold leading-tight transition-colors hover:bg-accent/50"
+          className="group -mx-1 inline-flex items-center gap-1.5 self-start rounded-xs px-1 text-left text-title font-semibold leading-tight transition-colors hover:bg-accent/50"
         >
           <span>{value}</span>
           <Pencil className="h-3.5 w-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
@@ -852,7 +852,7 @@ function SquadDescriptionEditor({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group -mx-1 inline-flex items-start gap-1.5 self-start rounded px-1 text-left text-caption leading-relaxed transition-colors hover:bg-accent/50"
+        className="group -mx-1 inline-flex items-start gap-1.5 self-start rounded-xs px-1 text-left text-caption leading-relaxed transition-colors hover:bg-accent/50"
       >
         {value ? (
           <span className="text-muted-foreground">{value}</span>
@@ -1200,7 +1200,7 @@ function SquadMembersTab({
                     {t(($) => $.member_type[m.member_type])}
                   </span>
                   {isLeader(m) && (
-                    <span className="inline-flex items-center gap-0.5 text-caption bg-warning/15 text-warning px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-0.5 text-caption bg-warning/15 text-warning px-1.5 py-0.5 rounded-xs">
                       <Crown className="size-3" />
                       {t(($) => $.members_tab.leader_chip)}
                     </span>

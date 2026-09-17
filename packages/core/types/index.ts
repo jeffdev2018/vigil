@@ -1,7 +1,8 @@
-export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState } from "./issue";
+export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, BuiltInIssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState } from "./issue";
 export type {
   IssueStatusCategory,
   IssueStatusEntry,
+  IssueStatusIcon,
   ListIssueStatusesResponse,
   CreateIssueStatusRequest,
   UpdateIssueStatusRequest,
@@ -28,6 +29,7 @@ export type {
   TaskUsage,
   TaskAttribution,
   AttributionUser,
+  TaskCancellationActor,
   TaskEvidence,
   AgentActivityBucket,
   AgentRunCount,
@@ -144,7 +146,7 @@ export type {
   PluginMCPTool,
   PluginTokenIssue,
 } from "./plugin";
-export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem } from "./inbox";
+export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem, ArchivedInboxPage, ArchivedInboxFacets } from "./inbox";
 export type {
   TriageItem,
   TriageItemPayload,

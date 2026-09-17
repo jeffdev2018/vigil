@@ -629,7 +629,7 @@ func (q *Queries) ListOpenCyclesForSnapshot(ctx context.Context, startDate pgtyp
 }
 
 const listUnfinishedCycleIssues = `-- name: ListUnfinishedCycleIssues :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id FROM issue
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id, triage_state FROM issue
 WHERE workspace_id = $1 AND cycle_id = $2
   AND NOT (status = ANY($3::text[]))
 `
@@ -688,6 +688,7 @@ func (q *Queries) ListUnfinishedCycleIssues(ctx context.Context, arg ListUnfinis
 			&i.CycleID,
 			&i.IssueType,
 			&i.RecurrenceID,
+			&i.TriageState,
 		); err != nil {
 			return nil, err
 		}

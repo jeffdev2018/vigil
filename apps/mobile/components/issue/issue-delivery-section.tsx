@@ -102,7 +102,7 @@ export function IssueDeliverySection({ issue }: { issue: Issue }) {
   const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const boardStatusIsReview = issueBehavesAs(issue, "in_review");
+  const boardStatusIsReview = issue.status === "in_review";
   const canProposeDone = !issueBehavesAsAny(issue, CLOSED_CATEGORIES);
 
   const criteriaLines = (criteriaDraft?.text ?? "")

@@ -50,7 +50,11 @@
     "briefing_title": "This morning",
     "retro_title": "Weekly retro",
     "decisions_title": "Decisions waiting for you",
-    "approval_action_failed": "Could not record the answer"
+    "approval_action_failed": "Could not record the answer",
+    "loading_selection": "Loading notification…",
+    "load_more": "Load more",
+    "loading_more": "Loading…",
+    "retry": "Retry"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -160,7 +164,9 @@
     "archive_completed_failed": "Failed to archive completed",
     "unarchive_failed": "Failed to unarchive",
     "archived_load_failed": "Failed to load archived notifications",
-    "attention_load_failed": "Could not load the attention inbox."
+    "attention_load_failed": "Could not load the attention inbox.",
+    "archived_lookup_failed": "Failed to load the linked notification",
+    "filters_load_failed": "Could not load filters"
   },
   "briefing": {
     "loading": "Composing this morning's briefing…",

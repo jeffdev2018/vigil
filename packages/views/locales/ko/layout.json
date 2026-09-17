@@ -77,7 +77,10 @@
   },
   "history": {
     "go_back": "뒤로 가기",
-    "go_forward": "앞으로 가기"
+    "go_forward": "앞으로 가기",
+    "history": "기록",
+    "go_back_hint": "뒤로 가기(길게 눌러 기록 보기)",
+    "go_forward_hint": "앞으로 가기(길게 눌러 기록 보기)"
   },
   "tab_bar": {
     "pin_tab": "탭 고정",

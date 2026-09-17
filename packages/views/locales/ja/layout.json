@@ -77,7 +77,10 @@
   },
   "history": {
     "go_back": "戻る",
-    "go_forward": "進む"
+    "go_forward": "進む",
+    "history": "履歴",
+    "go_back_hint": "戻る（長押しで履歴）",
+    "go_forward_hint": "進む（長押しで履歴）"
   },
   "tab_bar": {
     "pin_tab": "タブをピン留め",

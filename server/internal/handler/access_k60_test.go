@@ -189,7 +189,7 @@ func TestScimProvisioning(t *testing.T) {
 	var userID string
 	dbfx.QueryRow(t, `SELECT id::text FROM "user" WHERE email = $1`, email).Scan(&userID)
 	session, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": userID, "email": email, "iat": time.Now().Add(-time.Minute).Unix(), "exp": time.Now().Add(time.Hour).Unix()}).SignedString(auth.JWTSecret())
-	authed := middleware.Auth(testHandler.Queries, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+	authed := middleware.Auth(testHandler.Queries, nil, nil, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
 	probe := func() int {
 		req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
 		req.Header.Set("Authorization", "Bearer "+session)

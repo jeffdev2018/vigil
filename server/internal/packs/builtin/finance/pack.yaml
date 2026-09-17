@@ -47,12 +47,12 @@ issue_statuses:
   - key: awaiting_approval
     name: Awaiting approval
     description: The item is complete and a named person has to approve before anything is paid or committed.
-    category: in_review
+    category: started
     color: "#f59e0b"
   - key: awaiting_document
     name: Awaiting document
     description: The invoice, contract or written order that justifies the amount is missing. Nothing moves until it arrives.
-    category: blocked
+    category: started
     color: "#ef4444"
 
 issue_types:

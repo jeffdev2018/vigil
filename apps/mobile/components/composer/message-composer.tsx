@@ -57,6 +57,7 @@ import { useMentionDraftStore } from "@/data/stores/mention-draft-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { stripMarkdown } from "@/lib/strip-markdown";
 import { THEME } from "@/lib/theme";
+import { continuousCorners } from "@/lib/radius";
 import { Text } from "@/components/ui/text";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -532,8 +533,8 @@ export function MessageComposer({
       {renderNotice ? renderNotice(composeContent(text, mentions)) : null}
 
       <View
-        className="rounded-3xl border border-border bg-secondary"
-        style={{ borderCurve: "continuous" }}
+        className="rounded-2xl border border-border bg-secondary"
+        style={continuousCorners}
       >
         {(mentions.length > 0 || attachments.length > 0) ? (
           <View className="px-2 pt-2 pb-1">

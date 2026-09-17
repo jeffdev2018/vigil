@@ -22,7 +22,7 @@
   },
   "status_catalog_error": {
     "title": "状态列表加载失败",
-    "hint": "没有它就无法应用状态筛选，因此暂时不显示任务。",
+    "hint": "加载状态后才能显示任务。",
     "retry": "重试"
   },
   "source_context": {
@@ -207,7 +207,17 @@
     "card_project": "项目",
     "card_labels": "标签",
     "card_child_progress": "子任务进度",
-    "show_sub_issues": "显示子任务"
+    "show_sub_issues": "显示子任务",
+    "newest_first": "最新优先",
+    "oldest_first": "最早优先",
+    "highest_priority_first": "最高优先级优先",
+    "lowest_priority_first": "最低优先级优先",
+    "earliest_first": "最早日期优先",
+    "latest_first": "最晚日期优先",
+    "workflow_order": "按工作流顺序",
+    "reverse_workflow_order": "按工作流倒序",
+    "alphabetical_order": "A 到 Z",
+    "reverse_alphabetical_order": "Z 到 A"
   },
   "view": {
     "tooltip_board": "看板视图",
@@ -346,7 +356,8 @@
     "empty_grouping": "没有匹配的任务",
     "no_value": "未设置",
     "ordered_by": "按{{field}}排序",
-    "column_menu_aria": "列选项"
+    "column_menu_aria": "列选项",
+    "manual_reorder_hint": "切换到“手动”排序后，才能调整同一列内的顺序。"
   },
   "detail": {
     "not_found": "这个任务不存在或已在该工作区被删除。",
@@ -499,7 +510,8 @@
     },
     "section_related": "相关",
     "section_duplicate": "重复",
-    "more_actions_tooltip": "更多操作"
+    "more_actions_tooltip": "更多操作",
+    "pull_requests_empty_title": "暂无关联 PR。"
   },
   "timeline": {
     "loading": "加载中…"
@@ -609,10 +621,32 @@
       "bar_authors_more_other": "{{names}} 等 {{count}} 人",
       "resolve_failed": "标记已解决失败",
       "unresolve_failed": "重新打开失败"
-    }
+    },
+    "delete_desc_replies_kept": "这条评论会被永久删除，它的回复会保留在讨论中，无法撤销。",
+    "deleted_placeholder": "评论已删除",
+    "trigger_blocked_runtime_profile_missing": "该目标的 CLI 在它所在的机器上缺少运行时 profile —— 需要在那台机器上安装",
+    "trigger_blocked_short_runtime_profile_missing": "缺少运行时 profile"
   },
   "reply": {
-    "placeholder": "回复..."
+    "placeholder": "回复...",
+    "annotations": {
+      "confirm_add": "添加批注",
+      "save": "保存批注",
+      "add_comment": "加入评论",
+      "add": "加入回复",
+      "note_label": "批注",
+      "count_other": "{{count}} 条批注",
+      "quote_limit": "每次最多选择 {{count}} 个字符。",
+      "count_limit": "一条评论最多包含 {{count}} 条批注。",
+      "remove": "移除第 {{number}} 条批注",
+      "source_changed": "原文已更改或不可用，已保留你保存的引用。",
+      "intent_hint": "请填写至少一条批注意见或评论正文后再发送。",
+      "target_deleted": "回复目标已删除。请移除此草稿中的全部批注，再选择仍存在的评论文字重新添加批注。",
+      "selection_failed": "未能获取选中文字。请在同一条评论或任务描述内重新选择后再试。",
+      "source_label": "{{name}} 的评论",
+      "edit": "编辑批注 {{number}}",
+      "note_placeholder": "添加意见..."
+    }
   },
   "agent_activity": {
     "hover_header_other": "{{count}} 个智能体工作中",
@@ -2024,5 +2058,11 @@
       "confirm": "停止重复"
     },
     "badge": "重复"
+  },
+  "status_category": {
+    "unstarted": "未开始",
+    "started": "已开始",
+    "done": "已完成",
+    "closed": "已关闭"
   }
 }

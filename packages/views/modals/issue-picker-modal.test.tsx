@@ -14,6 +14,16 @@ vi.mock("@multica/core/api", () => ({
   api: { searchIssues: (...args: unknown[]) => mockSearchIssues(...args) },
 }));
 
+// The modal renders status icons from the workspace status catalog, which
+// would need a QueryClient and the workspace route providers. This suite is
+// about the debounce lifecycle, so stub both the way the other modal/search
+// suites do (see search/search-command.test.tsx).
+vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+vi.mock("@multica/core/issue-statuses/hooks", async () => {
+  const { buildIssueStatusCatalog } = await import("@multica/core/issue-statuses/queries");
+  return { useIssueStatuses: () => buildIssueStatusCatalog([]) };
+});
+
 import { IssuePickerModal } from "./issue-picker-modal";
 
 function renderModal() {

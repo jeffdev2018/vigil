@@ -197,6 +197,27 @@ describe("PreferencesTab — Language switcher", () => {
     expect(mockReload).not.toHaveBeenCalled();
   });
 
+  // Every locale takes the same road; upstream reloaded here, this fork
+  // switches in place, so the account write is the whole observable effect.
+  it.each([
+    { name: "中文", locale: "zh-Hans" },
+    { name: "Français", locale: "fr" },
+  ])("when logged in: saves $locale without reloading", async ({ name, locale }) => {
+    userRef.current = { id: "user-1" };
+    mockUpdateMe.mockResolvedValueOnce({});
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<PreferencesTab />, { wrapper: I18nWrapper });
+
+    await pickLanguage(user, name);
+
+    expect(mockPersist).toHaveBeenCalledWith(locale);
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalledWith({ language: locale }));
+    expect(mockToastWarning).not.toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(mockReload).not.toHaveBeenCalled();
+  });
+
   it("when logged in + PATCH fails: warns in the new language, keeps it, no reload", async () => {
     userRef.current = { id: "user-1" };
     mockUpdateMe.mockRejectedValueOnce(new Error("network"));
@@ -208,7 +229,7 @@ describe("PreferencesTab — Language switcher", () => {
     expect(mockPersist).toHaveBeenCalledWith("fr");
     await waitFor(() =>
       expect(mockToastWarning).toHaveBeenCalledWith(
-        "Langue mise à jour sur cet appareil, mais elle n'a pas pu être enregistrée dans votre compte. Les nouveaux appareils risquent de démarrer dans l'ancienne langue.",
+        "Langue enregistrée sur cet appareil, mais la synchronisation avec votre compte a échoué. Vos autres appareils peuvent afficher la langue précédente.",
       ),
     );
     act(() => vi.advanceTimersByTime(3000));
@@ -335,7 +356,7 @@ describe("PreferencesTab — Sticky comment bar", () => {
     const user = userEvent.setup();
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
-    const toggle = screen.getByRole("switch", { name: "Sticky comment bar" });
+    const toggle = screen.getByRole("switch", { name: "Pin comment bar to bottom" });
     expect(toggle).toHaveAttribute("aria-checked", "true");
 
     await user.click(toggle);

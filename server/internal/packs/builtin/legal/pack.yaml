@@ -48,12 +48,12 @@ issue_statuses:
   - key: awaiting_counterparty
     name: Awaiting counterparty
     description: We answered and the other side has to move. Their clock, not ours — this time is excluded from turnaround.
-    category: blocked
+    category: started
     color: "#f59e0b"
   - key: awaiting_business_owner
     name: Awaiting business owner
     description: A commercial question has to be settled inside the company before the legal review can continue.
-    category: blocked
+    category: started
     color: "#8b5cf6"
 
 issue_types:

@@ -24,5 +24,5 @@ func (s *TaskService) EnqueueIssueFollowupInTx(ctx context.Context, q *db.Querie
 	// task cannot escape through listeners before the caller commits.
 	scoped := &TaskService{Queries: q, Bus: events.New(), FeatureFlags: s.FeatureFlags}
 	return scoped.enqueueMentionTaskWithCommentPlan(ctx, issue, source.AgentID, pgtype.UUID{}, nil,
-		source.IsLeaderTask, source.SquadID, true, handoff, actorID, source.ID, RunGroupAttempt{})
+		source.IsLeaderTask, source.SquadID, true, handoff, actorID, source.ID, RunGroupAttempt{}, OriginDerived)
 }

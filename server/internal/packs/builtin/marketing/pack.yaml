@@ -44,17 +44,17 @@ issue_statuses:
   - key: drafting
     name: Drafting
     description: Someone is writing it. The outline and the angle are agreed.
-    category: in_progress
+    category: started
     color: "#0ea5e9"
   - key: fact_check
     name: In fact-check
     description: Written, and every claim is being checked against the claims note before anyone approves it.
-    category: in_review
+    category: started
     color: "#f59e0b"
   - key: scheduled
     name: Scheduled
     description: Approved and waiting for its publish date. Nothing changes in a scheduled piece without going back to fact-check.
-    category: todo
+    category: unstarted
     color: "#8b5cf6"
 
 issue_types:

@@ -48,12 +48,12 @@ issue_statuses:
   - key: awaiting_employee
     name: Awaiting the person
     description: HR asked the employee or candidate for something and cannot move until they answer.
-    category: blocked
+    category: started
     color: "#f59e0b"
   - key: withdrawn
     name: Withdrawn
     description: The candidate withdrew or the request was taken back. Kept, not deleted, so the pipeline numbers stay honest.
-    category: cancelled
+    category: closed
     color: "#94a3b8"
 
 issue_types:

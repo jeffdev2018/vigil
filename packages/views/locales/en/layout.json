@@ -77,7 +77,10 @@
   },
   "history": {
     "go_back": "Go back",
-    "go_forward": "Go forward"
+    "go_forward": "Go forward",
+    "history": "History",
+    "go_back_hint": "Go back (press and hold for history)",
+    "go_forward_hint": "Go forward (press and hold for history)"
   },
   "tab_bar": {
     "pin_tab": "Pin tab",

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DaemonImportPreview } from "@multica/core/autopilots";
@@ -75,12 +75,15 @@ function renderDialog(props: Partial<React.ComponentProps<typeof DaemonImportDia
 // shows has to wait for that round-trip to settle first. Waiting on the
 // in-flight indicator to clear is the honest signal — a fixed sleep would be
 // flaky in exactly the direction that hides a real regression.
-async function typeDocument(user: ReturnType<typeof userEvent.setup>) {
-  // paste, not type: the debounce would otherwise fire once per keystroke and
-  // the test would spend its time waiting on timers.
+async function typeDocument(_user: ReturnType<typeof userEvent.setup>) {
+  // One change event, not keystrokes: the debounce would otherwise fire once
+  // per keystroke and the test would spend its time waiting on timers.
+  // fireEvent rather than user.paste because the dialog's focus trap keeps
+  // pulling focus back to itself for a few ticks after mount, so a paste
+  // (which lands on whatever is focused) non-deterministically missed the
+  // textarea and the document never reached the component.
   const box = screen.getByLabelText("DAEMON.md contents");
-  await user.click(box);
-  await user.paste(DOC);
+  fireEvent.change(box, { target: { value: DOC } });
   await waitFor(() => expect(mocks.preview).toHaveBeenCalled(), { timeout: 3000 });
   await waitFor(
     () => expect(screen.queryByText("Checking the declaration...")).toBeNull(),

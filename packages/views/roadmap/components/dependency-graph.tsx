@@ -27,13 +27,10 @@ import { cn } from "@multica/ui/lib/utils";
 // Same category → semantic-token mapping as the Gantt bars: a custom status
 // draws in the color of the category it behaves as.
 const CATEGORY_DOT: Record<IssueStatusCategory, string> = {
-  backlog: "bg-muted-foreground/60",
-  todo: "bg-muted-foreground/70",
-  in_progress: "bg-warning",
-  in_review: "bg-success",
+  unstarted: "bg-muted-foreground/70",
+  started: "bg-warning",
   done: "bg-info",
-  blocked: "bg-destructive",
-  cancelled: "bg-muted-foreground/40",
+  closed: "bg-muted-foreground/40",
 };
 
 interface IssueNodeData extends Record<string, unknown> {
@@ -104,7 +101,7 @@ export function DependencyGraph({
           data: {
             title: issue.title,
             identifier: issue.identifier,
-            category: issueStatusCategory(issue) ?? "todo",
+            category: issueStatusCategory(issue) ?? "unstarted",
           },
           // Dagre laid the graph out with these exact dimensions; the node
           // must render at the same size or the layout's spacing lies.
