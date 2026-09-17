@@ -1,0 +1,354 @@
+[
+  {
+    "id": "i01",
+    "lang": "fr",
+    "kind": "direct",
+    "title": "Le déploiement de vendredi a échoué sur le tag",
+    "description": "On a poussé le tag v2.14.4 vendredi vers 17h30 parce qu'un client important mettait la pression pour un correctif, et le pipeline a semblé bloquer sans message clair. Le responsable ops n'était pas joignable tout de suite. On voudrait comprendre si c'est normal que ça bloque à cette heure-là un vendredi, et ce qu'on doit faire maintenant.",
+    "project": "Plateforme",
+    "labels": [
+      "ops",
+      "incident"
+    ],
+    "relevant": [
+      "deploy-procedure-current"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i02",
+    "lang": "fr",
+    "kind": "direct",
+    "title": "Client bloqué après plusieurs tentatives de connexion",
+    "description": "Un client nous écrit en disant que son compte est verrouillé depuis ce matin après plusieurs tentatives de connexion ratées, il ne se souvenait plus de son mot de passe. Il précise ne pas avoir reçu d'email de notre part à ce sujet, ce qui l'inquiète un peu. Peut-on lui indiquer la marche à suivre pour débloquer son compte ?",
+    "project": "Support Client",
+    "labels": [
+      "support"
+    ],
+    "relevant": [
+      "support-macro-account-lockout"
+    ]
+  },
+  {
+    "id": "i03",
+    "lang": "fr",
+    "kind": "direct",
+    "title": "Alerte certificat SSL sur l'API de prod",
+    "description": "On a reçu une alerte sur #alerts-prod cette nuit indiquant que le renouvellement automatique du certificat SSL de l'API a échoué. Personne n'a encore touché à rien. Quelle est la procédure manuelle à suivre, et est-ce urgent par rapport aux autres alertes en cours ?",
+    "project": "Plateforme",
+    "labels": [
+      "ops"
+    ],
+    "relevant": [
+      "runbook-ssl-renewal"
+    ]
+  },
+  {
+    "id": "i04",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "title": "Question d'un nouvel arrivant sur les jours de repos",
+    "description": "Un développeur qui vient d'arriver dans l'équipe France demande combien de jours de repos il a par an, et ce qu'il doit faire s'il tombe malade pendant une semaine où il avait déjà prévu de partir. Il demande aussi s'il peut reporter des jours non pris d'une année sur l'autre sans limite.",
+    "project": "RH & Opérations",
+    "labels": [
+      "rh"
+    ],
+    "relevant": [
+      "leave-policy-fr"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i05",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "title": "Doute sur un compte à droits élevés",
+    "description": "Un collègue a remarqué une connexion inhabituelle sur un compte ayant des droits d'administration ce matin, sans être totalement certain qu'il s'agisse réellement d'un piratage. Il hésite entre vérifier calmement de son côté d'abord, ou prévenir tout de suite quelqu'un au risque de faire du bruit pour rien.",
+    "project": "Plateforme",
+    "labels": [
+      "securite"
+    ],
+    "relevant": [
+      "security-incident-response"
+    ]
+  },
+  {
+    "id": "i06",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "title": "Un commercial redemande où en est le sujet mobile",
+    "description": "Un commercial rapporte qu'un prospect important a de nouveau posé la question d'une version pour smartphone pendant l'appel de découverte, comme plusieurs autres clients ces derniers mois. Il aimerait savoir s'il peut dire que ça arrive bientôt, ou s'il vaut mieux orienter la conversation ailleurs.",
+    "project": "Produit",
+    "labels": [
+      "produit"
+    ],
+    "relevant": [
+      "product-decision-mobile-app"
+    ]
+  },
+  {
+    "id": "i07",
+    "lang": "fr",
+    "kind": "symptom",
+    "title": "Facturation qui rame pour un gros client",
+    "description": "Un client avec beaucoup d'historique de facturation se plaint que la liste de ses factures met plusieurs secondes à s'afficher, alors que ça allait bien il y a quelques mois. Le support a déjà vérifié que ce n'est pas lié à une lenteur de connexion côté client. Est-ce qu'on a déjà rencontré ce genre de lenteur ailleurs ?",
+    "project": "Plateforme",
+    "labels": [
+      "perf",
+      "facturation"
+    ],
+    "relevant": [
+      "sql-index-invoice"
+    ]
+  },
+  {
+    "id": "i08",
+    "lang": "fr",
+    "kind": "symptom",
+    "title": "Nouvel agent support qui hésite à prendre des tickets seul",
+    "description": "Un agent support arrivé il y a une dizaine de jours demande à son binôme s'il a le droit de prendre ses propres tickets sans supervision, ou s'il doit encore attendre. Personne dans l'équipe ne semble se souvenir exactement de la règle.",
+    "project": "Support Client",
+    "labels": [
+      "onboarding",
+      "support"
+    ],
+    "relevant": [
+      "onboarding-support"
+    ]
+  },
+  {
+    "id": "i09",
+    "lang": "fr",
+    "kind": "identifier",
+    "title": "Partenaire encore sur une ancienne version mineure de l'API",
+    "description": "Un partenaire technique signale qu'il utilise toujours la version v2.14.1 de l'API et demande si ça pose un problème avant de signer un nouveau contrat d'intégration ce trimestre. Il veut aussi savoir jusqu'à quand cette version continuera de recevoir des correctifs.",
+    "project": "Plateforme",
+    "labels": [
+      "api"
+    ],
+    "relevant": [
+      "api-versioning-v2"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i10",
+    "lang": "fr",
+    "kind": "distractor-prone",
+    "title": "Qui contacter pour recommander des consommables imprimante",
+    "description": "Un nouvel arrivant côté achats a retrouvé une vieille facture mentionnant des retards de livraison de toner répétés et se demande s'il doit relancer ce fournisseur pour la prochaine commande. Il n'a pas trouvé d'information plus récente à ce sujet.",
+    "project": "RH & Opérations",
+    "labels": [
+      "achats"
+    ],
+    "relevant": [
+      "printer-vendor-a"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i11",
+    "lang": "en",
+    "kind": "direct",
+    "title": "Need the timeline for the August billing webhook outage",
+    "description": "A customer success rep is asking for a clean summary of what happened during the billing webhook outage in August, since the customer wants details before renewing their contract. We remember it involved a secret rotation gone wrong, but nobody has the exact timeline handy anymore.",
+    "project": "Plateforme",
+    "labels": [
+      "ops",
+      "incident"
+    ],
+    "relevant": [
+      "incident-postmortem-aug"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i12",
+    "lang": "en",
+    "kind": "direct",
+    "title": "Reviewer keeps flagging swallowed errors in a PR",
+    "description": "A new backend contributor keeps writing `_ = someCall()` to discard errors in a pull request, and the reviewer keeps rejecting it without pointing to anything written down. Is there an actual rule about this, or is it just reviewer preference this time?",
+    "project": "Plateforme",
+    "labels": [
+      "conventions"
+    ],
+    "relevant": [
+      "coding-conventions-backend"
+    ]
+  },
+  {
+    "id": "i13",
+    "lang": "en",
+    "kind": "direct",
+    "title": "Need to restore a snapshot for the disaster recovery drill",
+    "description": "It's time for our twice-a-year disaster recovery drill and the person who usually runs it is out this week. Someone else needs to know which bucket the backups live in and how to spin up an isolated instance without touching production.",
+    "project": "Plateforme",
+    "labels": [
+      "ops"
+    ],
+    "relevant": [
+      "runbook-database-restore"
+    ]
+  },
+  {
+    "id": "i14",
+    "lang": "en",
+    "kind": "paraphrase",
+    "title": "Is casting an API response straight to a type actually against the rules?",
+    "description": "A reviewer flagged a PR because a component casts the network response directly to a TypeScript interface instead of going through any kind of check first. The author pushed back, saying it's always worked fine in practice, and asked whether this is a hard rule or just a nitpick this time.",
+    "project": "Plateforme",
+    "labels": [
+      "conventions",
+      "frontend"
+    ],
+    "relevant": [
+      "coding-conventions-frontend"
+    ]
+  },
+  {
+    "id": "i15",
+    "lang": "en",
+    "kind": "paraphrase",
+    "title": "Sales wants to skip tiers for a big prospect",
+    "description": "A sales rep wants to offer a large prospect a custom usage-based price instead of putting them on one of the existing tiers, since the prospect's usage pattern doesn't fit neatly into any of them. Did we already consider and rule out that kind of pricing model?",
+    "project": "Produit",
+    "labels": [
+      "produit",
+      "facturation"
+    ],
+    "relevant": [
+      "product-decision-pricing"
+    ]
+  },
+  {
+    "id": "i16",
+    "lang": "en",
+    "kind": "symptom",
+    "title": "Partner integration suddenly returning 410 Gone on every call",
+    "description": "A partner says their integration started failing with a 410 Gone response on every API call this morning, and nothing changed on their side as far as they know. They haven't touched their code in months and are confused about what could have caused this out of nowhere.",
+    "project": "Plateforme",
+    "labels": [
+      "api"
+    ],
+    "relevant": [
+      "api-versioning-v1-legacy"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i17",
+    "lang": "en",
+    "kind": "identifier",
+    "title": "Customer references a specific release for a bulk import bug",
+    "description": "Support forwarded a message where the customer mentions release v2.14.0 in relation to an issue importing many issues at once. Before replying, we want to confirm what that release actually changed and whether it could still be relevant to a current integration.",
+    "project": "Plateforme",
+    "labels": [
+      "api"
+    ],
+    "relevant": [
+      "changelog-v2140"
+    ]
+  },
+  {
+    "id": "i18",
+    "lang": "en",
+    "kind": "distractor-prone",
+    "title": "Old ticket mentions a webhook token we don't recognize",
+    "description": "While investigating a billing mismatch reported today, someone found an old support ticket referencing `QUICKPAY_WEBHOOK_TOKEN` and is wondering if re-enabling whatever check that was would help fix today's discrepancy. Nobody currently on the team remembers that name.",
+    "project": "Plateforme",
+    "labels": [
+      "facturation",
+      "incident"
+    ],
+    "relevant": [
+      "billing-webhook-current"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i19",
+    "lang": "zh",
+    "kind": "direct",
+    "title": "仪表盘又出现发票长时间停留在待处理",
+    "description": "今天早上亚太区有客户反馈仪表盘加载很慢,发票状态一直卡在待处理。值班同事怀疑是不是又是数据库连接池的问题,想确认一下上次类似情况是怎么处理和恢复的。",
+    "project": "Plateforme",
+    "labels": [
+      "ops",
+      "incident"
+    ],
+    "relevant": [
+      "incident-postmortem-mar"
+    ],
+    "old_note": true
+  },
+  {
+    "id": "i20",
+    "lang": "zh",
+    "kind": "direct",
+    "title": "员工转岗后权限一直没有人处理",
+    "description": "有位同事三个月前从工程团队转到产品团队,但堡垒机SSH权限好像还留着,一直没人主动撤销。有人问是不是要等到下一次季度审查才会被发现和处理,还是应该现在就手动处理。",
+    "project": "Plateforme",
+    "labels": [
+      "securite"
+    ],
+    "relevant": [
+      "security-access-review"
+    ]
+  },
+  {
+    "id": "i21",
+    "lang": "zh",
+    "kind": "paraphrase",
+    "title": "出差住宿费用能不能先垫付",
+    "description": "一位同事下周要去外地出差,想问一下住宿费用是不是可以先自己垫付,回来以后再走报销流程,还是必须提前把审批走完才能订房间。另外他手头暂时没有正规发票,只有订房平台的电子确认单,不确定够不够用。",
+    "project": "RH & Opérations",
+    "labels": [
+      "rh"
+    ],
+    "relevant": [
+      "hr-expense-cn"
+    ]
+  },
+  {
+    "id": "i22",
+    "lang": "zh",
+    "kind": "symptom",
+    "title": "一张账单异常的工单拖了太久才转给工程团队",
+    "description": "有客户反馈发票金额不对,值班的支持同事自己排查了将近一天,后来才想起来是不是该早点转给工程团队。团队里有人问,这种情况到底应该多久之内升级,是不是有明确的判断标准,而不是凭感觉。",
+    "project": "Support Client",
+    "labels": [
+      "support"
+    ],
+    "relevant": [
+      "support-escalation-policy"
+    ]
+  },
+  {
+    "id": "i23",
+    "lang": "zh",
+    "kind": "symptom",
+    "title": "上海新员工第一天不知道该看哪份清单",
+    "description": "上海办公室一位新员工入职第一天,不确定自己要先签哪些文件,也不知道除了通用流程之外,技术岗位是不是还要额外完成别的账号配置。他的直属负责人今天刚好请假,没法当面确认。",
+    "project": "Support Client",
+    "labels": [
+      "onboarding"
+    ],
+    "relevant": [
+      "apac-onboarding"
+    ]
+  },
+  {
+    "id": "i24",
+    "lang": "zh",
+    "kind": "identifier",
+    "title": "有人提到工单SUP-1042,想知道具体是什么情况",
+    "description": "在跨团队群里,有人提到之前有一张编号SUP-1042的工单,好像和发票列表加载慢有关,但没有更多细节。想确认这张工单当时具体反馈的是什么问题,是不是已经有结论。",
+    "project": "Support Client",
+    "labels": [
+      "support"
+    ],
+    "relevant": [
+      "apac-support-team-notes"
+    ]
+  }
+]

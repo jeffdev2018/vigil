@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -580,18 +581,100 @@ func canDeleteWorkspaceNote(note db.WorkspaceNote, member db.Member, actorType s
 // daemon: the shared brainknowledge wire shape the daemon decodes into.
 type WorkspaceNoteContext = brainknowledge.Note
 
-func workspaceNotesToContext(notes []db.WorkspaceNote) []WorkspaceNoteContext {
+func workspaceNotesToContext(notes []db.WorkspaceNote, reasons map[string]service.BriefNoteReason) []WorkspaceNoteContext {
 	out := make([]WorkspaceNoteContext, 0, len(notes))
 	for _, n := range notes {
-		out = append(out, WorkspaceNoteContext{
-			ID:      uuidToString(n.ID),
+		id := uuidToString(n.ID)
+		note := WorkspaceNoteContext{
+			ID:      id,
 			Title:   n.Title,
 			Content: n.Content,
 			Tags:    n.Tags,
 			Pinned:  n.Pinned,
 			Source:  n.Source,
 			Updated: timestampToString(n.UpdatedAt),
-		})
+		}
+		if reason, ok := reasons[id]; ok {
+			note.Reason = reason.Reason
+			note.Score = reason.Score
+		}
+		out = append(out, note)
 	}
 	return out
+}
+
+// brainClaimQuery is what a claimed run's Brain is searched with. The rule
+// lives in service so the native runtime, which cannot import this package,
+// selects from exactly the same question.
+var brainClaimQuery = service.BrainClaimQuery
+
+// brainClaimQueryWireLimit is how much of the query the claim response carries,
+// in runes: enough for the knowledge index to name what the run was searched
+// for, not enough for a long description to bloat every index line.
+const brainClaimQueryWireLimit = 200
+
+// brainClaimQueryForWire flattens the multi-line query into one line and clamps
+// it, so the daemon can print it inside a markdown list item.
+func brainClaimQueryForWire(query string) string {
+	return util.TruncateUTF8Runes(strings.Join(strings.Fields(query), " "), brainClaimQueryWireLimit)
+}
+
+// injectWorkspaceNotesForClaim selects this run's Brain notes by relevance to
+// its own subject and puts them on the claim response, along with the versions
+// the claim transaction records as injected.
+//
+// Non-blocking, like the agent memories that share this assembly point: the
+// shared knowledge base is briefing context, so a failed read costs the run its
+// Workspace Knowledge section, never its dispatch. Unlike memories these hang
+// off the workspace, not the agent, so every agent in the workspace searching
+// the same subject sees the same set.
+func (h *Handler) injectWorkspaceNotesForClaim(ctx context.Context, resp *AgentTaskResponse, task *db.AgentTaskQueue, workspaceID pgtype.UUID, issue *db.Issue) {
+	resp.MemoryContext.WorkspaceNotesStatus = "unavailable"
+	resp.MemoryContext.WorkspaceNotes = []service.NoteVersion{}
+
+	description, labels := "", []string(nil)
+	if issue != nil {
+		description = issue.Description.String
+		// The only extra read the claim pays for the query. Labels are the
+		// workspace's own vocabulary for a ticket, which is often exactly the
+		// word a note was filed under.
+		rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{
+			IssueID:     issue.ID,
+			WorkspaceID: issue.WorkspaceID,
+		})
+		if err != nil {
+			slog.Warn("daemon claim: load issue labels for the Brain query failed; querying without them",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		}
+		for _, row := range rows {
+			labels = append(labels, row.Name)
+		}
+	}
+	// resp.ThreadName is the run's subject whatever kind it is: the issue
+	// title, the chat title (or its first message), the autopilot title, the
+	// quick-create prompt. A run with none of those gets an empty query and
+	// falls back to the pinned-plus-recent selection.
+	query := brainClaimQuery(resp.ThreadName, description, resp.ProjectTitle, labels)
+
+	notes, reasons, err := h.TaskService.SelectWorkspaceNotesForBrief(ctx, workspaceID, query)
+	if err != nil {
+		slog.Warn("daemon claim: load workspace notes failed; continuing without the Brain",
+			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(workspaceID), "error", err)
+		return
+	}
+	resp.MemoryContext.WorkspaceNotesStatus = "loaded"
+	if len(notes) == 0 {
+		return
+	}
+	// Send only what the byte budget keeps, with the count it dropped: the
+	// notes recorded as injected are then exactly the files the daemon writes,
+	// in the same order.
+	kept, omitted := brainknowledge.Select(workspaceNotesToContext(notes, reasons))
+	resp.WorkspaceNotes = kept
+	resp.WorkspaceNotesOmitted = omitted
+	resp.WorkspaceNotesQuery = brainClaimQueryForWire(query)
+	for _, n := range notes[:len(kept)] {
+		resp.MemoryContext.WorkspaceNotes = append(resp.MemoryContext.WorkspaceNotes,
+			service.NoteVersion{ID: uuidToString(n.ID), Revision: n.Revision})
+	}
 }

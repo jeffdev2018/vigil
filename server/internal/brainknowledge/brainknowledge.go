@@ -19,6 +19,15 @@ import (
 // is always the least recently touched.
 const ByteBudget = 200 * 1024
 
+// Why a note is in a run's selection. The server decides, the daemon renders:
+// one vocabulary so the index cannot describe a note differently from the rule
+// that picked it.
+const (
+	ReasonPinned   = "pinned"
+	ReasonRelevant = "relevant"
+	ReasonRecent   = "recent"
+)
+
 // Note is one Brain note as a run receives it. It is the claim wire shape too,
 // so the json tags are the contract between server and daemon.
 type Note struct {
@@ -29,6 +38,12 @@ type Note struct {
 	Pinned  bool     `json:"pinned,omitempty"`
 	Source  string   `json:"source,omitempty"`
 	Updated string   `json:"updated_at,omitempty"`
+	// Reason is one of the Reason* constants: why this note was selected.
+	// Empty from a server that predates relevance selection, which is what
+	// makes the index byte-identical to what it used to write.
+	Reason string `json:"reason,omitempty"`
+	// Score is the search score behind ReasonRelevant, for the index only.
+	Score float64 `json:"score,omitempty"`
 }
 
 var slugUnsafe = regexp.MustCompile(`[^a-z0-9]+`)

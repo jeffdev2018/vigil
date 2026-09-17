@@ -538,7 +538,8 @@ type AgentTaskResponse struct {
 	// autonomy tier, allow and deny lists and escalation path.
 	Org *OrgContext `json:"org,omitempty"`
 	// WorkspaceNotes are the workspace Brain notes this run gets: every pinned
-	// note plus the most recently updated others. The daemon writes them as
+	// note, the ones relevant to what the run is doing, then a few recent
+	// others, each carrying the reason it was picked. The daemon writes them as
 	// files under .multica/knowledge. Workspace-scoped, so unlike the agent's
 	// memories they are shared by every agent in the workspace. Omitted when
 	// the Brain is empty and by older servers.
@@ -547,6 +548,10 @@ type AgentTaskResponse struct {
 	// byte budget: WorkspaceNotes is already the kept prefix, so the daemon
 	// needs this to keep the README's "left out" line truthful.
 	WorkspaceNotesOmitted int `json:"workspace_notes_omitted,omitempty"`
+	// WorkspaceNotesQuery is the (flattened, clamped) query the relevant notes
+	// were found with, so the knowledge index can name it. Empty when the run
+	// had no searchable subject, when the Brain is empty, and by older servers.
+	WorkspaceNotesQuery string `json:"workspace_notes_query,omitempty"`
 	// AutopilotMemory is the execution memory of the daemon that started this
 	// run (F24 / JEF-15) — notes a previous run of THIS autopilot left for the
 	// next one. Autopilot-scoped, not agent-scoped: the same agent serving

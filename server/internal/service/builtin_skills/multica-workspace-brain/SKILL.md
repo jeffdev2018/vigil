@@ -166,8 +166,16 @@ readable. Deleting is a human action in the Brain page — do not ask for it.
 
 ## What the run receives
 
-Each run gets every pinned note plus the 20 most recently updated ones, capped at 200 KB
-total. If the cap drops notes, `.multica/knowledge/README.md` says how many; find them with
+Your notes are chosen for the task you were given: every pinned note, up to 8 the Brain
+search ranks for your own issue (title, project, labels, the head of the description), then
+up to 4 of the most recently updated others. A run with no searchable subject, and a
+workspace whose notes match nothing in the issue, fall back to every pinned note plus the
+20 most recently updated ones.
+
+`.multica/knowledge/README.md` says of each note whether it is pinned, relevant to your
+task (naming the query and the score) or merely recent — read it before you trust a note as
+the answer to what you were asked. The whole set is capped at 200 KB; if the cap drops
+notes, the index says how many; reach them with `multica brain search` or
 `multica brain list`.
 
 A daily curation pass merges near-duplicates, retitles vague notes, normalizes tags and
