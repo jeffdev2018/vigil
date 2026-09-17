@@ -2677,6 +2677,26 @@ describe("ApiClient workspace MCP servers", () => {
     expect(result[0]).toEqual(server);
   });
 
+  // JEF-426: the catalogue page reads agent_count / agent_ids. A garbled value
+  // must leave them undefined — "not reported" — instead of parsing to 0 or
+  // dropping the whole server.
+  it("parses the bound-agent projection and drops a malformed one", async () => {
+    stubJSON([{ ...server, agent_count: 3, agent_ids: ["agent-1", "agent-2", "agent-3"] }]);
+
+    const parsed = await new ApiClient("https://api.example.test")
+      .listWorkspaceMcpServers("ws-1");
+    expect(parsed[0]?.agent_count).toBe(3);
+    expect(parsed[0]?.agent_ids).toEqual(["agent-1", "agent-2", "agent-3"]);
+
+    stubJSON([{ ...server, agent_count: "many", agent_ids: "agent-1" }]);
+
+    const degraded = await new ApiClient("https://api.example.test")
+      .listWorkspaceMcpServers("ws-1");
+    expect(degraded).toHaveLength(1);
+    expect(degraded[0]?.agent_count).toBeUndefined();
+    expect(degraded[0]?.agent_ids).toBeUndefined();
+  });
+
   it("keeps an unknown transport rather than dropping the server", async () => {
     // Enum drift from a newer backend must degrade, not disappear: the row
     // still renders and the UI's default branch labels it.

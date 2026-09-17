@@ -5017,6 +5017,11 @@ export const WorkspaceMcpServerSchema = z.object({
   tool_count: z.number().catch(0).default(0),
   tool_policy: McpToolPolicySchema.optional().catch(undefined),
   tools: z.array(McpCatalogToolSchema).optional().catch(undefined),
+  // JEF-426: library-listing-only projection of agent_mcp_server. Optional
+  // with no default — a backend that does not send it must stay
+  // distinguishable from a server no agent uses.
+  agent_count: z.number().optional().catch(undefined),
+  agent_ids: z.array(z.string()).optional().catch(undefined),
 });
 export const McpServerToolCatalogSchema = z.object({
   tools: z.array(McpCatalogToolSchema).catch([]).default([]),

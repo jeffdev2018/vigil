@@ -153,6 +153,30 @@ function useAgentMcpMutation<TVariables>(
   });
 }
 
+/**
+ * Attaches a library server to whichever agent the caller picks, for the tools
+ * catalogue page where the agent is chosen per click rather than fixed by the
+ * screen (JEF-426). `useAddAgentMcpServer` stays the hook for an agent's own
+ * settings tab, where the agent IS the screen.
+ *
+ * The workspace library listing carries each server's agent count, so it is
+ * invalidated alongside the agent's own binding list.
+ */
+export function useAttachMcpServerToAgent(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, serverId }: { agentId: string; serverId: string }) =>
+      api.addAgentMcpServer(agentId, serverId),
+    onSettled: (_data, _error, { agentId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["agents", agentId, "mcp-servers"],
+        }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) }),
+      ]),
+  });
+}
+
 export function useAddAgentMcpServer(agentId: string) {
   return useAgentMcpMutation(agentId, (serverId: string) =>
     api.addAgentMcpServer(agentId, serverId));
