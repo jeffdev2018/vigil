@@ -4366,7 +4366,7 @@ func (s *TaskService) FinalizeTaskClaim(
 		}
 	}
 	receipt := task.DeliveredCommentIds
-	err := s.runInTx(ctx, func(qtx *db.Queries) error {
+	err := s.runInTxWithTx(ctx, func(tx pgx.Tx, qtx *db.Queries) error {
 		updated, err := qtx.SetTaskMemoryContext(ctx, db.SetTaskMemoryContextParams{
 			TaskID: task.ID, RuntimeID: task.RuntimeID, DispatchedAt: task.DispatchedAt, MemoryContext: memoryJSON,
 		})
@@ -4376,6 +4376,7 @@ func (s *TaskService) FinalizeTaskClaim(
 		if updated != 1 {
 			return fmt.Errorf("set memory context: %w", pgx.ErrNoRows)
 		}
+		recordInjectedNotes(ctx, tx, qtx, task, memoryContext)
 
 		if _, err := qtx.CreateTaskToken(ctx, token); err != nil {
 			return fmt.Errorf("create task token: %w", err)
@@ -7306,15 +7307,21 @@ func (s *TaskService) dispatchDelegatedFailureRecoveryComment(ctx context.Contex
 // (e.g. some tests construct TaskService directly), fn runs against the
 // regular Queries handle without transactional guarantees.
 func (s *TaskService) runInTx(ctx context.Context, fn func(*db.Queries) error) error {
+	return s.runInTxWithTx(ctx, func(_ pgx.Tx, q *db.Queries) error { return fn(q) })
+}
+
+// runInTxWithTx is runInTx for a body that needs the transaction itself, to
+// open a savepoint. tx is nil when no TxStarter is wired.
+func (s *TaskService) runInTxWithTx(ctx context.Context, fn func(pgx.Tx, *db.Queries) error) error {
 	if s.TxStarter == nil {
-		return fn(s.Queries)
+		return fn(nil, s.Queries)
 	}
 	tx, err := s.TxStarter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	if err := fn(s.Queries.WithTx(tx)); err != nil {
+	if err := fn(tx, s.Queries.WithTx(tx)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

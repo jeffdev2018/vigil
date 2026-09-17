@@ -3410,6 +3410,22 @@ type WorkspaceNotePassage struct {
 	IndexedAt      pgtype.Timestamptz `json:"indexed_at"`
 }
 
+// JEF-413: one use of a Brain note — injected/retrieved/opened by a run (task_id set) or viewed by a member (task_id NULL, counted once a day).
+type WorkspaceNoteUsage struct {
+	ID           pgtype.UUID `json:"id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	NoteID       pgtype.UUID `json:"note_id"`
+	NoteRevision pgtype.Int8 `json:"note_revision"`
+	Kind         string      `json:"kind"`
+	Channel      string      `json:"channel"`
+	ActorType    string      `json:"actor_type"`
+	// agent id when actor_type = 'agent', user id when actor_type = 'member'.
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	TaskID    pgtype.UUID        `json:"task_id"`
+	Day       pgtype.Date        `json:"day"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type WorkspacePackInstall struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`

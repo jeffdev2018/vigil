@@ -502,6 +502,11 @@ var concurrentIndexCleanups = map[string]string{
 	"929_workspace_note_passage_workspace_index":                "idx_workspace_note_passage_workspace",
 	"930_workspace_note_passage_search_index":                   "idx_workspace_note_passage_tsv",
 	"931_workspace_note_passage_embedding_index":                "idx_workspace_note_passage_embedding",
+	"935_workspace_note_usage_pkey_index":                       "workspace_note_usage_pkey_uidx",
+	"937_workspace_note_usage_run_unique_index":                 "idx_workspace_note_usage_run",
+	"938_workspace_note_usage_member_unique_index":              "idx_workspace_note_usage_member_day",
+	"939_workspace_note_usage_note_index":                       "idx_workspace_note_usage_note_created",
+	"940_workspace_note_usage_workspace_index":                  "idx_workspace_note_usage_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

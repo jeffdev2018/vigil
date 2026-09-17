@@ -2474,6 +2474,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/", h.DeleteWorkspaceNote)
 					r.Post("/archive", h.ArchiveWorkspaceNote)
 					r.Post("/unarchive", h.UnarchiveWorkspaceNote)
+					// Usage (JEF-413): runs that used the note, and a
+					// member's read from the web, desktop or mobile app.
+					r.Get("/usage", h.GetWorkspaceNoteUsage)
+					r.Post("/view", h.RecordWorkspaceNoteView)
 				})
 			})
 			// Brain capture inbox (OS plan, vague B): capture first, organize
@@ -2513,6 +2517,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
+			// The Brain notes a run received, retrieved or opened (JEF-413).
+			r.Get("/api/tasks/{taskId}/note-usage", h.ListTaskNoteUsage)
 			// JEF-255: the diff a terminal run delivered on its branch, served
 			// lazily from the task row's own columns.
 			r.Get("/api/tasks/{taskId}/diff", h.GetTaskDiff)

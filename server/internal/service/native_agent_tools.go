@@ -1045,6 +1045,7 @@ func (s *NativeAgentService) nativeSearchWorkspace(ctx context.Context, tctx *na
 			"excerpt": stripNoteHighlight(hit.Snippet),
 		})
 	}
+	s.recordNoteUsage(ctx, tctx, "retrieved", brainHitNotes(notes)...)
 	return map[string]any{"issues": outIssues, "notes": outNotes}, nil
 }
 
@@ -1120,6 +1121,7 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
 	}
+	s.recordNoteUsage(ctx, tctx, "retrieved", brainHitNotes(hits)...)
 	return out, nil
 }
 
@@ -1149,7 +1151,17 @@ func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *native
 			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
 	}
+	s.recordNoteUsage(ctx, tctx, "retrieved", notes...)
 	return out, nil
+}
+
+// brainHitNotes is the notes behind ranked search hits, in rank order.
+func brainHitNotes(hits []BrainSearchHit) []db.WorkspaceNote {
+	out := make([]db.WorkspaceNote, len(hits))
+	for i, hit := range hits {
+		out[i] = hit.Note
+	}
+	return out
 }
 
 // stripNoteHighlight removes the search snippet's <mark> markers. They exist
@@ -1246,6 +1258,7 @@ func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeTool
 	if err != nil {
 		return nil, errors.New("note not found in this workspace")
 	}
+	s.recordNoteUsage(ctx, tctx, "opened", note)
 	return map[string]any{
 		"id": util.UUIDToString(note.ID), "title": note.Title,
 		"content": nativeDataFence("note", note.Content), "tags": note.Tags, "pinned": note.Pinned,

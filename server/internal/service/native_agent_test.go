@@ -994,6 +994,32 @@ func TestNativeAgentBrainTools(t *testing.T) {
 	if rev := out.(map[string]any)["revision"]; rev != int64(2) {
 		t.Fatalf("revision after edit = %v, want 2", rev)
 	}
+
+	// Usage (JEF-413): the searches above retrieved both notes for this run,
+	// get_note opens one, and repeating a call adds no row.
+	if _, err := svc.callNativeTool(ctx, tctx, "get_note", map[string]any{"note_id": noteID}); err != nil {
+		t.Fatalf("get_note: %v", err)
+	}
+	if _, err := svc.callNativeTool(ctx, tctx, "get_note", map[string]any{"note_id": noteID}); err != nil {
+		t.Fatalf("get_note again: %v", err)
+	}
+	usage := func(kind string) (n int) {
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM workspace_note_usage WHERE task_id = $1 AND kind = $2 AND channel = 'native_tool' AND actor_id = $3`, taskID, kind, agentID).Scan(&n); err != nil {
+			t.Fatalf("count usage: %v", err)
+		}
+		return n
+	}
+	if got := usage("retrieved"); got != 2 {
+		t.Errorf("retrieved rows = %d, want one per note returned by search_notes", got)
+	}
+	if got := usage("opened"); got != 1 {
+		t.Errorf("opened rows = %d, want 1", got)
+	}
+	var revision int64
+	if err := pool.QueryRow(ctx, `SELECT note_revision FROM workspace_note_usage WHERE task_id = $1 AND kind = 'opened'`, taskID).Scan(&revision); err != nil || revision != 2 {
+		t.Errorf("opened note_revision = %d (err %v), want the revision read", revision, err)
+	}
+	pool.Exec(ctx, `DELETE FROM workspace_note_usage WHERE task_id = $1`, taskID)
 }
 
 // N01 — the data fence. Everything the workspace contains that reaches the

@@ -910,9 +910,12 @@ func (h *Handler) SearchWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := make([]WorkspaceNoteSearchHit, 0, len(hits))
+	notes := make([]db.WorkspaceNote, 0, len(hits))
 	for _, hit := range hits {
 		out = append(out, WorkspaceNoteSearchHit{WorkspaceNoteResponse: workspaceNoteToResponse(hit.Note), Score: hit.Score, Snippet: hit.Snippet, PassageHeading: hit.PassageHeading, LexRank: hit.LexRank, VecRank: hit.VecRank})
+		notes = append(notes, hit.Note)
 	}
+	h.recordRunNoteUsage(r, wsUUID, "retrieved", notes)
 	writeJSON(w, http.StatusOK, struct {
 		Notes  []WorkspaceNoteSearchHit `json:"notes"`
 		Vector bool                     `json:"vector"`

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/multica-ai/multica/server/internal/brainknowledge"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -209,6 +210,7 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 		for _, hit := range hits {
 			rows = append(rows, hit.Note)
 		}
+		h.recordRunNoteUsage(r, workspaceID, "retrieved", rows)
 	} else {
 		var err error
 		rows, err = h.Queries.ListWorkspaceNotes(r.Context(), params)
@@ -245,6 +247,13 @@ func (h *Handler) GetWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A member's plain GET counts as a view. The mobile note screen reads
+	// through this GET, so its view is attributed to mobile.
+	channel := "api"
+	if isMobileClient(r) {
+		channel = "mobile"
+	}
+	h.recordNoteRead(r, note, channel)
 	writeJSON(w, http.StatusOK, workspaceNoteToResponse(note))
 }
 
@@ -568,29 +577,20 @@ func canDeleteWorkspaceNote(note db.WorkspaceNote, member db.Member, actorType s
 }
 
 // WorkspaceNoteContext is one Brain note as the claim response ships it to the
-// daemon. Its json tags mirror execenv.WorkspaceNoteForEnv, which the daemon
-// decodes straight into.
-type WorkspaceNoteContext struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Content   string   `json:"content,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	Pinned    bool     `json:"pinned,omitempty"`
-	Source    string   `json:"source,omitempty"`
-	UpdatedAt string   `json:"updated_at,omitempty"`
-}
+// daemon: the shared brainknowledge wire shape the daemon decodes into.
+type WorkspaceNoteContext = brainknowledge.Note
 
 func workspaceNotesToContext(notes []db.WorkspaceNote) []WorkspaceNoteContext {
 	out := make([]WorkspaceNoteContext, 0, len(notes))
 	for _, n := range notes {
 		out = append(out, WorkspaceNoteContext{
-			ID:        uuidToString(n.ID),
-			Title:     n.Title,
-			Content:   n.Content,
-			Tags:      n.Tags,
-			Pinned:    n.Pinned,
-			Source:    n.Source,
-			UpdatedAt: timestampToString(n.UpdatedAt),
+			ID:      uuidToString(n.ID),
+			Title:   n.Title,
+			Content: n.Content,
+			Tags:    n.Tags,
+			Pinned:  n.Pinned,
+			Source:  n.Source,
+			Updated: timestampToString(n.UpdatedAt),
 		})
 	}
 	return out

@@ -57,9 +57,12 @@ RETURNING *;
 
 -- name: DeleteWorkspaceNote :execrows
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. The note's
--- search passages go in the same statement (no FK, no cascade).
+-- search passages and usage rows go in the same statement (no FK, no cascade).
 WITH passages AS (
     DELETE FROM workspace_note_passage
+    WHERE note_id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
+), usage AS (
+    DELETE FROM workspace_note_usage
     WHERE note_id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid
 )
 DELETE FROM workspace_note WHERE id = sqlc.arg('id')::uuid AND workspace_id = sqlc.arg('workspace_id')::uuid;
