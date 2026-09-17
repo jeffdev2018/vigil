@@ -21,7 +21,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
-	"github.com/multica-ai/multica/server/internal/brainknowledge"
 	"github.com/multica-ai/multica/server/internal/daemonws"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
@@ -2777,31 +2776,6 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			resp.AutopilotMemory = memory.Content
 		}
 	}
-	// Workspace Brain notes ride the same assembly point and the same
-	// non-blocking contract: the shared knowledge base is briefing context,
-	// so a failed read costs the run its Workspace Knowledge section, never
-	// its dispatch. Unlike memories these hang off the workspace, not the
-	// agent, so every agent in the workspace sees the same set.
-	resp.MemoryContext.WorkspaceNotesStatus = "unavailable"
-	resp.MemoryContext.WorkspaceNotes = []service.NoteVersion{}
-	if notes, err := h.TaskService.LoadWorkspaceNotesForBrief(r.Context(), agent.WorkspaceID); err != nil {
-		slog.Warn("daemon claim: load workspace notes failed; continuing without the Brain",
-			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(agent.WorkspaceID), "error", err)
-	} else {
-		resp.MemoryContext.WorkspaceNotesStatus = "loaded"
-		if len(notes) > 0 {
-			// Send only what the byte budget keeps, with the count it dropped:
-			// the notes recorded as injected are then exactly the files the
-			// daemon writes, in the same order.
-			kept, omitted := brainknowledge.Select(workspaceNotesToContext(notes))
-			resp.WorkspaceNotes = kept
-			resp.WorkspaceNotesOmitted = omitted
-			for _, n := range notes[:len(kept)] {
-				resp.MemoryContext.WorkspaceNotes = append(resp.MemoryContext.WorkspaceNotes,
-					service.NoteVersion{ID: uuidToString(n.ID), Revision: n.Revision})
-			}
-		}
-	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
 		if resp.Agent != nil {
@@ -3736,6 +3710,12 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if failure := h.rejectClaimOnWorkspaceMismatch(r.Context(), task, resp.WorkspaceID, runtimeID, runtimeWorkspaceID, hasQuickCreate); failure != nil {
 		return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount, failure
 	}
+
+	// Workspace Brain notes (JEF-414). Deliberately down here rather than
+	// beside the agent memories: the selection is a relevance search on the
+	// run's own subject, so it needs the thread name, the project and the
+	// issue that the context branches above resolve.
+	h.injectWorkspaceNotesForClaim(r.Context(), &resp, task, agent.WorkspaceID, claimIssue)
 
 	// The workspace doctrine (workspace.context DB column, revision in
 	// workspace.doctrine_revision) — the governing document workspace owners

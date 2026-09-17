@@ -1233,6 +1233,10 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 		}
 		tctx := nativeToolContext{task: task, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
 		brief := nativeTaskBrief(ctx, s.Queries, s.Goal, tctx)
+		// Workspace Brain (JEF-414): the same selection a daemon claim makes,
+		// rendered into the brief because a native run has no workdir to write
+		// files into.
+		brief += s.nativeWorkspaceKnowledgeBrief(ctx, task, agent, &issue)
 		if nt, ok := ParseNoteTargetContext(task.Context); ok {
 			var b strings.Builder
 			b.WriteString(brief)

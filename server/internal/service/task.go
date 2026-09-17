@@ -129,6 +129,12 @@ type TaskService struct {
 	// with no MULTICA_LLM_* configuration. Wired in handler.New from the same
 	// *llm.Client that backs chat auto-titling and memory extraction.
 	Postmortem PostmortemLLM
+	// NoteEmbedder ranks the Brain by relevance when SelectWorkspaceNotesForBrief
+	// picks a run's notes (JEF-414). Optional: nil (or a disabled embedder)
+	// keeps the selection lexical, which is the expected state for a
+	// deployment with no embeddings provider. Wired in handler.New from the
+	// same embedder that backs the Brain search endpoint.
+	NoteEmbedder NoteEmbedder
 	// BrainCuration powers the daily workspace Brain curation pass. Optional:
 	// nil (or a disabled client) makes the pass a logged no-op, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*

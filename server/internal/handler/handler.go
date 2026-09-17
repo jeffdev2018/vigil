@@ -624,6 +624,10 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// Daily workspace Brain curation uses the same internal LLM layer; a
 	// disabled client turns the pass into a logged no-op.
 	taskSvc.BrainCuration = llmClient
+	// Relevance selection of a run's Brain notes (JEF-414) uses the same
+	// embedder as the Brain search endpoint; without an embeddings provider
+	// the selection stays lexical.
+	taskSvc.NoteEmbedder = brainEmbedder
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 newPrimaryReadSelector(queries, txStarter),
