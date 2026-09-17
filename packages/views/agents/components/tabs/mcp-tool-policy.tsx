@@ -7,7 +7,6 @@ import type {
   McpCatalogTool,
   McpToolClass,
   McpToolPolicy as McpToolPolicyValue,
-  McpToolRisk,
   WorkspaceMcpServer,
 } from "@multica/core/types";
 import { useSetAgentMcpServerPolicy } from "@multica/core/workspace/mutations";
@@ -25,18 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@multica/ui/components/ui/select";
+import { MCP_RISK_BADGE } from "../../../common/mcp-risk";
 import { useT, useTimeAgo } from "../../../i18n";
 
 const POLICY_DEFAULTS = ["by_risk", "ask", "never"] as const;
 const TOOL_CLASSES: McpToolClass[] = ["act_alone", "ask", "never"];
-
-const RISK_BADGE: Record<McpToolRisk, "outline" | "secondary" | "destructive"> = {
-  read: "outline",
-  internal_write: "secondary",
-  external_effect: "destructive",
-  sensitive_data: "destructive",
-  unknown: "secondary",
-};
 
 /**
  * The class a tool gets under a policy, mirroring the gateway's rule: an
@@ -208,7 +200,7 @@ export function McpToolPolicy({
                         ) : null}
                       </td>
                       <td className="py-1.5 pr-3">
-                        <Badge variant={RISK_BADGE[tool.risk] ?? "secondary"}>
+                        <Badge variant={MCP_RISK_BADGE[tool.risk] ?? "secondary"}>
                           {t(($) => $.tab_body.mcp_config.policy[`risk_${tool.risk}`])}
                         </Badge>
                       </td>
