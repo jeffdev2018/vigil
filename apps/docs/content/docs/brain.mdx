@@ -119,14 +119,24 @@ Without a provider the recording is still captured and still playable; only the 
 
 ## What a run receives
 
-Each run gets every pinned note plus the 20 most recently updated others, written into its working directory:
+A run's notes are chosen for the task it is about to do, in three groups:
+
+- **Pinned** — every pinned note, always. This is the workspace's explicit "always know this" set.
+- **Relevant** — up to 8 notes the Brain search ranks for the run's own subject: its title, its project, its labels and the head of its description. A two-year-old note that answers the ticket arrives; twenty notes that merely happen to be recent do not.
+- **Recent** — up to 4 of the most recently updated others, so a fresh note nobody thought to search for is still seen.
+
+A run with no searchable subject — a chat turn with no title — and a workspace whose notes match nothing in the ticket both fall back to the older rule: every pinned note plus the 20 most recently updated others.
+
+They are written into the run's working directory:
 
 ```
-.multica/knowledge/README.md        index: title, tags, id, file name
+.multica/knowledge/README.md        index: title, tags, id, file name, why it is here
 .multica/knowledge/<slug>-<id8>.md  one note
 ```
 
-The run's brief points at that directory instead of embedding the notes, so a large Brain costs the prompt a few lines rather than its whole content. The total is capped at 200 KB; if notes are left out, the index says how many.
+The index says of each note whether it is pinned, relevant (naming the query and the score) or merely recent, so a run can tell a note that answers its task from one that is only nearby. The run's brief points at that directory instead of embedding the notes, so a large Brain costs the prompt a few lines rather than its whole content. The total is capped at 200 KB; if notes are left out, the index says how many.
+
+An agent on the in-server runtime has no working directory, so it gets the same selection rendered into its brief instead: at most 6 notes, 6 KB, and the search tools for the rest.
 
 Captures are **not** part of what a run receives. They are somebody's unsorted thoughts, and a run reading them would be acting on things nobody vouched for yet.
 
