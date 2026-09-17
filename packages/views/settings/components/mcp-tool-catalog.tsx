@@ -15,15 +15,8 @@ import { Input } from "@multica/ui/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@multica/ui/components/ui/select";
+import { MCP_TOOL_RISKS } from "../../common/mcp-risk";
 import { useT } from "../../i18n";
-
-export const MCP_TOOL_RISKS: McpToolRisk[] = [
-  "read",
-  "internal_write",
-  "external_effect",
-  "sensitive_data",
-  "unknown",
-];
 
 /**
  * The tool catalogue of one workspace MCP server (K77): what the server

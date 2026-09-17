@@ -227,6 +227,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     goals: () => "/ws-test/goals",
     cycles: () => "/ws-test/cycles",
     roadmap: () => "/ws-test/roadmap",
+    tools: () => "/ws-test/tools",
     calendar: () => "/ws-test/calendar",
     org: () => "/ws-test/org",
     autopilots: () => "/ws-test/autopilots",

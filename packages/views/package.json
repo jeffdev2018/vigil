@@ -22,6 +22,7 @@
     "./goals/components": "./goals/components/index.ts",
     "./cycles/components": "./cycles/components/index.ts",
     "./roadmap/components": "./roadmap/components/index.ts",
+    "./tools/components": "./tools/components/index.ts",
     "./calendar/components": "./calendar/components/index.ts",
     "./org/components": "./org/components/index.ts",
     "./autopilots/components": "./autopilots/components/index.ts",

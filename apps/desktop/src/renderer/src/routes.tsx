@@ -21,6 +21,7 @@ import { GoalsPage } from "@multica/views/goals/components";
 import { CyclesPage } from "@multica/views/cycles/components";
 import { CalendarPage } from "@multica/views/calendar/components";
 import { RoadmapPage } from "@multica/views/roadmap/components";
+import { ToolsPage } from "@multica/views/tools/components";
 import { OrgPage } from "@multica/views/org/components";
 import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
@@ -170,6 +171,14 @@ export const appRoutes: RouteObject[] = [
             path: "roadmap",
             element: <RoadmapPage />,
             handle: { title: "Roadmap" },
+          },
+          {
+            // The sidebar is shared, so a page wired on web only sends every
+            // desktop tab to "this page does not exist" (#393, #397). Same
+            // view, same title as the sidebar entry.
+            path: "tools",
+            element: <ToolsPage />,
+            handle: { title: "Tools" },
           },
           {
             path: "projects/:id",

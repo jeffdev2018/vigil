@@ -64,6 +64,15 @@ export interface WorkspaceMcpServer {
   tool_count: number;
   tool_policy?: McpToolPolicy;
   tools?: McpCatalogTool[];
+  /**
+   * How many of the workspace's agents reach this server, and which ones
+   * (JEF-426). Present on the WORKSPACE library listing only — absent, not
+   * zero, on an agent's own list and on a write's response, so "nobody has
+   * it" is never confused with "not computed here". Archived agents are not
+   * counted.
+   */
+  agent_count?: number;
+  agent_ids?: string[];
 }
 
 /** Governed MCP gateway (K77). */
