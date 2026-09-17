@@ -68,6 +68,8 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   ["calendar"],
   // Roadmap (JEF-247).
   ["roadmap"],
+  // Workspace tools catalogue (JEF-426).
+  ["tools"],
   // Executable org chart (K75).
   ["org"],
   ["autopilots"],

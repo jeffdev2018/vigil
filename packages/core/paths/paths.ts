@@ -43,6 +43,9 @@ function workspaceScoped(slug: string) {
     calendar: () => `${ws}/calendar`,
     // Roadmap (JEF-247): projects on a timeline plus the issue dependency graph.
     roadmap: () => `${ws}/roadmap`,
+    // Tools catalogue (JEF-426): every MCP tool the workspace owns, where it
+    // comes from and which agents reach it.
+    tools: () => `${ws}/tools`,
     // Executable org chart (K75): the structures routing work in this workspace.
     org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,
