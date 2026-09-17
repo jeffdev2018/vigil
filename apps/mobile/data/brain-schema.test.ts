@@ -7,6 +7,8 @@ import {
   WorkspaceNoteSchema,
   WorkspaceNoteSearchResponseSchema,
   WorkspaceNotesResponseSchema,
+  WorkspaceNoteUsageSchema,
+  EMPTY_WORKSPACE_NOTE_USAGE,
   EMPTY_BRAIN_CAPTURES_RESPONSE,
   EMPTY_WORKSPACE_NOTES_RESPONSE,
   EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
@@ -327,5 +329,30 @@ describe("ranked search schema", () => {
         { endpoint: "GET /api/workspace/notes/search" },
       ),
     ).toEqual(EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE);
+  });
+});
+
+describe("note usage (JEF-413)", () => {
+  it("reads the run count and last use the note screen shows", () => {
+    const usage = parseWithFallback(
+      { counts: { injected: 2, retrieved: 0, opened: 1, viewed: 5 }, runs_count: 3, viewers_count: 2, last_used_at: "2026-09-12T10:00:00Z", runs: [] },
+      WorkspaceNoteUsageSchema,
+      EMPTY_WORKSPACE_NOTE_USAGE,
+      { endpoint: "GET /api/workspace/notes/:id/usage" },
+    );
+    expect(usage.runs_count).toBe(3);
+    expect(usage.last_used_at).toBe("2026-09-12T10:00:00Z");
+  });
+
+  it("shows zero runs and no last use for a malformed body, never a crash", () => {
+    const usage = parseWithFallback(
+      { runs_count: "many", last_used_at: 12, runs: "x" },
+      WorkspaceNoteUsageSchema,
+      EMPTY_WORKSPACE_NOTE_USAGE,
+      { endpoint: "GET /api/workspace/notes/:id/usage" },
+    );
+    expect(usage.runs_count).toBe(0);
+    expect(usage.last_used_at).toBeNull();
+    expect(usage.runs).toEqual([]);
   });
 });

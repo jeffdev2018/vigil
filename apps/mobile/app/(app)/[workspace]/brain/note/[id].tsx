@@ -36,7 +36,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { TextField } from "@/components/ui/text-field";
 import { AutosizeTextArea } from "@/components/ui/autosize-textarea";
 import { MOBILE_PLACEHOLDER_COLOR } from "@/components/ui/input-tokens";
-import { brainNoteOptions } from "@/data/queries/brain";
+import { brainNoteOptions, noteUsageOptions } from "@/data/queries/brain";
 import {
   noteWriteFailure,
   useDeleteWorkspaceNote,
@@ -61,6 +61,11 @@ export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const note = useQuery(brainNoteOptions(wsId, id ?? ""));
+  // Usage line (JEF-413), same numbers as web's NoteUsageSection
+  // (packages/views/brain/components/note-usage-section.tsx). Mobile shows
+  // only the run count and the last use: the per-run list and its transcript
+  // links stay on web/desktop, where the transcript dialog lives.
+  const usage = useQuery(noteUsageOptions(wsId, id ?? ""));
 
   const update = useUpdateWorkspaceNote();
   const setArchived = useSetWorkspaceNoteArchived();
@@ -243,6 +248,18 @@ export default function NoteDetailScreen() {
       />
 
       <Text className="text-xs text-muted-foreground">{meta}</Text>
+      {usage.data ? (
+        <Text className="text-xs text-muted-foreground">
+          {[
+            `Used by ${usage.data.runs_count} ${usage.data.runs_count === 1 ? "run" : "runs"}`,
+            usage.data.last_used_at
+              ? `last used ${timeAgo(usage.data.last_used_at)}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
+      ) : null}
       {data.merged_into ? (
         <Text className="text-xs text-muted-foreground">
           The curation pass folded this note into another one.

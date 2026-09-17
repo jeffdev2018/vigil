@@ -302,6 +302,8 @@ import {
   WorkspaceNoteSchema,
   WorkspaceNoteSearchResponseSchema,
   WorkspaceNotesResponseSchema,
+  WorkspaceNoteUsageSchema,
+  EMPTY_WORKSPACE_NOTE_USAGE,
   EMPTY_BRAIN_CAPTURE,
   EMPTY_BRAIN_CAPTURES_RESPONSE,
   EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
@@ -321,6 +323,7 @@ import type {
   WorkspaceNote,
   WorkspaceNoteSearchResponse,
   WorkspaceNotesResponse,
+  WorkspaceNoteUsage,
 } from "@multica/core/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -2487,6 +2490,24 @@ class ApiClient {
       WorkspaceNoteSchema,
       EMPTY_WORKSPACE_NOTE,
       { signal: opts?.signal, endpoint: "GET /api/workspace/notes/:id" },
+    );
+  }
+
+  /**
+   * How many runs used a note and when last (JEF-413) — mirrors
+   * `packages/core/api/client.ts:getWorkspaceNoteUsage`. The GET of the note
+   * itself already counts this reader's view (the server attributes it to
+   * mobile from X-Client-Platform), so there is no separate view call.
+   */
+  async getWorkspaceNoteUsage(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNoteUsage> {
+    return this.fetchValidated(
+      `/api/workspace/notes/${encodeURIComponent(id)}/usage?limit=1`,
+      WorkspaceNoteUsageSchema,
+      EMPTY_WORKSPACE_NOTE_USAGE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes/:id/usage" },
     );
   }
 
