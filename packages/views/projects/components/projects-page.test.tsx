@@ -266,14 +266,51 @@ beforeEach(() => {
 });
 
 describe("ProjectsPage compact row navigation", () => {
-  it("renders the project name as text, not a title link", () => {
+  // The row is a <div> whose click/auxclick handlers are a mouse-only
+  // convenience (ui list-grid documents the split). The title has to be a
+  // real anchor or the row has no keyboard, no "open in new tab" and no
+  // browser context menu at all.
+  it("renders the project name as a real link", () => {
     renderProjects();
 
     const row = projectRow();
-    expect(within(row).getByText(PROJECT.title).tagName).toBe("SPAN");
-    expect(
-      within(row).queryByRole("link", { name: PROJECT.title }),
-    ).not.toBeInTheDocument();
+    const link = within(row).getByRole("link", { name: PROJECT.title });
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/test-workspace/projects/project-1");
+  });
+
+  it("navigates once from the keyboard when the title link is activated", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    renderProjects(makeAdapter({ push }));
+
+    const link = within(projectRow()).getByRole("link", {
+      name: PROJECT.title,
+    });
+    link.focus();
+    expect(link).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(push).toHaveBeenCalledWith("/test-workspace/projects/project-1");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  // Web has no tab adapter, so AppLink leaves a modifier click to the
+  // browser. If the event reached the row, rowLink would ALSO run its
+  // window.open fallback and the user would get two tabs.
+  it("leaves a modifier click on the title to the browser, without the row fallback", () => {
+    const push = vi.fn();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderProjects(makeAdapter({ push }));
+
+    fireEvent.click(
+      within(projectRow()).getByRole("link", { name: PROJECT.title }),
+      { metaKey: true },
+    );
+
+    expect(open).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 
   it("navigates from the row surface", async () => {
@@ -325,6 +362,26 @@ describe("ProjectsPage compact row navigation", () => {
     expect(openInNewTab).toHaveBeenNthCalledWith(2, "/test-workspace/projects/project-1", "Launch Plan");
     expect(openInNewTab).toHaveBeenNthCalledWith(3, "/test-workspace/projects/project-1", "Launch Plan");
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("names the selection toggles and reveals them on focus", async () => {
+    const user = userEvent.setup();
+    renderProjects();
+
+    const rowToggle = within(projectRow()).getByRole("button", {
+      name: `Select ${PROJECT.title}`,
+    });
+    // Both are hidden by `opacity-0` while nothing is selected, so focus has
+    // to reveal them too or the keyboard lands on an invisible control.
+    expect(rowToggle.className).toContain("focus-visible:opacity-100");
+    expect(
+      screen.getByRole("button", { name: "Select all projects" }).className,
+    ).toContain("focus-visible:opacity-100");
+
+    rowToggle.focus();
+    expect(rowToggle).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(rowToggle).toHaveAttribute("aria-pressed", "true");
   });
 
   // Web (no adapter): the row is a <div>, so nothing native catches a

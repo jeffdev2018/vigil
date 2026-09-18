@@ -20,6 +20,8 @@
     "pin_partial": "{{succeeded}} 件ピン留め、{{failed}} 件失敗"
   },
   "table": {
+    "select_project": "{{name}} を選択",
+    "select_all": "すべてのプロジェクトを選択",
     "name": "名前",
     "priority": "優先度",
     "status": "ステータス",
