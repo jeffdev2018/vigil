@@ -833,6 +833,78 @@ describe("LoginPage", () => {
 // validateCliCallback (exported helper)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Accessible naming and error announcement (UI audit, sept. 2026)
+// ---------------------------------------------------------------------------
+
+describe("LoginPage field naming and error announcement", () => {
+  const onSuccess = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiGetMe.mockRejectedValue(new Error("unauthorized"));
+    localStorage.clear();
+    sessionStorage.clear();
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "http://localhost:3000" },
+    });
+  });
+
+  async function reachCodeStep(user: ReturnType<typeof userEvent.setup>) {
+    mockSendCode.mockResolvedValue(undefined);
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/check your email/i)).toBeInTheDocument(),
+    );
+  }
+
+  it("names the code field, and wires a rejected code to it", async () => {
+    const user = userEvent.setup();
+    mockVerifyCode.mockRejectedValueOnce(
+      Object.assign(new Error("nope"), { body: { code: "code_invalid" } }),
+    );
+    await reachCodeStep(user);
+
+    // The six slots are divs; only the input input-otp renders carries the
+    // value, so the name and the error wiring have to be on it.
+    const otp = screen.getByLabelText("6-digit verification code");
+    expect(otp).toBe(getOTPInput());
+    expect(otp).not.toHaveAttribute("aria-invalid");
+    expect(otp).not.toHaveAttribute("aria-describedby");
+
+    await user.type(otp, "000000");
+
+    const alert = await waitFor(() => screen.getByRole("alert"));
+    expect(alert).toHaveTextContent("Invalid or expired code");
+    expect(otp).toHaveAttribute("aria-invalid", "true");
+    expect(otp.getAttribute("aria-describedby")).toBe(alert.id);
+  });
+
+  it("wires a failed send to the email field", async () => {
+    const user = userEvent.setup();
+    mockSendCode.mockRejectedValueOnce(
+      Object.assign(new Error("nope"), { body: { code: "rate_limited" } }),
+    );
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+
+    const email = screen.getByLabelText(/email/i);
+    expect(email).not.toHaveAttribute("aria-invalid");
+
+    await user.type(email, "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    const alert = await waitFor(() => screen.getByRole("alert"));
+    expect(alert).toHaveTextContent(
+      "Please wait before requesting another code.",
+    );
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    expect(email.getAttribute("aria-describedby")).toBe(alert.id);
+  });
+});
+
 describe("LoginPage SSO (K60)", () => {
   const onSuccess = vi.fn();
   const REDIRECT = "http://localhost:3000/login/sso";
