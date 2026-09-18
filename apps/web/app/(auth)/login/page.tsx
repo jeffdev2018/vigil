@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { sanitizeNextUrl, useAuthStore } from "@multica/core/auth";
@@ -78,12 +78,34 @@ function LoginPageContent() {
 
   const [desktopToken, setDesktopToken] = useState<string | null>(null);
   const [desktopError, setDesktopError] = useState("");
+  // The workspace list read failed for a user who IS signed in. "We could not
+  // ask" is not "you have no workspace", so this holds the page instead of
+  // letting the resolver route a member of five workspaces to /workspaces/new.
+  const [workspaceLookupFailed, setWorkspaceLookupFailed] = useState(false);
   const hasOnboarded = useHasOnboarded();
 
   // Latched once auth has been observed settled as logged-out on this page.
   // Any `user` that appears afterwards came from the login form in this
   // session — not from an existing session found on arrival.
   const settledLoggedOutRef = useRef(false);
+
+  // Fetch instead of reading the cache: on a fresh page load the cache is
+  // cold, and `getQueryData() ?? []` would misroute a user who does have
+  // workspaces to /workspaces/new. A failed fetch must NOT fall back to [] for
+  // the same reason — an empty list is a destination ("create a workspace"),
+  // and an unanswered request is not evidence for it. Stay put and offer a
+  // retry instead.
+  const routeToWorkspace = useCallback(async () => {
+    setWorkspaceLookupFailed(false);
+    let list: Workspace[];
+    try {
+      list = await qc.ensureQueryData(workspaceListOptions());
+    } catch {
+      setWorkspaceLookupFailed(true);
+      return;
+    }
+    router.replace(await resolveLoggedInDestination(qc, hasOnboarded, list));
+  }, [qc, hasOnboarded, router]);
 
   // Already authenticated ON ARRIVAL — honor ?next= or fall back to first
   // workspace (or /onboarding if the user has none). Skip this entire path
@@ -124,17 +146,8 @@ function LoginPageContent() {
       router.replace(nextUrl);
       return;
     }
-    // Fetch instead of reading the cache: on a fresh page load the cache is
-    // cold, and `getQueryData() ?? []` would misroute a user who does have
-    // workspaces to /workspaces/new. On fetch failure fall back to [] —
-    // same destination the cold-cache read produced, rather than trapping
-    // the user on the login page.
-    void qc
-      .ensureQueryData(workspaceListOptions())
-      .catch(() => [] as Workspace[])
-      .then((list) => resolveLoggedInDestination(qc, hasOnboarded, list))
-      .then((dest) => router.replace(dest));
-  }, [isLoading, user, router, nextUrl, cliCallbackRaw, isDesktopHandoff, hasOnboarded, qc, t]);
+    void routeToWorkspace();
+  }, [isLoading, user, router, nextUrl, cliCallbackRaw, isDesktopHandoff, routeToWorkspace, t]);
 
   const handleSuccess = async () => {
     // Read the latest user snapshot directly — the closure's `hasOnboarded`
@@ -209,6 +222,31 @@ function LoginPageContent() {
             ) : (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Signed in, but we could not read the workspace list. Redirecting on a
+  // guess is the bug this screen replaces (a member with workspaces landing on
+  // "create your first workspace"), so hold here until the read succeeds.
+  if (workspaceLookupFailed && user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-display-sm">
+              {t(($) => $.web.workspace_lookup.title)}
+            </CardTitle>
+            <CardDescription>
+              {t(($) => $.web.workspace_lookup.description)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button variant="outline" onClick={() => void routeToWorkspace()}>
+              {t(($) => $.web.workspace_lookup.retry)}
+            </Button>
           </CardContent>
         </Card>
       </div>
