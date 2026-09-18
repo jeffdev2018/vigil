@@ -59,7 +59,7 @@ export function AppCrashBoundary({ children }: { children: ReactNode }) {
  */
 function CrashFallback({ error }: { error: Error }) {
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <DragStrip />
       <div
         role="alert"

@@ -83,7 +83,7 @@ function IssueWindowContent() {
   if (authStatus === "recovering") return <DesktopAuthRecoveryPage />;
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <MulticaIcon className="size-6 animate-pulse" />
       </div>
     );
@@ -308,7 +308,7 @@ function AppContent() {
   }
   if (isLoading || bootstrapping) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <MulticaIcon className="size-6 animate-pulse" />
       </div>
     );
@@ -330,7 +330,7 @@ function AppContent() {
 
 function BlockingRuntimeConfigError({ message }: { message: string }) {
   return (
-    <div className="flex h-screen items-center justify-center bg-background p-8 text-foreground">
+    <div className="flex h-dvh items-center justify-center bg-background p-8 text-foreground">
       <div className="max-w-xl rounded-lg border bg-card p-6 shadow-surface">
         <h1 className="text-title font-semibold">Desktop configuration error</h1>
         <p className="mt-3 text-body text-muted-foreground">
