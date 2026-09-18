@@ -52,6 +52,7 @@
     "loading_named_prefix": "Chargement"
   },
   "sidebar": {
+    "unpin_aria": "Détacher {{name}}",
     "unpin_tooltip": "Détacher",
     "workspaces_label": "Espaces de travail",
     "create_workspace": "Créer un espace de travail",

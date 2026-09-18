@@ -89,6 +89,21 @@ vi.mock("@multica/ui/components/ui/sidebar", () => ({
       {children}
     </button>
   ),
+  // Mirrors the real primitive closely enough for the pin-row tests: a real
+  // <button>, and `showOnHover` (which carries the hover/focus-within reveal
+  // in packages/ui) observable as an attribute.
+  SidebarMenuAction: ({
+    children,
+    showOnHover,
+    ...props
+  }: {
+    children: React.ReactNode;
+    showOnHover?: boolean;
+  } & React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type="button" data-show-on-hover={showOnHover ? "true" : undefined} {...props}>
+      {children}
+    </button>
+  ),
   SidebarMenuItem: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   SidebarRail: () => null,
   useSidebar: () => ({ setOpenMobile: sidebarState.setOpenMobile }),
@@ -110,7 +125,10 @@ vi.mock("@multica/ui/components/ui/collapsible", () => ({
 vi.mock("@multica/ui/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  // Honour `render` like the other suites do, so a trigger's own element
+  // (and its label / handler) survives the mock.
+  TooltipTrigger: ({ render, children }: { render?: React.ReactNode; children?: React.ReactNode }) =>
+    render ?? <button type="button">{children}</button>,
 }));
 vi.mock("../common/use-app-foreground", () => ({
   useAppForeground: () => appForeground.current,
@@ -291,6 +309,31 @@ describe("PinRow", () => {
     render(<AppSidebar />);
     expect(await screen.findByText("Keep this pin")).toBeInTheDocument();
     expect(screen.queryByText("MUL-123 Keep this pin")).not.toBeInTheDocument();
+  });
+
+  // The unpin control used to be a <span role="button"> INSIDE the pin link,
+  // revealed by hover alone on a ~10px target: invalid nesting, and
+  // unreachable without a mouse.
+  it("exposes unpin as a named button beside the pin link, not inside it", async () => {
+    detail.current = { isPending: false, isError: false, data: { identifier: "MUL-123", title: "Keep this pin", status: "todo" }, error: null };
+    renderWithI18n(<AppSidebar />);
+
+    const unpin = await screen.findByRole("button", { name: "Unpin Keep this pin" });
+    expect(unpin.closest("a")).toBeNull();
+    // The hover/focus-within reveal lives in the ui primitive; the sidebar's
+    // job is to ask for it.
+    expect(unpin).toHaveAttribute("data-show-on-hover", "true");
+  });
+
+  it("unpins from the keyboard", async () => {
+    detail.current = { isPending: false, isError: false, data: { identifier: "MUL-123", title: "Keep this pin", status: "todo" }, error: null };
+    renderWithI18n(<AppSidebar />);
+
+    const unpin = await screen.findByRole("button", { name: "Unpin Keep this pin" });
+    unpin.focus();
+    expect(unpin).toHaveFocus();
+    fireEvent.click(unpin); // what Enter/Space dispatch on a real button
+    expect(deletePin).toHaveBeenCalledTimes(1);
   });
 
   it("does not also highlight the parent workspace nav for an active pin", async () => {

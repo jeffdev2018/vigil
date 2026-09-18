@@ -45,6 +45,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -317,21 +318,31 @@ function SortablePinItem({
             WebkitMaskImage: "linear-gradient(to right, black calc(100% - 12px), transparent)",
           }}
         >{label}</span>
-        <Tooltip>
-          <TooltipTrigger
-            render={<span role="button" />}
-            className="hidden size-2.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground group-hover/pin:flex hover:text-foreground"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onUnpin();
-            }}
-          >
-            <X className="size-2.5" />
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={4}>{t(($) => $.sidebar.unpin_tooltip)}</TooltipContent>
-        </Tooltip>
       </SidebarMenuButton>
+      {/* Sibling of the link, never a child: a <span role="button"> inside an
+          anchor is interactive content nested in interactive content, and it
+          was revealed by hover alone on a ~10px target. SidebarMenuAction is
+          the primitive for this — a real button, lifted out of the row's flow,
+          revealed on hover OR focus-within, with an `after:-inset-2` hit area
+          well past the 24px minimum. */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <SidebarMenuAction
+              showOnHover
+              aria-label={t(($) => $.sidebar.unpin_aria, { name: label })}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onUnpin();
+              }}
+            >
+              <X className="size-3" />
+            </SidebarMenuAction>
+          }
+        />
+        <TooltipContent side="top" sideOffset={4}>{t(($) => $.sidebar.unpin_tooltip)}</TooltipContent>
+      </Tooltip>
     </SidebarMenuItem>
   );
 }

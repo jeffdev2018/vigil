@@ -52,6 +52,7 @@
     "loading_named_prefix": "로딩 중"
   },
   "sidebar": {
+    "unpin_aria": "{{name}} 고정 해제",
     "unpin_tooltip": "고정 해제",
     "workspaces_label": "워크스페이스",
     "create_workspace": "워크스페이스 만들기",
