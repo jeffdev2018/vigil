@@ -78,6 +78,7 @@ import { SessionRenameInput } from "./session-rename-input";
 import { ChatResizeHandles } from "./chat-resize-handles";
 import { useChatContextItems } from "./use-chat-context-items";
 import { useChatResize } from "./use-chat-resize";
+import { useArchiveSessionFlow } from "./use-archive-session-flow";
 import { useVisualViewportKeyboard } from "./use-visual-viewport-keyboard";
 import { useIsMobile } from "@multica/ui/hooks/use-mobile";
 import {
@@ -1222,7 +1223,10 @@ interface SessionRowAction extends RowActionItem {
  * (sessions are bound 1:1 to an agent). "New chat" lives in the header's
  * ⊕ button, not inside this dropdown.
  */
-function SessionDropdown({
+// Exported for its own suite: this is the floating window's archive entry
+// point, and mounting the whole ChatWindow to reach it would test everything
+// but the archive.
+export function SessionDropdown({
   sessions,
   agents,
   activeSessionId,
@@ -1335,20 +1339,19 @@ function SessionDropdown({
   // hard-delete: unarchive / delete live only in the full Chat page's Archived
   // view (reachable via the expand button), so a stale floating dropdown can't
   // bypass the "archive first, delete only from Archived" semantics.
-  const handleArchive = (session: ChatSession) => {
-    if (activeSessionId === session.id) {
-      // Archiving the session in view: advance to the next chat (fall back to
-      // the previous, clear only when none remain) instead of stranding the
-      // composer on a now read-only session — mirrors the Chat tab and the
-      // Inbox list. Routing the non-null advance through onSelectSession keeps
-      // selectedAgentId in sync when the next chat belongs to another agent.
-      const idx = historySessions.findIndex((s) => s.id === session.id);
-      const next = historySessions[idx + 1] ?? historySessions[idx - 1] ?? null;
-      if (next) onSelectSession(next);
-      else setActiveSession(null);
-    }
-    setArchived.mutate({ sessionId: session.id, archived: true });
-  };
+  //
+  // The move-and-roll-back sequence is the Chat page's, shared rather than
+  // re-written: this copy used to advance the selection with no rollback, so a
+  // refused archive left the window on another conversation while the archived
+  // one was back in the list.
+  const handleArchive = useArchiveSessionFlow({
+    activeSessionId,
+    history: historySessions,
+    selectSession: onSelectSession,
+    clearSelection: () => setActiveSession(null),
+    archive: (sessionId, options) =>
+      setArchived.mutate({ sessionId, archived: true }, options),
+  });
 
   const handleSubmitRename = (sessionId: string, raw: string) => {
     const trimmed = raw.trim();
