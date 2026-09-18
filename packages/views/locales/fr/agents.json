@@ -81,6 +81,10 @@
     "owner": "Propriétaire",
     "access": "Accès"
   },
+  "table": {
+    "select_all": "Sélectionner tous les agents",
+    "select_agent": "Sélectionner {{name}}"
+  },
   "row": {
     "you": "Vous",
     "archived": "Archivé",

@@ -52,7 +52,12 @@ import {
   type ListGridSortDirection,
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { AppLink, useNavigation, useRowLink } from "../../navigation";
+import {
+  AppLink,
+  rowLinkInteractiveProps,
+  useNavigation,
+  useRowLink,
+} from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
 import { VisibilityBadge } from "./visibility-badge";
@@ -349,11 +354,16 @@ function EmptyState({
 // Cells
 // ---------------------------------------------------------------------------
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -361,12 +371,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -383,7 +396,7 @@ function CheckboxCell({
 // documented exception to the single-line rule — agents are few and
 // identity-rich, so this is the "team roster" form (GitHub org members,
 // Slack member list).
-function NameCell({ row }: { row: AgentListRow }) {
+function NameCell({ row, rowHref }: { row: AgentListRow; rowHref: string }) {
   const { t } = useT("agents");
   const { agent, isOwnedByMe } = row;
   const isArchived = !!agent.archived_at;
@@ -399,14 +412,23 @@ function NameCell({ row }: { row: AgentListRow }) {
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span
+          {/* The row's click/auxclick handlers are a mouse convenience on a
+              plain <div> (see ui list-grid + views useRowLink): the keyboard
+              path, "open in new tab" and the browser context menu all come
+              from this anchor. `rowLinkInteractiveProps` stops the event from
+              reaching the row, so web's native modifier-click is not doubled
+              by the row's own window.open fallback. */}
+          <AppLink
+            href={rowHref}
+            newTabTitle={agent.name}
+            {...rowLinkInteractiveProps}
             title={agent.name}
             className={`min-w-0 truncate text-body font-medium ${
               isArchived ? "text-muted-foreground" : ""
             }`}
           >
             {agent.name}
-          </span>
+          </AppLink>
           {isPrivate && !isArchived && (
             <VisibilityBadge value="private" compact className="text-faint-foreground" />
           )}
@@ -613,11 +635,12 @@ function AgentListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -1233,9 +1256,15 @@ export function AgentsPage({
                     >
                       <CheckboxCell
                         checked={selectedIds.has(row.agent.id)}
+                        label={t(($) => $.table.select_agent, {
+                          name: row.agent.name,
+                        })}
                         onToggle={() => toggleSelected(row.agent.id)}
                       />
-                      <NameCell row={row} />
+                      <NameCell
+                        row={row}
+                        rowHref={paths.agentDetail(row.agent.id)}
+                      />
                       {isColVisible("status") ? (
                         <StatusCell row={row} />
                       ) : (
