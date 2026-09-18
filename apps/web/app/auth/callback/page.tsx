@@ -187,7 +187,7 @@ function CallbackContent() {
 
   if (desktopToken) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">
@@ -214,7 +214,7 @@ function CallbackContent() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">
@@ -235,7 +235,7 @@ function CallbackContent() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex min-h-dvh items-center justify-center">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-display-sm">

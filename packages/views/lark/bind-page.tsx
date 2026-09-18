@@ -62,7 +62,7 @@ export function LarkBindPage({ token }: { token: string | null }) {
   }, [token, user, isAuthLoading, state.kind]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center p-6">
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center p-6">
       <Card className="w-full">
         <CardContent className="space-y-4">
           <h1 className="text-title font-semibold">{t(($) => $.lark_bind.page_title)}</h1>

@@ -104,7 +104,7 @@ function JoinInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardContent className="space-y-4 pt-6">
           {joined ? (
@@ -168,7 +168,7 @@ function JoinInner() {
 function JoinFallback() {
   const { t } = useT("auth");
   return (
-    <div className="flex min-h-screen items-center justify-center">{t(($) => $.join.loading)}</div>
+    <div className="flex min-h-dvh items-center justify-center">{t(($) => $.join.loading)}</div>
   );
 }
 

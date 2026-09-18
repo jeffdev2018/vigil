@@ -184,7 +184,7 @@ function LoginPageContent() {
   if (isDesktopHandoff && user) {
     if (desktopError) {
       return (
-        <div className="flex min-h-screen items-center justify-center">
+        <div className="flex min-h-dvh items-center justify-center">
           <Card className="w-full max-w-sm">
             <CardHeader className="text-center">
               <CardTitle className="text-display-sm">
@@ -197,7 +197,7 @@ function LoginPageContent() {
       );
     }
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">
@@ -233,7 +233,7 @@ function LoginPageContent() {
   // "create your first workspace"), so hold here until the read succeeds.
   if (workspaceLookupFailed && user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">
