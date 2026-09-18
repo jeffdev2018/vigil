@@ -161,6 +161,7 @@
     "archive_all_read_failed": "归档已读失败",
     "archive_completed_failed": "归档已完成失败",
     "unarchive_failed": "取消归档失败",
+    "inbox_load_failed": "无法加载收件箱。",
     "archived_load_failed": "无法加载已归档通知",
     "attention_load_failed": "无法加载需处理列表。",
     "archived_lookup_failed": "无法加载链接指向的通知",

@@ -187,6 +187,32 @@ describe("LoginPage", () => {
       expect(mockListWorkspaces).toHaveBeenCalledTimes(1);
     });
 
+    it("holds an authenticated visitor on a retry screen when the workspace list read fails", async () => {
+      // The read used to `.catch(() => [])`, which handed the resolver the
+      // same evidence an empty account produces: a member of five workspaces
+      // landed on "create your first workspace" on a 5xx or an offline tab.
+      authStateRef.state.user = onboardedUser;
+      mockListWorkspaces.mockRejectedValue(new Error("offline"));
+
+      render(<LoginPage />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Couldn't load your workspaces"),
+        ).toBeInTheDocument();
+      });
+      expect(mockReplace).not.toHaveBeenCalled();
+      expect(mockPush).not.toHaveBeenCalled();
+
+      // Retry once the server answers: the same read now routes normally.
+      mockListWorkspaces.mockResolvedValue([{ id: "ws-1", slug: "acme" }]);
+      screen.getByRole("button", { name: "Try again" }).click();
+
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith("/acme/issues");
+      });
+    });
+
     it("still honors ?next= for a visitor who arrived authenticated", async () => {
       searchParamsState.params = new URLSearchParams({
         next: "/invite/abc",

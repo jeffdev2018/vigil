@@ -60,6 +60,7 @@ import {
   type RuntimeMachine,
 } from "./runtime-machines";
 import { HealthDot, HealthIcon, useHealthLabel } from "./shared";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useNowTick } from "./use-now-tick";
 import { useT, useTimeAgo } from "../../i18n";
 import { daemonRuntimesDocsHref } from "./runtime-docs";
@@ -93,12 +94,18 @@ export function RuntimesPage({
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showCloudRuntimeDialog, setShowCloudRuntimeDialog] = useState(false);
 
-  const { data: runtimes = [], isLoading: runtimesLoading } = useQuery(
-    runtimeListOptions(wsId),
-  );
-  const { data: runtimeProfiles = [], isLoading: profilesLoading } = useQuery(
-    runtimeProfileListOptions(wsId),
-  );
+  const {
+    data: runtimes = [],
+    isLoading: runtimesLoading,
+    isError: runtimesError,
+    refetch: refetchRuntimes,
+  } = useQuery(runtimeListOptions(wsId));
+  const {
+    data: runtimeProfiles = [],
+    isLoading: profilesLoading,
+    isError: profilesError,
+    refetch: refetchProfiles,
+  } = useQuery(runtimeProfileListOptions(wsId));
   const { data: agents = [], isLoading: agentsLoading } = useQuery(
     agentListOptions(wsId),
   );
@@ -166,6 +173,10 @@ export function RuntimesPage({
     orphanProfileRuntimes.length === 0 &&
     !bootstrapping &&
     hasLocalMachine !== true;
+  // A failed list read also lands on `machines.length === 0`, so the empty
+  // state alone would claim this workspace owns no machine when the truth is
+  // that we could not ask. Nothing to show plus a failed read is an error.
+  const loadFailed = (runtimesError || profilesError) && showEmpty;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -176,7 +187,14 @@ export function RuntimesPage({
         onOpenCloudRuntime={() => setShowCloudRuntimeDialog(true)}
       />
 
-      {showEmpty ? (
+      {loadFailed ? (
+        <LoadErrorState
+          onRetry={() => {
+            if (runtimesError) void refetchRuntimes();
+            if (profilesError) void refetchProfiles();
+          }}
+        />
+      ) : showEmpty ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <EmptyState onConnectRemote={() => setShowConnectDialog(true)} />
         </div>

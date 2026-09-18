@@ -437,10 +437,18 @@ export function LoginPage({
                   onChange={(e) => setSsoSlug(e.target.value)}
                   autoFocus
                   required
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "sso-workspace-error" : undefined}
                 />
               </div>
               {error && (
-                <p className="text-body text-destructive">{error}</p>
+                <p
+                  id="sso-workspace-error"
+                  role="alert"
+                  className="text-body text-destructive"
+                >
+                  {error}
+                </p>
               )}
             </form>
           </CardContent>
@@ -542,6 +550,11 @@ export function LoginPage({
                 if (value.length === 6) handleVerify(value);
               }}
               disabled={loading}
+              // The six slots are decorative divs; the real input is the one
+              // input-otp renders, so its name and error wiring go here.
+              aria-label={t(($) => $.verify.code_label)}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "verify-code-error" : undefined}
             >
               <InputOTPGroup>
                 <InputOTPSlot index={0} />
@@ -553,7 +566,13 @@ export function LoginPage({
               </InputOTPGroup>
             </InputOTP>
             {error && (
-              <p className="text-body text-destructive">{error}</p>
+              <p
+                id="verify-code-error"
+                role="alert"
+                className="text-body text-destructive"
+              >
+                {error}
+              </p>
             )}
             {ssoRequired && ssoRedirectUri && (
               <button
@@ -635,10 +654,18 @@ export function LoginPage({
                 onChange={(e) => setEmail(e.target.value)}
                 autoFocus
                 required
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "login-email-error" : undefined}
               />
             </div>
             {error && (
-              <p className="text-body text-destructive">{error}</p>
+              <p
+                id="login-email-error"
+                role="alert"
+                className="text-body text-destructive"
+              >
+                {error}
+              </p>
             )}
           </form>
         </CardContent>

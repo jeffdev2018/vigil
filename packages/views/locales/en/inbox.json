@@ -163,6 +163,7 @@
     "archive_all_read_failed": "Failed to archive read items",
     "archive_completed_failed": "Failed to archive completed",
     "unarchive_failed": "Failed to unarchive",
+    "inbox_load_failed": "Could not load your inbox.",
     "archived_load_failed": "Failed to load archived notifications",
     "attention_load_failed": "Could not load the attention inbox.",
     "archived_lookup_failed": "Failed to load the linked notification",
