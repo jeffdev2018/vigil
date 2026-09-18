@@ -156,7 +156,7 @@ export function WebhookDryRunDialog({
           </div>
 
           {error !== null && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive break-all">
+            <div className="rounded-md border border-destructive-border bg-destructive-subtle px-3 py-2 text-caption text-destructive-strong break-all">
               {error}
             </div>
           )}
@@ -199,9 +199,9 @@ function DryRunVerdict({ result }: { result: WebhookTriggerDryRunResult }) {
       className={cn(
         "space-y-2 rounded-md border px-3 py-2.5",
         unreadable
-          ? "border-warning/30 bg-warning/5"
+          ? "border-warning-border bg-warning-subtle"
           : result.would_run
-            ? "border-success/30 bg-success/5"
+            ? "border-success-border bg-success-subtle"
             : "bg-muted/40",
       )}
     >
@@ -210,9 +210,9 @@ function DryRunVerdict({ result }: { result: WebhookTriggerDryRunResult }) {
           className={cn(
             "h-4 w-4 shrink-0",
             unreadable
-              ? "text-warning"
+              ? "text-warning-strong"
               : result.would_run
-                ? "text-success"
+                ? "text-success-strong"
                 : "text-muted-foreground",
           )}
         />

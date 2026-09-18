@@ -60,6 +60,7 @@ import {
 import { ActorAvatar } from "../common/actor-avatar";
 import { AgentRunDetails } from "../agents/components/agent-run-details";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
+import { InfoBanner } from "../common/info-banner";
 import { ProjectPicker } from "../projects/components/project-picker";
 import { DueDatePicker, PriorityIcon, PriorityPicker } from "../issues/components";
 import { canAssignAgent } from "../issues/components/pickers/assignee-picker";
@@ -686,14 +687,14 @@ export function AgentCreatePanel({
         )}
 
         {selectedAgent && versionBlocked && (
-          <div className="mx-5 mb-2 shrink-0 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-caption text-amber-700 dark:text-amber-300">
+          <InfoBanner role="warning" compact className="mx-5 mb-2 shrink-0">
             {versionCheck.state === "missing"
               ? t(($) => $.create_issue.agent.version_missing, { min: versionCheck.min })
               : t(($) => $.create_issue.agent.version_below, {
                   current: versionCheck.current,
                   min: versionCheck.min,
                 })}
-          </div>
+          </InfoBanner>
         )}
 
         {/* Prompt — same rich editor Advanced uses, so paste/drop images,
@@ -884,7 +885,7 @@ export function AgentCreatePanel({
               onSelect={(file) => editorRef.current?.uploadFile(file)}
             />
             {keepOpen && sentCount > 0 && (
-              <span className="text-caption text-emerald-600 dark:text-emerald-400">
+              <span className="text-caption text-success-strong">
                 {t(($) => $.create_issue.agent.sent_count, { count: sentCount })}
               </span>
             )}
@@ -923,7 +924,10 @@ export function AgentCreatePanel({
             }
             className={cn(
               "justify-self-end min-w-28",
-              justSent && "!bg-emerald-600 !text-white",
+              // --success-foreground, not text-white: --success is a bright
+              // pop color in dark mode (by design), so a fixed white fails
+              // AA there (3.05:1) even though it passes in light mode.
+              justSent && "!bg-success !text-success-foreground",
             )}
           >
             {submitting ? t(($) => $.create_issue.agent.sending) : gate.uploading ? t(($) => $.create_issue.agent.uploading) : justSent ? (

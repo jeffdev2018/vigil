@@ -11,6 +11,18 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive *:[svg]:text-current",
+        // Tinted-surface roles for inline notices (banners): background,
+        // border and text all come from the same --{role}-* family so a
+        // caller never re-derives the pairing (this replaced 181 call sites
+        // hand-picking e.g. bg-amber-50/text-amber-900/ring-amber-200).
+        danger:
+          "bg-destructive-subtle text-destructive-strong border-destructive-border *:data-[slot=alert-description]:text-destructive-strong *:[svg]:text-current",
+        warning:
+          "bg-warning-subtle text-warning-strong border-warning-border *:data-[slot=alert-description]:text-warning-strong *:[svg]:text-current",
+        success:
+          "bg-success-subtle text-success-strong border-success-border *:data-[slot=alert-description]:text-success-strong *:[svg]:text-current",
+        info:
+          "bg-info-subtle text-info-strong border-info-border *:data-[slot=alert-description]:text-info-strong *:[svg]:text-current",
       },
     },
     defaultVariants: {

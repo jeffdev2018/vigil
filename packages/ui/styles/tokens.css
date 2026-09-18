@@ -31,9 +31,26 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-destructive-subtle: var(--destructive-subtle);
+    --color-destructive-border: var(--destructive-border);
+    --color-destructive-strong: var(--destructive-strong);
+    --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
     --color-success: var(--success);
+    --color-success-subtle: var(--success-subtle);
+    --color-success-border: var(--success-border);
+    --color-success-strong: var(--success-strong);
+    --color-success-subtle-foreground: var(--success-subtle-foreground);
+    --color-success-foreground: var(--success-foreground);
     --color-warning: var(--warning);
+    --color-warning-subtle: var(--warning-subtle);
+    --color-warning-border: var(--warning-border);
+    --color-warning-strong: var(--warning-strong);
+    --color-warning-subtle-foreground: var(--warning-subtle-foreground);
     --color-info: var(--info);
+    --color-info-subtle: var(--info-subtle);
+    --color-info-border: var(--info-border);
+    --color-info-strong: var(--info-strong);
+    --color-info-subtle-foreground: var(--info-subtle-foreground);
     --color-find-match: var(--find-match);
     --color-find-match-foreground: var(--find-match-foreground);
     --color-brand: var(--brand);
@@ -237,6 +254,53 @@
     --success: oklch(0.55 0.16 145);
     --warning: oklch(0.75 0.16 85);
     --info: oklch(0.55 0.18 250);
+    /* Semantic alert surfaces: a low-chroma tinted background plus a matching
+       border, for banners and status tiles that used to reinvent a Tailwind
+       color pair (bg-amber-50/text-amber-900/ring-amber-200 and friends) at
+       every call site.
+       --{role}-strong is a dedicated TEXT color, not a reuse of --{role}: the
+       base role tokens are tuned for icons/accents/dots on neutral surfaces
+       (e.g. --warning at L0.75 reads fine as an icon on --card), but that
+       same lightness used as text fails WCAG AA outright — measured 2.25:1
+       for warning-on-white, the exact "badge text unreadable" bug this was
+       added to fix (project/issue status + priority badges paired a solid or
+       tinted role fill with plain text-{role} on top). --{role}-strong is
+       calibrated against the worst (lowest-contrast) of the three light
+       surfaces it gets used on: --page-canvas (L0.988), --surface (L1), and
+       --{role}-subtle (L0.965, the closest to text lightness and therefore
+       the binding case). Ratios below are against that binding case, measured
+       with an OKLCH -> sRGB -> relative-luminance script, same method
+       --muted-foreground documents above:
+       success-strong: 5.09:1, warning-strong: 5.44:1, info-strong: 5.31:1,
+       destructive-strong: 4.88:1 (all >= 4.5:1 AA for normal text).
+       --{role}-subtle-foreground aliases --{role}-strong: same color, named
+       for the "-foreground pairs with a surface" convention this file already
+       uses (--surface-selected-foreground, --card-foreground, ...) when the
+       call site is specifically painting text on --{role}-subtle. */
+    --success-subtle: oklch(0.965 0.02 145);
+    --success-border: oklch(0.86 0.09 145);
+    --success-strong: oklch(0.5 0.16 145);
+    --success-subtle-foreground: var(--success-strong);
+    /* Solid-fill pairing, same "flips per theme" shape as --primary /
+       --primary-foreground: --success is dark-ish in light mode (fixed
+       white text works, 4.54:1) but bright in dark mode by design (the
+       "pop on dark background" rule --chart-1 documents above), so a fixed
+       white fails there (3.05:1) — dark reuses --primary-foreground's near-
+       black tone instead (5.82:1). Only known caller: the "just sent"
+       confirmation state on the create-issue submit button. */
+    --success-foreground: oklch(1 0 0);
+    --warning-subtle: oklch(0.965 0.03 85);
+    --warning-border: oklch(0.86 0.11 85);
+    --warning-strong: oklch(0.5 0.16 85);
+    --warning-subtle-foreground: var(--warning-strong);
+    --info-subtle: oklch(0.965 0.02 250);
+    --info-border: oklch(0.86 0.09 250);
+    --info-strong: oklch(0.5 0.18 250);
+    --info-subtle-foreground: var(--info-strong);
+    --destructive-subtle: oklch(0.965 0.02 27.325);
+    --destructive-border: oklch(0.86 0.12 27.325);
+    --destructive-strong: oklch(0.53 0.245 27.325);
+    --destructive-subtle-foreground: var(--destructive-strong);
     --scrollbar-thumb: oklch(0 0 0 / 10%);
     --scrollbar-thumb-hover: oklch(0 0 0 / 18%);
     --scrollbar-track: transparent;
@@ -320,6 +384,37 @@
     --success: oklch(0.65 0.15 145);
     --warning: oklch(0.70 0.16 85);
     --info: oklch(0.65 0.18 250);
+    /* Same alert-surface roles as light mode. Here the base role tokens
+       already clear AA on their own dark subtle background (success 4.89:1,
+       warning 5.60:1, info 4.65:1, destructive 5.27:1 — measured the same
+       way, worst case is again --{role}-subtle since it is the lightest of
+       --page-canvas / --surface / --{role}-subtle in dark mode, i.e. closest
+       to the light text color), so -strong reuses --{role} instead of
+       introducing a second dark value to keep in sync. */
+    --success-subtle: oklch(0.27 0.03 145);
+    --success-border: oklch(0.4 0.08 145);
+    /* NOT var(--success): --surface-selected (L0.3) is lighter than
+       --success-subtle (L0.27) and every other dark surface, so it is the
+       true worst case, and var(--success) at L0.65 only clears 4.48:1 there
+       (just under AA). Dedicated L0.68 clears it at 5.02:1. */
+    --success-strong: oklch(0.68 0.15 145);
+    --success-subtle-foreground: var(--success-strong);
+    --success-foreground: oklch(0.21 0.006 285.885);
+    --warning-subtle: oklch(0.27 0.04 85);
+    --warning-border: oklch(0.4 0.1 85);
+    --warning-strong: var(--warning);
+    --warning-subtle-foreground: var(--warning-strong);
+    --info-subtle: oklch(0.27 0.03 250);
+    --info-border: oklch(0.4 0.09 250);
+    /* Same reasoning as --success-strong above: var(--info) at L0.65 only
+       clears 4.22:1 against --surface-selected. Dedicated L0.69 clears it
+       at 4.87:1. */
+    --info-strong: oklch(0.69 0.18 250);
+    --info-subtle-foreground: var(--info-strong);
+    --destructive-subtle: oklch(0.27 0.035 27.325);
+    --destructive-border: oklch(0.4 0.11 27.325);
+    --destructive-strong: var(--destructive);
+    --destructive-subtle-foreground: var(--destructive-strong);
     --scrollbar-thumb: oklch(1 0 0 / 8%);
     --scrollbar-thumb-hover: oklch(1 0 0 / 18%);
     --scrollbar-track: transparent;
