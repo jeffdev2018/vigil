@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useQuery,
@@ -793,26 +793,13 @@ export function useChatController(opts?: { isActive?: boolean }) {
     ],
   );
 
-  // Archiving the chat currently in view would otherwise strand the
-  // conversation pane on a now read-only, "dangling" session. Mirror the Inbox
-  // list: advance selection to the next chat in the (sorted, non-archived)
-  // history, fall back to the previous one, and clear only when nothing is
-  // left. Routing the non-null advance through handleSelectSession keeps
-  // selectedAgentId in sync, so a follow-up "new chat" still defaults to the
-  // right agent even when the next chat belongs to a different agent. A no-op
-  // when the archived session isn't the open one — that selection stays put.
-  const advanceSelectionAfterArchive = useCallback(
-    (session: { id: string; agent_id: string }) => {
-      if (activeSessionId !== session.id) return;
-      const history = sortChatSessions(
-        sessions.filter((s) => s.status !== "archived"),
-      );
-      const idx = history.findIndex((s) => s.id === session.id);
-      const next = history[idx + 1] ?? history[idx - 1] ?? null;
-      if (next) handleSelectSession(next);
-      else setActiveSession(null);
-    },
-    [activeSessionId, sessions, handleSelectSession, setActiveSession],
+  // The non-archived history, in the order the thread list shows it. The
+  // archive flow (useArchiveSessionFlow) walks it to pick the chat that
+  // replaces an archived one, so it has to be the DISPLAYED order, not the
+  // raw query order.
+  const historySessions = useMemo(
+    () => sortChatSessions(sessions.filter((s) => s.status !== "archived")),
+    [sessions],
   );
 
   // Callers own what happens to the selection, so they own its rollback too:
@@ -835,6 +822,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
     availableAgents,
     agentsSettled,
     sessions,
+    historySessions,
     projects,
     activeSessionId,
     selectedAgentId,
@@ -881,7 +869,6 @@ export function useChatController(opts?: { isActive?: boolean }) {
     handleStartNewChat,
     handleSelectSession,
     handleProjectChange,
-    advanceSelectionAfterArchive,
     archiveSession,
     // store setters (for surfaces that sync selection to the URL, etc.)
     setActiveSession,

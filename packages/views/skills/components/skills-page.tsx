@@ -52,6 +52,7 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import {
+  AppLink,
   rowLinkInteractiveProps,
   useNavigation,
   useRowLink,
@@ -201,11 +202,16 @@ function PageHeaderBar({
 // the toggle. It stops click propagation so toggling never triggers the
 // row's whole-row navigation (see `useRowLink`) — no preventDefault needed,
 // the row is a plain <div>, not an <a>.
+// It also stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -213,12 +219,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -231,14 +240,25 @@ function CheckboxCell({
   );
 }
 
-function NameCell({ row }: { row: SkillRow }) {
+function NameCell({ row, rowHref }: { row: SkillRow; rowHref: string }) {
   const { t } = useT("skills");
   const { skill, canEdit } = row;
   return (
     <ListGridCell className="gap-1.5">
-      <span className="min-w-0 truncate text-body font-medium">
+      {/* The row's click/auxclick handlers are a mouse convenience on a plain
+          <div> (see ui list-grid + views useRowLink): the keyboard path, "open
+          in new tab" and the browser context menu all come from this anchor.
+          `rowLinkInteractiveProps` stops the event from reaching the row, so
+          web's native modifier-click is not doubled by the row's own
+          window.open fallback — the same props the source link below uses. */}
+      <AppLink
+        href={rowHref}
+        newTabTitle={skill.name}
+        {...rowLinkInteractiveProps}
+        className="min-w-0 truncate text-body font-medium"
+      >
         {skill.name}
-      </span>
+      </AppLink>
       {!canEdit && (
         <Tooltip>
           <TooltipTrigger
@@ -458,11 +478,12 @@ function SkillListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -879,9 +900,12 @@ export default function SkillsPage() {
               >
                 <CheckboxCell
                   checked={selectedIds.has(row.skill.id)}
+                  label={t(($) => $.table.select_skill, {
+                    name: row.skill.name,
+                  })}
                   onToggle={() => toggleSelected(row.skill.id)}
                 />
-                <NameCell row={row} />
+                <NameCell row={row} rowHref={paths.skillDetail(row.skill.id)} />
                 {isColVisible("usedBy") ? (
                   <UsedByCell agents={row.agents} />
                 ) : (

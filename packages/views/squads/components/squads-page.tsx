@@ -83,7 +83,12 @@ import {
 import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { FILTER_ITEM_CLASS, HoverCheck } from "../../common/hover-check";
-import { useIntentNavigate, useRowLink } from "../../navigation";
+import {
+  AppLink,
+  rowLinkInteractiveProps,
+  useIntentNavigate,
+  useRowLink,
+} from "../../navigation";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
@@ -172,14 +177,25 @@ function SquadAvatar({ squad }: { squad: Squad }) {
 }
 
 // Two-line identity cell — same form as the agents list.
-function NameCell({ squad }: { squad: Squad }) {
+function NameCell({ squad, rowHref }: { squad: Squad; rowHref: string }) {
   return (
     <ListGridCell className="gap-3">
       <SquadAvatar squad={squad} />
       <div className="min-w-0 flex-1">
-        <span className="block min-w-0 truncate text-body font-medium">
+        {/* The row's click/auxclick handlers are a mouse convenience on a
+            plain <div> (see ui list-grid + views useRowLink): the keyboard
+            path, "open in new tab" and the browser context menu all come from
+            this anchor. `rowLinkInteractiveProps` stops the event from
+            reaching the row, so web's native modifier-click is not doubled by
+            the row's own window.open fallback. */}
+        <AppLink
+          href={rowHref}
+          newTabTitle={squad.name}
+          {...rowLinkInteractiveProps}
+          className="block min-w-0 truncate text-body font-medium"
+        >
           {squad.name}
-        </span>
+        </AppLink>
         {squad.description ? (
           <span className="block min-w-0 truncate text-caption text-muted-foreground">
             {squad.description}
@@ -987,7 +1003,7 @@ export function SquadsPage() {
                     className="cursor-pointer"
                     {...rowLink(p.squadDetail(squad.id), squad.name)}
                   >
-                    <NameCell squad={squad} />
+                    <NameCell squad={squad} rowHref={p.squadDetail(squad.id)} />
                     <LeaderCell
                       leaderId={squad.leader_id}
                       leader={agentsById.get(squad.leader_id)}

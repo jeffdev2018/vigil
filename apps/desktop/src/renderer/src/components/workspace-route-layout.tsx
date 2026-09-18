@@ -7,7 +7,10 @@ import {
   workspaceListOptions,
 } from "@multica/core/workspace";
 import { getCurrentSlug, setCurrentWorkspace } from "@multica/core/platform";
-import { isWorkspaceDeletePending } from "@multica/core/workspace/pending-delete";
+import {
+  isWorkspaceDeletePending,
+  isWorkspaceLeavePending,
+} from "@multica/core/workspace/pending-delete";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceSeen } from "@multica/views/workspace/use-workspace-seen";
 import { WelcomeAfterOnboarding } from "@multica/views/workspace/welcome-after-onboarding";
@@ -92,19 +95,29 @@ export function WorkspaceRouteLayout() {
   // one and their queries fire in effects, which run bottom-up — an effect
   // here would set the header AFTER the first child query already used it.
   //
-  // The pending-delete guard exists because this write would otherwise undo
-  // the delete flow's own cleanup (MUL-6231 / #7021). useDeleteWorkspace
+  // The pending-departure guard exists because this write would otherwise undo
+  // the leaving flow's own cleanup (MUL-6231 / #7021). useDeleteWorkspace
   // clears the singleton and navigates away, but this layout is subscribed to
   // the overlay store, so opening the new-workspace overlay re-renders it
   // while the deleted workspace is STILL in the list cache (the invalidation
   // refetch is a network round-trip). Without the guard we write the dead slug
   // straight back over the cleanup.
   //
+  // A leave has the same window and the same cost: the workspace still exists,
+  // so its row survives in the cache until the refetch lands, and re-adopting
+  // it would point the API client's headers and the persist namespace at a
+  // workspace this client is no longer a member of. Both registries live in
+  // core's pending-delete module and are lifted by their own flow.
+  //
   // Claiming ownership here — in the same render pass, before any cleanup can
   // run — is what makes the unmount release below safe. React renders the
   // incoming tree before it runs the outgoing tree's effect cleanups, so by
   // the time the old layout tries to release, the new one already owns.
-  if (workspace && workspaceSlug && !isWorkspaceDeletePending(workspace.id)) {
+  const workspaceIsBeingLeft =
+    !!workspace &&
+    (isWorkspaceDeletePending(workspace.id) ||
+      isWorkspaceLeavePending(workspace.id));
+  if (workspace && workspaceSlug && !workspaceIsBeingLeft) {
     singletonOwner = instanceId;
     setCurrentWorkspace(workspaceSlug, workspace.id);
   }

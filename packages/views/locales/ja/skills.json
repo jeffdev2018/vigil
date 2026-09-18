@@ -47,6 +47,8 @@
     "supporting_data_warning": "一部のワークスペースデータを読み込めませんでした。作成者の表示、ランタイム名、編集権限が不完全に見える場合があります。"
   },
   "table": {
+    "select_all": "すべてのスキルを選択",
+    "select_skill": "{{name}} を選択",
     "name": "名前",
     "created_by": "追加者",
     "used_by": "使用中",

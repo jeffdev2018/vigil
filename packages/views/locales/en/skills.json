@@ -47,6 +47,8 @@
     "supporting_data_warning": "Some workspace data failed to load. Creator attribution, runtime names, or edit permissions may appear incomplete."
   },
   "table": {
+    "select_all": "Select all skills",
+    "select_skill": "Select {{name}}",
     "name": "Name",
     "created_by": "Added by",
     "used_by": "Used by",

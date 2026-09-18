@@ -4,6 +4,8 @@
     "new_autopilot": "Nouvelle automatisation",
     "start_blank": "Partir de zéro",
     "table": {
+      "select_all": "Sélectionner toutes les automatisations",
+      "select_autopilot": "Sélectionner {{name}}",
       "name": "Nom",
       "agent": "Agent",
       "created_by": "Créé par",

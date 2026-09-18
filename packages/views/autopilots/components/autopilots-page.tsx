@@ -45,7 +45,7 @@ import {
   type ListGridSortDirection,
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { useRowLink } from "../../navigation";
+import { AppLink, rowLinkInteractiveProps, useRowLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatInTimeZone } from "../../common/format-in-time-zone";
 import {
@@ -212,11 +212,16 @@ const TEMPLATES: AutopilotTemplate[] = [
 // Cells
 // ---------------------------------------------------------------------------
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -224,12 +229,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -260,13 +268,30 @@ function pausedTitle(
   }
 }
 
-function NameCell({ autopilot }: { autopilot: Autopilot }) {
+function NameCell({
+  autopilot,
+  rowHref,
+}: {
+  autopilot: Autopilot;
+  rowHref: string;
+}) {
   const { t } = useT("autopilots");
   return (
     <ListGridCell className="gap-1.5">
-      <span className="min-w-0 truncate text-body font-medium">
+      {/* The row's click/auxclick handlers are a mouse convenience on a plain
+          <div> (see ui list-grid + views useRowLink): the keyboard path, "open
+          in new tab" and the browser context menu all come from this anchor.
+          `rowLinkInteractiveProps` stops the event from reaching the row, so
+          web's native modifier-click is not doubled by the row's own
+          window.open fallback. */}
+      <AppLink
+        href={rowHref}
+        newTabTitle={autopilot.title}
+        {...rowLinkInteractiveProps}
+        className="min-w-0 truncate text-body font-medium"
+      >
         {autopilot.title}
-      </span>
+      </AppLink>
       {/* Paused marker: in the "all" scope active and paused rows mix, so a
           paused automation needs an inline signal. */}
       {autopilot.status === "paused" && (
@@ -465,11 +490,12 @@ function AutopilotListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.page.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -930,9 +956,15 @@ export function AutopilotsPage() {
                     >
                       <CheckboxCell
                         checked={selectedIds.has(autopilot.id)}
+                        label={t(($) => $.page.table.select_autopilot, {
+                          name: autopilot.title,
+                        })}
                         onToggle={() => toggleSelected(autopilot.id)}
                       />
-                      <NameCell autopilot={autopilot} />
+                      <NameCell
+                        autopilot={autopilot}
+                        rowHref={wsPaths.autopilotDetail(autopilot.id)}
+                      />
                       {isColVisible("assignee") ? (
                         <AssigneeCell autopilot={autopilot} />
                       ) : (

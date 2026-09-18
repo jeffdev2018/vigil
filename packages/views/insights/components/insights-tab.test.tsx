@@ -108,6 +108,35 @@ describe("InsightsTab", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
+  // The widgets read defaults to [], so an unread dashboard used to claim
+  // "Nothing pinned yet" — the same confusion the Usage and Errors tabs had.
+  it("tells a failed pinned-cards read from an empty dashboard", async () => {
+    mockListInsightWidgets.mockRejectedValue(new Error("boom"));
+    renderTab();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load this page",
+    );
+    expect(
+      screen.queryByText(
+        "Nothing pinned yet. Ask a question above, then pin the answer.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("still says the dashboard is empty when the read succeeds with no card", async () => {
+    mockListInsightWidgets.mockResolvedValue([]);
+    renderTab();
+
+    expect(
+      await screen.findByText(
+        "Nothing pinned yet. Ask a question above, then pin the answer.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("says no row matched rather than rendering an empty chart", async () => {
     mockAskInsight.mockResolvedValue({
       query: { ...countQuery, group_by: ["status"] },

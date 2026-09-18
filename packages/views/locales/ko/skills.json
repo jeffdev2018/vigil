@@ -47,6 +47,8 @@
     "supporting_data_warning": "일부 워크스페이스 데이터를 불러오지 못했습니다. 생성자 표시, 런타임 이름, 수정 권한이 불완전하게 보일 수 있습니다."
   },
   "table": {
+    "select_all": "모든 스킬 선택",
+    "select_skill": "{{name}} 선택",
     "name": "이름",
     "created_by": "추가한 사람",
     "used_by": "사용 중",

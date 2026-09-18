@@ -79,6 +79,10 @@
     "owner": "소유자",
     "access": "접근 권한"
   },
+  "table": {
+    "select_all": "모든 에이전트 선택",
+    "select_agent": "{{name}} 선택"
+  },
   "row": {
     "you": "나",
     "archived": "보관됨",

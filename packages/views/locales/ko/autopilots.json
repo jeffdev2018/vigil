@@ -4,6 +4,8 @@
     "new_autopilot": "새 오토파일럿",
     "start_blank": "처음부터 시작",
     "table": {
+      "select_all": "모든 자동화 선택",
+      "select_autopilot": "{{name}} 선택",
       "name": "이름",
       "agent": "에이전트",
       "created_by": "생성자",

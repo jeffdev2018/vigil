@@ -71,6 +71,10 @@
     "owner": "オーナー",
     "access": "アクセス"
   },
+  "table": {
+    "select_all": "すべてのエージェントを選択",
+    "select_agent": "{{name}} を選択"
+  },
   "row": {
     "you": "あなた",
     "archived": "アーカイブ済み",
