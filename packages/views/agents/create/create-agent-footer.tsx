@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
@@ -14,12 +15,19 @@ import { useT } from "../../i18n";
  *
  * `onDiscard` is optional: the manual route has nothing to abandon, its form is
  * gone the moment the user navigates away.
+ *
+ * `hint` is the standing reason the commit button cannot be reached — a
+ * workspace with no usable runtime disables it for as long as that stays
+ * true, and a disabled button with no explanation is a dead end. It sits
+ * where `error` sits because that is where the eye already goes when the
+ * button refuses, but it is not an alert: nothing failed yet.
  */
 export function CreateAgentFooter({
   canCreate,
   creating,
   squad,
   error,
+  hint,
   onCreate,
   onDiscard,
   discarding = false,
@@ -28,6 +36,7 @@ export function CreateAgentFooter({
   creating: boolean;
   squad: boolean;
   error: string | null;
+  hint?: ReactNode;
   onCreate: () => void;
   onDiscard?: () => void;
   discarding?: boolean;
@@ -42,6 +51,8 @@ export function CreateAgentFooter({
         >
           {error}
         </p>
+      ) : hint ? (
+        <p className="min-w-0 flex-1 text-body text-muted-foreground">{hint}</p>
       ) : null}
       {onDiscard ? (
         <Button
