@@ -4,6 +4,8 @@
     "new_autopilot": "新建自动化",
     "start_blank": "从空白开始",
     "table": {
+      "select_all": "选择所有自动化",
+      "select_autopilot": "选择{{name}}",
       "name": "名称",
       "agent": "智能体",
       "created_by": "创建者",

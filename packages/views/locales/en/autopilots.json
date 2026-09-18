@@ -4,6 +4,8 @@
     "new_autopilot": "New autopilot",
     "start_blank": "Start from scratch",
     "table": {
+      "select_all": "Select all automations",
+      "select_autopilot": "Select {{name}}",
       "name": "Name",
       "agent": "Agent",
       "created_by": "Created by",

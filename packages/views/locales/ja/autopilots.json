@@ -4,6 +4,8 @@
     "new_autopilot": "新規オートパイロット",
     "start_blank": "ゼロから始める",
     "table": {
+      "select_all": "すべての自動化を選択",
+      "select_autopilot": "{{name}} を選択",
       "name": "名前",
       "agent": "エージェント",
       "created_by": "作成者",
