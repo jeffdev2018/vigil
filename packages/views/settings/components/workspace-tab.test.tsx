@@ -9,6 +9,10 @@ import enSettings from "../../locales/en/settings.json";
 const mockUpdateWorkspace = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 const mockToastSuccess = vi.hoisted(() => vi.fn());
+const mockToastError = vi.hoisted(() => vi.fn());
+const mockLeaveAsync = vi.hoisted(() => vi.fn());
+const mockPush = vi.hoisted(() => vi.fn());
+const mockReleaseLeaveGuard = vi.hoisted(() => vi.fn());
 const workspaceRef = vi.hoisted(() => ({
   current: {
     id: "workspace-1",
@@ -54,8 +58,12 @@ vi.mock("@multica/core/issues/queries", () => ({
 }));
 
 vi.mock("@multica/core/workspace/mutations", () => ({
-  useLeaveWorkspace: () => ({ mutateAsync: vi.fn() }),
+  useLeaveWorkspace: () => ({ mutateAsync: mockLeaveAsync }),
   useDeleteWorkspace: () => ({ mutateAsync: vi.fn() }),
+}));
+
+vi.mock("@multica/core/workspace/pending-delete", () => ({
+  unmarkWorkspaceLeavePending: mockReleaseLeaveGuard,
 }));
 
 vi.mock("@multica/core/api", () => ({
@@ -76,7 +84,7 @@ vi.mock("@multica/core/auth", () => {
 
 vi.mock("../../navigation", () => ({
   useNavigation: () => ({
-    push: vi.fn(),
+    push: mockPush,
     pathname: "/test-workspace/settings",
     searchParams: new URLSearchParams("tab=workspace"),
   }),
@@ -122,7 +130,7 @@ vi.mock("./delete-workspace-dialog", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { success: mockToastSuccess, error: vi.fn() },
+  toast: { success: mockToastSuccess, error: mockToastError },
 }));
 
 import { WorkspaceTab } from "./workspace-tab";
@@ -292,5 +300,69 @@ describe("WorkspaceTab — automatic updates", () => {
 
     expect(screen.getByPlaceholderText("TES")).toBeDisabled();
     expect(screen.getByDisplayValue("Test Workspace")).toBeDisabled();
+  });
+});
+
+// Leave used to navigate BEFORE its request, to dodge the `member:removed`
+// realtime relocate. That guard now lives in the self-initiated registry
+// (core pending-delete.ts), so leave has the same await-then-navigate shape
+// as delete: a refused leave must leave the user where they were.
+describe("WorkspaceTab — leaving a workspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    workspaceRef.current = {
+      id: "workspace-1",
+      name: "Test Workspace",
+      slug: "test-workspace",
+      description: "",
+      context: "",
+      issue_prefix: "TES",
+      repos: [],
+    };
+    // An admin, not the sole owner: the Leave button is enabled.
+    membersRef.current = [
+      { user_id: "user-1", role: "admin" },
+      { user_id: "user-2", role: "owner" },
+    ];
+  });
+
+  async function confirmLeave() {
+    const user = userEvent.setup();
+    render(<WorkspaceTab />, { wrapper: I18nWrapper });
+    await user.click(screen.getByRole("button", { name: "Leave workspace" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm" }));
+  }
+
+  it("navigates away only after the server confirms", async () => {
+    let resolveLeave!: () => void;
+    mockLeaveAsync.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveLeave = resolve;
+      }),
+    );
+
+    await confirmLeave();
+
+    expect(mockLeaveAsync).toHaveBeenCalledWith("workspace-1");
+    expect(mockPush).not.toHaveBeenCalled();
+
+    resolveLeave();
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/"));
+    // The realtime guard is released once navigation is done.
+    expect(mockReleaseLeaveGuard).toHaveBeenCalledWith("workspace-1");
+  });
+
+  it("keeps the user in place when the leave fails", async () => {
+    mockLeaveAsync.mockRejectedValue(new Error("nope"));
+
+    await confirmLeave();
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("nope"));
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReleaseLeaveGuard).not.toHaveBeenCalled();
+    // Still a member: the Leave button is back, not stuck in "Leaving…".
+    expect(
+      screen.getByRole("button", { name: "Leave workspace" }),
+    ).toBeEnabled();
   });
 });

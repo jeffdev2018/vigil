@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
 import { useLeaveWorkspace, useDeleteWorkspace } from "@multica/core/workspace/mutations";
+import { unmarkWorkspaceLeavePending } from "@multica/core/workspace/pending-delete";
 import {
   memberListOptions,
   workspaceKeys,
@@ -117,19 +118,14 @@ export function WorkspaceTab() {
    * Send the user to a safe URL, computed from the current cached workspace
    * list minus the workspace that's going away.
    *
-   * Call ordering differs per flow:
-   *   - Delete calls this AFTER the mutation succeeds. The realtime
-   *     `workspace:deleted` handler skips self-initiated deletes (see
-   *     pending-delete.ts), so nothing races this navigation.
-   *   - Leave still calls this BEFORE the mutation fires: `member:removed`
-   *     has no self-initiated marker yet, so if the user were still on the
-   *     workspace's URL when that event arrives, the realtime handler in
-   *     `use-realtime-sync.ts` would trigger a parallel full-page relocate
-   *     that races the mutation's `invalidateQueries` refetch — the loser's
-   *     in-flight fetch gets cancelled, surfacing as an unhandled
-   *     `CancelledError`. Navigating first makes the handler's
-   *     "current === lost workspace" check fail and its relocate no-op.
-   *     Known debt: give leave the same await-then-navigate shape as delete.
+   * Both flows call this AFTER their mutation succeeds. The realtime handlers
+   * skip events this client caused — `workspace:deleted` for delete,
+   * `member:removed` for leave — via the self-initiated registries in
+   * pending-delete.ts, so neither can answer our own request with a parallel
+   * full-page relocate that races this navigation (and races the mutation's
+   * `invalidateQueries` refetch, whose loser surfaces as an unhandled
+   * `CancelledError`). That guard is what let leave stop navigating before
+   * its own request.
    */
   const navigateAwayFromCurrentWorkspace = () => {
     const cachedList =
@@ -288,11 +284,19 @@ export function WorkspaceTab() {
       title: t(($) => $.workspace.leave_confirm_title),
       description: t(($) => $.workspace.leave_confirm_description, { name: workspace.name }),
       variant: "destructive",
+      // Await the request, then navigate — same shape as delete below. On
+      // failure the user is still a member and stays exactly where they
+      // started, instead of being dropped on another workspace by a leave
+      // that never happened.
       onConfirm: async () => {
         setActionId("leave");
-        navigateAwayFromCurrentWorkspace();
         try {
           await leaveWorkspace.mutateAsync(workspace.id);
+          navigateAwayFromCurrentWorkspace();
+          // Navigation is done and the workspace-context singleton is null,
+          // so the realtime handler no-ops on its own from here; releasing
+          // the guard keeps a later re-join removable normally.
+          unmarkWorkspaceLeavePending(workspace.id);
         } catch (e) {
           toast.error(e instanceof Error ? e.message : t(($) => $.workspace.toast_leave_failed));
         } finally {

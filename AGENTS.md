@@ -61,7 +61,7 @@ Root frontend commands and `make check` do not verify mobile. Docs-only changes 
 - Zustand selectors return stable references; use shallow comparison for allocated objects/arrays.
 - WebSocket events patch or invalidate Query caches, not server payloads in Zustand. Clearing client-owned pointers (active session, selection, current workspace) is allowed with one responder and a self-initiated guard when this client can cause the event.
 - Optimistic field patches require ALL of: a predictable result, rare failure, trivial rollback, and staying on the current screen. Canonical cases are status/assignee/toggle patches. Snapshot before patching, roll back on failure, and invalidate uncertain projections on settle.
-- Create/delete/leave and confirmation flows await the server before navigation or cleanup; do not optimistically delete entities. Exceptions: the existing workspace-leave race noted under Desktop Rules, and mobile inbox mark-read as documented in its instructions.
+- Create/delete/leave and confirmation flows await the server before navigation or cleanup; do not optimistically delete entities. Exception: mobile inbox mark-read, as documented in its instructions.
 - Message sends use visible pending state and retry on failure, not silent optimism.
 
 ## API Compatibility
@@ -97,7 +97,7 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 - Workspace session routes are tab destinations such as `/:slug/issues`. Pre-workspace one-shot flows (create workspace, accept invite) register a `WindowOverlay` type in `apps/desktop/src/renderer/src/stores/window-overlay-store.ts`; do not add them to `routes.tsx`. Stale workspace tabs heal by dropping stale tab groups, not by rendering desktop error pages.
 - Workspace route layouts own `setCurrentWorkspace(slug, uuid)` from `@multica/core/platform`; leaving workspace context calls `setCurrentWorkspace(null, null)` explicitly.
 - Cross-workspace navigation uses the adapter's `switchWorkspace(slug, targetPath)` flow; do not bypass it with direct router navigation.
-- Workspace delete awaits the server. Existing workspace leave clears/navigates first to avoid the `member:removed` race; this is known debt in `packages/views/settings/components/workspace-tab.tsx`, not a pattern for new flows.
+- Workspace delete and leave both await the server, then navigate. Each is paired with a self-initiated registry in `packages/core/workspace/pending-delete.ts` (`workspace:deleted` for delete, `member:removed` for leave) so the realtime handler does not answer this client's own request with a parallel relocate. A new flow whose own action echoes back over the socket needs the same guard.
 - Full-window views outside the dashboard shell mount `<DragStrip />` from `@multica/views/platform` as the first flex child. Interactive controls in the top 48px need `WebkitAppRegion: "no-drag"`.
 
 ## UI Copy

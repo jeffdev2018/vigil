@@ -16,8 +16,12 @@ import { issueStatusKeys } from "../issue-statuses/queries";
 import { meetingKeys } from "../meetings/queries";
 import {
   markWorkspaceDeletePending,
+  markWorkspaceLeavePending,
   unmarkWorkspaceDeletePending,
+  unmarkWorkspaceLeavePending,
 } from "../workspace/pending-delete";
+import { setApiInstance } from "../api";
+import type { ApiClient } from "../api/client";
 import { useRealtimeSync, type RealtimeSyncStores } from "./use-realtime-sync";
 
 vi.mock("../platform/workspace-storage", () => ({
@@ -522,5 +526,67 @@ describe("useRealtimeSync — workspace:deleted self-initiated suppression", () 
     dispatchWorkspaceDeleted(ws, "ws-2");
 
     expect(defaultStorage.getItem("multica_issue_draft:delete-me")).toBeNull();
+  });
+});
+
+describe("useRealtimeSync — member:removed self-initiated suppression", () => {
+  let qc: QueryClient;
+  let stores: RealtimeSyncStores;
+
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    stores = createStores();
+    // The relocate branch refetches the workspace list before it navigates;
+    // stub it so the suppressed/handled comparison is about the handler, not
+    // the network. As with the workspace:deleted suite above, the observable
+    // difference asserted here is the storage cleanup — jsdom cannot host the
+    // full-page navigation that follows it.
+    setApiInstance({
+      listWorkspaces: vi.fn().mockResolvedValue([]),
+    } as unknown as ApiClient);
+  });
+
+  afterEach(() => {
+    unmarkWorkspaceLeavePending("ws-1");
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  // getCurrentWsId/getCurrentSlug are mocked to the workspace we are on, and
+  // the removed user is this client's user, so this is exactly the event the
+  // server echoes back for our own leave.
+  const dispatchSelfRemoved = (ws: WSClient) => {
+    const call = vi
+      .mocked(ws.on)
+      .mock.calls.find(([event]) => event === "member:removed");
+    expect(call).toBeDefined();
+    (call![1] as (p: unknown) => void)({ user_id: "u1" });
+  };
+
+  it("ignores the event for a leave this client initiated", () => {
+    const ws = createMockWs();
+    renderHook(() => useRealtimeSync(ws, stores), {
+      wrapper: createWrapper(qc),
+    });
+    defaultStorage.setItem("multica_issue_draft:test-ws", "draft");
+
+    markWorkspaceLeavePending("ws-1");
+    dispatchSelfRemoved(ws);
+
+    // useLeaveWorkspace.onSuccess owns cleanup and the caller owns
+    // navigation; a parallel relocate here would race both.
+    expect(defaultStorage.getItem("multica_issue_draft:test-ws")).toBe("draft");
+  });
+
+  it("still cleans up when the removal came from elsewhere", () => {
+    const ws = createMockWs();
+    renderHook(() => useRealtimeSync(ws, stores), {
+      wrapper: createWrapper(qc),
+    });
+    defaultStorage.setItem("multica_issue_draft:test-ws", "draft");
+
+    dispatchSelfRemoved(ws);
+
+    expect(defaultStorage.getItem("multica_issue_draft:test-ws")).toBeNull();
   });
 });
