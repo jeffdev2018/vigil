@@ -711,7 +711,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                     className={cn(
                       "rounded-xs px-2 py-1 text-caption transition-colors",
                       sourceMode === "repos"
-                        ? "bg-background shadow-sm font-medium"
+                        ? "bg-background shadow-surface font-medium"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -723,7 +723,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                     className={cn(
                       "rounded-xs px-2 py-1 text-caption transition-colors",
                       sourceMode === "local"
-                        ? "bg-background shadow-sm font-medium"
+                        ? "bg-background shadow-surface font-medium"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >

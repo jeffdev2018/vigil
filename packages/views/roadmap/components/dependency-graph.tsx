@@ -43,7 +43,7 @@ type IssueFlowNode = Node<IssueNodeData, "issue">;
 
 function IssueNode({ data }: NodeProps<IssueFlowNode>) {
   return (
-    <div className="flex h-full w-full items-center gap-2 rounded-md border border-border bg-background px-2 shadow-sm">
+    <div className="flex h-full w-full items-center gap-2 rounded-md border border-border bg-background px-2 shadow-surface">
       <span
         aria-hidden="true"
         className={cn("size-2 shrink-0 rounded-full", CATEGORY_DOT[data.category])}

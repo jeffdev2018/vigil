@@ -96,7 +96,7 @@ export function HtmlAttachmentPreview({
       />
       <div
         className={cn(
-          "absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border bg-background/95 p-0.5 shadow-sm transition-opacity",
+          "absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-border bg-background/95 p-0.5 shadow-surface transition-opacity",
           // Error state pins the toolbar open — Preview / Download are the
           // only user-reachable escape hatches when inline render fails.
           isError

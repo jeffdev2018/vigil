@@ -102,7 +102,7 @@ function ProjectSandboxForm({
                 disabled={save.isPending}
                 onClick={() => setMode(m)}
                 className={`rounded px-2 py-1 font-medium transition-colors ${
-                  mode === m ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  mode === m ? "bg-background text-foreground shadow-surface" : "text-muted-foreground hover:text-foreground"
                 } ${save.isPending ? "cursor-not-allowed" : ""}`}
               >
                 {t(($) => $.sandbox_policy.mode[m])}

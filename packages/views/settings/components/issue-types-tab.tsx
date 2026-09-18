@@ -259,7 +259,7 @@ function TypeRow({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group/row relative flex min-h-12 items-center gap-3 bg-card px-4 py-2 ${isDragging ? "z-10 shadow-[var(--surface-shadow)]" : ""} ${archived ? "opacity-60" : ""}`}
+      className={`group/row relative flex min-h-12 items-center gap-3 bg-card px-4 py-2 ${isDragging ? "z-10 shadow-surface" : ""} ${archived ? "opacity-60" : ""}`}
     >
       {/* The handle rides inside the row's own left padding rather than taking
           a gutter of its own, mirroring the status list. */}

@@ -451,7 +451,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
         (isSearching || searchedQuery !== normalizedQuery);
 
       return (
-        <div className="rounded-md border bg-popover p-2 text-caption text-muted-foreground shadow-md">
+        <div className="rounded-md border bg-popover p-2 text-caption text-muted-foreground shadow-menu">
           {isWaitingForServer
             ? t(($) => $.mention.searching)
             : t(($) => $.mention.no_results)}
@@ -512,8 +512,8 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
           // controller. This is the single height authority; do not add a second
           // fixed max-height above it or the list can overflow the viewport.
           contextLayout
-            ? "max-h-[min(420px,var(--suggestion-available-height,420px))] w-96 rounded-lg shadow-xl"
-            : "max-h-[min(300px,var(--suggestion-available-height,300px))] w-72 rounded-md shadow-md",
+            ? "max-h-[min(420px,var(--suggestion-available-height,420px))] w-96 rounded-lg shadow-menu"
+            : "max-h-[min(300px,var(--suggestion-available-height,300px))] w-72 rounded-md shadow-menu",
         )}
       >
         {groups.map((group) => (

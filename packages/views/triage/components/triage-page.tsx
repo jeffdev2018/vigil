@@ -795,7 +795,7 @@ function TriageBatchBar({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-lg">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-menu">
         <span className="text-caption text-muted-foreground">{ids.length}</span>
         <Popover open={dismissOpen} onOpenChange={setDismissOpen}>
           <PopoverTrigger

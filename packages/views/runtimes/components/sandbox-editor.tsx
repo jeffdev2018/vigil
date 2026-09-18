@@ -123,7 +123,7 @@ export function SandboxEditor({
                       onClick={() => choose(mode)}
                       disabled={!runnable || updateRuntime.isPending}
                       className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-caption font-medium transition-colors ${
-                        selected === mode ? "bg-background shadow-sm" : ""
+                        selected === mode ? "bg-background shadow-surface" : ""
                       } ${
                         !runnable || updateRuntime.isPending
                           ? "cursor-not-allowed text-muted-foreground"
