@@ -272,7 +272,7 @@ export const BoardColumn = memo(function BoardColumn({
       <div className="relative min-h-[200px] flex-1 rounded-lg">
         {isOver && sortLabel && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/40">
-            <span className="rounded-md bg-popover px-2.5 py-1 text-caption font-medium text-popover-foreground shadow-sm border border-border">
+            <span className="rounded-md bg-popover px-2.5 py-1 text-caption font-medium text-popover-foreground shadow-surface border border-border">
               {sortLabel}
             </span>
           </div>

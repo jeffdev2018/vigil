@@ -177,11 +177,19 @@ const ICON_RENDERERS: Record<IssueStatusIcon, () => React.ReactNode> = {
   cross: CancelledIcon,
 };
 
+// -strong for warning/success, not the base role token: this icon renders on
+// every issue row (list/board/kanban/detail/inbox) directly on
+// --page-canvas/--surface. text-warning there measures 2.17:1 (fails even
+// the 3:1 non-text floor); text-success measures 4.39:1 (fails the 4.5:1 text
+// floor other call sites here need, e.g. the label text next to this icon).
+// text-info and text-destructive already clear 4.5:1 on both surfaces
+// (4.60-4.79:1), so they keep the base token. See --warning-strong /
+// --success-strong in tokens.css for the measured ratios.
 const BUILT_IN_ICON_COLOR: Record<BuiltInIssueStatus, string> = {
   backlog: "text-muted-foreground",
   todo: "text-muted-foreground",
-  in_progress: "text-warning",
-  in_review: "text-success",
+  in_progress: "text-warning-strong",
+  in_review: "text-success-strong",
   done: "text-info",
   blocked: "text-destructive",
   cancelled: "text-muted-foreground",

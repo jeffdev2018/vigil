@@ -34,7 +34,7 @@ function TeamColumn({ unit, people, selected, readOnly, onSelect, onAdd, onRecip
   const roster = unit.members.map(m => ({ ...people.find(p => p.id === m.id && p.type === m.type), ...m, name: people.find(p => p.id === m.id && p.type === m.type)?.name ?? m.id }));
   const [expanded, setExpanded] = useState(false);
   const recipient = roster.find(m => m.type === "agent" && m.role === "lead") ?? roster.find(m => m.type === "agent");
-  return <article ref={setNodeRef} data-testid="org-team" className={cn("flex min-w-0 flex-col self-start rounded-xl border bg-card transition-[border-color,box-shadow] duration-200", isOver ? "border-info ring-4 ring-info/15" : selected ? "border-info/60 shadow-sm" : "border-border/70")}>
+  return <article ref={setNodeRef} data-testid="org-team" className={cn("flex min-w-0 flex-col self-start rounded-xl border bg-card transition-[border-color,box-shadow] duration-200", isOver ? "border-info ring-4 ring-info/15" : selected ? "border-info/60 shadow-surface" : "border-border/70")}>
     <button onClick={onSelect} type="button" aria-pressed={selected} className="group flex w-full items-start gap-3 rounded-t-xl p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-info/10 text-info"><Users className="size-4" /></span><span className="min-w-0 flex-1"><span className="block text-body font-semibold">{unit.name}</span><span className="mt-1 block line-clamp-2 text-caption leading-relaxed text-muted-foreground">{unit.mission || t($ => $.studio.add_mission)}</span></span><span className="text-caption tabular-nums text-muted-foreground">{unit.members.length}</span>
     </button>
@@ -96,7 +96,7 @@ export function OrgTeamBoard({ definition, people, selected, readOnly, onSelect,
         {!readOnly && <Button size="sm" variant="outline" className="mt-4 w-full gap-2" onClick={onCreateAgent}><Bot className="size-3.5" />{t($ => $.coherence.create_agent)}</Button>}
       </aside>}
     </div>
-    <DragOverlay dropAnimation={null}>{dragging && <div className="flex items-center gap-2 rounded-lg border border-info bg-card p-3 text-caption font-medium shadow-xl ring-4 ring-info/15"><ActorAvatar name={dragging.name} avatarUrl={dragging.avatar_url} initials={dragging.name.slice(0, 2)} isAgent={dragging.type === "agent"} size="md" />{dragging.name}</div>}</DragOverlay>
+    <DragOverlay dropAnimation={null}>{dragging && <div className="flex items-center gap-2 rounded-lg border border-info bg-card p-3 text-caption font-medium shadow-floating ring-4 ring-info/15"><ActorAvatar name={dragging.name} avatarUrl={dragging.avatar_url} initials={dragging.name.slice(0, 2)} isAgent={dragging.type === "agent"} size="md" />{dragging.name}</div>}</DragOverlay>
     <p role="status" aria-live="polite" className={cn("px-4 text-caption text-success", notice && "pb-3")}>{notice}</p>
   </DndContext>;
 }

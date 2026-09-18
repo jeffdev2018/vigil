@@ -62,8 +62,13 @@ export const STATUS_CONFIG: Record<
     columnBg: string;
   }
 > = {
+  // started.iconColor: text-warning measures 2.17:1 on --page-canvas, below
+  // even the 3:1 non-text floor — text-warning-strong fixes it. done stays
+  // on the base token (text-info clears 4.5:1+ on both --page-canvas and
+  // --surface). hoverBg/dividerColor/columnBg are fills, not text/icon
+  // glyphs, so they keep the lighter base role token on purpose.
   unstarted: { label: "Unstarted", iconColor: "text-muted-foreground", hoverBg: "hover:bg-accent", dividerColor: "bg-muted-foreground/40", columnBg: "bg-muted/40" },
-  started: { label: "Started", iconColor: "text-warning", hoverBg: "hover:bg-warning/10", dividerColor: "bg-warning", columnBg: "bg-warning/5" },
+  started: { label: "Started", iconColor: "text-warning-strong", hoverBg: "hover:bg-warning/10", dividerColor: "bg-warning", columnBg: "bg-warning/5" },
   done: { label: "Done", iconColor: "text-info", hoverBg: "hover:bg-info/10", dividerColor: "bg-info", columnBg: "bg-info/5" },
   closed: { label: "Closed", iconColor: "text-muted-foreground", hoverBg: "hover:bg-accent", dividerColor: "bg-muted-foreground/40", columnBg: "bg-muted/40" },
 };

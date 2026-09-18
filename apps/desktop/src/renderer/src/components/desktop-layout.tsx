@@ -115,7 +115,7 @@ function MainCanvas({ children }: { children: React.ReactNode }) {
     <div
       data-sidebar-resize-consumer
       className={cn(
-        "relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-[var(--surface-shadow)]",
+        "relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-surface",
         "transition-[margin-left] duration-200 ease-out motion-reduce:transition-none",
         sidebarHidden ? "ml-2" : "ml-0.5",
       )}

@@ -427,7 +427,7 @@ export function AttachmentPreviewModal({
               minus the surrounding p-4 (1rem each side) so it never overflows
               the screen on small displays / split panes. */}
           <motion.div
-            className="flex h-[min(90vh,calc(100vh-2rem))] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-background shadow-xl"
+            className="flex h-[min(90vh,calc(100vh-2rem))] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-background shadow-floating"
             onClick={(e) => e.stopPropagation()}
             initial={{
               opacity: 0,

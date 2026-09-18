@@ -63,7 +63,7 @@ export function RecordingPill() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 shadow-lg">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 shadow-menu">
         <RecordingDot live={phase === "recording"} />
         {meetingId ? (
           <AppLink
