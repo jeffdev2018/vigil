@@ -523,7 +523,23 @@ describe("useChatController.archiveSession", () => {
     const result = setup("sA", [sA, sB, sC], [agentA, agentB]);
     act(() => result.current.archiveSession("sA"));
 
-    expect(h.archivedMutate).toHaveBeenCalledWith({ sessionId: "sA", archived: true });
+    expect(h.archivedMutate).toHaveBeenCalledWith(
+      { sessionId: "sA", archived: true },
+      { onError: undefined },
+    );
+  });
+
+  // The caller's rollback has to reach the mutation, or a failed archive
+  // leaves the page's optimistic selection move stranded.
+  it("forwards the caller's onError to the mutation", () => {
+    const result = setup("sA", [sA, sB, sC], [agentA, agentB]);
+    const onError = vi.fn();
+    act(() => result.current.archiveSession("sA", { onError }));
+
+    expect(h.archivedMutate).toHaveBeenCalledWith(
+      { sessionId: "sA", archived: true },
+      { onError },
+    );
   });
 });
 

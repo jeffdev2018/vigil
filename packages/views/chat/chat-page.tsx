@@ -150,9 +150,22 @@ export function ChatPage() {
   // on desktop advance to the next chat (Inbox-style); when compact drop back to
   // the list, which reads more naturally than being thrown into an unrelated
   // conversation full-screen. Archiving any other chat leaves the view put.
+  //
+  // The selection move is part of the same optimistic step as the status
+  // patch in useSetChatSessionArchived, so it rolls back the same way. The
+  // mutation restores the list; only this component knows which conversation
+  // was on screen, so it restores that. Without the rollback a failed archive
+  // left the user reading a different conversation while the one they
+  // archived was still in the list.
+  //
+  // The advance has to be computed BEFORE the mutation, not after it resolves:
+  // it looks the session up in the non-archived history, which the optimistic
+  // patch has already removed by then.
   const handleArchive = (session: ChatSession) => {
     supersedeAgentIntent();
-    if (session.id === c.activeSessionId) {
+    const movedOffArchived = session.id === c.activeSessionId;
+    const composingBefore = composingNew;
+    if (movedOffArchived) {
       if (isCompact) {
         c.setActiveSession(null);
         setComposingNew(false);
@@ -160,7 +173,15 @@ export function ChatPage() {
         c.advanceSelectionAfterArchive(session);
       }
     }
-    c.archiveSession(session.id);
+    c.archiveSession(session.id, {
+      onError: () => {
+        if (movedOffArchived) {
+          c.handleSelectSession(session);
+          setComposingNew(composingBefore);
+        }
+        toast.error(t(($) => $.page.archive_failed));
+      },
+    });
   };
 
   const startNewChat = (agent: Agent | null) => {
