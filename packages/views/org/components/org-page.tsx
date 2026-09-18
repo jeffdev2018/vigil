@@ -311,7 +311,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   const parsed = useMemo(() => parseEditableOrgDefinition(form.definition), [form.definition]);
   const readOnly = structure.status === "dissolved";
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
-  const problems = "def" in parsed ? validateOrgDefinition(parsed.def, { model: structure.model, agentTrust: Object.fromEntries(agents.map(a => [a.id, a.trust_mode ?? ""])), agentName: Object.fromEntries(agents.map(a => [a.id, a.name])) }) : [];
+  const problems = "def" in parsed ? validateOrgDefinition(parsed.def, { model: form.model, agentTrust: Object.fromEntries(agents.map(a => [a.id, a.trust_mode ?? ""])), agentName: Object.fromEntries(agents.map(a => [a.id, a.name])) }) : [];
   const canDelete = useMemo(() => {
     const me = members.find((m) => m.user_id === currentUser?.id);
     return structure.owner_id === currentUser?.id || me?.role === "owner" || me?.role === "admin";
@@ -386,9 +386,9 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       </div>
       {baseRevision !== structure.revision && dirty && <p role="alert" className="mt-4 text-caption text-warning">{t($ => $.coherence.conflict)}</p>}
       <TabsContent value="compose" keepMounted className="mt-4 space-y-3">
-        {testing && "def" in parsed && <OrgTester structureId={structure.id} definition={parsed.def} model={structure.model} status={structure.status} revision={structure.revision} dirty={dirty} goals={goals} onSelectUnit={setFocusedUnit} />}
+        {testing && "def" in parsed && <OrgTester structureId={structure.id} definition={parsed.def} model={form.model} status={structure.status} revision={structure.revision} dirty={dirty} goals={goals} onSelectUnit={setFocusedUnit} />}
         <OrgProblemList problems={problems} />
-        {"def" in parsed && <OrgEditor focusedUnit={focusedUnit} definition={parsed.def} model={structure.model} pausedUnits={structure.paused_units} readOnly={readOnly || update.isPending} onChange={def => set("definition", JSON.stringify(def, null, 2))} />}
+        {"def" in parsed && <OrgEditor focusedUnit={focusedUnit} definition={parsed.def} model={form.model} pausedUnits={structure.paused_units} readOnly={readOnly || update.isPending} onChange={def => set("definition", JSON.stringify(def, null, 2))} />}
       </TabsContent>
       <TabsContent value="settings" keepMounted className="mx-auto mt-6 max-w-3xl rounded-2xl border bg-card p-6">
         <div className="flex flex-col gap-3">
