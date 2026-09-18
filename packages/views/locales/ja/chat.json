@@ -2,6 +2,7 @@
   "page": {
     "title": "チャット",
     "select_prompt": "会話を選ぶか、＋ で新規作成してください",
+    "archive_failed": "会話をアーカイブできませんでした",
     "agent_link_no_access": "このエージェントとチャットする権限がありません。"
   },
   "fab": {

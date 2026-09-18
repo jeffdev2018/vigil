@@ -52,6 +52,7 @@
     "loading_named_prefix": "読み込み中"
   },
   "sidebar": {
+    "unpin_aria": "{{name}} のピン留めを解除",
     "unpin_tooltip": "ピン留めを解除",
     "workspaces_label": "ワークスペース",
     "create_workspace": "ワークスペースを作成",

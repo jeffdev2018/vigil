@@ -21,6 +21,8 @@
     "pin_partial": "{{succeeded}} épinglé(s), {{failed}} échoué(s)"
   },
   "table": {
+    "select_project": "Sélectionner {{name}}",
+    "select_all": "Sélectionner tous les projets",
     "name": "Nom",
     "priority": "Priorité",
     "status": "Statut",

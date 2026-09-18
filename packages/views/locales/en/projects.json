@@ -21,6 +21,8 @@
     "pin_partial": "Pinned {{succeeded}}, {{failed}} failed"
   },
   "table": {
+    "select_project": "Select {{name}}",
+    "select_all": "Select all projects",
     "name": "Name",
     "priority": "Priority",
     "status": "Status",

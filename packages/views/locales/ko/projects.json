@@ -20,6 +20,8 @@
     "pin_partial": "{{succeeded}}개 고정, {{failed}}개 실패"
   },
   "table": {
+    "select_project": "{{name}} 선택",
+    "select_all": "모든 프로젝트 선택",
     "name": "이름",
     "priority": "우선순위",
     "status": "상태",

@@ -2,6 +2,7 @@
   "page": {
     "title": "Discussion",
     "select_prompt": "Choisissez une conversation, ou démarrez-en une nouvelle avec +",
+    "archive_failed": "Impossible d'archiver la conversation",
     "agent_link_no_access": "Vous n'avez pas accès à la discussion avec cet agent."
   },
   "fab": {

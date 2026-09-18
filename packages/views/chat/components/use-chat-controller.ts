@@ -815,8 +815,13 @@ export function useChatController(opts?: { isActive?: boolean }) {
     [activeSessionId, sessions, handleSelectSession, setActiveSession],
   );
 
+  // Callers own what happens to the selection, so they own its rollback too:
+  // `onError` lets the page put the user back where they were when the
+  // archive never landed (useSetChatSessionArchived rolls the list back, but
+  // it knows nothing about which conversation is on screen).
   const archiveSession = useCallback(
-    (sessionId: string) => setArchived.mutate({ sessionId, archived: true }),
+    (sessionId: string, options?: { onError?: () => void }) =>
+      setArchived.mutate({ sessionId, archived: true }, { onError: options?.onError }),
     [setArchived],
   );
 

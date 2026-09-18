@@ -42,7 +42,12 @@ import { useAuthStore } from "@multica/core/auth";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { memberListOptions } from "@multica/core/workspace/queries";
 import { useModalStore } from "@multica/core/modals";
-import { AppLink, useIntentNavigate, useRowLink } from "../../navigation";
+import {
+  AppLink,
+  rowLinkInteractiveProps,
+  useIntentNavigate,
+  useRowLink,
+} from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { FILTER_ITEM_CLASS, HoverCheck } from "../../common/hover-check";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -336,11 +341,16 @@ function ProjectRowActions({
   );
 }
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -348,13 +358,16 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           stopRowNavigation(e);
           onToggle();
         }}
         onAuxClick={stopRowNavigation}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
@@ -382,6 +395,7 @@ function ProjectTableRow({
   rowHref: string;
   rowLink: ReturnType<typeof useRowLink>;
 }) {
+  const { t } = useT("projects");
   const formatRelativeDate = useFormatRelativeDate();
   const updateProject = useUpdateProject();
   const handleUpdate = useCallback(
@@ -394,12 +408,27 @@ function ProjectTableRow({
       className={`h-11 cursor-pointer ${selected ? "bg-accent/30" : ""}`}
       {...rowLink(rowHref, project.title)}
     >
-      <CheckboxCell checked={selected} onToggle={onToggleSelect} />
+      <CheckboxCell
+        checked={selected}
+        label={t(($) => $.table.select_project, { name: project.title })}
+        onToggle={onToggleSelect}
+      />
       <ListGridCell className="gap-2">
         <ProjectIcon project={project} size="sm" />
-        <span className="min-w-0 truncate text-body font-medium">
+        {/* The row's click/auxclick handlers are a mouse convenience on a
+            plain <div> (see ui list-grid + views useRowLink): the keyboard
+            path, "open in new tab" and the browser context menu all come
+            from this anchor. `rowLinkInteractiveProps` stops the event from
+            reaching the row, so web's native modifier-click is not doubled
+            by the row's own window.open fallback. */}
+        <AppLink
+          href={rowHref}
+          newTabTitle={project.title}
+          {...rowLinkInteractiveProps}
+          className="min-w-0 truncate text-body font-medium"
+        >
           {project.title}
-        </span>
+        </AppLink>
       </ListGridCell>
 
       {/* status — core column, always visible */}
@@ -502,9 +531,12 @@ function ProjectTableHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
-            anySelected ? "" : "opacity-0 transition-opacity group-hover/header:opacity-100"
+            anySelected
+              ? ""
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox

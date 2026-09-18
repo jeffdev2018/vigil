@@ -52,6 +52,7 @@
     "loading_named_prefix": "Loading"
   },
   "sidebar": {
+    "unpin_aria": "Unpin {{name}}",
     "unpin_tooltip": "Unpin",
     "workspaces_label": "Workspaces",
     "create_workspace": "Create workspace",

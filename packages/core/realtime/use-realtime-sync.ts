@@ -78,7 +78,10 @@ import {
   notificationPreferenceKeys,
 } from "../notification-preferences/queries";
 import { workspaceKeys, workspaceListOptions } from "../workspace/queries";
-import { isWorkspaceDeletePending } from "../workspace/pending-delete";
+import {
+  isWorkspaceDeletePending,
+  isWorkspaceLeavePending,
+} from "../workspace/pending-delete";
 import {
   showWebNotification,
   type SystemNotificationPayload,
@@ -1753,6 +1756,12 @@ export function useRealtimeSync(
       if (user_id === myUserId) {
         const slug = getCurrentSlug();
         const wsId = getCurrentWsId();
+        // Self-initiated leave: useLeaveWorkspace owns storage cleanup and the
+        // caller owns navigation (both run after the request resolves).
+        // Reacting here too would race that flow's navigation with a full-page
+        // relocate, and its refetch with ours — the CancelledError this guard
+        // exists to prevent. Removals decided elsewhere still land here.
+        if (wsId && isWorkspaceLeavePending(wsId)) return;
         if (slug && wsId) {
           clearWorkspaceStorage(defaultStorage, slug);
           logger.warn("removed from workspace, switching");

@@ -20,6 +20,8 @@
     "pin_partial": "已固定 {{succeeded}} 个，{{failed}} 个失败"
   },
   "table": {
+    "select_project": "选择{{name}}",
+    "select_all": "选择所有项目",
     "name": "名称",
     "priority": "优先级",
     "status": "状态",

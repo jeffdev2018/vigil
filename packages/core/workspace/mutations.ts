@@ -6,7 +6,9 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { workspaceKeys } from "./queries";
 import {
   markWorkspaceDeletePending,
+  markWorkspaceLeavePending,
   unmarkWorkspaceDeletePending,
+  unmarkWorkspaceLeavePending,
 } from "./pending-delete";
 
 export function useCreateWorkspace() {
@@ -48,6 +50,30 @@ export function useLeaveWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (workspaceId: string) => api.leaveWorkspace(workspaceId),
+    // Same shape as useDeleteWorkspace: no optimistic removal, the caller
+    // awaits this mutation and only navigates on success.
+    onMutate: (workspaceId) => {
+      // Mark the leave as self-initiated so the realtime `member:removed`
+      // handler no-ops instead of racing this flow's navigation with its own
+      // full-page relocate. See pending-delete.ts for lifetime rules.
+      markWorkspaceLeavePending(workspaceId);
+      const slug = qc
+        .getQueryData<Workspace[]>(workspaceKeys.list())
+        ?.find((w) => w.id === workspaceId)?.slug;
+      return { slug };
+    },
+    // The realtime handler used to own this cleanup; now that it skips our
+    // own leave, the flow has to clear the left workspace's persisted
+    // `${key}:${slug}` namespace itself. Success only — a failed leave means
+    // we are still a member and our drafts/view state must survive.
+    onSuccess: (_data, _workspaceId, ctx) => {
+      if (ctx?.slug) clearWorkspaceStorage(defaultStorage, ctx.slug);
+    },
+    // We are still a member after a failed leave, so a later removal decided
+    // elsewhere must reach the realtime handler again.
+    onError: (_err, workspaceId) => {
+      unmarkWorkspaceLeavePending(workspaceId);
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: workspaceKeys.list() });
     },
