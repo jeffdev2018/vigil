@@ -64,8 +64,10 @@ describe("the UI Lab data boundary", () => {
     expect((await api.getIssue(first)).status).toBe("done");
     expect((await api.getIssue(second)).title).toBe("优化命令菜单的键盘导航");
     expect((await api.getIssue(first)).description).toContain("## 目标");
+    // listComments left the client when the timeline became the single read
+    // path for an issue's comments; the fixture answers listTimeline.
     expect(
-      (await api.listComments(first)).find((row) => row.id === comment.id)
+      (await api.listTimeline(first)).find((row) => row.id === comment.id)
         ?.content,
     ).toBe("My comment");
     const response = await api.listIssueTableRows({

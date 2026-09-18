@@ -256,10 +256,6 @@ export function createFixtureApi(getLocale: () => LabLocale = () => "en") {
     listChildIssues: async () => ({ issues: [] }),
     listChildrenByParents: async () => ({ issues: [] }),
     getChildIssueProgress: async () => ({ progress: [] }),
-    listComments: async (id) =>
-      comments
-        .filter((comment) => comment.issue_id === id)
-        .map(localizeComment),
     listTimeline: async (id) =>
       comments
         .filter((comment) => comment.issue_id === id)
@@ -293,7 +289,6 @@ export function createFixtureApi(getLocale: () => LabLocale = () => "en") {
       return comment;
     },
     listTasksByIssue: async () => [],
-    getActiveTasksForIssue: async () => ({ tasks: [] }),
     getAgentTaskSnapshot: async () => [],
     getWorkspaceWorkingAgents: async () => [],
     listGitHubInstallations: async () => ({
