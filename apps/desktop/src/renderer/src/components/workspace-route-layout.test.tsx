@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   modalAriaLabel: "source-backfill-modal-marker",
   currentSlug: null as string | null,
   pendingDeletes: new Set<string>(),
+  pendingLeaves: new Set<string>(),
   childQuerySlugs: [] as (string | null)[],
 }));
 
@@ -47,6 +48,7 @@ vi.mock("@multica/core/platform", () => ({
 
 vi.mock("@multica/core/workspace/pending-delete", () => ({
   isWorkspaceDeletePending: (id: string) => state.pendingDeletes.has(id),
+  isWorkspaceLeavePending: (id: string) => state.pendingLeaves.has(id),
 }));
 
 vi.mock("@multica/core/workspace", async () => {
@@ -157,6 +159,7 @@ beforeEach(() => {
   state.modalRenders = 0;
   state.currentSlug = null;
   state.pendingDeletes = new Set<string>();
+  state.pendingLeaves = new Set<string>();
   state.childQuerySlugs = [];
 });
 
@@ -226,6 +229,20 @@ describe("WorkspaceRouteLayout workspace singleton lifecycle", () => {
     // would stamp the dead slug back over the delete flow's own cleanup.
     state.currentSlug = null;
     state.pendingDeletes = new Set(["ws-1"]);
+
+    renderLayout();
+
+    expect(state.currentSlug).toBeNull();
+  });
+
+  it("does not re-adopt a workspace this client is leaving", () => {
+    // Same window as the delete above, and the same damage: a leave keeps the
+    // workspace alive, so its row sits in the list cache until the
+    // invalidation refetch lands. Re-adopting it would point the API headers
+    // and the persist namespace at a workspace we are no longer a member of,
+    // and a member:removed echo can still arrive after the navigation.
+    state.currentSlug = null;
+    state.pendingLeaves = new Set(["ws-1"]);
 
     renderLayout();
 
