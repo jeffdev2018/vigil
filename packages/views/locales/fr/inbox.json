@@ -163,6 +163,7 @@
     "archive_all_read_failed": "Échec de l'archivage des éléments lus",
     "archive_completed_failed": "Échec de l'archivage des éléments terminés",
     "unarchive_failed": "Échec du désarchivage",
+    "inbox_load_failed": "Impossible de charger votre boîte de réception.",
     "archived_load_failed": "Échec du chargement des notifications archivées",
     "attention_load_failed": "Impossible de charger la boîte de réception Attention.",
     "archived_lookup_failed": "Échec du chargement de la notification liée",

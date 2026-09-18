@@ -155,6 +155,7 @@ export function InboxPage() {
   const isBriefingView = view === "briefing";
   const isRetroView = view === "retro";
   const isDecisionsView = view === "decisions";
+  const isInboxView = view === "inbox";
 
   // Inline approvals (OS plan, chantier 3): the same feed the timeline and
   // chat panel read, so a decision/transition/goal-question row can be
@@ -173,7 +174,13 @@ export function InboxPage() {
   } = useQuery(attentionInboxListOptions(wsId));
   const filters = useInboxFilters(wsId);
   const clearFilters = useInboxFilterStore((state) => state.clearFilters);
-  const { data: rawItems = [], isLoading: loading } = useQuery({
+  const {
+    data: rawItems = [],
+    isLoading: loading,
+    isError: inboxIsError,
+    isFetching: inboxFetching,
+    refetch: refetchInbox,
+  } = useQuery({
     ...inboxListOptions(wsId), enabled: !isArchivedView,
   });
   const items = useMemo(() => deduplicateInboxItems(rawItems), [rawItems]);
@@ -184,6 +191,10 @@ export function InboxPage() {
   const loadNextArchivedPage = useCallback(() => { void fetchNextArchivedPage(); }, [fetchNextArchivedPage]);
   const archivedLoading = archiveQuery.isLoading;
   const archivedError = archiveQuery.isError && !archiveQuery.data;
+  // Same rule the archive and attention lists already follow: an unanswered
+  // read is not an empty inbox. Without it the main list renders "all caught
+  // up" over a backend that never replied.
+  const inboxError = inboxIsError && rawItems.length === 0;
   const archivedItems = useMemo(() => deduplicateArchivedInboxItems(
     archiveQuery.data?.pages.flatMap((page) => page.items) ?? [],
   ), [archiveQuery.data]);
@@ -684,22 +695,35 @@ export function InboxPage() {
     <WeeklyRetroView />
   ) : isBriefingView ? (
     <MorningBriefingView />
-  ) : (archivedError && isArchivedView) || (attentionError && isAttentionView) ? (
+  ) : (archivedError && isArchivedView) ||
+    (attentionError && isAttentionView) ||
+    (inboxError && isInboxView) ? (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <div role="alert" className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <Archive className="mb-3 h-8 w-8 text-faint-foreground" />
         <p className="text-body">
-          {isAttentionView ? t(($) => $.errors.attention_load_failed) : t(($) => $.errors.archived_load_failed)}
+          {isAttentionView
+            ? t(($) => $.errors.attention_load_failed)
+            : isArchivedView
+              ? t(($) => $.errors.archived_load_failed)
+              : t(($) => $.errors.inbox_load_failed)}
         </p>
         {/* Each list owns its own retry: the archive is paginated, the
-            attention feed is a single request. */}
+            attention feed and the main list are single requests. */}
         <Button
           variant="outline"
           size="sm"
           className="mt-3"
-          disabled={isAttentionView && attentionFetching}
+          disabled={
+            (isAttentionView && attentionFetching) ||
+            (isInboxView && inboxFetching)
+          }
           onClick={() =>
-            void (isAttentionView ? refetchAttention() : archiveQuery.refetch())
+            void (isAttentionView
+              ? refetchAttention()
+              : isArchivedView
+                ? archiveQuery.refetch()
+                : refetchInbox())
           }
         >
           {t(($) => $.list.retry)}

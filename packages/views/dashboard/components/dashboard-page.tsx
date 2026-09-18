@@ -27,6 +27,7 @@ import {
   workflowStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
@@ -325,6 +326,17 @@ export function DashboardPage() {
     runTimeDailyQuery.isLoading;
   const errorsLoading =
     failuresDailyQuery.isLoading || failuresByAgentQuery.isLoading;
+  // Every rollup defaults to an empty array, so a failed read is
+  // indistinguishable from a workspace that simply spent nothing. Read
+  // `isError` before the empty state, or the dashboard reports "no activity"
+  // for a backend that never answered.
+  const usageFailed =
+    dailyQuery.isError ||
+    byAgentQuery.isError ||
+    runTimeQuery.isError ||
+    runTimeDailyQuery.isError;
+  const errorsFailed =
+    failuresDailyQuery.isError || failuresByAgentQuery.isError;
 
   const usageHasNoData =
     !usageLoading &&
@@ -572,6 +584,8 @@ export function DashboardPage() {
           <TabsContent value="usage" className="space-y-5">
             {usageLoading ? (
               <DashboardSkeleton />
+            ) : usageFailed ? (
+              <LoadErrorState onRetry={handleRefresh} />
             ) : usageHasNoData ? (
               <DashboardEmpty />
             ) : (
@@ -704,6 +718,8 @@ export function DashboardPage() {
           <TabsContent value="errors">
             {errorsLoading ? (
               <DashboardSkeleton />
+            ) : errorsFailed ? (
+              <LoadErrorState onRetry={handleRefresh} />
             ) : (
               <ErrorsTab
                 days={days}

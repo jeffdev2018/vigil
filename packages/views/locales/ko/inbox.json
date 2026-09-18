@@ -161,6 +161,7 @@
     "archive_all_read_failed": "읽은 항목을 보관하지 못했습니다",
     "archive_completed_failed": "완료된 항목을 보관하지 못했습니다",
     "unarchive_failed": "보관 해제에 실패했습니다",
+    "inbox_load_failed": "받은 알림을 불러오지 못했습니다.",
     "archived_load_failed": "보관된 알림을 불러오지 못했습니다",
     "attention_load_failed": "주의 필요 목록을 불러오지 못했습니다.",
     "archived_lookup_failed": "링크된 알림을 불러오지 못했습니다",

@@ -35,6 +35,10 @@ const approvalsData: { approvals: ApprovalItem[] } = { approvals: [] };
 
 const queryCalls: Array<{ queryKey: readonly unknown[]; enabled?: boolean }> = [];
 const lookupState = { isLoading: false, isError: false, refetch: vi.fn() };
+// The main list read, kept separately so a test can fail it. Its data
+// defaults to `[]`, which is why a failed read used to render as "inbox
+// empty" — the regression the load-failure tests below pin.
+const activeState = { isError: false, isFetching: false, refetch: vi.fn() };
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
     queryCalls.push(options);
@@ -49,6 +53,7 @@ vi.mock("@tanstack/react-query", () => ({
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
+    ...(options.queryKey.includes("list") ? activeState : {}),
     ...(options.queryKey.includes("lookup") ? lookupState : {}),
   }); },
   useInfiniteQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
@@ -321,6 +326,9 @@ function reset() {
   lookupState.isLoading = false;
   lookupState.isError = false;
   lookupState.refetch.mockClear();
+  activeState.isError = false;
+  activeState.isFetching = false;
+  activeState.refetch.mockClear();
   queryCalls.length = 0;
   searchParams = new URLSearchParams();
   replace.mockClear();
@@ -374,6 +382,33 @@ describe("InboxPage", () => {
 
     expect(screen.getByTestId("list").dataset.view).toBe("inbox");
     expect(screen.getByTestId("row").textContent).toBe("active-1");
+  });
+
+  it("says the inbox read failed instead of rendering an empty inbox", () => {
+    // The main list's `isError` was never read, so a 5xx or an offline tab
+    // rendered the same "nothing here" the page shows a caught-up member.
+    reset();
+    activeState.isError = true;
+
+    render(<InboxPage />);
+
+    expect(screen.queryByTestId("list")).toBeNull();
+    // The file-wide i18n mock names every string "Inbox", so the copy itself
+    // is pinned by locales/parity.test.ts, not here. What matters here is
+    // that the list is gone, the state is announced, and the retry re-reads
+    // the main list rather than the archive or the attention feed.
+    const alert = screen.getByRole("alert");
+    fireEvent.click(alert.querySelector("button")!);
+    expect(activeState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a genuinely empty inbox distinct from a failed read", () => {
+    reset();
+
+    render(<InboxPage />);
+
+    expect(screen.getByTestId("list").dataset.view).toBe("inbox");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("filters the list by status and priority together", () => {

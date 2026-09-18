@@ -15,6 +15,14 @@ import type { NavigationAdapter } from "../../navigation";
 // dashboard options builders runs for real, so the key is the production key.
 const queryKeys = vi.hoisted(() => [] as unknown[][]);
 const dashboardDataRef = vi.hoisted(() => ({ current: false }));
+// Overrides every dashboard rollup at once. "empty" answers `[]` (a workspace
+// that really spent nothing), "error" answers a failed read. The page used to
+// render both as the same "No usage yet" panel, because every rollup defaults
+// to `[]` and `isError` was never consulted.
+const rollupModeRef = vi.hoisted(
+  () => ({ current: "normal" as "normal" | "empty" | "error" }),
+);
+const invalidateQueries = vi.hoisted(() => vi.fn());
 // Swaps the per-agent fixtures for ones with enough agents to exercise the
 // top-offenders and leaderboard caps. Kept off by default so the other tests
 // keep their exact 4-of-10 arithmetic.
@@ -72,9 +80,14 @@ vi.mock("@tanstack/react-query", async () => {
     ...actual,
     // The page reads the client only to invalidate the dashboard keys from
     // the refresh button; there is no provider in these renders.
-    useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+    useQueryClient: () => ({ invalidateQueries }),
     useQuery: (opts: { queryKey: unknown[] }) => {
       queryKeys.push(opts.queryKey);
+      if (opts.queryKey[0] === "dashboard" && rollupModeRef.current !== "normal") {
+        return rollupModeRef.current === "error"
+          ? { data: undefined, isLoading: false, isError: true }
+          : { data: [], isLoading: false, isSuccess: true };
+      }
       if (dashboardDataRef.current) {
         // ["workspaces", wsId, "agents"] — needed so the Errors breakdown can
         // resolve agent-1 to a name and render its drill-down link.
@@ -886,5 +899,52 @@ describe("DashboardPage — leaderboard density", () => {
       gridTemplateColumns:
         "minmax(10rem, 1.6fr) minmax(6rem, 1fr) 5rem 5rem 5rem 4rem",
     });
+  });
+});
+
+describe("DashboardPage — a failed rollup is not an idle workspace", () => {
+  beforeEach(() => {
+    queryKeys.length = 0;
+    dashboardDataRef.current = true;
+    tzRef.current = "UTC";
+    invalidateQueries.mockClear();
+    cleanup();
+  });
+
+  afterEach(() => {
+    rollupModeRef.current = "normal";
+  });
+
+  it("keeps the empty state for a workspace that really spent nothing", () => {
+    rollupModeRef.current = "empty";
+    renderDashboard();
+
+    expect(screen.getByText("No usage yet")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says the usage read failed, and retries it", async () => {
+    const user = userEvent.setup();
+    rollupModeRef.current = "error";
+    renderDashboard();
+
+    expect(screen.queryByText("No usage yet")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load this page",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(invalidateQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the failure read failed on the Errors tab too", async () => {
+    const user = userEvent.setup();
+    rollupModeRef.current = "error";
+    renderDashboard();
+    await openErrorsTab(user);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load this page",
+    );
   });
 });
