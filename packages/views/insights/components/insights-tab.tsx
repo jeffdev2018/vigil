@@ -12,6 +12,7 @@ import {
   useDeleteInsightWidget,
   useUpdateInsightWidget,
 } from "@multica/core/insights";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useT } from "../../i18n";
 import { AskBar } from "./ask-bar";
 import { InsightChart } from "./insight-chart";
@@ -57,6 +58,12 @@ export function InsightsTab({ wsId }: { wsId: string }) {
 
       {widgetsQuery.isLoading ? (
         <Skeleton className="h-40 w-full" />
+      ) : widgetsQuery.isError ? (
+        // The list read defaults to [], so a 5xx or an offline tab used to
+        // render "nothing pinned yet" — a product claim about a workspace
+        // whose dashboard we never read. Same rule (and same component) as
+        // the Usage and Errors tabs.
+        <LoadErrorState onRetry={() => void widgetsQuery.refetch()} />
       ) : widgets.length === 0 ? (
         <p className="py-8 text-center text-caption text-muted-foreground">
           {t(($) => $.insights.no_widgets)}
