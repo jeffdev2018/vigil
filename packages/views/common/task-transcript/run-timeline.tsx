@@ -71,7 +71,7 @@ function LaneLabel({ label, total, title }: { label: string; total: string; titl
       className="flex h-[15px] items-baseline gap-1.5 pr-2.5 text-micro text-muted-foreground"
     >
       <span className="truncate">{label}</span>
-      <span className="ml-auto shrink-0 tabular-nums text-faint-foreground">{total}</span>
+      <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">{total}</span>
     </div>
   );
 }

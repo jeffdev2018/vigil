@@ -154,7 +154,7 @@ function CapacityByActorEditor({
       {rows.length === 0 && (
         <div className="flex flex-col gap-0.5" data-testid="actor-capacity-empty">
           <p className="text-caption text-muted-foreground">{t(($) => $.actors.empty)}</p>
-          <p className="text-caption text-faint-foreground">{t(($) => $.actors.empty_hint)}</p>
+          <p className="text-caption text-muted-foreground">{t(($) => $.actors.empty_hint)}</p>
         </div>
       )}
 

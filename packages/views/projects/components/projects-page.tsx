@@ -109,6 +109,7 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../../layout/collection-page";
+import { LoadErrorState } from "../../common/load-error-state";
 import { ProjectIcon } from "./project-icon";
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
@@ -874,7 +875,12 @@ export function ProjectsPage() {
   const isCompact = viewMode === "compact";
   const isColVisible = (key: ProjectColumnKey) => !hiddenColumns.includes(key);
 
-  const { data: projects = [], isLoading } = useQuery(projectListOptions(wsId));
+  const {
+    data: projects = [],
+    isLoading,
+    isError: projectsError,
+    refetch: refetchProjects,
+  } = useQuery(projectListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: pins = [] } = useQuery({
     ...pinListOptions(wsId, currentUser?.id ?? ""),
@@ -988,7 +994,10 @@ export function ProjectsPage() {
             ? t(($) => $.table.issues)
             : t(($) => $.table.created);
 
-  const showEmpty = !isLoading && projects.length === 0;
+  // An unanswered read must not read as "no projects yet": the empty state
+  // offers "create your first project", which is the wrong instruction when
+  // the list simply failed to load.
+  const showEmpty = !isLoading && !projectsError && projects.length === 0;
   const countBadge = (n: number) => (
     <span className="ml-auto pl-3 text-caption text-muted-foreground">{n}</span>
   );
@@ -1009,7 +1018,9 @@ export function ProjectsPage() {
         }
       />
 
-      {showEmpty ? (
+      {projectsError ? (
+        <LoadErrorState onRetry={() => void refetchProjects()} />
+      ) : showEmpty ? (
         <CollectionPageState
           icon={FolderKanban}
           title={t(($) => $.page.empty)}

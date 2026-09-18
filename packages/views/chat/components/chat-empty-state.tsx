@@ -73,7 +73,7 @@ export function EmptyState({
             <div className="flex justify-center pt-1">
               <AppLink
                 href={customizeHref}
-                className="inline-flex items-center gap-1.5 text-caption text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-6 items-center gap-1.5 rounded-md px-1.5 text-caption text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Settings2 className="size-3.5" aria-hidden="true" />
                 {t(($) => $.conversation_starters.customize)}

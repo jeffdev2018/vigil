@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
@@ -8,7 +9,7 @@ import {
   IssueAgentActivityIndicator,
 } from "../../issues/components/issue-agent-activity-indicator";
 import { ActorAvatar } from "../../common/actor-avatar";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
 import type { InboxItem } from "@multica/core/types";
 import type { InboxView } from "./inbox-view";
 import { InboxDetailLabel, useTypeLabels } from "./inbox-detail-label";
@@ -46,11 +47,20 @@ function ApprovalQuickActions({ item, approval }: { item: InboxItem; approval: A
   const answerGoal = useAnswerIssueGoal(wsId, approval.issue.id);
   const busy = respond.isPending || decideTransition.isPending || answerGoal.isPending;
   const options = approval.options.slice(0, 2);
+  // Which option is in flight, so the spinner lands on the button the user
+  // actually pressed. `busy` alone only knows that *something* is pending,
+  // which is why both buttons used to grey out with no sign of progress —
+  // and answering an agent is exactly the moment to show the request left.
+  const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
 
   const decide = (optionId: string, optionLabel: string) => {
+    setPendingOptionId(optionId);
     const callbacks = {
       onError: () => toast.error(t(($) => $.list.approval_action_failed)),
-      onSettled: () => qc.invalidateQueries({ queryKey: approvalKeys.all(wsId) }),
+      onSettled: () => {
+        setPendingOptionId(null);
+        qc.invalidateQueries({ queryKey: approvalKeys.all(wsId) });
+      },
     };
     if (approval.source === "transition") {
       decideTransition.mutate({ requestId: approval.id, decision: optionId === "approve" ? "approve" : "reject" }, callbacks);
@@ -76,6 +86,9 @@ function ApprovalQuickActions({ item, approval }: { item: InboxItem; approval: A
             decide(o.id, o.label);
           }}
         >
+          {busy && pendingOptionId === o.id ? (
+            <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+          ) : null}
           {o.label}
         </Button>
       ))}
