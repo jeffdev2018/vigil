@@ -1123,7 +1123,7 @@ export function AgentDropdown({
       triggerRender={
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 -ml-1 cursor-pointer outline-none transition-colors hover:bg-accent aria-expanded:bg-accent"
+          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 -ml-1 cursor-pointer outline-none transition-colors hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring aria-expanded:bg-accent"
         />
       }
       trigger={

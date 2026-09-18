@@ -241,7 +241,7 @@ export function DraftDefinitionFields() {
             {displaySummary}
           </span>
         </CollapsibleTrigger>
-        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-starting-style:h-0 data-ending-style:h-0">
+        <CollapsibleContent>
           <div className="space-y-3 pt-2 pl-5">
             <div className="flex items-center gap-3">
               <Label className={ROW_LABEL}>{t(($) => $.save_view.layout_label)}</Label>

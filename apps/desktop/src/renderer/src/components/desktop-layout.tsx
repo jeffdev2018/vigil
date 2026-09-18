@@ -1,5 +1,4 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@multica/ui/lib/utils";
 import {
@@ -37,12 +36,6 @@ import { WindowOverlay } from "./window-overlay";
 import { WindowToolbar, WINDOW_TOOLBAR_CLEARANCE } from "./window-toolbar";
 
 const TOP_BAR_HEIGHT_CLASS = "h-12";
-const toolbarMotion = {
-  type: "spring",
-  stiffness: 420,
-  damping: 38,
-  mass: 0.8,
-} as const;
 
 function SidebarTopSpacer() {
   return <div className={cn("shrink-0", TOP_BAR_HEIGHT_CLASS)} />;
@@ -112,15 +105,23 @@ function MainCanvas({ children }: { children: React.ReactNode }) {
   const { state, isCompact } = useSidebar();
   const sidebarHidden = state === "collapsed" || isCompact;
 
+  // A spring on `marginLeft` re-laid-out the whole canvas — every list,
+  // table and virtualised row inside it — on every frame of the toggle, to
+  // travel 6px. The gap now moves on the same 200ms CSS transition as
+  // MainTopBar's padding, so the two edges still arrive together, the work
+  // stays on the compositor's side of one property, and reduced motion is
+  // honoured for free.
   return (
-    <motion.div
-      animate={{ marginLeft: sidebarHidden ? 8 : 2 }}
-      className="relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-[var(--surface-shadow)]"
-      initial={false}
-      transition={toolbarMotion}
+    <div
+      data-sidebar-resize-consumer
+      className={cn(
+        "relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-[var(--surface-shadow)]",
+        "transition-[margin-left] duration-200 ease-out motion-reduce:transition-none",
+        sidebarHidden ? "ml-2" : "ml-0.5",
+      )}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 

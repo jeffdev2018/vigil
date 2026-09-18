@@ -2280,7 +2280,7 @@ export function StepBody({ item }: { item: TimelineItem }) {
         <figcaption className="pt-1 text-micro text-faint-foreground">
           {t(($) => $.transcript.image_result)} · {formatBytes(base64ByteLength(image.base64))}
         </figcaption>
-        {note && <span className="block pt-1 text-micro text-faint-foreground">{note}</span>}
+        {note && <span className="block pt-1 text-micro text-muted-foreground">{note}</span>}
       </figure>
     );
   }

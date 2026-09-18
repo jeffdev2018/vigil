@@ -20,7 +20,7 @@ export function ChatApprovalsStrip({ approvals, wsId }: { approvals: ApprovalIte
     <div data-testid="chat-approvals-strip" className="flex flex-col gap-1.5 border-t px-3 py-2">
       <button
         type="button"
-        className="flex items-center gap-1.5 self-start text-caption font-medium text-muted-foreground outline-none hover:text-foreground"
+        className="flex min-h-6 items-center gap-1.5 self-start rounded-md px-1 -ml-1 text-caption font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >

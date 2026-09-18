@@ -69,7 +69,7 @@ export function AgentScorecardsCard({ wsId, days }: { wsId: string; days: number
               <tr key={`${r.agent_id}-${r.runtime_id ?? ""}`} data-testid="scorecard-row" className={cn("border-t", r.low_sample && "text-muted-foreground")}>
                 <td className="px-4 py-1.5">
                   {name(r.agent_id)}
-                  {r.low_sample && <span className="ml-1 text-faint-foreground">{t(($) => $.scorecards.low_sample)}</span>}
+                  {r.low_sample && <span className="ml-1 text-muted-foreground">{t(($) => $.scorecards.low_sample)}</span>}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{r.runs_total}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{pct(scorecardRate(r.runs_accepted, r.runs_total))}</td>

@@ -94,6 +94,7 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../../layout/collection-page";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useLocale, useT } from "../../i18n";
 import { PAGE_TOOLBAR } from "../../layout/page-header";
 
@@ -797,7 +798,12 @@ export function SquadsPage() {
   const rowLink = useRowLink();
   const currentUser = useAuthStore((s) => s.user);
 
-  const { data: squads = [], isLoading } = useQuery({
+  const {
+    data: squads = [],
+    isLoading,
+    isError: squadsError,
+    refetch: refetchSquads,
+  } = useQuery({
     ...squadListOptions(wsId),
     enabled: !!wsId,
   });
@@ -944,6 +950,10 @@ export function SquadsPage() {
 
       {isLoading ? (
         <LoadingSkeleton />
+      ) : squadsError ? (
+        // A failed read must not offer "create your first squad": the squads
+        // may well exist and the list simply did not arrive.
+        <LoadErrorState onRetry={() => void refetchSquads()} />
       ) : squads.length === 0 ? (
         <CollectionPageState
           icon={Users}
