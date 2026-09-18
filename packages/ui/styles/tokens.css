@@ -386,9 +386,16 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.552 0.016 285.938);
-    /* Brand also paints body-text links; keep it readable on dark surfaces. */
+    /* Brand also paints body-text links; keep it readable on dark surfaces.
+       L 0.65 is what that costs: at 0.52 a brand link on the page canvas
+       drops from 6.11:1 to 3.57:1 and fails AA, so the fill cannot move.
+       Which means the text ON the fill has to: white over this blue is
+       3.12:1, a fail that shipped because nothing measured it. A dark
+       foreground reads at 5.56:1 instead, tinted toward the brand hue like
+       the rest of this theme's neutrals. So the brand button inverts in dark
+       mode — light fill, dark label — which is what a light fill demands. */
     --brand: oklch(0.65 0.16 255);
-    --brand-foreground: oklch(0.985 0 0);
+    --brand-foreground: oklch(0.20 0.02 255);
     --success: oklch(0.65 0.15 145);
     --warning: oklch(0.70 0.16 85);
     --info: oklch(0.65 0.18 250);
