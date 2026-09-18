@@ -23,6 +23,7 @@ import { useAuthStore } from "@multica/core/auth";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import { api, errorCode } from "@multica/core/api";
 import type { User } from "@multica/core/types";
+import { Loader2 } from "lucide-react";
 import { useT } from "../i18n";
 import { clearSessionResume, readSessionResume, saveSessionResume } from "../common/session-resume";
 
@@ -171,6 +172,7 @@ export function LoginPage({
   extra,
 }: LoginPageProps) {
   const { t } = useT("auth");
+  const { t: tCommon } = useT("common");
   const qc = useQueryClient();
   const [step, setStep] = useState<"email" | "code" | "cli_confirm" | "sso">("email");
   const [ssoSlug, setSsoSlug] = useState("");
@@ -586,6 +588,19 @@ export function LoginPage({
                 {t(($) => $.sso.required_link)}
               </button>
             )}
+            {/* Auto-submit fires on the sixth digit, so the only thing that
+              * previously marked the request was `disabled` on the slots.
+              * On a slow connection that reads as "nothing happened" at the
+              * most anxious moment of the first run. */}
+            {loading ? (
+              <p
+                role="status"
+                className="flex items-center gap-2 text-body text-muted-foreground"
+              >
+                <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+                {tCommon(($) => $.loading)}
+              </p>
+            ) : (
             <div className="flex items-center gap-2 text-body text-muted-foreground">
               <button
                 type="button"
@@ -598,6 +613,7 @@ export function LoginPage({
                   : t(($) => $.verify.resend)}
               </button>
             </div>
+            )}
           </CardContent>
           <CardFooter>
             <Button

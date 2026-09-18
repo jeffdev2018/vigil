@@ -283,7 +283,7 @@ export function ToolDetailSurface({
           </button>
         </div>
       )}
-      {note && revealed && <p className="px-3 pb-2 text-micro text-faint-foreground">{note}</p>}
+      {note && revealed && <p className="px-3 pb-2 text-micro text-muted-foreground">{note}</p>}
     </div>
   );
 }

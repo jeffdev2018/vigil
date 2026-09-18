@@ -62,6 +62,9 @@ import { ChevronDown, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Agent, MemberWithUser } from "@multica/core/types";
 import { useT } from "../../i18n";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
+import { CollectionPageState } from "../../layout/collection-page";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 
 /**
@@ -72,13 +75,19 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
  */
 export function SquadDetailPage({ squadId }: { squadId: string }) {
   const { t } = useT("squads");
+  const { t: tCommon } = useT("common");
   const workspace = useCurrentWorkspace();
   const wsId = useWorkspaceId();
   const p = useWorkspacePaths();
   const { push } = useNavigation();
   const queryClient = useQueryClient();
 
-  const { data: squad, refetch: refetchSquad } = useQuery<Squad>({
+  const {
+    data: squad,
+    isLoading: squadLoading,
+    error: squadError,
+    refetch: refetchSquad,
+  } = useQuery<Squad>({
     queryKey: [...workspaceKeys.squads(wsId), squadId],
     queryFn: () => api.getSquad(squadId),
     enabled: !!workspace?.id && !!squadId,
@@ -188,8 +197,31 @@ export function SquadDetailPage({ squadId }: { squadId: string }) {
     return wsMembers.find((m) => m.user_id === id)?.name ?? id.slice(0, 8);
   };
 
-  if (!squad) {
+  // Three outcomes, three screens. Before this, all three rendered the same
+  // skeleton, so a deleted squad and a dropped connection both looked like a
+  // page that was still loading — and never stopped.
+  if (squadLoading) {
     return <SquadDetailSkeleton />;
+  }
+
+  if (!squad) {
+    if (squadError && !isResourceMissingError(squadError)) {
+      return <LoadErrorState onRetry={() => void refetchSquad()} />;
+    }
+    return (
+      <CollectionPageState
+        icon={Users}
+        tone="destructive"
+        role="alert"
+        title={tCommon(($) => $.not_found.title)}
+        description={tCommon(($) => $.not_found.description)}
+        actions={
+          <Button size="sm" variant="outline" onClick={() => push(p.squads())}>
+            {t(($) => $.page.title)}
+          </Button>
+        }
+      />
+    );
   }
 
   const availableAgents = agents.filter((a: Agent) => !a.archived_at && !members.some((m) => m.member_type === "agent" && m.member_id === a.id));
