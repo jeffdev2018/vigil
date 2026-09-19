@@ -136,7 +136,7 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		nativeTextTurn(`{"satisfied": true, "reason": "the summary is posted"}`),
 	}}
 	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
-	svc.Goal = NewGoalLoopService(db.New(pool), tasks, llm, events.New())
+	svc.Goal = NewGoalLoopService(db.New(pool), tasks, llm, nil, events.New())
 
 	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
 	if err != nil {

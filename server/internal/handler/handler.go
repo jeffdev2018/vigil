@@ -46,6 +46,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/decisions"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
 	"github.com/multica-ai/multica/server/pkg/stt"
@@ -176,6 +177,14 @@ type Config struct {
 	// one reaches this struct. See llm.Config.MaxRetries for the full semantics.
 	LLMMaxRetries   *llm.RetryOverride
 	LLMRoutingModel string
+	// Decisions* configure the typed-decision endpoint (pkg/decisions). It is
+	// a different endpoint and a different model from MULTICA_LLM_*: a
+	// decision model refuses the chat/completions surface. All three empty
+	// leaves the client disabled, and every caller keeps the behaviour it had
+	// before the endpoint existed.
+	DecisionsBaseURL string
+	DecisionsAPIKey  string
+	DecisionsModel   string
 	// STT* configure the speech-to-text provider behind the voice memo and
 	// meeting transcription endpoints (OpenAI-compatible
 	// /v1/audio/transcriptions). Unset -> those endpoints answer 409.
@@ -581,6 +590,15 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		MaxRetries:     cfg.LLMMaxRetries,
 	})
 	brainEmbedder := service.NewBrainEmbedder(queries, llmClient)
+	decisionClient := decisions.New(decisions.Config{
+		BaseURL: cfg.DecisionsBaseURL,
+		APIKey:  cfg.DecisionsAPIKey,
+		Model:   cfg.DecisionsModel,
+	})
+	// Says whether typed decisions are available at all, and nothing about
+	// where: a gateway URL routinely embeds a token, so it is never logged.
+	slog.Info("typed decisions", "enabled", decisionClient.Enabled(),
+		"model", cfg.DecisionsModel)
 	// Report the effective retry policy so an operator can confirm from the
 	// boot log alone what a misbehaving upstream will cost, instead of inferring
 	// it from an env var whose semantics used to be unguessable (MUL-6364).
@@ -647,7 +665,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		BrainEmbedder:                brainEmbedder,
 		Recurrence:                   service.NewRecurrenceService(queries, issueSvc),
-		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
+		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, decisionClient, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),
