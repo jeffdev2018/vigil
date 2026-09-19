@@ -38,11 +38,11 @@
 //
 //   - Agent consult — server/internal/handler/consult.go. Answers one
 //     synchronous question a running task's own agent asks mid-run via
-//     POST /api/consult. The question and an optional free-form context
-//     string are chosen by the calling task and sent verbatim: neither has
-//     a dedicated bound, only the endpoint's general 1 MB request body
-//     limit. The context may hold repository or file content the task has
-//     access to. Capped at 50 consults per task per day.
+//     POST /api/consult. The calling task chooses the question and an
+//     optional free-form context, which may hold repository or file content
+//     it has access to; the server bounds both (4000 bytes for the question,
+//     32 KiB head+tail for the context) so the caller cannot decide how much
+//     leaves the deployment. Capped at 50 consults per task per day.
 //   - Agent duel arbiter — server/internal/handler/agent_duel.go. Compares
 //     two candidate runs on the same issue. Sends the issue title and
 //     description (no dedicated bound at this call site), each
