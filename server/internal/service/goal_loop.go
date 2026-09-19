@@ -19,6 +19,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/decisions"
 	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
@@ -129,14 +130,19 @@ type GoalLoopService struct {
 	Queries *db.Queries
 	Tasks   *TaskService
 	LLM     NativeAgentLLM
-	Bus     *events.Bus
+	// Decisions answers the judge's closed questions when the deployment has
+	// a decision endpoint. Nil or disabled falls back to asking the chat
+	// model for the verdict and the prose together, which is what every
+	// deployment did before and what one without the endpoint still does.
+	Decisions *decisions.Client
+	Bus       *events.Bus
 	// judging dedupes the event-driven path: a task is judged once even if
 	// task:completed is delivered twice.
 	judging sync.Map
 }
 
-func NewGoalLoopService(q *db.Queries, tasks *TaskService, llm NativeAgentLLM, bus *events.Bus) *GoalLoopService {
-	return &GoalLoopService{Queries: q, Tasks: tasks, LLM: llm, Bus: bus}
+func NewGoalLoopService(q *db.Queries, tasks *TaskService, llm NativeAgentLLM, dec *decisions.Client, bus *events.Bus) *GoalLoopService {
+	return &GoalLoopService{Queries: q, Tasks: tasks, LLM: llm, Decisions: dec, Bus: bus}
 }
 
 // GoalRunVerdict is what a judged run leaves under result.goal_loop.
@@ -423,6 +429,11 @@ func (s *GoalLoopService) settings(ctx context.Context, wsID pgtype.UUID) GoalLo
 // issue's goal. The answer is JSON with a closed blocker vocabulary;
 // anything else is an error and stops the loop.
 func (s *GoalLoopService) judge(ctx context.Context, issue db.Issue, goal db.IssueGoal, closing string, continuation, max int) (goalJudgeAnswer, error) {
+	// A decision endpoint takes the verdict; see goal_loop_decision.go for
+	// why the verdict and the prose no longer travel together.
+	if s.Decisions.Enabled() {
+		return s.judgeByDecision(ctx, issue, goal, closing, continuation, max)
+	}
 	if s.LLM == nil || !s.LLM.Enabled() {
 		return goalJudgeAnswer{}, errors.New("the assist-layer LLM is not configured")
 	}

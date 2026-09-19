@@ -264,6 +264,9 @@ This group configures server-side assist generation, such as conversation titles
 | `MULTICA_LLM_ROUTING_MODEL` | falls back to `MULTICA_LLM_DEFAULT_MODEL` | Small, fast model used to judge webhook deliveries against an autopilot's natural-language routing rule |
 | `MULTICA_LLM_EMBEDDING_MODEL` | empty | Enables meaning-based ranking in the shared repo index. Must produce 1536-dimension vectors; empty keeps the index keyword-only |
 | `MULTICA_LLM_MAX_RETRIES` | `2` | Retry ceiling per call; `0` disables retries, `1`–`5` cap it at N |
+| `MULTICA_DECISIONS_API_KEY` | empty | API key for the typed-decision endpoint |
+| `MULTICA_DECISIONS_BASE_URL` | empty | Full URL of the decision endpoint, path included. A decision model refuses the chat/completions surface, so it cannot be reached through `MULTICA_LLM_BASE_URL` |
+| `MULTICA_DECISIONS_MODEL` | empty | Decision model to ask |
 
 `MULTICA_LLM_MAX_RETRIES` is the single source for the retry policy. Leave it unset for the default of 2, set `0` to send exactly one request per call, or set 1–5 to cap retries at that many. It is a ceiling, not a quota: only retryable failures consume it, and a success or the caller's own deadline can end the call sooner. Any other value — negative, non-numeric, or above 5 — fails startup instead of being corrected silently. The ceiling is a latency budget: backoff starts at 0.5s and doubles to an 8s cap, so a larger budget would outlast the callers' own deadlines and turn a retryable failure into a timeout. Retries cover connection failures and HTTP 408, 409, 429 and 5xx; all other 4xx responses are returned as-is. The server logs the effective policy at startup as `llm retry policy`, with no credentials in the line.
 
@@ -276,6 +279,8 @@ These features use this layer, and each one sends content to the endpoint you co
 - **[Native runtime](/native-runtime)** — the tool-calling loop of an agent running with no daemon sends issue and comment content to this same client. `MULTICA_LLM_ROUTING_MODEL` is not used here; native runtime calls use `MULTICA_LLM_DEFAULT_MODEL`.
 
 When both the API key and the base URL are empty, this layer is disabled and makes no upstream request at all — neither feature above sends anything. That is the supported configuration when your policy does not allow this layer to send chat content off the deployment: chat sessions keep the title the client derives from the first message, the follow-up question buttons do not appear, and everything else is unaffected.
+
+Typed decisions are a separate endpoint from the assist layer above. A decision model answers a closed question — one option out of a named set, a rating against ordered levels, or a probability — and cannot reply outside the schema the caller gave it. All three variables empty is the default and leaves it disabled, in which case every caller keeps the behaviour it had before the endpoint existed. One caller uses it today: the goal-loop judge, which sends the goal, the issue title and description excerpt, and the finishing run's closing status, and asks whether the goal is met.
 
 <Callout type="info">
 This covers the assist layer only. Running an agent is a separate data path: when an agent answers a chat, your daemon executes that agent's AI coding tool using the tool's own credentials, and does not forward the `MULTICA_LLM_*` settings above to it. (The run-scoped Multica connection variables the agent needs are injected by the daemon separately.) Emptying the variables above does not affect that path — govern it through the agent's runtime configuration.

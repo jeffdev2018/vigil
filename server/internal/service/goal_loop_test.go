@@ -90,7 +90,7 @@ func newGoalFixture(t *testing.T, runtimeMode string) *goalFixture {
 	bus := events.New()
 	llm := &scriptedNativeLLM{}
 	tasks := NewTaskService(db.New(pool), pool, nil, bus)
-	goal := NewGoalLoopService(db.New(pool), tasks, llm, bus)
+	goal := NewGoalLoopService(db.New(pool), tasks, llm, nil, bus)
 	return &goalFixture{pool: pool, fx: fx, workspaceID: ws, userID: user, runtimeID: runtimeID, agentID: agentID, issueID: issueID, tasks: tasks, goal: goal, llm: llm, bus: bus}
 }
 
