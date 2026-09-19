@@ -52,3 +52,30 @@ func TestConsultSystemPromptMentionsJSON(t *testing.T) {
 		t.Fatal("consult system prompt must mention JSON for json_object mode")
 	}
 }
+
+// TestConsultPromptIsBoundedByTheServer covers the ceiling the caller cannot
+// choose. Before it existed, the only limit on the context was the endpoint's
+// 1 MB request body, so a running task decided by itself how much of what it
+// could read left the deployment.
+func TestConsultPromptIsBoundedByTheServer(t *testing.T) {
+	head := strings.Repeat("H", 40*1024)
+	tail := strings.Repeat("T", 40*1024)
+	got := BuildConsultUserPrompt(strings.Repeat("q", 9000), head+tail)
+
+	if len(got) > consultQuestionCap+consultContextCap+512 {
+		t.Errorf("prompt is %d bytes, above the question and context budgets", len(got))
+	}
+	// Both ends survive: a pasted file puts the subject at the top and the
+	// failure at the bottom, so keeping only the head would lose the point.
+	if !strings.Contains(got, "HHHH") || !strings.Contains(got, "TTTT") {
+		t.Error("the truncated context kept only one end")
+	}
+	if !strings.Contains(got, "middle truncated") {
+		t.Error("truncation is silent; the model cannot tell a cut from the whole")
+	}
+	// A short consult is untouched, so the bound costs the common case nothing.
+	short := BuildConsultUserPrompt("Which index?", "table has 40M rows")
+	if !strings.Contains(short, "table has 40M rows") || strings.Contains(short, "truncated") {
+		t.Errorf("a short context was altered: %q", short)
+	}
+}

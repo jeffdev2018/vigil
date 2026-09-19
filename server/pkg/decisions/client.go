@@ -37,6 +37,14 @@
 // written with the package, because a list guarded only by a comment is a
 // control that is declared and not kept.
 //
+//   - Auto-triage second read —
+//     server/internal/handler/triage_auto_decision.go. Before the triage
+//     queue accepts or dismisses an incoming item on its own, sends that
+//     item's title, a 4000-byte excerpt of its body, and the titles and
+//     outcomes of the resolved items the nearest-neighbour vote matched it
+//     against, and asks whether it should become work for this team. The raw
+//     delivery payload is never sent: a webhook or email payload carries
+//     addresses and customer content that add nothing to that question.
 //   - Goal-loop judge — server/internal/service/goal_loop_decision.go. Sends
 //     the goal text set on the issue, the issue title, a 6000-rune head+tail
 //     excerpt of the description, the acceptance criteria when present

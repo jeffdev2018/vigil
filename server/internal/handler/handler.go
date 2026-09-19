@@ -484,6 +484,10 @@ type Handler struct {
 	// Config); when unconfigured its Enabled() reports false and callers fall
 	// back silently.
 	LLM *llm.Client
+	// Decisions asks closed questions with a decision model (pkg/decisions).
+	// Nil or disabled means the deployment has no decision endpoint, and
+	// every caller keeps the behaviour it had before one existed.
+	Decisions *decisions.Client
 	// ConsultLLM is the LLM seam for POST /api/consult (JEF-12): same client
 	// as LLM in production, an interface so handler tests can stub it. Read
 	// through consultLLM() — it falls back to LLM when unset.
@@ -687,7 +691,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			BaseURL: cfg.CloudURL,
 			Timeout: cfg.CloudTimeout,
 		}),
-		LLM: llmClient,
+		LLM:       llmClient,
+		Decisions: decisionClient,
 		// Agent consult (JEF-12) shares the same internal LLM client; the field
 		// is an interface so tests can stub the whole consult path.
 		ConsultLLM: llmClient,
