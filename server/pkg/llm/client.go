@@ -160,6 +160,14 @@
 //     (capped at 600 runes), and a transcript tail bounded at 8000 runes
 //     across at most 60 messages. The prompt forbids secrets, credentials,
 //     tokens and file contents.
+//   - Run confidence rationale —
+//     server/internal/service/run_confidence_decision.go. Used only when a
+//     decision endpoint scored the run and the score landed below the
+//     workspace threshold, which is when a person will read the line. Sends
+//     the issue title, the already-decided score, the reviewer verdict when
+//     one exists, and the same 4000-byte head+tail excerpt of the run's final
+//     output, and asks for one sentence of at most 280 characters. Above the
+//     threshold it is not called at all.
 //   - Run confidence scoring — server/internal/service/run_confidence.go.
 //     After a run completes, self-assesses delivery confidence. Sends the
 //     issue title, the run's final output (capped at 4000 runes,

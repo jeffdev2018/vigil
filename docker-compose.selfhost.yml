@@ -180,6 +180,13 @@ services:
       MULTICA_LLM_ROUTING_MODEL: ${MULTICA_LLM_ROUTING_MODEL:-}
       MULTICA_LLM_EMBEDDING_MODEL: ${MULTICA_LLM_EMBEDDING_MODEL:-}
       MULTICA_LLM_MAX_RETRIES: ${MULTICA_LLM_MAX_RETRIES:-}
+      # Typed decisions (pkg/decisions): a separate endpoint and model from
+      # MULTICA_LLM_* above — a decision model refuses chat/completions, so it
+      # cannot be reached through those. All three empty leaves it disabled and
+      # every caller keeps its previous behaviour. See .env.example.
+      MULTICA_DECISIONS_API_KEY: ${MULTICA_DECISIONS_API_KEY:-}
+      MULTICA_DECISIONS_BASE_URL: ${MULTICA_DECISIONS_BASE_URL:-}
+      MULTICA_DECISIONS_MODEL: ${MULTICA_DECISIONS_MODEL:-}
       # Speech-to-text (voice memos, meeting transcription). Any OpenAI-compatible
       # provider. Empty base URL or model disables the feature. See .env.example.
       MULTICA_STT_BASE_URL: ${MULTICA_STT_BASE_URL:-}
