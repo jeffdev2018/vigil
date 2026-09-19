@@ -27,6 +27,10 @@ import (
 
 const (
 	AuditTriageAutoDecided = "triage.auto_decided"
+	// AuditTriageAutoHeld records a confident vote the queue did NOT act on,
+	// because the second read did not back it. Without its own entry the
+	// held items would be indistinguishable from items no rule matched.
+	AuditTriageAutoHeld    = "triage.auto_held"
 	triageMaxSuggestionIDs = 50
 )
 
@@ -197,6 +201,15 @@ func (h *Handler) autoTriage(ctx context.Context, item db.TriageItem) {
 	if err != nil || !s.Ready || s.Suggested == "" || s.Confidence < cfg.Threshold {
 		return
 	}
+	// A second, independent read gates the automatic part of the vote; see
+	// triage_auto_decision.go for why it fails closed.
+	mayApply, secondRead := h.triageMayAutoApply(ctx, item, s)
+	if !mayApply {
+		h.audit(ctx, item.WorkspaceID, "system", "", AuditTriageAutoHeld, "triage_item", item.ID,
+			map[string]any{"decision": s.Suggested, "confidence": s.Confidence,
+				"examples": s.Examples, "second_read": secondRead}, nil)
+		return
+	}
 	reason := fmt.Sprintf("auto: %.0f%% confidence from %d similar deliveries", s.Confidence*100, len(s.Neighbors))
 	switch s.Suggested {
 	case "dismiss":
@@ -228,6 +241,6 @@ func (h *Handler) autoTriage(ctx context.Context, item db.TriageItem) {
 		}
 		h.publishTriageResolved(item.WorkspaceID, item.ID, "accepted")
 	}
-	h.audit(ctx, item.WorkspaceID, "system", "", AuditTriageAutoDecided, "triage_item", item.ID, map[string]any{"decision": s.Suggested, "confidence": s.Confidence, "neighbors": s.Neighbors, "examples": s.Examples}, nil)
+	h.audit(ctx, item.WorkspaceID, "system", "", AuditTriageAutoDecided, "triage_item", item.ID, map[string]any{"decision": s.Suggested, "confidence": s.Confidence, "neighbors": s.Neighbors, "examples": s.Examples, "second_read": secondRead}, nil)
 	h.publish(protocol.EventTriageNew, uuidToString(item.WorkspaceID), "system", "", map[string]any{"item_id": uuidToString(item.ID), "auto": s.Suggested})
 }
