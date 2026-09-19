@@ -45,6 +45,13 @@
 //     against, and asks whether it should become work for this team. The raw
 //     delivery payload is never sent: a webhook or email payload carries
 //     addresses and customer content that add nothing to that question.
+//   - Run confidence score —
+//     server/internal/service/run_confidence_decision.go. After a run
+//     completes, sends the issue title, a 4000-byte head+tail excerpt of the
+//     run's final output, and an independent reviewer's verdict when one
+//     exists, and asks how much evidence the run shows that it addressed the
+//     issue. The score decides whether a person is pulled in, so a failed
+//     decision stores nothing rather than a default.
 //   - Goal-loop judge — server/internal/service/goal_loop_decision.go. Sends
 //     the goal text set on the issue, the issue title, a 6000-rune head+tail
 //     excerpt of the description, the acceptance criteria when present

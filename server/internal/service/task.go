@@ -31,6 +31,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/decisions"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/redact"
@@ -117,6 +118,10 @@ type TaskService struct {
 	// worth storing when genuinely assessed, so an unconfigured deployment
 	// simply skips it. Wired in handler.New from the same *llm.Client.
 	RunConfidence RunConfidenceLLM
+	// Decisions scores a finished run on ordered levels instead of asking a
+	// chat model to write a number in prose. Nil or disabled keeps the chat
+	// path; see run_confidence_decision.go for what changes when it is set.
+	Decisions *decisions.Client
 	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
 	// Optional: nil (or a disabled client) turns extraction off, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*
