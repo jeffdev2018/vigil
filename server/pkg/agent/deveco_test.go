@@ -29,8 +29,8 @@ func TestNewReturnsDevecoBackend(t *testing.T) {
 }
 
 // fakeDevecoScript impersonates the `deveco` CLI: it records argv to
-// $DEVECO_ARGS_FILE, then emits a minimal completed step on stdout so the
-// backend's event loop terminates, and exits 0.
+// $DEVECO_ARGS_FILE and stdin to $DEVECO_STDIN_FILE, then emits a minimal
+// completed step on stdout so the backend's event loop terminates, and exits 0.
 func fakeDevecoScript() string {
 	return `#!/bin/sh
 if [ -n "$DEVECO_ARGS_FILE" ]; then
@@ -38,22 +38,26 @@ if [ -n "$DEVECO_ARGS_FILE" ]; then
     printf '%s\n' "$arg" >> "$DEVECO_ARGS_FILE"
   done
 fi
+if [ -n "$DEVECO_STDIN_FILE" ]; then
+  cat > "$DEVECO_STDIN_FILE"
+fi
 printf '{"type":"step_start","timestamp":1,"sessionID":"ses_fake","part":{"type":"step-start"}}\n'
 printf '{"type":"text","timestamp":2,"sessionID":"ses_fake","part":{"type":"text","text":"ok"}}\n'
 printf '{"type":"step_finish","timestamp":3,"sessionID":"ses_fake","part":{"type":"step-finish","tokens":{"total":10,"input":7,"output":3,"cache":{"read":0,"write":0}}}}\n'
 `
 }
 
-// TestDevecoBackendArgvShapeAndNoPrompt pins the two DevEco differences from
-// the OpenCode backend: argv is `run --format json --dangerously-skip-permissions
-// --dir <wd> [--model …] [--variant …] [--session …] <prompt>`, and — crucially
-// — there is never a `--prompt` flag, because DevEco's `run` subcommand does not
-// accept one (it would reject the invocation).
+// TestDevecoBackendArgvShapeAndNoPrompt pins the argv shape: `run --format json
+// --dangerously-skip-permissions --dir <wd> [--model …] [--variant …]
+// [--session …]`, never a `--prompt` flag (DevEco's `run` subcommand does not
+// accept one), and never the prompt itself: it travels on stdin, like OpenCode
+// and CodeArts, so a long prompt cannot overflow the Windows command line.
 func TestDevecoBackendArgvShapeAndNoPrompt(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
 	argsFile := filepath.Join(tempDir, "argv.txt")
+	stdinFile := filepath.Join(tempDir, "stdin.txt")
 	fakePath := filepath.Join(tempDir, "deveco")
 	writeTestExecutable(t, fakePath, []byte(fakeDevecoScript()))
 
@@ -62,7 +66,7 @@ func TestDevecoBackendArgvShapeAndNoPrompt(t *testing.T) {
 	backend, err := New("deveco", Config{
 		ExecutablePath: fakePath,
 		Logger:         slog.Default(),
-		Env:            map[string]string{"DEVECO_ARGS_FILE": argsFile},
+		Env:            map[string]string{"DEVECO_ARGS_FILE": argsFile, "DEVECO_STDIN_FILE": stdinFile},
 	})
 	if err != nil {
 		t.Fatalf("new deveco backend: %v", err)
@@ -73,7 +77,8 @@ func TestDevecoBackendArgvShapeAndNoPrompt(t *testing.T) {
 
 	// SystemPrompt is set deliberately; the backend must NOT forward it as
 	// --prompt (DevEco has no such flag).
-	session, err := backend.Execute(ctx, "do the thing", ExecOptions{
+	const prompt = "do the thing\nacross two lines"
+	session, err := backend.Execute(ctx, prompt, ExecOptions{
 		Cwd:          workDir,
 		Model:        "deveco/GLM-5.1",
 		SystemPrompt: "you are a helpful agent",
@@ -115,9 +120,62 @@ func TestDevecoBackendArgvShapeAndNoPrompt(t *testing.T) {
 	if containsString(args, "--prompt") {
 		t.Errorf("argv must NOT contain --prompt (DevEco has no such flag): %v", args)
 	}
-	// The prompt is the final positional arg.
-	if len(args) == 0 || args[len(args)-1] != "do the thing" {
-		t.Errorf("expected prompt as final positional arg, got %v", args)
+	for _, arg := range args {
+		if strings.Contains(arg, "do the thing") {
+			t.Errorf("the prompt must not travel on argv: %v", args)
+		}
+	}
+	stdinRaw, err := os.ReadFile(stdinFile)
+	if err != nil {
+		t.Fatalf("read stdin file: %v", err)
+	}
+	if string(stdinRaw) != prompt {
+		t.Errorf("stdin = %q, want the prompt %q", stdinRaw, prompt)
+	}
+}
+
+// DevEco's stream has no terminal result event, so "no error seen" is not proof
+// the run finished. Each of these shapes used to report a false-green
+// "completed".
+func TestDevecoProcessEventsRequiresTerminalSignal(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string][]string{
+		"step still open at EOF": {
+			`{"type":"step_start","sessionID":"s","part":{"type":"step-start"}}`,
+			`{"type":"text","sessionID":"s","part":{"type":"text","text":"half"}}`,
+		},
+		"continuation never started": {
+			`{"type":"step_start","sessionID":"s","part":{"type":"step-start"}}`,
+			`{"type":"tool_use","sessionID":"s","part":{"tool":"bash","callID":"c1","state":{"status":"completed","input":{},"output":"x"}}}`,
+			`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish","reason":"tool-calls","tokens":{"input":5,"output":1}}}`,
+		},
+		"empty step": {
+			`{"type":"step_start","sessionID":"s","part":{"type":"step-start"}}`,
+			`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish","reason":"unknown","tokens":{"input":0,"output":0,"cache":{"read":0,"write":0}},"cost":0}}`,
+		},
+		"no parseable events": {
+			`Error: not logged in`,
+		},
+	}
+	for name, lines := range cases {
+		b := &devecoBackend{cfg: Config{Logger: slog.Default()}}
+		ch := make(chan Message, 32)
+		result := b.processEvents(strings.NewReader(strings.Join(lines, "\n")), ch)
+		if result.status != "failed" || result.errMsg == "" {
+			t.Errorf("%s: result = %+v, want failed with a reason", name, result)
+		}
+	}
+
+	// A step whose only sign of life is its reported usage still completes.
+	b := &devecoBackend{cfg: Config{Logger: slog.Default()}}
+	ch := make(chan Message, 32)
+	result := b.processEvents(strings.NewReader(strings.Join([]string{
+		`{"type":"step_start","sessionID":"s","part":{"type":"step-start"}}`,
+		`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish","reason":"stop","tokens":{"input":0,"output":0,"reasoning":4}}}`,
+	}, "\n")), ch)
+	if result.status != "completed" {
+		t.Errorf("usage-only step: result = %+v, want completed", result)
 	}
 }
 

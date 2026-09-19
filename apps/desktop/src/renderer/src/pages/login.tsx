@@ -23,7 +23,7 @@ export function DesktopLoginPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-dvh flex-col">
       <DragStrip />
       <LoginPage
         logo={<MulticaIcon bordered size="lg" />}

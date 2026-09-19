@@ -71,7 +71,7 @@ function LaneLabel({ label, total, title }: { label: string; total: string; titl
       className="flex h-[15px] items-baseline gap-1.5 pr-2.5 text-micro text-muted-foreground"
     >
       <span className="truncate">{label}</span>
-      <span className="ml-auto shrink-0 tabular-nums text-faint-foreground">{total}</span>
+      <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">{total}</span>
     </div>
   );
 }
@@ -257,7 +257,7 @@ export function RunTimeline({
           visible once zoomed so the way back is never hidden. */}
       <div
         className={cn(
-          "absolute right-3 top-1 flex items-center gap-0.5 rounded-md border bg-surface/95 p-0.5 shadow-sm transition-opacity",
+          "absolute right-3 top-1 flex items-center gap-0.5 rounded-md border bg-surface/95 p-0.5 shadow-surface transition-opacity",
           zoom > 1 ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover/timeline:opacity-100",
         )}
       >
@@ -266,7 +266,7 @@ export function RunTimeline({
           disabled={!canZoomOut}
           onClick={() => setZoomAround(ZOOM_STEPS[zoomIndex - 1] ?? 1)}
           aria-label={t(($) => $.transcript.timeline_zoom_out)}
-          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:opacity-40"
+          className="flex h-5 w-5 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-accent disabled:opacity-40"
         >
           <Minus className="h-3 w-3" />
         </button>
@@ -278,7 +278,7 @@ export function RunTimeline({
           disabled={!canZoomIn}
           onClick={() => setZoomAround(ZOOM_STEPS[zoomIndex + 1] ?? zoom)}
           aria-label={t(($) => $.transcript.timeline_zoom_in)}
-          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent disabled:opacity-40"
+          className="flex h-5 w-5 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-accent disabled:opacity-40"
         >
           <Plus className="h-3 w-3" />
         </button>

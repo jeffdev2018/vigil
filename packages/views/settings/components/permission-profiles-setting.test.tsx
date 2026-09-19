@@ -9,6 +9,7 @@ import { renderWithI18n } from "../../test/i18n";
 
 const state = vi.hoisted(() => ({
   profiles: [] as PermissionProfile[],
+  fetchError: null as Error | null,
   update: vi.fn(),
 }));
 
@@ -16,7 +17,13 @@ vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@multica/core/agents/permission-profiles", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/agents/permission-profiles")>()),
-  permissionProfilesOptions: () => ({ queryKey: ["profiles"], queryFn: async () => state.profiles }),
+  permissionProfilesOptions: () => ({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      if (state.fetchError) throw state.fetchError;
+      return state.profiles;
+    },
+  }),
   useUpdatePermissionProfile: () => ({ mutate: state.update, isPending: false }),
 }));
 
@@ -36,6 +43,7 @@ beforeEach(() => {
     { id: "p1", name: "code", description: "Edits code.", read_only: false, denied_paths: [".env", "infra/**"], allowed_commands: ["*"], hidden_secrets: ["*PROD*"], builtin: true },
     { id: "p2", name: "read_only", description: "Reads.", read_only: true, denied_paths: [], allowed_commands: ["git status"], hidden_secrets: ["*"], builtin: true },
   ];
+  state.fetchError = null;
   state.update.mockReset();
 });
 
@@ -66,5 +74,18 @@ describe("PermissionProfilesSetting", () => {
     expect(denied.disabled).toBe(true);
     const toggle = screen.getByLabelText("code: Read-only");
     expect(toggle.hasAttribute("data-disabled") || toggle.getAttribute("aria-disabled") === "true" || (toggle as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // Regression: `data: profiles = []` was the only field read — no
+  // isLoading/isError — so a failed fetch rendered a totally empty section
+  // (not even an empty-state string, just the intro text and nothing else).
+  it("shows an error state with retry instead of an empty section when the fetch fails", async () => {
+    state.fetchError = new Error("boom");
+    render();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load permission profiles.");
+    expect(screen.queryByTestId("permission-profile-card")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   });
 });

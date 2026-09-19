@@ -1,3 +1,6 @@
+// @vitest-environment node
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { FAILURE_CLASSES, failureClassOf } from "./failure-class";
@@ -62,5 +65,21 @@ describe("failureClassOf", () => {
       ].map(failureClassOf),
     );
     expect([...reachable].toSorted()).toEqual([...FAILURE_CLASSES].toSorted());
+  });
+});
+
+// The Go taxonomy is the source of truth. Reading it here fails the build the
+// day a backend reason lands without a class, instead of silently counting it
+// as "other" on the dashboard.
+const FAILURE_GO = fileURLToPath(new URL("../../../server/pkg/taskfailure/failure.go", import.meta.url));
+// Reasons that are "other" on purpose, not by omission.
+const DELIBERATELY_OTHER = new Set(["agent_error.unknown", "issue_terminal"]);
+
+describe("failureClassOf coverage", () => {
+  it("classifies every reason the server can write", () => {
+    const reasons = [...readFileSync(FAILURE_GO, "utf8").matchAll(/^\s*Reason\w+\s+Reason\s*=\s*"([^"]+)"/gm)].map((m) => m[1]!);
+    expect(reasons.length).toBeGreaterThan(20);
+    const unclassified = reasons.filter((r) => !DELIBERATELY_OTHER.has(r) && failureClassOf(r) === "other");
+    expect(unclassified).toEqual([]);
   });
 });

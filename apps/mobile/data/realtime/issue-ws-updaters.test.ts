@@ -3,16 +3,27 @@ import type { Issue, IssueReaction, TimelineEntry } from "@multica/core/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
 import {
   addCommentReaction,
   addIssueReaction,
+  commentToTimelineEntry,
   onIssueAuxiliaryRevision,
   invalidateIssueAfterReconnect,
+  isPartialCommentPayload,
+  invalidateIssueOwnerProjections,
   patchIssueDetail,
   patchIssueLabels,
   removeIssueReaction,
   replaceCommentTimelineEntry,
 } from "./issue-ws-updaters";
+
+// issueGoalKeys comes from data/queries/issue-goal.ts, which also exports
+// api-calling query options and so imports @/data/api at module scope (same
+// reason data/realtime/inbox-ws-updaters.test.ts and chat-ws-updaters.test.ts
+// mock it) — without this the module-level EXPO_PUBLIC_API_URL check in
+// api.ts throws before any test in this file runs.
+vi.mock("@/data/api", () => ({ api: {} }));
 
 describe("invalidateIssueAfterReconnect", () => {
   it("invalidates attachments together with the issue and task caches", () => {
@@ -29,7 +40,33 @@ describe("invalidateIssueAfterReconnect", () => {
       issueKeys.attachments(wsId, issueId),
       issueKeys.activeTasks(wsId, issueId),
       issueKeys.tasks(wsId, issueId),
+      issueGoalKeys.issue(wsId, issueId),
     ]);
+  });
+});
+
+describe("invalidateIssueOwnerProjections", () => {
+  it("refetches every loaded projection holding the issue, whatever its revision", () => {
+    const qc = new QueryClient();
+    const wsId = "workspace-1";
+    const issueId = "issue-1";
+    const owner = { id: issueId, revision: 9 } as Issue;
+    const other = { id: "issue-2", revision: 1 } as Issue;
+    const withOwner = issueKeys.myList(wsId, "assigned", { assignee_id: "user-1" });
+    const withoutOwner = issueKeys.myList(wsId, "created", { creator_id: "user-1" });
+    qc.setQueryData<Issue>(issueKeys.detail(wsId, issueId), owner);
+    qc.setQueryData<Issue[]>(withOwner, [owner]);
+    qc.setQueryData<Issue[]>(withoutOwner, [other]);
+    qc.setQueryData<Issue[]>(issueKeys.list(wsId), [other, owner]);
+
+    invalidateIssueOwnerProjections(qc, wsId, issueId);
+
+    const isInvalidated = (key: readonly unknown[]) =>
+      qc.getQueryState(key)?.isInvalidated;
+    expect(isInvalidated(issueKeys.detail(wsId, issueId))).toBe(true);
+    expect(isInvalidated(withOwner)).toBe(true);
+    expect(isInvalidated(issueKeys.list(wsId))).toBe(true);
+    expect(isInvalidated(withoutOwner)).toBe(false);
   });
 });
 
@@ -288,5 +325,48 @@ describe("mobile issue revision gates", () => {
     addIssueReaction(qc, wsId, issueId, reaction, 2);
 
     expect(qc.getQueryData<Issue>(key)?.reactions).toEqual([]);
+  });
+});
+
+describe("isPartialCommentPayload", () => {
+  it("flags an id-only broadcast so the hook refetches instead of appending", () => {
+    expect(isPartialCommentPayload({ id: "c1", issue_id: "i1" })).toBe(true);
+    expect(
+      isPartialCommentPayload({
+        id: "c1",
+        issue_id: "i1",
+        author_type: "agent",
+        author_id: "a1",
+        created_at: "2026-09-11T01:13:27Z",
+        content: "Question for the team",
+      }),
+    ).toBe(false);
+  });
+});
+
+// #8296: a delete tombstones a comment that has replies and announces it as
+// comment:updated. The snapshot must keep deleted_at, or the card would render
+// an empty comment instead of the placeholder.
+describe("commentToTimelineEntry", () => {
+  it("carries the tombstone marker through a comment snapshot", () => {
+    const entry = commentToTimelineEntry({
+      id: "comment-1",
+      issue_id: "issue-1",
+      author_type: "member",
+      author_id: "user-1",
+      content: "",
+      type: "comment",
+      parent_id: null,
+      reactions: [],
+      attachments: [],
+      created_at: "2026-09-11T07:00:00Z",
+      updated_at: "2026-09-11T08:00:00Z",
+      resolved_at: null,
+      resolved_by_type: null,
+      resolved_by_id: null,
+      deleted_at: "2026-09-11T08:00:00Z",
+    });
+
+    expect(entry.deleted_at).toBe("2026-09-11T08:00:00Z");
   });
 });

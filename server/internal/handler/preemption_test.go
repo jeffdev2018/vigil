@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // Preemption (K41): an urgent issue queued on a saturated agent suspends
@@ -85,5 +87,43 @@ func TestPreemptionSuspendsLowestPriorityAndResumesInOrder(t *testing.T) {
 	runCall(t, testHandler.ResumeRun, http.MethodPost, low, "resume", nil).Want(http.StatusCreated)
 	if got := mustTask(t, lowTask); !got.ResumedByTaskID.Valid {
 		t.Fatal("manual resume of a preempted run must work without an instruction")
+	}
+}
+
+// Regression test for the racing-resume bug: two concurrent sweeps picking
+// up the same paused row must not have the second MarkTaskResumed silently
+// clobber the first winner's child id (orphaning that child untracked).
+// resumed_by_task_id IS NULL in the WHERE clause makes the loser's UPDATE
+// affect 0 rows instead.
+func TestMarkTaskResumedIsAnOptimisticLock(t *testing.T) {
+	agent := dbfx.Agent(t, "resume race agent", handlerTestRuntimeID(t))
+	issue := dbfx.Issue(t, "paused chore", testutil.Cols{"status": "in_progress", "assignee_type": "agent", "assignee_id": agent})
+	paused := dbfx.Task(t, agent, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "issue_id": issue, "status": "paused", "started_at": testutil.Raw("now()")})
+	childA := dbfx.Task(t, agent, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "issue_id": issue, "status": "queued"})
+	// A second distinct row to reference, not itself the second racing
+	// resume's real child (one pending task per issue/agent/thread is
+	// enforced) -- only its id matters to this test.
+	childB := dbfx.Task(t, agent, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "issue_id": issue, "status": "running", "started_at": testutil.Raw("now()")})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE id = ANY($1)`, []string{paused, childA, childB})
+	})
+
+	ctx := context.Background()
+	winner, err := testHandler.Queries.MarkTaskResumed(ctx, db.MarkTaskResumedParams{ID: parseUUID(paused), ResumedByTaskID: parseUUID(childA)})
+	if err != nil {
+		t.Fatalf("first MarkTaskResumed: %v", err)
+	}
+	if uuidToString(winner.ResumedByTaskID) != childA {
+		t.Fatalf("resumed_by_task_id = %s, want %s", uuidToString(winner.ResumedByTaskID), childA)
+	}
+
+	if _, err := testHandler.Queries.MarkTaskResumed(ctx, db.MarkTaskResumedParams{ID: parseUUID(paused), ResumedByTaskID: parseUUID(childB)}); err == nil {
+		t.Fatal("a second racing MarkTaskResumed on the same row must fail, not clobber the winner")
+	} else if err != pgx.ErrNoRows {
+		t.Fatalf("second MarkTaskResumed error = %v, want pgx.ErrNoRows", err)
+	}
+
+	if got := mustTask(t, paused); uuidToString(got.ResumedByTaskID) != childA {
+		t.Fatalf("resumed_by_task_id after the race = %s, want it still %s (the first winner)", uuidToString(got.ResumedByTaskID), childA)
 	}
 }

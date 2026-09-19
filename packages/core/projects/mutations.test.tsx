@@ -13,6 +13,8 @@ import {
   pruneIssueSurfaceViewStates,
 } from "../issues/stores/surface-view-store";
 import { useDeleteProject } from "./mutations";
+import { projectKeys } from "./queries";
+import type { ListProjectsResponse } from "../types";
 
 vi.mock("../hooks", () => ({
   useWorkspaceId: () => "ws-1",
@@ -57,5 +59,25 @@ describe("useDeleteProject", () => {
 
     expect(deleteProject).toHaveBeenCalledWith("p1");
     expect(store.getState().viewMode).toBe("board");
+  });
+
+  // JEF-397: a delete awaits the server, so a refusal leaves the list intact
+  // rather than rolling back a removal that never should have happened.
+  it("keeps the project in the list when the server refuses", async () => {
+    deleteProject.mockRejectedValue(new Error("403"));
+    const list = {
+      projects: [{ id: "p1" }, { id: "p2" }],
+      total: 2,
+    } as unknown as ListProjectsResponse;
+    qc.setQueryData(projectKeys.list("ws-1"), list);
+
+    const { result } = renderHook(() => useDeleteProject(), {
+      wrapper: createWrapper(qc),
+    });
+    await act(async () => {
+      await result.current.mutateAsync("p1").catch(() => undefined);
+    });
+
+    expect(qc.getQueryData<ListProjectsResponse>(projectKeys.list("ws-1"))?.total).toBe(2);
   });
 });

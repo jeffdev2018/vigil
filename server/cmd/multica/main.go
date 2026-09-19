@@ -63,6 +63,8 @@ func init() {
 	skillCmd.GroupID = groupCore
 	squadCmd.GroupID = groupCore
 	chatCmd.GroupID = groupCore
+	fleetCmd.GroupID = groupCore
+	consultCmd.GroupID = groupCore
 
 	// Runtime commands
 	daemonCmd.GroupID = groupRuntime
@@ -92,6 +94,8 @@ func init() {
 	rootCmd.AddCommand(skillCmd)
 	rootCmd.AddCommand(squadCmd)
 	rootCmd.AddCommand(chatCmd)
+	rootCmd.AddCommand(fleetCmd)
+	rootCmd.AddCommand(consultCmd)
 	rootCmd.AddCommand(daemonCmd)
 	rootCmd.AddCommand(runtimeCmd)
 	rootCmd.AddCommand(authCmd)
@@ -101,6 +105,10 @@ func init() {
 	rootCmd.AddCommand(attachmentCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(runsCmd)
+	rootCmd.AddCommand(calendarCmd)
+	rootCmd.AddCommand(doctrineCmd)
+	rootCmd.AddCommand(packCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(sandboxRunCmd)
 	rootCmd.AddCommand(hookCmd)

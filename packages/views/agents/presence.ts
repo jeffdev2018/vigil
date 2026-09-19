@@ -50,12 +50,17 @@ export interface AvailabilityVisual {
 export const availabilityConfig: Record<AgentAvailability, AvailabilityVisual> = {
   online: {
     dotClass: "bg-success",
-    textClass: "text-success",
+    // -strong, not the base role token: text-success on --page-canvas
+    // measures 4.39:1, just under the 4.5:1 AA floor for text (see
+    // --success-strong in tokens.css).
+    textClass: "text-success-strong",
     icon: CircleDot,
   },
   unstable: {
     dotClass: "bg-warning",
-    textClass: "text-warning",
+    // -strong: text-warning on --page-canvas measures 2.17:1, far under AA
+    // (see --warning-strong in tokens.css).
+    textClass: "text-warning-strong",
     icon: PlugZap,
   },
   offline: {

@@ -20,17 +20,21 @@ import {
 import { useT } from "../i18n";
 import { useNavigation } from "../navigation";
 import {
+  FIRST_RUN_ISSUE_BODY,
+  FIRST_RUN_ISSUE_TITLE,
   INSTALL_RUNTIME_ISSUE_BODY,
   INSTALL_RUNTIME_ISSUE_TITLE,
   pickContentLang,
 } from "../onboarding/templates";
 
 /**
- * One-shot welcome experience for users who explicitly skipped runtime
- * setup during onboarding.
+ * One-shot welcome experience for the two runtime-step exits that need
+ * setup work done AFTER the onboarding screen has already unmounted:
+ * "skip" (no runtime connected) and "native" (OS plan, chantier 5 — the
+ * browser-based runtime, whose first run replaces the install guide).
  *
- * Runtime-connected onboarding creates Mika before entering the workspace
- * and therefore never writes this no-runtime signal.
+ * Every other runtime-connected exit (CLI, desktop) creates Mika and opens
+ * her chat directly from onboarding-flow and never writes this signal.
  */
 export function WelcomeAfterOnboarding() {
   const me = useAuthStore((state) => state.user);
@@ -49,6 +53,16 @@ export function WelcomeAfterOnboarding() {
     currentWorkspace.id !== signal.workspaceId
   ) {
     return null;
+  }
+
+  if (signal.choice === "native") {
+    return (
+      <NativeFirstRunWelcome
+        workspaceId={signal.workspaceId}
+        agentId={signal.agentId}
+        onDismiss={dismiss}
+      />
+    );
   }
 
   return (
@@ -265,6 +279,113 @@ function SkipPreviewCard({
         </p>
       </div>
     </div>
+  );
+}
+
+interface NativeFirstRunWelcomeProps {
+  workspaceId: string;
+  /** Mika's agent id on the workspace's native runtime, from the bootstrap
+   *  that already ran in onboarding-flow's handleRuntimeNext. */
+  agentId: string;
+  onDismiss: () => void;
+}
+
+/**
+ * Native runtime path (OS plan, chantier 5): seed the "Your first run"
+ * issue, assigned to Mika, then navigate straight there — no completion
+ * modal like `SkipWelcome`'s. Mika already has a working runtime, so
+ * assigning the issue starts a real run immediately; the whole point is
+ * for the person to land on it and watch it happen, not read a "got it"
+ * screen first.
+ */
+function NativeFirstRunWelcome({
+  workspaceId,
+  agentId,
+  onDismiss,
+}: NativeFirstRunWelcomeProps) {
+  const { t, i18n } = useT("onboarding");
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  const me = useAuthStore((state) => state.user);
+
+  const [failed, setFailed] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+
+  useEffect(() => {
+    if (!me || failed || navigating) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const lang = pickContentLang(i18n.language);
+        const firstRun = await seedIssueDeduped(
+          `${workspaceId}:first-run`,
+          {
+            title: FIRST_RUN_ISSUE_TITLE[lang],
+            description: FIRST_RUN_ISSUE_BODY[lang],
+            status: "todo",
+            priority: "high",
+            assignee_type: "agent",
+            assignee_id: agentId,
+          },
+        );
+        void queryClient.invalidateQueries({
+          queryKey: issueKeys.all(workspaceId),
+        });
+        if (cancelled) return;
+        setNavigating(true);
+        const slug = await resolveWorkspaceSlug(queryClient, workspaceId);
+        if (cancelled) return;
+        onDismiss();
+        navigation.push(paths.workspace(slug).issueDetail(firstRun.id));
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agentId, failed, i18n.language, me, navigating, onDismiss, navigation, queryClient, workspaceId]);
+
+  if (!me) return null;
+
+  // Same "offer a retry, never dismiss silently" contract as SkipWelcome's
+  // failure state: onboarding is already marked complete and there is no
+  // other surface pointing back at this.
+  if (failed) {
+    return (
+      <Dialog
+        open={true}
+        modal={true}
+        onOpenChange={(open) => {
+          if (!open) onDismiss();
+        }}
+      >
+        <DialogContent className="max-w-md sm:max-w-md">
+          <DialogTitle className="text-title font-semibold">
+            {t(($) => $.welcome_after_onboarding.native.error_title)}
+          </DialogTitle>
+          <DialogDescription className="text-body text-muted-foreground">
+            {t(($) => $.welcome_after_onboarding.native.error_body)}
+          </DialogDescription>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="ghost" onClick={onDismiss}>
+              {t(($) => $.welcome_after_onboarding.native.dismiss)}
+            </Button>
+            <Button onClick={() => setFailed(false)}>
+              {t(($) => $.welcome_after_onboarding.native.retry)}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <FullScreenLoading
+      label={t(($) => $.welcome_after_onboarding.native.loading)}
+    />
   );
 }
 

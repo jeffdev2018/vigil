@@ -10,17 +10,16 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import { useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
+import { useTimeChartConfig } from "./daily-time-chart";
 
 // Weekly counterpart of DailyTimeChart — same single-series bar, but each
 // bar represents Mon–Sun run-time totals. Partial weeks render at half
 // opacity and tag their tooltip with "(partial · N / 7 days)" so the user
-// can't misread an in-progress week as a sudden drop.
-const weeklyTimeChartConfig = {
-  totalSeconds: { label: "Run time", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+// can't misread an in-progress week as a sudden drop. Shares
+// useTimeChartConfig with the daily chart rather than a parallel copy.
 
 export interface WeeklyTimeData {
   weekStart: string;
@@ -42,6 +41,7 @@ export function WeeklyTimeChart({
   formatTooltip: (seconds: number) => string;
 }) {
   const { t } = useT("usage");
+  const weeklyTimeChartConfig = useTimeChartConfig();
   return (
     <ChartContainer
       config={weeklyTimeChartConfig}
@@ -79,8 +79,8 @@ export function WeeklyTimeChart({
               }}
               formatter={(value, name) =>
                 typeof value === "number"
-                  ? `${formatTooltip(value)} ${name}`
-                  : `${value} ${name}`
+                  ? `${formatTooltip(value)} ${labelOf(weeklyTimeChartConfig, name)}`
+                  : `${value} ${labelOf(weeklyTimeChartConfig, name)}`
               }
             />
           }

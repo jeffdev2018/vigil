@@ -138,8 +138,8 @@ export function WeeklyRetroView() {
           <p className="text-caption text-muted-foreground">{t(($) => $.retro.skills_empty)}</p>
         ) : (
           <ul className="flex flex-col gap-1 text-caption">
-            {data.skill_proposals.map((p, i) => (
-              <li key={i}>{p.text}</li>
+            {data.skill_proposals.map((p) => (
+              <li key={p.text}>{p.text}</li>
             ))}
           </ul>
         )}

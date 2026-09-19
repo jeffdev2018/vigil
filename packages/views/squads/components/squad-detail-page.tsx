@@ -62,18 +62,32 @@ import { ChevronDown, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Agent, MemberWithUser } from "@multica/core/types";
 import { useT } from "../../i18n";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
+import { CollectionPageState } from "../../layout/collection-page";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 
-export function SquadDetailPage() {
+/**
+ * The squad id comes from the platform route (Next params on web, useParams on
+ * desktop), like SkillDetailPage. Reading it off the shared pathname fetched
+ * whatever the last path segment was while another route was active
+ * (`/api/squads/triage`).
+ */
+export function SquadDetailPage({ squadId }: { squadId: string }) {
   const { t } = useT("squads");
+  const { t: tCommon } = useT("common");
   const workspace = useCurrentWorkspace();
   const wsId = useWorkspaceId();
   const p = useWorkspacePaths();
-  const { pathname, push } = useNavigation();
+  const { push } = useNavigation();
   const queryClient = useQueryClient();
-  const squadId = pathname.split("/").pop() ?? "";
 
-  const { data: squad, refetch: refetchSquad } = useQuery<Squad>({
+  const {
+    data: squad,
+    isLoading: squadLoading,
+    error: squadError,
+    refetch: refetchSquad,
+  } = useQuery<Squad>({
     queryKey: [...workspaceKeys.squads(wsId), squadId],
     queryFn: () => api.getSquad(squadId),
     enabled: !!workspace?.id && !!squadId,
@@ -183,8 +197,31 @@ export function SquadDetailPage() {
     return wsMembers.find((m) => m.user_id === id)?.name ?? id.slice(0, 8);
   };
 
-  if (!squad) {
+  // Three outcomes, three screens. Before this, all three rendered the same
+  // skeleton, so a deleted squad and a dropped connection both looked like a
+  // page that was still loading — and never stopped.
+  if (squadLoading) {
     return <SquadDetailSkeleton />;
+  }
+
+  if (!squad) {
+    if (squadError && !isResourceMissingError(squadError)) {
+      return <LoadErrorState onRetry={() => void refetchSquad()} />;
+    }
+    return (
+      <CollectionPageState
+        icon={Users}
+        tone="destructive"
+        role="alert"
+        title={tCommon(($) => $.not_found.title)}
+        description={tCommon(($) => $.not_found.description)}
+        actions={
+          <Button size="sm" variant="outline" onClick={() => push(p.squads())}>
+            {t(($) => $.page.title)}
+          </Button>
+        }
+      />
+    );
   }
 
   const availableAgents = agents.filter((a: Agent) => !a.archived_at && !members.some((m) => m.member_type === "agent" && m.member_id === a.id));
@@ -223,7 +260,9 @@ export function SquadDetailPage() {
       {/* Two-column grid mirrors agent-detail-page: left inspector (identity +
           properties + leader), right pane with tabs (Members | Instructions).
           Mobile collapses to stacked single column. */}
-      <div className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto p-3 md:grid md:grid-cols-[280px_minmax(0,1fr)] md:gap-4 md:overflow-hidden md:p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      {/* Keyed by squad: the inspector and the instructions editor buffer
+          fields, and desktop keeps this page mounted across squads. */}
+      <div key={squad.id} className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto p-3 md:grid md:grid-cols-[280px_minmax(0,1fr)] md:gap-4 md:overflow-hidden md:p-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <SquadDetailInspector
           squad={squad}
           memberCount={members.length}
@@ -394,7 +433,7 @@ function SquadNameEditor({
         <button
           type="button"
           {...triggerProps}
-          className="group -mx-1 inline-flex items-center gap-1.5 self-start rounded px-1 text-left text-title font-semibold leading-tight transition-colors hover:bg-accent/50"
+          className="group -mx-1 inline-flex items-center gap-1.5 self-start rounded-xs px-1 text-left text-title font-semibold leading-tight transition-colors hover:bg-accent/50"
         >
           <span>{value}</span>
           <Pencil className="h-3.5 w-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
@@ -845,7 +884,7 @@ function SquadDescriptionEditor({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group -mx-1 inline-flex items-start gap-1.5 self-start rounded px-1 text-left text-caption leading-relaxed transition-colors hover:bg-accent/50"
+        className="group -mx-1 inline-flex items-start gap-1.5 self-start rounded-xs px-1 text-left text-caption leading-relaxed transition-colors hover:bg-accent/50"
       >
         {value ? (
           <span className="text-muted-foreground">{value}</span>
@@ -1193,7 +1232,7 @@ function SquadMembersTab({
                     {t(($) => $.member_type[m.member_type])}
                   </span>
                   {isLeader(m) && (
-                    <span className="inline-flex items-center gap-0.5 text-caption bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                    <span className="inline-flex items-center gap-0.5 text-caption bg-warning/15 text-warning px-1.5 py-0.5 rounded-xs">
                       <Crown className="size-3" />
                       {t(($) => $.members_tab.leader_chip)}
                     </span>
@@ -1268,7 +1307,7 @@ function SquadMembersTab({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-muted-foreground hover:text-amber-600 h-8 w-8 p-0"
+                        className="text-muted-foreground hover:text-warning h-8 w-8 p-0"
                         onClick={() => onSetLeader(m.member_id)}
                         disabled={setLeaderPending}
                         aria-label={t(($) => $.members_tab.make_leader_tooltip)}

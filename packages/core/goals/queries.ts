@@ -66,21 +66,6 @@ export function goalChildren(goals: Goal[], parentId: string | null): Goal[] {
   return goals.filter((g) => g.parent_goal_id === parentId);
 }
 
-/** Chain from the root goal down to goalId, cut at the first repeated id. */
-export function goalAncestry(goals: Goal[], goalId: string | null): Goal[] {
-  const byId = new Map(goals.map((g) => [g.id, g] as const));
-  const chain: Goal[] = [];
-  const seen = new Set<string>();
-  for (let id = goalId; id && !seen.has(id); ) {
-    const g = byId.get(id);
-    if (!g) break;
-    seen.add(id);
-    chain.unshift(g);
-    id = g.parent_goal_id;
-  }
-  return chain;
-}
-
 /** Done ratio in [0, 1]; 0 without issues. */
 export function goalProgress(goal: Pick<Goal, "issue_count" | "done_count">): number {
   return goal.issue_count > 0 ? Math.min(1, goal.done_count / goal.issue_count) : 0;

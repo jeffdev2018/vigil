@@ -5,9 +5,51 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestMigrationNumericPrefixesAreUnique(t *testing.T) {
+	files := migrationFilesForLint(t, "*.up.sql")
+
+	// Migrations through 128 contain historical duplicate numeric prefixes.
+	// From 129 onward, keep the numeric sequence unique so release tooling and
+	// operators can identify one schema change unambiguously by its number.
+	const firstUniqueMigrationNumber = 129
+	// This fork developed several features on parallel branches before the
+	// invariant above existed, and each pair below was already applied in
+	// deployed databases under the version string it carries. Renaming one of
+	// them now would make the runner treat an applied migration as pending and
+	// run it again, so they are pinned as known duplicates instead: any NEW
+	// collision still fails this test.
+	knownDuplicateNumbers := map[int]bool{
+		545: true, 891: true, 892: true, 893: true,
+		894: true, 901: true, 902: true, 910: true,
+	}
+	stemByNumber := make(map[int]string)
+	for _, file := range files {
+		stem, _, ok := splitMigrationFilename(filepath.Base(file))
+		if !ok {
+			continue
+		}
+		prefix, _, ok := strings.Cut(stem, "_")
+		if !ok {
+			continue
+		}
+		number, err := strconv.Atoi(prefix)
+		if err != nil || number < firstUniqueMigrationNumber {
+			continue
+		}
+		if previous, exists := stemByNumber[number]; exists {
+			if !knownDuplicateNumbers[number] {
+				t.Errorf("migrations %s and %s share numeric prefix %s", previous, stem, prefix)
+			}
+			continue
+		}
+		stemByNumber[number] = stem
+	}
+}
 
 func TestMigrationFilesHaveMatchingDirections(t *testing.T) {
 	files := migrationFilesForLint(t, "*.sql")

@@ -126,7 +126,7 @@ export function DingTalkConnectionLabel({
       )}
     >
       <span
-        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"
+        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success"
         aria-hidden="true"
       />
       <span className="inline-flex min-w-0 items-center">
@@ -184,12 +184,12 @@ export function DingTalkConnectionLabel({
                   <TooltipContent
                     side="top"
                     align="start"
-                    className="max-w-80 items-start whitespace-normal border-0 bg-surface-raised px-3 py-2 text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
+                    className="max-w-80 items-start whitespace-normal border-0 bg-surface-raised px-3 py-2 text-popover-foreground shadow-menu ring-1 ring-surface-border"
                   >
                     <span className="leading-relaxed">
                       {permissionTooltipPrefix}{" "}
                       <code
-                        className="rounded bg-muted px-1.5 py-0.5 font-mono text-micro text-foreground ring-1 ring-border"
+                        className="rounded-xs bg-muted px-1.5 py-0.5 font-mono text-micro text-foreground ring-1 ring-border"
                         translate="no"
                       >
                         {dingTalkChatManagePermission}
@@ -587,7 +587,7 @@ export function DingTalkTab() {
             <p className="text-body font-medium">{t(($) => $.dingtalk.not_enabled_title)}</p>
             <p className="text-caption text-muted-foreground">
               {t(($) => $.dingtalk.not_enabled_description_prefix)}{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-micro">
+              <code className="rounded-xs bg-muted px-1 py-0.5 text-micro">
                 MULTICA_DINGTALK_SECRET_KEY
               </code>{" "}
               {t(($) => $.dingtalk.not_enabled_description_suffix)}{" "}
@@ -601,13 +601,6 @@ export function DingTalkTab() {
             <h2 className="text-body font-semibold">
               {t(($) => $.dingtalk.connections_title)}
             </h2>
-            {!isLoading &&
-              displayedInstallations.length > 0 &&
-              groupDiscoverySupported && (
-              <p className="max-w-3xl text-caption leading-relaxed text-muted-foreground">
-                {t(($) => $.dingtalk.groups_overview_description)}
-              </p>
-            )}
           </div>
           {isLoading || (!canManage && agentsLoading) ? (
             <Card>
@@ -739,7 +732,7 @@ function InstallationRow({
             <h3 className="truncate text-title-sm font-medium text-pretty">
               {agentName}
               {!isActive && (
-                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
+                <span className="ml-2 rounded-xs bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
                   {t(($) => $.dingtalk.revoked_badge)}
                 </span>
               )}

@@ -349,6 +349,46 @@ func (q *Queries) ListEnabledAgentMcpServers(ctx context.Context, agentID pgtype
 	return items, nil
 }
 
+const listWorkspaceMcpServerAgents = `-- name: ListWorkspaceMcpServerAgents :many
+SELECT ams.server_id, array_agg(ams.agent_id::text ORDER BY ams.agent_id)::text[] AS agent_ids
+FROM agent_mcp_server ams
+JOIN workspace_mcp_server s ON s.id = ams.server_id
+JOIN agent a ON a.id = ams.agent_id AND a.archived_at IS NULL
+WHERE s.workspace_id = $1
+GROUP BY ams.server_id
+`
+
+type ListWorkspaceMcpServerAgentsRow struct {
+	ServerID pgtype.UUID `json:"server_id"`
+	AgentIds []string    `json:"agent_ids"`
+}
+
+// Which agents reach each server of one workspace, in ONE grouped pass over
+// the junction. The tools catalogue page needs both the per-server agent count
+// and the membership set (to grey out an agent that already has the server);
+// a workspace with 45 agents must not cost 45 queries to answer that.
+// Archived agents are left out: they cannot run, so counting them would
+// overstate who can reach a tool.
+func (q *Queries) ListWorkspaceMcpServerAgents(ctx context.Context, workspaceID pgtype.UUID) ([]ListWorkspaceMcpServerAgentsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceMcpServerAgents, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceMcpServerAgentsRow{}
+	for rows.Next() {
+		var i ListWorkspaceMcpServerAgentsRow
+		if err := rows.Scan(&i.ServerID, &i.AgentIds); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceMcpServers = `-- name: ListWorkspaceMcpServers :many
 SELECT id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at FROM workspace_mcp_server
 WHERE workspace_id = $1

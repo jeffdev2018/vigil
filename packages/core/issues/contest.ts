@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { usdFromTicks } from "./cockpit";
 
 // Contest (K72): a rival model challenges an agent output with numbered
 // objections, the author answers each, a human gives the verdict.
@@ -149,7 +150,7 @@ export function pairContestRows(c: Pick<Contest, "objections" | "answers">): { o
   return c.objections.map((o) => ({ objection: o, answer: byN.get(o.n) ?? null }));
 }
 
-/** USD from cost ticks (1 tick = 1e-6 USD), two decimals. */
+/** USD from cost ticks (1 tick = 1e-10 USD, see usdFromTicks), two decimals. */
 export function contestCostUsd(ticks: number): string {
-  return (ticks / 1_000_000).toFixed(2);
+  return (usdFromTicks(ticks) ?? 0).toFixed(2);
 }

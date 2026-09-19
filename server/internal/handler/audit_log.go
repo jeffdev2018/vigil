@@ -48,6 +48,14 @@ const (
 	// completion: the entry has to exist even when the daemon later refuses,
 	// because "someone tried to roll this back" is the fact being audited.
 	AuditWorktreeReverted = "worktree.reverted"
+	// AuditRunBranchAction (JEF-255) records who asked for a run's branch to be
+	// promoted or discarded. Written at request time, for the same reason as
+	// AuditWorktreeReverted: "someone asked to push/delete this branch" is the
+	// fact being audited, even when the daemon later refuses.
+	AuditRunBranchAction = "run_branch_action.requested"
+	// AuditRunBranchActionResult records the landed outcome of a completed
+	// request (and the PR a promote opened, when it did).
+	AuditRunBranchActionResult = "run_branch_action.completed"
 )
 
 type auditOpts struct {
@@ -296,10 +304,13 @@ func (h *Handler) ExportAuditLog(w http.ResponseWriter, r *http.Request) {
 	var cursorAt pgtype.Timestamptz
 	var cursorID pgtype.UUID
 	first := true
+	truncated := false
+	var truncationErr error
 	for {
 		rows, err := h.auditPage(r.Context(), wsUUID, f, cursorAt, cursorID, auditExportBatch)
 		if err != nil {
 			slog.Warn("audit log export failed", append(logger.RequestAttrs(r), "error", err)...)
+			truncated, truncationErr = true, err
 			break
 		}
 		for _, e := range rows {
@@ -326,6 +337,23 @@ func (h *Handler) ExportAuditLog(w http.ResponseWriter, r *http.Request) {
 		}
 		last := rows[len(rows)-1]
 		cursorAt, cursorID = last.OccurredAt, last.ID
+	}
+	if truncated {
+		// The 200 and every row so far are already on the wire, so the
+		// status/headers can't change; write a detectable sentinel instead
+		// of silently closing valid-looking output. A client (or a human
+		// staring at the file) that only checks "did it parse" would
+		// otherwise never learn the export is incomplete.
+		if cw != nil {
+			cw.Flush()
+			_, _ = w.Write([]byte(fmt.Sprintf("# EXPORT TRUNCATED: %s\n", truncationErr)))
+		} else {
+			if !first {
+				_, _ = w.Write([]byte(","))
+			}
+			b, _ := json.Marshal(map[string]any{"_export_truncated": true, "_export_error": truncationErr.Error()})
+			_, _ = w.Write(b)
+		}
 	}
 	if cw == nil {
 		_, _ = w.Write([]byte("]"))

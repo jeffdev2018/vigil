@@ -1,8 +1,10 @@
 package insight
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/util"
 )
@@ -430,5 +432,20 @@ func TestCycleTimeWarnsThatItIsNotTimeInStatus(t *testing.T) {
 	joined := strings.Join(compiled.Warnings, " ")
 	if !strings.Contains(joined, "status-transition history") {
 		t.Errorf("p50_cycle_time shipped without its v1 caveat: %v", compiled.Warnings)
+	}
+}
+
+// quoteForReason renders a rejected value in a browser-facing message — a
+// CJK value whose 40-byte cut lands mid-rune must not come back as invalid
+// UTF-8 once unquoted.
+func TestQuoteForReasonIsUTF8Safe(t *testing.T) {
+	long := strings.Repeat("中文混合内容ab测试", 20)
+	got := quoteForReason(long)
+	unquoted, err := strconv.Unquote(got)
+	if err != nil {
+		t.Fatalf("quoteForReason produced an unparseable quoted string: %v (%q)", err, got)
+	}
+	if !utf8.ValidString(unquoted) {
+		t.Fatalf("quoteForReason produced invalid UTF-8: %q", unquoted)
 	}
 }

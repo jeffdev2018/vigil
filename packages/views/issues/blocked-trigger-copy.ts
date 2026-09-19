@@ -23,6 +23,13 @@ import type { useT } from "../i18n";
 // sends the user to reconnect something that is already connected. The fix is a
 // reinstall on that machine, and the system comment the server leaves on the
 // issue carries the exact command.
+//
+// `runtime_profile_missing` is the fourth, and is split from `runtime_unusable`
+// on the same rule: the CLI there runs perfectly and is missing a runtime
+// profile (DSH's `multica` profile, which supplies the protocol Multica
+// drives). "Reinstall the CLI" copy sends the user to re-run an install that
+// was never broken; the fix is installing the profile.
+//
 // `a2a_depth_exceeded` and `a2a_budget_exceeded` (F19) are the two circuit
 // breakers on agent-to-agent messaging, and they are NOT permission verdicts:
 // the target was invocable, the chain was simply too long or the issue too busy.
@@ -41,6 +48,8 @@ export function blockedReasonLabel(reasonCode: string, t: IssuesT): string {
       return t(($) => $.comment.trigger_blocked_runtime_offline);
     case "runtime_unusable":
       return t(($) => $.comment.trigger_blocked_runtime_unusable);
+    case "runtime_profile_missing":
+      return t(($) => $.comment.trigger_blocked_runtime_profile_missing);
     case "agent_runtime_required":
       return t(($) => $.comment.trigger_blocked_agent_runtime_required);
     case "budget_exceeded":
@@ -66,6 +75,8 @@ export function blockedShortReasonLabel(reasonCode: string, t: IssuesT): string 
       return t(($) => $.comment.trigger_blocked_short_runtime_offline);
     case "runtime_unusable":
       return t(($) => $.comment.trigger_blocked_short_runtime_unusable);
+    case "runtime_profile_missing":
+      return t(($) => $.comment.trigger_blocked_short_runtime_profile_missing);
     case "agent_runtime_required":
       return t(($) => $.comment.trigger_blocked_short_agent_runtime_required);
     case "budget_exceeded":

@@ -20,7 +20,7 @@ import {
   type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import type { InsightQuery, InsightRow } from "@multica/core/insights";
-import { insightLabelKey, resolveInsightShape } from "@multica/core/insights";
+import { insightLabelKey, insightRowValue, resolveInsightShape } from "@multica/core/insights";
 import { useT } from "../../i18n";
 
 /**
@@ -50,6 +50,11 @@ export interface InsightChartProps {
 }
 
 interface ChartDatum {
+  // Row position — distinct from fullLabel, which two rows can legitimately
+  // share (e.g. two custom statuses both named "Other"). Used as the React
+  // key everywhere this shape is rendered (donut slices, legend, bar cells,
+  // table rows) so colliding labels don't collapse into one DOM node.
+  id: number;
   label: string;
   fullLabel: string;
   value: number;
@@ -65,8 +70,9 @@ export function InsightChart({ query, rows, shape, emptyLabel }: InsightChartPro
     return rows.map((row, index) => {
       const raw = labelKey ? row[labelKey] : null;
       const fullLabel = raw === null || raw === undefined ? "—" : String(raw);
-      const value = typeof row["value"] === "number" ? row["value"] : 0;
+      const value = insightRowValue(row) ?? 0;
       return {
+        id: index,
         label: truncate(fullLabel, MAX_AXIS_LABEL),
         fullLabel,
         value,
@@ -134,7 +140,7 @@ export function InsightChart({ query, rows, shape, emptyLabel }: InsightChartPro
             <ChartTooltip content={<ChartTooltipContent nameKey="fullLabel" />} />
             <Pie data={data} dataKey="value" nameKey="fullLabel" innerRadius="55%">
               {data.map((datum) => (
-                <Cell key={datum.fullLabel} fill={datum.fill} />
+                <Cell key={datum.id} fill={datum.fill} />
               ))}
             </Pie>
           </PieChart>
@@ -143,7 +149,7 @@ export function InsightChart({ query, rows, shape, emptyLabel }: InsightChartPro
             wrapping one that pushes the chart off the card. */}
         <ul className="max-h-40 min-w-0 flex-1 overflow-y-auto text-caption">
           {data.map((datum) => (
-            <li key={datum.fullLabel} className="flex items-center gap-2 py-0.5">
+            <li key={datum.id} className="flex items-center gap-2 py-0.5">
               <span
                 aria-hidden="true"
                 className="size-2 shrink-0 rounded-full"
@@ -169,7 +175,7 @@ export function InsightChart({ query, rows, shape, emptyLabel }: InsightChartPro
         <ChartTooltip content={<ChartTooltipContent nameKey="fullLabel" />} />
         <Bar dataKey="value" radius={[3, 3, 0, 0]}>
           {data.map((datum) => (
-            <Cell key={datum.fullLabel} fill={datum.fill} />
+            <Cell key={datum.id} fill={datum.fill} />
           ))}
         </Bar>
       </BarChart>
@@ -187,7 +193,7 @@ function InsightTable({ data }: { data: ChartDatum[] }) {
         </caption>
         <tbody>
           {data.map((datum) => (
-            <tr key={datum.fullLabel} className="border-b last:border-0">
+            <tr key={datum.id} className="border-b last:border-0">
               <td className="max-w-0 truncate py-1 pr-2" title={datum.fullLabel}>
                 {datum.fullLabel}
               </td>

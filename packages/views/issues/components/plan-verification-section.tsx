@@ -11,6 +11,13 @@ import {
   sortPlanFindings,
 } from "@multica/core/issues/plan";
 import type { IssuePlan, PlanFinding, PlanVerification } from "@multica/core/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { useT, useTimeAgo } from "../../i18n";
 import { PlanGateBlock } from "./plan-gate-block";
@@ -61,18 +68,25 @@ export function PlanVerificationSection({ issueId }: { issueId: string }) {
           <div className="flex items-center gap-2 text-muted-foreground">
             <span>{t(($) => $.plan_verification.plan_version, { version: shown.version })}</span>
             {envelope.versions.length > 1 && (
-              <select
-                aria-label={t(($) => $.plan_verification.version_picker)}
-                className="rounded border bg-background px-1 py-0.5 text-caption"
+              <Select
+                items={envelope.versions.map((v) => ({
+                  value: v.version,
+                  label: `v${v.version}${v.superseded_at ? ` · ${t(($) => $.plan_verification.superseded)}` : ""}`,
+                }))}
                 value={shown.version}
-                onChange={(e) => setVersion(Number(e.target.value))}
+                onValueChange={(value) => value !== null && setVersion(value)}
               >
-                {envelope.versions.map((v) => (
-                  <option key={v.id} value={v.version}>
-                    {`v${v.version}${v.superseded_at ? ` · ${t(($) => $.plan_verification.superseded)}` : ""}`}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger size="sm" aria-label={t(($) => $.plan_verification.version_picker)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {envelope.versions.map((v) => (
+                    <SelectItem key={v.id} value={v.version}>
+                      {`v${v.version}${v.superseded_at ? ` · ${t(($) => $.plan_verification.superseded)}` : ""}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-sans text-caption">

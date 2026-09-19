@@ -1,0 +1,72 @@
+---
+title: Calendar
+description: Events with members and agents as participants, an agenda that joins issue due dates, cycles and meetings, free-slot finding, proposals agents make and people accept, an ICS feed and Google Calendar.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+The workspace has a calendar of its own. An **event** has a title, a time window in a timezone, an optional place, an optional issue or project it serves, and **participants** who are members or agents — an agent attends a review the way a person does, and its runs know about it.
+
+## The page
+
+**Calendar** in the sidebar shows the month or the week. Each day carries the workspace's events, the **issues due** that day, the **cycles** running through it and the **meetings** that were recorded; click an event to see who is in, answer your own attendance (accepted, declined, tentative), move it or cancel it. A cancelled event stays visible as cancelled so a subscribed feed learns it is off.
+
+The **agenda** view is the same content as a list — plus the **scheduled wake-ups** of the same window — and `GET /api/calendar/agenda` gives it to scripts.
+
+## Proposals
+
+An agent cannot put anything on anybody's calendar by itself. From a run — the native runtime's `propose_event` tool, the MCP `vigil_calendar` tool, or `multica calendar propose` — an agent files the event as **proposed** on the issue it works on, with a Decision Card the issue's people see wherever they [decide things](/decisions#where-you-answer): the issue timeline, the inbox, the chat, the phone, Slack, Telegram or Lark. **Accept** schedules it and invites the participants; **Decline** cancels it.
+
+Agents are told to read the agenda and ask for free slots before proposing, and to propose once.
+
+## Scheduled wake-ups
+
+A **follow-up** is an agent coming back to an issue at a chosen time, carrying a note about what to do then — the one-shot cousin of an [autopilot](/autopilots). The agenda carries them next to everything else dated: `GET /api/calendar/agenda` returns a `followups` array with the issue, the agent, the firing time and the note, so a wake-up is visible beside the events and due dates of the same day.
+
+```bash
+multica issue followup ONE-42 --when "+90" --note "check the deploy"
+multica issue followups ONE-42
+multica issue followup-cancel ONE-42 <followup-id>
+```
+
+`--when` takes an RFC 3339 instant or `+<minutes>` from now, between 1 minute and 30 days away. A follow-up also shows on the issue and in the runs list, as a run blocked on *deferred* whose blocker summary is the note, and anyone who can see the issue can cancel it before it fires. [The native runtime](/native-runtime) documents the tools a run uses for this and the daily budget that keeps a wake-up from becoming a loop.
+
+## Free slots
+
+**Find a slot** (or `GET /api/calendar/slots`) takes participants, a duration and a window and returns the first windows every one of them can make: members inside 09:00–18:00 on weekdays in the asked timezone and outside their events; agents outside their events at any hour.
+
+## Invitations and reminders
+
+A member invited to a scheduled event gets an inbox item and a push; moving the event re-invites. Fifteen minutes before an event starts, every participant who has not declined gets a reminder in the inbox and on the phone.
+
+## Your ICS feed
+
+**Settings → Calendar → Subscribe from your calendar app** mints a private URL (`/api/calendar/ics/<token>`) that Apple Calendar, Google Calendar or Outlook can subscribe to. It carries the events you take part in or created, for the past month and the year ahead, with cancelled ones marked. The URL is the credential: minting again rotates it, revoking kills it.
+
+<Callout title="Two directions, two settings">
+The **feed you subscribe to** (an external ICS Multica reads to name your meetings) lives under **Settings → Meetings**. The **feed Multica publishes** for you is this one.
+</Callout>
+
+## Google Calendar
+
+With the `googlecalendar` toolkit connected under **Settings → Integrations → Composio**, **Import from Google** pulls your Google events for a window into the workspace calendar (source *google*, keyed by their id, so a second import updates instead of duplicating), and an event you schedule here is mirrored to your Google calendar. Agents never touch Google directly for this: both moves run server-side through your own connection.
+
+## Tools and CLI
+
+- Native runtime: `list_events`, `find_slot`, `propose_event`.
+- MCP: `vigil_calendar` with actions `events`, `agenda`, `slots`, `propose`.
+- CLI: `multica calendar agenda | events | slots | propose`, and `multica issue followup | followups | followup-cancel` for the wake-ups the agenda shows.
+
+## API
+
+- `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`, `POST /api/calendar/events`, `GET/PUT/DELETE /api/calendar/events/{id}`, `POST /api/calendar/events/{id}/respond {response}`.
+- `GET /api/calendar/agenda?from&to` (events, issue due dates, cycles, meetings and the window's `followups`), `GET /api/calendar/slots?participants&duration&from&to&tz`.
+- `POST /api/issues/{id}/followups {when, note?, agent_id?}`, `GET /api/issues/{id}/followups`, `DELETE /api/issues/{id}/followups/{followupId}`; realtime event `followup:changed`.
+- `GET/POST/DELETE /api/calendar/feed-token`, public `GET /api/calendar/ics/{token}`.
+- `POST /api/calendar/google/import {from, to}`.
+- Events `calendar:changed` keep an open page current; inbox types `calendar_invitation` and `calendar_reminder`.
+
+## Next steps
+
+- [Decisions](/decisions) — where a proposal is accepted.
+- [Meetings](/meetings) — the recorded meetings the agenda shows.

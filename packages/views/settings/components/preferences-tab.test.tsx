@@ -86,11 +86,15 @@ vi.mock("@multica/core/auth", async () => {
   return { ...actual, useAuthStore };
 });
 
-// The calendar subscription is server state with its own suite
-// (calendar-feed-section.test.tsx). This tab test owns theme, language,
+// The calendar subscription and the calendar-publish blocks are server state
+// with their own suites (calendar-feed-section.test.tsx,
+// calendar-publish-section.test.tsx). This tab test owns theme, language,
 // timezone and the sticky bar, and mounts without a QueryClientProvider.
 vi.mock("./calendar-feed-section", () => ({
   CalendarFeedSection: () => null,
+}));
+vi.mock("./calendar-publish-section", () => ({
+  CalendarPublishSection: () => null,
 }));
 
 import { PreferencesTab } from "./preferences-tab";
@@ -154,73 +158,82 @@ describe("PreferencesTab — Language switcher", () => {
     expect(mockToastSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it("when not logged in: persists + reloads, no PATCH", async () => {
+  it("when not logged in: persists and switches in place, no PATCH, no reload", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
-    await pickLanguage(user, "한국어");
+    await pickLanguage(user, "Français");
 
-    expect(mockPersist).toHaveBeenCalledWith("ko");
+    expect(mockPersist).toHaveBeenCalledWith("fr");
     expect(mockUpdateMe).not.toHaveBeenCalled();
-    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+    // The page is already in French, and the confirmation reads in French.
+    expect(await screen.findByRole("combobox", { name: "Langue" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Langue mise à jour sur cet appareil. Vos autres appareils gardent la leur.",
+        expect.anything(),
+      ),
+    );
+    act(() => vi.advanceTimersByTime(3000));
     expect(mockReload).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(900));
-    expect(mockReload).toHaveBeenCalledTimes(1);
     expect(mockToastWarning).not.toHaveBeenCalled();
   });
 
-  it("when not logged in: selecting Japanese persists ja + reloads, no PATCH", async () => {
+  it("when logged in + PATCH success: saves to the account without reloading", async () => {
+    userRef.current = { id: "user-1" };
+    const updated = { id: "user-1", language: "ja" };
+    mockUpdateMe.mockResolvedValueOnce(updated);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
     await pickLanguage(user, "日本語");
 
     expect(mockPersist).toHaveBeenCalledWith("ja");
-    expect(mockUpdateMe).not.toHaveBeenCalled();
-    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
-    expect(mockReload).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(900));
-    expect(mockReload).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalledWith({ language: "ja" }));
+    await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(updated));
     expect(mockToastWarning).not.toHaveBeenCalled();
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
-  it("when logged in + PATCH success: confirms the save before reloading", async () => {
+  // Every locale takes the same road; upstream reloaded here, this fork
+  // switches in place, so the account write is the whole observable effect.
+  it.each([
+    { name: "中文", locale: "zh-Hans" },
+    { name: "Français", locale: "fr" },
+  ])("when logged in: saves $locale without reloading", async ({ name, locale }) => {
     userRef.current = { id: "user-1" };
     mockUpdateMe.mockResolvedValueOnce({});
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
-    await pickLanguage(user, "中文");
+    await pickLanguage(user, name);
 
-    expect(mockPersist).toHaveBeenCalledWith("zh-Hans");
-    expect(mockUpdateMe).toHaveBeenCalledWith({ language: "zh-Hans" });
+    expect(mockPersist).toHaveBeenCalledWith(locale);
+    await waitFor(() => expect(mockUpdateMe).toHaveBeenCalledWith({ language: locale }));
     expect(mockToastWarning).not.toHaveBeenCalled();
     expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(3000));
     expect(mockReload).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(900));
-    expect(mockReload).toHaveBeenCalledTimes(1);
   });
 
-  it("when logged in + PATCH fails: shows toast and delays reload by 2.5s", async () => {
+  it("when logged in + PATCH fails: warns in the new language, keeps it, no reload", async () => {
     userRef.current = { id: "user-1" };
     mockUpdateMe.mockRejectedValueOnce(new Error("network"));
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
-    await pickLanguage(user, "中文");
+    await pickLanguage(user, "Français");
 
-    // Local persist still happened so the reload below sees the new locale.
-    expect(mockPersist).toHaveBeenCalledWith("zh-Hans");
-    expect(mockUpdateMe).toHaveBeenCalledWith({ language: "zh-Hans" });
-    // Toast surfaced the sync failure.
-    expect(mockToastWarning).toHaveBeenCalledTimes(1);
-    // Reload deferred so the toast is visible.
+    expect(mockPersist).toHaveBeenCalledWith("fr");
+    await waitFor(() =>
+      expect(mockToastWarning).toHaveBeenCalledWith(
+        "Langue enregistrée sur cet appareil, mais la synchronisation avec votre compte a échoué. Vos autres appareils peuvent afficher la langue précédente.",
+      ),
+    );
+    act(() => vi.advanceTimersByTime(3000));
     expect(mockReload).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(2500);
-    });
-    expect(mockReload).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -343,7 +356,7 @@ describe("PreferencesTab — Sticky comment bar", () => {
     const user = userEvent.setup();
     render(<PreferencesTab />, { wrapper: I18nWrapper });
 
-    const toggle = screen.getByRole("switch", { name: "Sticky comment bar" });
+    const toggle = screen.getByRole("switch", { name: "Pin comment bar to bottom" });
     expect(toggle).toHaveAttribute("aria-checked", "true");
 
     await user.click(toggle);

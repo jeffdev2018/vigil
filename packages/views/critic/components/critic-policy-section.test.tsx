@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CriticPolicy } from "@multica/core/critic";
 import { renderWithI18n } from "../../test/i18n";
@@ -64,6 +65,9 @@ beforeEach(() => {
   state.saved = [];
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("CriticPolicySection", () => {
   it("hides the settings while the policy is off", async () => {
     state.policy = policy();
@@ -100,9 +104,10 @@ describe("CriticPolicySection", () => {
   it("never offers the subject agent, nor an archived one, as its critic", async () => {
     state.policy = policy({ enabled: true, critic_agent_id: "a2" });
     render();
-    const select = await screen.findByTestId("critic-agent");
-    const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"));
-    expect(values).toEqual(["", "a2"]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("critic-agent"));
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual(["Choose an agent", "Critic"]);
   });
 
   it("sends the whole policy, with the budget converted to ticks", async () => {
@@ -134,7 +139,9 @@ describe("CriticPolicySection", () => {
     render("squad", "s1");
     await screen.findByTestId("critic-policy");
     expect(screen.queryByTestId("critic-error")).toBeNull();
-    const values = Array.from(screen.getByTestId("critic-agent").querySelectorAll("option")).map((o) => o.getAttribute("value"));
-    expect(values).toEqual(["", "a1", "a2"]);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("critic-agent"));
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual(["Choose an agent", "Author", "Critic"]);
   });
 });

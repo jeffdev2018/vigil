@@ -47,19 +47,3 @@ func TestNormalizeTitleMatchesIssueDuplicateGuard(t *testing.T) {
 		t.Fatalf("normalization disagrees with itself: %q vs %q", a, b)
 	}
 }
-
-func TestContentDigestStableAndDistinct(t *testing.T) {
-	same := ContentDigest("Title", []byte(`{"a":1}`))
-	if same != ContentDigest("Title", []byte(`{"a":1}`)) {
-		t.Fatal("digest of identical content differs")
-	}
-	if same == ContentDigest("Title", []byte(`{"a":2}`)) {
-		t.Fatal("digest collides across different payloads")
-	}
-	if same == ContentDigest("Other", []byte(`{"a":1}`)) {
-		t.Fatal("digest collides across different titles")
-	}
-	if len(same) != 64 {
-		t.Fatalf("digest length = %d, want a sha256 hex (64)", len(same))
-	}
-}

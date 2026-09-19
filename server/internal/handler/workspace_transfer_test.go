@@ -308,3 +308,145 @@ func TestTransferScrub(t *testing.T) {
 		t.Fatal("garbage becomes an empty object; token shapes are masked in text")
 	}
 }
+
+// The doctrine is human-only on every door (PUT /api/workspace/doctrine,
+// PUT /api/workspace context). An import bundle carrying doctrine, or a new
+// workspace seeded from a pack or template, must refuse a machine
+// credential the same way.
+func TestTransferDoctrineRefusesMachineActors(t *testing.T) {
+	doctrineCleanup(t)
+	data, err := zipTransferBundle(&transferBundle{Manifest: transferManifest{FormatVersion: transferFormatVersion, Name: "machine rules"}, Doctrine: "Ship on Fridays."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := transferMultipart(t, testWorkspaceID, "/api/workspace-transfer/import", data, map[string]string{"strategy": "merge"})
+	req.Header.Set("X-Actor-Source", "task_token")
+	testutil.Call(t, testHandler.ImportWorkspace, req).Want(http.StatusForbidden)
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM workspace_doctrine_version WHERE workspace_id = $1`, testWorkspaceID); n != 0 {
+		t.Fatalf("a machine import published %d doctrine versions", n)
+	}
+	seed := newRequest(http.MethodPost, "/api/workspaces", map[string]any{"name": "Machine seed", "slug": "machine-seed-" + uuid.NewString()[:8], "pack_id": "helpdesk-it"})
+	seed.Header.Set("X-Actor-Source", "cloud_pat")
+	testutil.Call(t, testHandler.CreateWorkspace, seed).Want(http.StatusForbidden)
+}
+
+// TestImportAutopilotSquadAssigneeIsSkippedInsteadOfCrashing covers the
+// audit finding that a squad-assigned autopilot's AssigneeID resolved to an
+// invalid pgtype.UUID on import (squads are not part of the transfer
+// bundle), which pgx encodes as SQL NULL against autopilot.assignee_id's
+// NOT NULL constraint — CreateAutopilot then failed and rolled back the
+// whole import. autopilot.assignee_type only accepts 'agent' or 'squad'
+// (migration 096), so there is no "assign it to the importer" fallback
+// available; the fix skips importing this one autopilot with a warning
+// instead of crashing the whole import.
+func TestImportAutopilotSquadAssigneeIsSkippedInsteadOfCrashing(t *testing.T) {
+	ctx := context.Background()
+	wsID := dbfx.Workspace(t, "squad autopilot import", "squad-autopilot-"+uuid.NewString()[:8])
+	dbfx.Member(t, wsID, testUserID, "owner")
+	wsUUID := parseUUID(wsID)
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM autopilot WHERE workspace_id = $1`, wsID)
+		testPool.Exec(ctx, `DELETE FROM workspace_transfer_run WHERE workspace_id = $1`, wsID)
+		testPool.Exec(ctx, `DELETE FROM workspace WHERE id = $1`, wsID)
+	})
+
+	b := &transferBundle{
+		Manifest: transferManifest{Name: "squad autopilot bundle"},
+		Autopilots: []transferAutopilot{{
+			Title: "Squad-owned autopilot", AssigneeType: "squad", AssigneeAgent: "Some Squad", ExecutionMode: "create_issue",
+		}},
+	}
+	report, _, err := testHandler.importTransferBundle(ctx, wsUUID, b, transferStrategyRename, map[string]map[string]string{}, parseUUID(testUserID), []byte("fixture"))
+	if err != nil {
+		t.Fatalf("importTransferBundle must not fail on a squad-assigned autopilot: %v", err)
+	}
+	if report.Created["autopilots"] != 0 {
+		t.Fatalf("created autopilots = %+v, want 0 (unimportable, not fabricated)", report.Created)
+	}
+	foundWarning := false
+	for _, w := range report.Warnings {
+		if strings.Contains(w, "squad") {
+			foundWarning = true
+		}
+	}
+	if !foundWarning {
+		t.Fatalf("warnings = %v, want one naming the squad autopilot as not imported", report.Warnings)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM autopilot WHERE workspace_id = $1`, wsID); n != 0 {
+		t.Fatalf("autopilot rows = %d, want 0", n)
+	}
+}
+
+// TestImportAutopilotMergeStrategyUpdatesExistingRow covers the audit
+// finding that autopilots had no `merge` branch in the import switch: every
+// structural sibling (projects, permission profiles, skills, agents, triage
+// sources) does, but a re-import with strategy=merge silently reported an
+// existing autopilot as "skipped" instead of updating it, indistinguishable
+// from an intentional skip.
+func TestImportAutopilotMergeStrategyUpdatesExistingRow(t *testing.T) {
+	ctx := context.Background()
+	wsID := dbfx.Workspace(t, "merge autopilot import", "merge-autopilot-"+uuid.NewString()[:8])
+	dbfx.Member(t, wsID, testUserID, "owner")
+	wsUUID := parseUUID(wsID)
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM autopilot WHERE workspace_id = $1`, wsID)
+		testPool.Exec(ctx, `DELETE FROM agent WHERE workspace_id = $1`, wsID)
+		testPool.Exec(ctx, `DELETE FROM workspace_transfer_run WHERE workspace_id = $1`, wsID)
+		testPool.Exec(ctx, `DELETE FROM workspace WHERE id = $1`, wsID)
+	})
+
+	b := &transferBundle{
+		Manifest: transferManifest{Name: "merge autopilot bundle"},
+		Agents: []transferAgent{{
+			Name: "Reviewer", Instructions: "Review things.", TrustMode: "propose", EffectMode: "apply", Visibility: "workspace",
+			ConversationStarters: json.RawMessage("[]"), RuntimeConfig: json.RawMessage("{}"), McpConfig: json.RawMessage("{}"), CustomArgs: json.RawMessage("[]"),
+		}},
+		Autopilots: []transferAutopilot{{
+			Title: "Weekly review", Description: "v1", ExecutionMode: "create_issue", AssigneeType: "agent", AssigneeAgent: "Reviewer",
+		}},
+	}
+	if _, _, err := testHandler.importTransferBundle(ctx, wsUUID, b, transferStrategyRename, map[string]map[string]string{}, parseUUID(testUserID), []byte("v1")); err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM autopilot WHERE workspace_id = $1`, wsID); n != 1 {
+		t.Fatalf("autopilots after first import = %d, want 1", n)
+	}
+
+	b.Autopilots[0].Description = "v2"
+	report, _, err := testHandler.importTransferBundle(ctx, wsUUID, b, transferStrategyMerge, map[string]map[string]string{}, parseUUID(testUserID), []byte("v2"))
+	if err != nil {
+		t.Fatalf("merge import: %v", err)
+	}
+	if report.Merged["autopilots"] != 1 {
+		t.Fatalf("merged autopilots = %+v, want 1", report.Merged)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM autopilot WHERE workspace_id = $1`, wsID); n != 1 {
+		t.Fatalf("autopilots after merge import = %d, want 1 (updated in place, not duplicated)", n)
+	}
+	var desc string
+	dbfx.QueryRow(t, `SELECT description FROM autopilot WHERE workspace_id = $1 AND title = $2`, wsID, "Weekly review").Scan(&desc)
+	if desc != "v2" {
+		t.Fatalf("description after merge = %q, want %q", desc, "v2")
+	}
+}
+
+// TestValidateTransferBundleNormalizesRejectStatusKeyCasing guards a real
+// bug: validateTransferBundle compared a transition rule's raw, unnormalized
+// reject_status_key against statusKeys, whose entries are always lower-cased
+// (via statusKeyOf / issuestatus.Canonical). A bundle authored with
+// "reject_status_key": "Blocked" was falsely rejected even though "blocked"
+// is a valid built-in status. Pure function, no DB.
+func TestValidateTransferBundleNormalizesRejectStatusKeyCasing(t *testing.T) {
+	b := &transferBundle{
+		Manifest: transferManifest{FormatVersion: transferFormatVersion, Name: "casing test"},
+		TransitionRules: []transferTransition{
+			{ToCategory: "done", RejectStatusKey: "Blocked", Enabled: true},
+		},
+	}
+	problems := validateTransferBundle(b)
+	for _, p := range problems {
+		if strings.Contains(p, "reject_status_key") {
+			t.Fatalf("validateTransferBundle falsely rejected a differently-cased built-in reject_status_key: %v", problems)
+		}
+	}
+}

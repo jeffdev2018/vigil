@@ -46,6 +46,10 @@ func splitShellSegments(command string) ([]string, bool) {
 			if c == '$' && i+1 < len(command) && command[i+1] == '(' {
 				return nil, false
 			}
+			// Process substitution `<(cmd)` / `>(cmd)` runs cmd as well.
+			if (c == '<' || c == '>') && i+1 < len(command) && command[i+1] == '(' {
+				return nil, false
+			}
 			if c == '`' {
 				return nil, false
 			}
@@ -63,6 +67,10 @@ func splitShellSegments(command string) ([]string, bool) {
 		case c == '`':
 			return nil, false
 		case c == '$' && i+1 < len(command) && command[i+1] == '(':
+			return nil, false
+		case (c == '<' || c == '>') && i+1 < len(command) && command[i+1] == '(':
+			// Process substitution: `git log <(sh -c ...)` runs the inner
+			// command whatever the allowlist says about `git log`.
 			return nil, false
 		case c == '&' || c == '|':
 			// && and || start a command; a single & backgrounds one; a single

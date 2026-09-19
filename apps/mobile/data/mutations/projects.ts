@@ -107,19 +107,13 @@ export function useDeleteProject(projectId: string) {
   return useMutation({
     mutationKey: ["deleteProject", projectId] as const,
     mutationFn: () => api.deleteProject(projectId),
-    onMutate: async () => {
-      const listKey = projectKeys.list(wsId);
-      await qc.cancelQueries({ queryKey: listKey });
-      const prevList = qc.getQueryData<Project[]>(listKey);
-      qc.setQueryData<Project[]>(listKey, (old) =>
+    // No optimistic removal: delete is a confirm/cleanup flow (root
+    // CLAUDE.md "State Rules" — await the server, never optimistically
+    // remove an entity). List is patched only once the server confirms.
+    onSuccess: () => {
+      qc.setQueryData<Project[]>(projectKeys.list(wsId), (old) =>
         old ? old.filter((p) => p.id !== projectId) : old,
       );
-      return { prevList, listKey };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prevList !== undefined) {
-        qc.setQueryData(ctx.listKey, ctx.prevList);
-      }
     },
     onSettled: () => {
       qc.removeQueries({ queryKey: projectKeys.detail(wsId, projectId) });

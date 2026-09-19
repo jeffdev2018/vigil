@@ -168,7 +168,7 @@ func (h *Handler) CreateBudgetPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req createBudgetPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -213,7 +213,7 @@ func (h *Handler) UpdateBudgetPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req updateBudgetPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -290,7 +290,7 @@ func (h *Handler) CreateBudgetOverride(w http.ResponseWriter, r *http.Request) {
 		Reason        string `json:"reason"`
 		DurationHours int    `json:"duration_hours"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

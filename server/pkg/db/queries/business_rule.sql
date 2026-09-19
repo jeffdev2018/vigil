@@ -72,6 +72,20 @@ SELECT COUNT(*) FROM issue_to_label WHERE issue_id = $1;
 -- name: CountIssuePullRequests :one
 SELECT COUNT(*) FROM issue_vcs_pull_request WHERE issue_id = $1;
 
+-- name: CountIssueLabelsByIssueIDs :many
+-- Batch variant of CountIssueLabels for DryRunBusinessRule, which otherwise
+-- calls the single-issue count once per issue in the review page (up to 100).
+-- An issue with zero labels has no row here; the caller defaults to 0.
+SELECT issue_id, COUNT(*) AS count FROM issue_to_label
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+GROUP BY issue_id;
+
+-- name: CountIssuePullRequestsByIssueIDs :many
+-- Batch variant of CountIssuePullRequests; see CountIssueLabelsByIssueIDs.
+SELECT issue_id, COUNT(*) AS count FROM issue_vcs_pull_request
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+GROUP BY issue_id;
+
 -- name: ListWorkspaceIssuesInReview :many
 SELECT issue.* FROM issue
 WHERE issue.workspace_id = $1

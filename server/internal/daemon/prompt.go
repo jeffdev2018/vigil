@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"strings"
 
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
@@ -67,9 +69,22 @@ func perTurnContextBlocks(task Task, opts promptOpts) string {
 	if task.PriorSessionResumeUnavailable {
 		b.WriteString(sessionContinuityNoticeFor(task))
 	}
+	b.WriteString(buildBlockSensitiveFilesBlock(task))
 	b.WriteString(execenv.BuildTaskInitiatorBlock(task.InitiatorType, task.InitiatorName, task.InitiatorEmail))
 	b.WriteString(execenv.BuildConnectedAppsBlock(task.ConnectedApps))
 	return b.String()
+}
+
+// buildBlockSensitiveFilesBlock (JEF-256) is the sandbox policy's .env read
+// block as prompt text. Claude additionally gets CLI deny rules through
+// applyPermissionProfile; on providers with no read-deny surface — Codex
+// above all — this note and container mode are the enforcement, so it is
+// rendered for every provider, not as a fallback.
+func buildBlockSensitiveFilesBlock(task Task) string {
+	if task.Sandbox == nil || !task.Sandbox.BlockSensitiveFiles {
+		return ""
+	}
+	return permissionprofile.BlockSensitiveFilesPromptSection()
 }
 
 // promptOpts carries per-run facts the claimed Task does not: things only the
@@ -224,6 +239,10 @@ func buildPromptBody(task Task, provider string) string {
 		fmt.Fprintf(&b, "This run resumes automatically after an infrastructure interruption. The previous attempt reached transcript message %d on the same session: continue from where it stopped and do not redo completed steps.\n\n", task.ResumeFromCheckpointSeq)
 	}
 	b.WriteString(renderHandoffPacket(task.HandoffPacket))
+	// Goal loop: the chain's memory, same words the native runtime reads.
+	if task.Goal != nil {
+		b.WriteString(goalstate.Render(task.Goal) + "\n")
+	}
 	fmt.Fprintf(&b, "Start by running `multica issue get %s --output json` to understand your task, then complete it.\n", task.IssueID)
 	// Workflow step 2 owns the catch-up rule for every issue turn; this line
 	// only hands over the commands. It used to add "(assignment-triggered tasks
@@ -424,7 +443,7 @@ func buildCommentPrompt(task Task, provider string) string {
 			//   - A retry inherits the previous attempt's coalesced_comment_ids
 			//     verbatim (queries/agent.sql RetryTask), while the anchor is
 			//     recomputed from the last STARTED task's started_at
-			//     (GetLastTaskStartedAtForIssueAndAgent). An inherited id can
+			//     (the resumed run, via GetLastTaskSession). An inherited id can
 			//     therefore predate the anchor.
 			//   - The anchor is only populated when some comment landed after it,
 			//     which is independent of where these ids sit.
@@ -440,7 +459,16 @@ func buildCommentPrompt(task Task, provider string) string {
 				task.IssueID)
 		}
 	}
-	fmt.Fprintf(&b, "Start by running `multica issue get %s --output json` to understand your task, then decide how to proceed.\n\n", task.IssueID)
+	// Issue-reading pointer (MUL-7344). Same gate as the comment hint below —
+	// `resumed` is computed once for both, so one turn can never claim the
+	// session is warm enough to skip the issue read while treating it as cold
+	// for comments. On anything but a real resume with a server-computed
+	// comparison this renders the unconditional read, byte for byte.
+	resumed := task.PriorSessionID != "" && !task.PriorSessionResumeUnavailable
+	b.WriteString(execenv.BuildIssueStateHint(
+		task.IssueID, task.IssueStatus, task.IssueAssigneeType, task.IssueAssigneeID,
+		task.IssueChangedFields, task.IssueStateDeltaKnown, resumed,
+	))
 	// Comment-reading pointer. Which hint renders is decided by whether this
 	// run actually RESUMES a provider session, and only then by the new-comment
 	// delta — never by the delta alone.
@@ -475,7 +503,7 @@ func buildCommentPrompt(task Task, provider string) string {
 	// that; these hints carry this turn's facts and exact commands. Final
 	// fallback (no trigger id, shouldn't happen here): plain read.
 	var hint string
-	if task.PriorSessionID != "" && !task.PriorSessionResumeUnavailable {
+	if resumed {
 		hint = execenv.BuildNewCommentsHint(task.IssueID, task.TriggerCommentID, task.TriggerThreadID, task.NewCommentsSince, task.NewCommentCount)
 		if hint == "" {
 			if task.NewCommentsDeltaKnown {

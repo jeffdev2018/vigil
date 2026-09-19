@@ -12,20 +12,21 @@ import (
 )
 
 const createTaskMessage = `-- name: CreateTaskMessage :one
-INSERT INTO task_message (id, task_id, seq, type, tool, content, input, output)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, task_id, seq, type, tool, content, input, output, created_at
+INSERT INTO task_message (id, task_id, seq, type, tool, content, input, output, output_truncated)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, task_id, seq, type, tool, content, input, output, created_at, output_truncated
 `
 
 type CreateTaskMessageParams struct {
-	ID      pgtype.UUID `json:"id"`
-	TaskID  pgtype.UUID `json:"task_id"`
-	Seq     int32       `json:"seq"`
-	Type    string      `json:"type"`
-	Tool    pgtype.Text `json:"tool"`
-	Content pgtype.Text `json:"content"`
-	Input   []byte      `json:"input"`
-	Output  pgtype.Text `json:"output"`
+	ID              pgtype.UUID `json:"id"`
+	TaskID          pgtype.UUID `json:"task_id"`
+	Seq             int32       `json:"seq"`
+	Type            string      `json:"type"`
+	Tool            pgtype.Text `json:"tool"`
+	Content         pgtype.Text `json:"content"`
+	Input           []byte      `json:"input"`
+	Output          pgtype.Text `json:"output"`
+	OutputTruncated pgtype.Bool `json:"output_truncated"`
 }
 
 func (q *Queries) CreateTaskMessage(ctx context.Context, arg CreateTaskMessageParams) (TaskMessage, error) {
@@ -38,6 +39,7 @@ func (q *Queries) CreateTaskMessage(ctx context.Context, arg CreateTaskMessagePa
 		arg.Content,
 		arg.Input,
 		arg.Output,
+		arg.OutputTruncated,
 	)
 	var i TaskMessage
 	err := row.Scan(
@@ -50,6 +52,7 @@ func (q *Queries) CreateTaskMessage(ctx context.Context, arg CreateTaskMessagePa
 		&i.Input,
 		&i.Output,
 		&i.CreatedAt,
+		&i.OutputTruncated,
 	)
 	return i, err
 }
@@ -68,45 +71,52 @@ WITH incoming AS (
         unnest($4::text[]) AS tool,
         unnest($5::text[]) AS content,
         unnest($6::text[]) AS input,
-        unnest($7::text[]) AS output
+        unnest($7::text[]) AS output,
+        unnest($8::text[]) AS created_at,
+        unnest($9::text[]) AS output_truncated
 ), inserted AS (
-    INSERT INTO task_message (id, task_id, seq, type, tool, content, input, output)
+    INSERT INTO task_message (id, task_id, seq, type, tool, content, input, output, created_at, output_truncated)
     SELECT
         m.id,
-        $8::uuid,
+        $10::uuid,
         m.seq,
         m.type,
         NULLIF(m.tool, ''),
         NULLIF(m.content, ''),
         NULLIF(m.input, '')::jsonb,
-        NULLIF(m.output, '')
+        NULLIF(m.output, ''),
+        COALESCE(NULLIF(m.created_at, '')::timestamptz, now()),
+        NULLIF(m.output_truncated, '')::bool
     FROM incoming AS m
-    RETURNING id, task_id, seq, type, tool, content, input, output, created_at
+    RETURNING id, task_id, seq, type, tool, content, input, output, created_at, output_truncated
 )
-SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM inserted ORDER BY seq ASC
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM inserted ORDER BY seq ASC
 `
 
 type CreateTaskMessagesParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	Seqs     []int32       `json:"seqs"`
-	Types    []string      `json:"types"`
-	Tools    []string      `json:"tools"`
-	Contents []string      `json:"contents"`
-	Inputs   []string      `json:"inputs"`
-	Outputs  []string      `json:"outputs"`
-	TaskID   pgtype.UUID   `json:"task_id"`
+	Ids               []pgtype.UUID `json:"ids"`
+	Seqs              []int32       `json:"seqs"`
+	Types             []string      `json:"types"`
+	Tools             []string      `json:"tools"`
+	Contents          []string      `json:"contents"`
+	Inputs            []string      `json:"inputs"`
+	Outputs           []string      `json:"outputs"`
+	CreatedAts        []string      `json:"created_ats"`
+	OutputTruncations []string      `json:"output_truncations"`
+	TaskID            pgtype.UUID   `json:"task_id"`
 }
 
 type CreateTaskMessagesRow struct {
-	ID        pgtype.UUID        `json:"id"`
-	TaskID    pgtype.UUID        `json:"task_id"`
-	Seq       int32              `json:"seq"`
-	Type      string             `json:"type"`
-	Tool      pgtype.Text        `json:"tool"`
-	Content   pgtype.Text        `json:"content"`
-	Input     []byte             `json:"input"`
-	Output    pgtype.Text        `json:"output"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID              pgtype.UUID        `json:"id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Seq             int32              `json:"seq"`
+	Type            string             `json:"type"`
+	Tool            pgtype.Text        `json:"tool"`
+	Content         pgtype.Text        `json:"content"`
+	Input           []byte             `json:"input"`
+	Output          pgtype.Text        `json:"output"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	OutputTruncated pgtype.Bool        `json:"output_truncated"`
 }
 
 // Batch variant of CreateTaskMessage: persists a whole daemon-reported batch in
@@ -129,7 +139,11 @@ type CreateTaskMessagesRow struct {
 // `pgtype.Text{Valid: x != ""}` mapping the single-row query carries — empty
 // string means SQL NULL. input is passed as text and cast here for the same
 // reason; it is the one column that genuinely has to be parsed as JSON, because
-// it is a jsonb column.
+// it is a jsonb column. created_at also rides this transport so an older daemon
+// can omit its event time and keep the database-time fallback. output_truncated
+// uses the same trick because it is a genuinely tri-state boolean (NULL = the
+// reporting daemon did not measure it), and a bool[] parameter becomes a Go
+// []bool, which has no way to spell the third state.
 //
 // Callers MUST still run the Postgres text sanitizer first. A NUL anywhere in
 // the batch fails the whole statement (GH #7098) — that is inherent to batching
@@ -157,6 +171,8 @@ func (q *Queries) CreateTaskMessages(ctx context.Context, arg CreateTaskMessages
 		arg.Contents,
 		arg.Inputs,
 		arg.Outputs,
+		arg.CreatedAts,
+		arg.OutputTruncations,
 		arg.TaskID,
 	)
 	if err != nil {
@@ -176,6 +192,7 @@ func (q *Queries) CreateTaskMessages(ctx context.Context, arg CreateTaskMessages
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.OutputTruncated,
 		); err != nil {
 			return nil, err
 		}
@@ -198,7 +215,7 @@ SELECT
     $5::jsonb
 FROM task_message
 WHERE task_id = $2::uuid
-RETURNING id, task_id, seq, type, tool, content, input, output, created_at
+RETURNING id, task_id, seq, type, tool, content, input, output, created_at, output_truncated
 `
 
 type CreateTaskPlanMessageParams struct {
@@ -245,6 +262,7 @@ func (q *Queries) CreateTaskPlanMessage(ctx context.Context, arg CreateTaskPlanM
 		&i.Input,
 		&i.Output,
 		&i.CreatedAt,
+		&i.OutputTruncated,
 	)
 	return i, err
 }
@@ -260,7 +278,7 @@ func (q *Queries) DeleteTaskMessages(ctx context.Context, taskID pgtype.UUID) er
 }
 
 const listLatestTaskPlans = `-- name: ListLatestTaskPlans :many
-SELECT DISTINCT ON (task_id) id, task_id, seq, type, tool, content, input, output, created_at
+SELECT DISTINCT ON (task_id) id, task_id, seq, type, tool, content, input, output, created_at, output_truncated
 FROM task_message
 WHERE task_id = ANY($1::uuid[]) AND type = 'plan'
 ORDER BY task_id, seq DESC
@@ -288,6 +306,7 @@ func (q *Queries) ListLatestTaskPlans(ctx context.Context, taskIds []pgtype.UUID
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.OutputTruncated,
 		); err != nil {
 			return nil, err
 		}
@@ -300,8 +319,8 @@ func (q *Queries) ListLatestTaskPlans(ctx context.Context, taskIds []pgtype.UUID
 }
 
 const listRecentTaskToolUses = `-- name: ListRecentTaskToolUses :many
-SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM (
-    SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM task_message WHERE task_id = $1 AND type IN ('tool_use', 'tool-use') ORDER BY seq DESC LIMIT $2
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM (
+    SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM task_message WHERE task_id = $1 AND type IN ('tool_use', 'tool-use') ORDER BY seq DESC LIMIT $2
 ) recent ORDER BY seq ASC
 `
 
@@ -330,6 +349,7 @@ func (q *Queries) ListRecentTaskToolUses(ctx context.Context, arg ListRecentTask
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.OutputTruncated,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +362,7 @@ func (q *Queries) ListRecentTaskToolUses(ctx context.Context, arg ListRecentTask
 }
 
 const listTaskMessages = `-- name: ListTaskMessages :many
-SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM task_message
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM task_message
 WHERE task_id = $1
 ORDER BY seq ASC
 `
@@ -366,6 +386,7 @@ func (q *Queries) ListTaskMessages(ctx context.Context, taskID pgtype.UUID) ([]T
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.OutputTruncated,
 		); err != nil {
 			return nil, err
 		}
@@ -378,7 +399,7 @@ func (q *Queries) ListTaskMessages(ctx context.Context, taskID pgtype.UUID) ([]T
 }
 
 const listTaskMessagesSince = `-- name: ListTaskMessagesSince :many
-SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM task_message
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM task_message
 WHERE task_id = $1 AND seq > $2
 ORDER BY seq ASC
 `
@@ -407,6 +428,7 @@ func (q *Queries) ListTaskMessagesSince(ctx context.Context, arg ListTaskMessage
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.OutputTruncated,
 		); err != nil {
 			return nil, err
 		}
@@ -429,5 +451,24 @@ type SetTaskDriftReasonParams struct {
 
 func (q *Queries) SetTaskDriftReason(ctx context.Context, arg SetTaskDriftReasonParams) error {
 	_, err := q.db.Exec(ctx, setTaskDriftReason, arg.ID, arg.DriftReason)
+	return err
+}
+
+const updateTaskMessageContent = `-- name: UpdateTaskMessageContent :exec
+UPDATE task_message SET content = $3 WHERE id = $1 AND task_id = $2
+`
+
+type UpdateTaskMessageContentParams struct {
+	ID      pgtype.UUID `json:"id"`
+	TaskID  pgtype.UUID `json:"task_id"`
+	Content pgtype.Text `json:"content"`
+}
+
+// Streaming (N04): the native run writes its final text message once and then
+// grows it in place as chunks arrive, republishing task:message per update —
+// the client merges by seq, so the transcript shows the text building live
+// with no frontend change.
+func (q *Queries) UpdateTaskMessageContent(ctx context.Context, arg UpdateTaskMessageContentParams) error {
+	_, err := q.db.Exec(ctx, updateTaskMessageContent, arg.ID, arg.TaskID, arg.Content)
 	return err
 }

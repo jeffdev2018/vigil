@@ -35,6 +35,9 @@
     "hide_findings": "隐藏问题",
     "cost": "成本 {{cost}}",
     "open_run": "打开评审运行",
-    "empty": "该议题还没有对抗式评审。"
+    "empty": "该议题还没有对抗式评审。",
+    "severity_bug": "缺陷",
+    "severity_warning": "警告",
+    "severity_info": "信息"
   }
 }

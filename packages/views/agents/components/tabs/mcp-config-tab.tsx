@@ -80,6 +80,7 @@ export function McpConfigTab({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useT("agents");
+  const { t: tCommon } = useT("common");
   const canReadRuntime =
     runtime != null && isRuntimeUsableForUser(runtime, currentUserId ?? null);
   const runtimeId =
@@ -392,6 +393,7 @@ export function McpConfigTab({
                   configureAria: t(($) => $.tab_body.mcp_config.edit_config),
                   remove: t(($) => $.tab_body.mcp_config.delete_action_short),
                   removeAria: t(($) => $.tab_body.mcp_config.delete_aria),
+                  unknownTransport: tCommon(($) => $.unknown),
                 }}
                 onRenameStart={() => startRename(server)}
                 onConfigure={() => openEditDialog(server)}
@@ -609,6 +611,7 @@ function McpWorkspaceServerRow({
   onRemove: () => void;
 }) {
   const { t } = useT("agents");
+  const { t: tCommon } = useT("common");
   const enabled = server.enabled !== false;
   return (
     // The K77 per-tool policy folds out under the row, so the <li> is the
@@ -628,7 +631,7 @@ function McpWorkspaceServerRow({
             )}
           </div>
           <p className="text-caption text-muted-foreground">
-            {mcpTransportLabel(server.transport)}
+            {mcpTransportLabel(server.transport, tCommon(($) => $.unknown))}
           </p>
         </div>
         {canEdit && (
@@ -682,6 +685,7 @@ function McpWorkspaceServerPicker({
   onSelect: (serverId: string) => void;
 }) {
   const { t } = useT("agents");
+  const { t: tCommon } = useT("common");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -707,7 +711,7 @@ function McpWorkspaceServerPicker({
           >
             <span className="min-w-0 flex-1 truncate">{server.name}</span>
             <span className="shrink-0 text-caption text-muted-foreground">
-              {mcpTransportLabel(server.transport)}
+              {mcpTransportLabel(server.transport, tCommon(($) => $.unknown))}
             </span>
           </DropdownMenuItem>
         ))}
@@ -725,6 +729,7 @@ function McpServerList({
   disabledLabel: string;
   overriddenLabel?: string;
 }) {
+  const { t: tCommon } = useT("common");
   return (
     <ul className="divide-y rounded-lg border bg-surface-raised/40">
       {servers.map((server) => (
@@ -736,7 +741,7 @@ function McpServerList({
           <div className="min-w-0 flex-1">
             <p className="truncate text-body font-medium">{server.name}</p>
             <p className="text-caption text-muted-foreground">
-              {mcpTransportLabel(server.transport)}
+              {mcpTransportLabel(server.transport, tCommon(($) => $.unknown))}
             </p>
             {server.source ? (
               <p className="text-caption text-muted-foreground">

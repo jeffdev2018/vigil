@@ -35,6 +35,11 @@ vi.mock("@multica/core/workspace/queries", () => ({
   agentListOptions: () => ({ kind: "agents" as const }),
 }));
 
+const byAgentOverride = vi.hoisted(() => ({
+  rows: null as unknown[] | null,
+  agents: null as unknown[] | null,
+}));
+
 vi.mock("@multica/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
 }));
@@ -101,10 +106,12 @@ vi.mock("@tanstack/react-query", async () => {
   ];
   return {
     ...actual,
-    useQuery: (opts: { kind?: string }) => ({
-      data: opts?.kind === "usage" ? (usageOverride.rows ?? usageRows) : [],
-      isLoading: false,
-    }),
+    useQuery: (opts: { kind?: string }) => {
+      if (opts?.kind === "usage") return { data: usageOverride.rows ?? usageRows, isLoading: false };
+      if (opts?.kind === "by-agent") return { data: byAgentOverride.rows ?? [], isLoading: false };
+      if (opts?.kind === "agents") return { data: byAgentOverride.agents ?? [], isLoading: false };
+      return { data: [], isLoading: false };
+    },
   };
 });
 
@@ -122,6 +129,10 @@ vi.mock("./charts", () => ({
 
 vi.mock("./custom-pricing-dialog", () => ({
   CustomPricingDialog: () => null,
+}));
+
+vi.mock("../../common/actor-avatar", () => ({
+  ActorAvatar: () => null,
 }));
 
 import { UsageSection } from "./usage-section";
@@ -190,7 +201,7 @@ describe("UsageSection — Viewing timezone wiring", () => {
       ),
     ).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
+    fireEvent.click(screen.getByRole("button", { name: "Last 7 days" }));
 
     expect(flows.at(-1)).toHaveAttribute("aria-label", "1K");
   });
@@ -257,5 +268,63 @@ describe("UsageSection — custom-pricing entry point", () => {
     expect(
       screen.getByRole("button", { name: "Edit custom prices" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("UsageSection — Cost by agent", () => {
+  beforeEach(() => {
+    usageOverride.rows = null;
+    pricingState.pricings = {};
+    byAgentOverride.rows = [
+      // A test/system agent that ran but priced at $0 — the row this audit
+      // wants folded away by default (UX audit).
+      {
+        agent_id: "agent-zero",
+        provider: "acme",
+        model: "free-tier-model",
+        input_tokens: 500,
+        output_tokens: 100,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        cost_usd_ticks: 0,
+        task_count: 3,
+      },
+      // A real agent that actually cost something.
+      {
+        agent_id: "agent-real",
+        provider: "acme",
+        model: "paid-model",
+        input_tokens: 5_000,
+        output_tokens: 1_000,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        cost_usd_ticks: 50_000_000_000, // $5.00
+        task_count: 4,
+      },
+    ];
+    byAgentOverride.agents = [
+      { id: "agent-zero", name: "Test Agent" },
+      { id: "agent-real", name: "Real Agent" },
+    ];
+  });
+
+  // Regression: a $0 system/test agent cluttered the "Cost by agent" list
+  // next to agents that actually cost money, and the list used a raw
+  // "$X.XX" string instead of the same locale-aware currency renderer as
+  // the KPI cards above it (UX audit).
+  it("hides zero-cost agents by default, with a toggle to reveal them, using one currency format", () => {
+    render(<UsageSection runtime={RUNTIME} />, { wrapper: Wrapper });
+
+    const realRow = () => screen.getByText("Real Agent").closest(".grid");
+    expect(realRow()).toHaveTextContent("$5.00");
+    expect(screen.queryByText("Test Agent")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 1 agent at $0" }));
+
+    const zeroRow = () => screen.getByText("Test Agent").closest(".grid");
+    expect(zeroRow()).toHaveTextContent("$0.00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide agents at $0" }));
+    expect(screen.queryByText("Test Agent")).not.toBeInTheDocument();
   });
 });

@@ -19,6 +19,11 @@ export {
 } from "./needs-backfill";
 export { agentCompletedIssueCountOptions } from "./queries";
 export {
+  onboardingChecklistKeys,
+  onboardingChecklistOptions,
+} from "./checklist";
+export type { OnboardingChecklistResponse } from "../api/schemas";
+export {
   bootstrapMika,
   useBootstrapMika,
   type BootstrapMikaInput,
@@ -29,6 +34,10 @@ export {
   useWelcomeStore,
   type WelcomeSignal,
 } from "./welcome-store";
+export {
+  useGettingStartedStore,
+  selectGettingStartedDismissed,
+} from "./getting-started-store";
 export {
   MIKA_SYSTEM_KEY,
   isMikaAgent,

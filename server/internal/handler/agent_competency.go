@@ -108,12 +108,24 @@ func competencyDomainKey(labels []string, paths []string) string {
 }
 
 func (h *Handler) issueDomainKey(ctx context.Context, issue db.Issue) string {
+	return h.issueDomainKeyWith(ctx, issue, h.issueLabelNames(ctx, issue))
+}
+
+// issueLabelNames is the issue's label names, empty when it has none or is
+// not in the database at all.
+func (h *Handler) issueLabelNames(ctx context.Context, issue db.Issue) []string {
 	var labels []string
 	if rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID}); err == nil {
 		for _, l := range rows {
 			labels = append(labels, l.Name)
 		}
 	}
+	return labels
+}
+
+// issueDomainKeyWith takes the labels from the caller so a simulated issue,
+// which no label row points at, can still name its domain.
+func (h *Handler) issueDomainKeyWith(ctx context.Context, issue db.Issue, labels []string) string {
 	paths := service.IssuePaths(issue.Title, issue.Description.String)
 	if tasks, err := h.Queries.ListTasksByIssue(ctx, issue.ID); err == nil {
 		for _, t := range tasks {
@@ -123,26 +135,45 @@ func (h *Handler) issueDomainKey(ctx context.Context, issue db.Issue) string {
 	return competencyDomainKey(labels, paths)
 }
 
-// issueCategory resolves the workflow category of the issue's status.
-func (h *Handler) issueCategory(ctx context.Context, issue db.Issue) string {
-	if entry, err := issuestatus.Resolve(ctx, h.Queries, issue.WorkspaceID, issue.Status); err == nil {
-		return entry.Category
-	}
-	return issue.Status
+// issueEffectiveStatus resolves the issue's status to the built-in behavior it
+// acts as: a built-in stays itself, a custom terminal status collapses to done
+// or cancelled, and a custom nonterminal status stays its own key.
+//
+// Review rejection and cancellation are key-level rules, so they must compare
+// behavior keys. The stored category now holds only the four lifecycle values
+// (unstarted / started / done / closed), so comparing it against `in_review` or
+// `cancelled` silently matched nothing (MUL-7365).
+func (h *Handler) issueEffectiveStatus(ctx context.Context, issue db.Issue) string {
+	return issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, issue.Status)
 }
 
 func (h *Handler) issueCancelled(ctx context.Context, issue db.Issue) bool {
-	if issue.Status == "cancelled" || issue.Status == "canceled" {
+	// "canceled" is an installed-client spelling that never reaches the
+	// catalog, so it is matched before the resolve.
+	if issue.Status == "canceled" {
 		return true
 	}
-	entry, err := issuestatus.Resolve(ctx, h.Queries, issue.WorkspaceID, issue.Status)
-	return err == nil && (entry.Category == "cancelled" || entry.Category == "canceled")
+	return h.issueEffectiveStatus(ctx, issue) == issuestatus.Cancelled
 }
 
 func (h *Handler) bumpCompetency(ctx context.Context, wsID, agentID pgtype.UUID, domain string, success, total, wins, losses int32) {
 	if _, err := h.Queries.BumpAgentDomainCompetency(ctx, db.BumpAgentDomainCompetencyParams{ID: dbid.NewV7(), WorkspaceID: wsID, AgentID: agentID, DomainKey: domain, SuccessDelta: success, TotalDelta: total, WinsDelta: wins, LossesDelta: losses}); err != nil {
 		slog.Warn("competency: bump failed", "agent_id", uuidToString(agentID), "domain", domain, "error", err)
 	}
+}
+
+// reviewSentBack reports a move out of review and back into open work. Only
+// built-in behavior keys count: a custom status inherits lifecycle, not review
+// semantics, so it can neither reject nor be rejected into.
+func (h *Handler) reviewSentBack(ctx context.Context, prev, issue db.Issue) bool {
+	if h.issueEffectiveStatus(ctx, prev) != issuestatus.InReview {
+		return false
+	}
+	switch h.issueEffectiveStatus(ctx, issue) {
+	case issuestatus.InProgress, issuestatus.Todo, issuestatus.Backlog:
+		return true
+	}
+	return false
 }
 
 // recordCompetencyOutcome runs on a status transition of an agent-assigned
@@ -161,7 +192,7 @@ func (h *Handler) recordCompetencyOutcome(ctx context.Context, prev, issue db.Is
 		success, event = -1, "reopened"
 	case !wasDone && h.issueCancelled(ctx, issue):
 		total, event = 1, "cancelled"
-	case !wasDone && h.issueCategory(ctx, prev) == "in_review" && (h.issueCategory(ctx, issue) == "in_progress" || h.issueCategory(ctx, issue) == "todo" || h.issueCategory(ctx, issue) == "backlog"):
+	case !wasDone && h.reviewSentBack(ctx, prev, issue):
 		// A review that sends the work back is a rejected attempt.
 		total, event = 1, "review_rejected"
 	default:
@@ -271,18 +302,15 @@ func (h *Handler) PutCompetencySettings(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "min_sample must be between 1 and 1000")
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["competency"] = req
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key (data_residency, doc_drift, drift, ...).
+	raw, _ := json.Marshal(map[string]any{"competency": req})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save competency settings")
 		return
 	}

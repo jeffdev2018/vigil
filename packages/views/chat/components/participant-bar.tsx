@@ -109,7 +109,7 @@ export function ParticipantBar({
       {!solo && (
         <div className="flex min-w-0 items-center gap-1.5">
           {participants.map((p) => (
-            <span key={p.user_id} className="relative shrink-0" data-testid="chat-participant">
+            <span key={p.user_id} className="group relative shrink-0" data-testid="chat-participant">
               <ActorAvatar
                 actorType="member"
                 actorId={p.user_id}

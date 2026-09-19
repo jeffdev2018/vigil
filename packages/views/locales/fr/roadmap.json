@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "Feuille de route",
+    "tab_timeline": "Chronologie",
+    "tab_graph": "Dépendances",
+    "loading": "Chargement de la feuille de route",
+    "load_error": "Impossible de charger la feuille de route",
+    "empty_projects": "Aucun projet",
+    "empty_projects_description": "Créez un projet avec une date de début et une date d'échéance et il apparaîtra sur la chronologie.",
+    "empty_scheduled": "Rien de planifié",
+    "empty_scheduled_description": "Aucun projet n'a encore de date de début ou d'échéance.",
+    "unscheduled": "Projets non planifiés"
+  },
+  "timeline": {
+    "progress": "{{percent}} % terminé",
+    "today": "Aujourd'hui"
+  },
+  "graph": {
+    "project": "Projet",
+    "pick_project": "Choisissez un projet pour voir son graphe de dépendances.",
+    "loading_issues": "Chargement des issues",
+    "empty_issues": "Ce projet n'a aucune issue planifiée",
+    "no_edges": "Aucune dépendance entre ces issues pour l'instant.",
+    "legend": {
+      "blocks": "bloque",
+      "related": "liée",
+      "duplicate": "doublon"
+    }
+  }
+}

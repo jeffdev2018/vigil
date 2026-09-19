@@ -35,6 +35,9 @@
     "hide_findings": "지적 사항 숨기기",
     "cost": "비용 {{cost}}",
     "open_run": "비판 실행 열기",
-    "empty": "이 이슈에는 아직 비판 검토가 없습니다."
+    "empty": "이 이슈에는 아직 비판 검토가 없습니다.",
+    "severity_bug": "버그",
+    "severity_warning": "경고",
+    "severity_info": "정보"
   }
 }

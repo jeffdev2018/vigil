@@ -124,3 +124,17 @@ FROM agent_mcp_server ams
 JOIN workspace_mcp_server s ON s.id = ams.server_id
 JOIN agent a ON a.id = ams.agent_id
 WHERE ams.enabled = TRUE AND jsonb_array_length(s.tools) > 0 AND a.archived_at IS NULL;
+
+-- name: ListWorkspaceMcpServerAgents :many
+-- Which agents reach each server of one workspace, in ONE grouped pass over
+-- the junction. The tools catalogue page needs both the per-server agent count
+-- and the membership set (to grey out an agent that already has the server);
+-- a workspace with 45 agents must not cost 45 queries to answer that.
+-- Archived agents are left out: they cannot run, so counting them would
+-- overstate who can reach a tool.
+SELECT ams.server_id, array_agg(ams.agent_id::text ORDER BY ams.agent_id)::text[] AS agent_ids
+FROM agent_mcp_server ams
+JOIN workspace_mcp_server s ON s.id = ams.server_id
+JOIN agent a ON a.id = ams.agent_id AND a.archived_at IS NULL
+WHERE s.workspace_id = $1
+GROUP BY ams.server_id;

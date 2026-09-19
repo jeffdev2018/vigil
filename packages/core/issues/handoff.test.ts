@@ -19,8 +19,6 @@ describe("handoff packet client", () => {
     expect(p?.next_action).toBe("");
     stubFetch("garbage");
     expect(await client.listHandoffPackets("i1")).toEqual([]);
-    stubFetch({ packet: null });
-    expect(await client.getLatestHandoffPacket("i1")).toBeNull();
     stubFetch({ id: "p2", objective: "Fix", run_id: "t" });
     expect((await client.createHandoffPacket("i1", { run_id: "t", objective: "Fix", decisions: [], evidence: [], failed_attempts: [], next_action: "" })).id).toBe("p2");
     expect(splitLines(" a \n\n b\n")).toEqual(["a", "b"]);

@@ -164,6 +164,45 @@ func TestAgentMemoryEvaluationLocksBaselineAndDeletesCopies(t *testing.T) {
 	testutil.Call(t, testHandler.DeleteAgentMemoryEvaluation, testutil.WithURLParams(agentMemoryRequest("DELETE", agentID, memoryID, nil), "id", agentID, "memoryId", memoryID, "evaluationId", saved.ID)).Want(204)
 }
 
+// checkEvaluationVersions batches the current-memory lookup and, for items
+// that turn out stale, the version lookup, into one query each instead of
+// one GetAgentMemory/GetAgentMemoryVersion call per item (up to 1 candidate +
+// 199 baseline); this puts two baseline memories in one report where only
+// ONE has since moved to a new revision, so a batching bug that hands
+// baseline A's current row or version to baseline B (or vice versa) fails
+// this test instead of shipping silently.
+func TestAgentMemoryEvaluationBatchesBaselinesWithOneStaleWithoutMixingVersions(t *testing.T) {
+	agentID, memoryID, report := evaluationFixture(t)
+
+	baselineA := dbfx.Insert(t, "agent_memory", testutil.Cols{"workspace_id": testWorkspaceID, "agent_id": agentID, "content": "Baseline A original", "status": "active"})
+	baselineB := dbfx.Insert(t, "agent_memory", testutil.Cols{"workspace_id": testWorkspaceID, "agent_id": agentID, "content": "Baseline B original", "status": "active"})
+	report.Baseline = []memoryeval.Memory{
+		{ID: baselineA, AgentID: agentID, WorkspaceID: testWorkspaceID, Revision: 1, Content: "Baseline A original", Status: "active"},
+		{ID: baselineB, AgentID: agentID, WorkspaceID: testWorkspaceID, Revision: 1, Content: "Baseline B original", Status: "active"},
+	}
+
+	// Baseline B moves on before the report is submitted: its live row is now
+	// revision 2 with different content, so checkEvaluationVersions must fall
+	// back to the archived revision-1 version for B specifically, while A
+	// (never touched) is read straight from its current row.
+	testutil.Call(t, testHandler.UpdateAgentMemory, agentMemoryRequest("PUT", agentID, baselineB, map[string]any{"content": "Baseline B moved on", "expected_revision": 1})).Want(http.StatusOK)
+
+	var saved AgentMemoryEvaluationResponse
+	testutil.Call(t, testHandler.CreateAgentMemoryEvaluation, agentMemoryRequest("POST", agentID, memoryID, report)).Want(http.StatusCreated).JSON(&saved)
+	if !saved.Eligible {
+		t.Fatalf("evaluation must still be accepted with one stale baseline resolved from its own version: %+v", saved)
+	}
+
+	// A report that (wrongly) claims fresh baseline A had different content
+	// must be rejected against A's own current row, proving A and B are
+	// checked independently rather than one batch entry leaking onto the
+	// other.
+	tampered := report
+	tampered.Baseline = append([]memoryeval.Memory{}, report.Baseline...)
+	tampered.Baseline[0].Content = "Baseline A tampered"
+	testutil.Call(t, testHandler.CreateAgentMemoryEvaluation, agentMemoryRequest("POST", agentID, memoryID, tampered)).Want(http.StatusConflict)
+}
+
 func TestAgentMemoryEvaluationRejectsInvalidEvidence(t *testing.T) {
 	agentID, memoryID, r := evaluationFixture(t)
 	for _, mutate := range []func(*memoryeval.Report){

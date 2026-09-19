@@ -36,6 +36,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -117,7 +118,12 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		args = append(args, "--session", opts.ResumeSessionID)
 	}
 	args = append(args, filterCustomArgs(opts.CustomArgs, devecoBlockedArgs, b.cfg.Logger)...)
-	args = append(args, prompt)
+	// The task prompt is delivered on stdin, never argv, exactly as the OpenCode
+	// engine DevEco is built on expects: `run` merges its variadic positional
+	// with whatever is piped in, so passing no positional makes the piped text
+	// the whole message. On argv a prompt carrying the workspace context clears
+	// the Windows CreateProcess cap (32,767 characters) even through the native
+	// binary, and the process never starts (#6538).
 
 	cmd := b.cfg.commandAt(execPath).exec(runCtx, args...)
 	hideAgentWindow(cmd)
@@ -127,7 +133,7 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	// here keeps os/exec from racing us with its own kill; WaitDelay is the
 	// hard backstop.
 	cmd.Cancel = func() error { return nil }
-	b.cfg.logAgentCommand(cmd, newAgentCommandLogArgs(args, trustAgentCommandPositional(0, "run")))
+	b.cfg.logAgentCommandWithPrompt(cmd, newAgentCommandLogArgs(args, trustAgentCommandPositional(0, "run")), len(prompt))
 	cmd.WaitDelay = 10 * time.Second
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
@@ -148,9 +154,17 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		cancel()
 		return nil, fmt.Errorf("deveco stdout pipe: %w", err)
 	}
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("deveco stdin pipe: %w", err)
+	}
+	var closeStdinOnce sync.Once
+	closeStdin := func() { closeStdinOnce.Do(func() { _ = stdin.Close() }) }
 	cmd.Stderr = newLogWriter(b.cfg.Logger, "[deveco:stderr] ")
 
 	if err := startOwnedProcessTree(cmd, b.cfg.Logger); err != nil {
+		closeStdin()
 		cancel()
 		return nil, fmt.Errorf("start deveco: %w", err)
 	}
@@ -163,6 +177,16 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	// procDone closes once cmd.Wait() returns, letting the cancellation handler
 	// skip a process that already exited and avoid signalling a dead pid.
 	procDone := make(chan struct{})
+
+	// Write the prompt from its own goroutine so a prompt larger than the pipe
+	// buffer cannot deadlock against the stdout reader below. Closing stdin is
+	// what ends the prompt (the engine reads it to EOF), so close on every path.
+	writeErrCh := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(stdin, prompt)
+		closeStdin()
+		writeErrCh <- err
+	}()
 
 	// On cancellation / timeout, terminate deveco (and the tool subprocesses it
 	// spawned) BEFORE unblocking the scanner. Closing the stdout read end
@@ -177,6 +201,8 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 			return // finished on its own; nothing to terminate
 		case <-runCtx.Done():
 		}
+		// Release a prompt write still blocked on a full stdin pipe.
+		closeStdin()
 		if cmd.Process != nil {
 			signalProcessGroup(cmd, syscall.SIGTERM)
 			select {
@@ -201,6 +227,9 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		releaseProcessGroup(cmd)
 		duration := time.Since(startTime)
 
+		// Wait closed the process pipes, so the prompt writer has returned.
+		writeErr := <-writeErrCh
+
 		if runCtx.Err() == context.DeadlineExceeded {
 			scanResult.status = "timeout"
 			scanResult.errMsg = fmt.Sprintf("deveco timed out after %s", timeout)
@@ -210,6 +239,18 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		} else if exitErr != nil && scanResult.status == "completed" {
 			scanResult.status = "failed"
 			scanResult.errMsg = fmt.Sprintf("deveco exited with error: %v", exitErr)
+		} else if exitErr != nil && scanResult.noTerminalSignal {
+			// Keep the terminal-signal diagnosis and add the exit detail.
+			scanResult.errMsg = fmt.Sprintf("%s; deveco exited with error: %v", scanResult.errMsg, exitErr)
+		} else if writeErr != nil && !scanResult.sawTerminalSignal {
+			// A failed prompt write is benign only once the run is proven to
+			// have finished (the engine reads stdin to EOF before any work).
+			if scanResult.errMsg == "" {
+				scanResult.errMsg = fmt.Sprintf("deveco prompt write failed: %v", writeErr)
+			} else {
+				scanResult.errMsg = fmt.Sprintf("%s; deveco prompt write failed: %v", scanResult.errMsg, writeErr)
+			}
+			scanResult.status = "failed"
 		}
 
 		b.cfg.Logger.Info("deveco finished", "pid", cmd.Process.Pid, "status", scanResult.status, "duration", duration.Round(time.Millisecond).String())
@@ -293,11 +334,16 @@ func resolveDevecoNativeFromShim(shimPath string, statFn func(string) (os.FileIn
 
 // devecoEventResult holds the accumulated state from processing the event stream.
 type devecoEventResult struct {
-	status    string
-	errMsg    string
-	output    string
-	sessionID string
-	usage     TokenUsage // accumulated token usage across all steps
+	status           string
+	errMsg           string
+	output           string
+	sessionID        string
+	usage            TokenUsage // accumulated token usage across all steps
+	noTerminalSignal bool       // guard fired: the stream ended without evidence the run finished
+	// sawTerminalSignal is positive evidence the run finished: a step_finish
+	// closed the last step with no continuation pending and something to show
+	// for it. Not the negation of noTerminalSignal.
+	sawTerminalSignal bool
 }
 
 // processEvents reads JSON lines from r, dispatches events to ch, and returns
@@ -306,8 +352,23 @@ func (b *devecoBackend) processEvents(r io.Reader, ch chan<- Message) devecoEven
 	var output strings.Builder
 	var sessionID string
 	var usage TokenUsage
+	var unparsedOutput strings.Builder
+	parsedEvents := 0
 	finalStatus := "completed"
 	var finalError string
+
+	// Terminal-signal guard, ported from the CodeArts backend (same OpenCode
+	// protocol family; kept separate so the two backends stay decoupled). The
+	// stream has no terminal result event, so a run is only proven finished
+	// when its last step closed, required no continuation, and produced
+	// something (text, a tool call, or reported usage). See codearts.go's
+	// processEvents for the full rationale of each signal.
+	openStep := false
+	stepHasContinuationTool := false
+	awaitingContinuation := false
+	sawStepFinish := false
+	stepProducedOutput := false
+	lastStepVoid := false
 
 	scanner := newAgentStreamScanner(r)
 
@@ -319,8 +380,18 @@ func (b *devecoBackend) processEvents(r io.Reader, ch chan<- Message) devecoEven
 
 		var event devecoEvent
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			if unparsedOutput.Len() < 4096 {
+				if unparsedOutput.Len() > 0 {
+					unparsedOutput.WriteByte('\n')
+				}
+				if remaining := 4096 - unparsedOutput.Len(); len(line) > remaining {
+					line = line[:remaining]
+				}
+				unparsedOutput.WriteString(line)
+			}
 			continue
 		}
+		parsedEvents++
 
 		if event.SessionID != "" {
 			sessionID = event.SessionID
@@ -329,13 +400,29 @@ func (b *devecoBackend) processEvents(r io.Reader, ch chan<- Message) devecoEven
 		switch event.Type {
 		case "text":
 			b.handleTextEvent(event, ch, &output)
+			if event.Part.Text != "" {
+				stepProducedOutput = true
+			}
 		case "tool_use":
 			b.handleToolUseEvent(event, ch)
+			stepProducedOutput = true
+			if event.Part.Metadata == nil || !event.Part.Metadata.ProviderExecuted {
+				stepHasContinuationTool = true
+			}
 		case "error":
 			b.handleErrorEvent(event, ch, &finalStatus, &finalError)
 		case "step_start":
+			openStep = true
+			stepHasContinuationTool = false
+			awaitingContinuation = false
+			stepProducedOutput = false
 			trySend(ch, Message{Type: MessageStatus, Status: "running"})
 		case "step_finish":
+			openStep = false
+			sawStepFinish = true
+			awaitingContinuation = event.Part.Reason == "tool-calls" ||
+				(event.Part.Reason != "" && stepHasContinuationTool)
+			stepHasContinuationTool = false
 			// Accumulate token usage from step_finish events.
 			if t := event.Part.Tokens; t != nil {
 				usage.InputTokens += t.Input
@@ -345,6 +432,10 @@ func (b *devecoBackend) processEvents(r io.Reader, ch chan<- Message) devecoEven
 					usage.CacheWriteTokens += t.Cache.Write
 				}
 			}
+			if devecoStepReportedUsage(&event.Part) {
+				stepProducedOutput = true
+			}
+			lastStepVoid = !stepProducedOutput
 		}
 	}
 
@@ -356,13 +447,58 @@ func (b *devecoBackend) processEvents(r io.Reader, ch chan<- Message) devecoEven
 		}
 	}
 
-	return devecoEventResult{
-		status:    finalStatus,
-		errMsg:    finalError,
-		output:    output.String(),
-		sessionID: sessionID,
-		usage:     usage,
+	noTerminalSignal := false
+	if finalStatus == "completed" && parsedEvents == 0 {
+		finalStatus = "failed"
+		finalError = "deveco returned no parseable JSON events"
+		if detail := sanitizeCLIOutput(unparsedOutput.String()); detail != "" {
+			finalError += ": " + detail
+		}
+		noTerminalSignal = true
 	}
+	if finalStatus == "completed" {
+		switch {
+		case openStep:
+			finalStatus = "failed"
+			finalError = "deveco stream ended without a terminal signal (step still open at EOF)"
+			noTerminalSignal = true
+		case awaitingContinuation:
+			finalStatus = "failed"
+			finalError = "deveco stream ended without a terminal signal (last step required a continuation that never started)"
+			noTerminalSignal = true
+		case lastStepVoid:
+			finalStatus = "failed"
+			finalError = "deveco stream ended on an empty step (no text, no tool call, no reported usage) — the provider produced nothing"
+			noTerminalSignal = true
+		}
+	}
+
+	return devecoEventResult{
+		status:            finalStatus,
+		errMsg:            finalError,
+		output:            output.String(),
+		sessionID:         sessionID,
+		usage:             usage,
+		noTerminalSignal:  noTerminalSignal,
+		sawTerminalSignal: sawStepFinish && !noTerminalSignal,
+	}
+}
+
+// devecoStepReportedUsage reports whether a step_finish part carries any
+// evidence that the provider round-trip happened: cost, or any token counter
+// (reasoning and total included, read as evidence only, never billed).
+func devecoStepReportedUsage(part *devecoEventPart) bool {
+	if part.Cost > 0 {
+		return true
+	}
+	t := part.Tokens
+	if t == nil {
+		return false
+	}
+	if t.Input > 0 || t.Output > 0 || t.Reasoning > 0 || t.Total > 0 {
+		return true
+	}
+	return t.Cache != nil && (t.Cache.Read > 0 || t.Cache.Write > 0)
 }
 
 func (b *devecoBackend) handleTextEvent(event devecoEvent, ch chan<- Message, output *strings.Builder) {
@@ -470,16 +606,28 @@ type devecoEventPart struct {
 	Tool   string           `json:"tool,omitempty"`
 	CallID string           `json:"callID,omitempty"`
 	State  *devecoToolState `json:"state,omitempty"`
+	// Provider-executed tools need no continuation step.
+	Metadata *devecoPartMetadata `json:"metadata,omitempty"`
 
 	// step_finish token usage
 	Tokens *devecoTokens `json:"tokens,omitempty"`
+	// step_finish cost, read only as round-trip evidence.
+	Cost float64 `json:"cost,omitempty"`
+	// step_finish reason ("stop", "tool-calls", …); absent on older versions.
+	Reason string `json:"reason,omitempty"`
+}
+
+type devecoPartMetadata struct {
+	ProviderExecuted bool `json:"providerExecuted,omitempty"`
 }
 
 // devecoTokens represents token usage in a step_finish event.
 type devecoTokens struct {
-	Input  int64              `json:"input"`
-	Output int64              `json:"output"`
-	Cache  *devecoCacheTokens `json:"cache,omitempty"`
+	Input     int64              `json:"input"`
+	Output    int64              `json:"output"`
+	Reasoning int64              `json:"reasoning,omitempty"`
+	Total     int64              `json:"total,omitempty"`
+	Cache     *devecoCacheTokens `json:"cache,omitempty"`
 }
 
 type devecoCacheTokens struct {

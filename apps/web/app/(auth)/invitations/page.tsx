@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@multica/core/auth";
+import { AuthRecoveryPage } from "@multica/views/auth";
 import { paths } from "@multica/core/paths";
 import { InvitationsPage } from "@multica/views/invitations";
 
@@ -10,6 +11,7 @@ export default function InvitationsRoutePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const authStatus = useAuthStore((s) => s.status);
 
   // Unauthenticated users have nowhere meaningful to land here — kick them
   // through login and bring them back. The login page will eventually run
@@ -22,6 +24,7 @@ export default function InvitationsRoutePage() {
     }
   }, [isLoading, user, router]);
 
+  if (authStatus === "recovering") return <AuthRecoveryPage />;
   if (isLoading || !user) return null;
 
   return <InvitationsPage />;

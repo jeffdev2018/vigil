@@ -1,10 +1,13 @@
 /**
- * Mobile time-ago formatter. Mirrors the algorithm in
- * packages/views/inbox/components/inbox-list-item.tsx `useTimeAgo` so
- * "X minutes ago" reads identically across web/desktop and mobile (Behavioral
- * parity rule in apps/mobile/CLAUDE.md). The web version is i18n-driven via
- * useT; mobile v1 is English-only — when mobile ships i18n, mirror that
- * structure.
+ * Mobile time-ago formatter. Same minutes/hours/days buckets as
+ * packages/views/inbox/components/inbox-list-item.tsx `useTimeAgo`, so
+ * "X minutes/hours/days ago" reads identically across web/desktop and
+ * mobile up to a week old (Behavioral parity rule in apps/mobile/CLAUDE.md).
+ * Past a week, this intentionally diverges: web has no upper bound and
+ * keeps counting days forever, mobile adds a weeks tier then falls back to
+ * an absolute date — a readability improvement for old items, not a bug.
+ * The web version is i18n-driven via useT; mobile v1 is English-only —
+ * when mobile ships i18n, mirror that structure.
  */
 export function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();

@@ -19,6 +19,13 @@ SELECT * FROM agent_version WHERE agent_id = $1 ORDER BY version_number DESC LIM
 -- name: GetAgentVersion :one
 SELECT * FROM agent_version WHERE id = $1 AND agent_id = $2;
 
+-- name: GetAgentVersionsByIDs :many
+-- Batch variant of GetAgentVersion for ListEvalRuns/ListBenchmarks, which
+-- otherwise resolve one pinned version per run on the page. Filtered by id
+-- only (versions are globally unique); the caller re-checks agent_id against
+-- the owning run the same way GetAgentVersion's WHERE clause does.
+SELECT * FROM agent_version WHERE id = ANY(sqlc.arg('ids')::uuid[]);
+
 -- name: GetAgentVersionAt :one
 -- The version that was active at a point in time: the newest one created
 -- before it.

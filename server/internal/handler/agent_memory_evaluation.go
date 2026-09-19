@@ -371,23 +371,78 @@ func validateEvaluationReport(r memoryeval.Report) error {
 	return nil
 }
 
+// checkEvaluationVersions prefetches every referenced memory (and, for the
+// ones that turn out stale, their version) in two batch queries instead of
+// one GetAgentMemory/GetAgentMemoryVersion per item (up to 200 items: 1
+// candidate + up to 199 baseline). The prefetch always covers every item,
+// even ones an earlier item's failure would keep the original sequential
+// version from ever reaching — reads are side-effect free, so the extra I/O
+// on the rare invalid-report path is the trade for the loop below staying
+// byte-for-byte identical to the sequential version, including which error a
+// given malformed report returns and in what order.
 func checkEvaluationVersions(ctx context.Context, q *db.Queries, agent db.Agent, report memoryeval.Report) ([]pgtype.UUID, error) {
+	items := append([]memoryeval.Memory{report.Candidate}, report.Baseline...)
+
+	var allIDs []pgtype.UUID
+	for _, m := range items {
+		if id, err := util.ParseUUID(m.ID); err == nil {
+			allIDs = append(allIDs, id)
+		}
+	}
+	memoriesByID := map[string]db.AgentMemory{}
+	if len(allIDs) > 0 {
+		rows, err := q.GetAgentMemoriesByIDs(ctx, db.GetAgentMemoriesByIDsParams{WorkspaceID: agent.WorkspaceID, Ids: allIDs})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			memoriesByID[uuidToString(row.ID)] = row
+		}
+	}
+
+	var staleMemoryIDs []pgtype.UUID
+	var staleRevisions []int32
+	for _, m := range items {
+		id, err := util.ParseUUID(m.ID)
+		if err != nil {
+			continue
+		}
+		current, ok := memoriesByID[uuidToString(id)]
+		if !ok || current.Revision == m.Revision {
+			continue
+		}
+		staleMemoryIDs = append(staleMemoryIDs, id)
+		staleRevisions = append(staleRevisions, m.Revision)
+	}
+	versionsByKey := map[string]db.AgentMemoryVersion{}
+	if len(staleMemoryIDs) > 0 {
+		rows, err := q.GetAgentMemoryVersionsByRevisions(ctx, db.GetAgentMemoryVersionsByRevisionsParams{
+			WorkspaceID: agent.WorkspaceID, MemoryIds: staleMemoryIDs, Revisions: staleRevisions,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			versionsByKey[uuidToString(row.MemoryID)+"|"+strconv.Itoa(int(row.Revision))] = row
+		}
+	}
+
 	ids := []pgtype.UUID{}
 	seen := map[string]bool{}
-	for i, m := range append([]memoryeval.Memory{report.Candidate}, report.Baseline...) {
+	for i, m := range items {
 		id, err := util.ParseUUID(m.ID)
 		if err != nil || m.AgentID != uuidToString(agent.ID) || m.WorkspaceID != uuidToString(agent.WorkspaceID) || m.Revision < 1 || seen[m.ID] || m.Expired || (m.ExpiresAt != nil && !m.ExpiresAt.After(report.StartedAt)) || (i == 0 && m.Status != "pending") || (i > 0 && m.Status != "active") {
 			return nil, errors.New("invalid memory snapshot")
 		}
 		seen[m.ID] = true
-		current, err := q.GetAgentMemory(ctx, db.GetAgentMemoryParams{ID: id, WorkspaceID: agent.WorkspaceID})
-		if err != nil || current.AgentID != agent.ID {
+		current, ok := memoriesByID[uuidToString(id)]
+		if !ok || current.AgentID != agent.ID {
 			return nil, errors.New("a referenced memory is unavailable")
 		}
 		content, status, revision, expiry := current.Content, current.Status, current.Revision, current.ExpiresAt
 		if current.Revision != m.Revision {
-			version, err := q.GetAgentMemoryVersion(ctx, db.GetAgentMemoryVersionParams{MemoryID: id, WorkspaceID: agent.WorkspaceID, Revision: m.Revision})
-			if err != nil {
+			version, ok := versionsByKey[uuidToString(id)+"|"+strconv.Itoa(int(m.Revision))]
+			if !ok {
 				return nil, errors.New("a referenced memory version is unavailable")
 			}
 			content, status, revision, expiry = version.Content, version.Status, version.Revision, version.ExpiresAt

@@ -1,8 +1,6 @@
 package triage
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 )
 
@@ -36,12 +34,12 @@ func BuildPayload(triggerPayload []byte) []byte {
 	return out
 }
 
-// ContentDigest fingerprints the inbound content so two deliveries can be
-// compared even when the transport carries no idempotency key.
-func ContentDigest(title string, triggerPayload []byte) string {
-	sum := sha256.New()
-	sum.Write([]byte(NormalizeTitle(title)))
-	sum.Write([]byte{0})
-	sum.Write(triggerPayload)
-	return hex.EncodeToString(sum.Sum(nil))
+// StoredBody returns the trigger payload BuildPayload kept, or nil when it
+// was truncated or absent.
+func StoredBody(payload []byte) []byte {
+	var p storedPayload
+	if err := json.Unmarshal(payload, &p); err != nil || p.Truncated {
+		return nil
+	}
+	return []byte(p.Body)
 }

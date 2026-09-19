@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -67,6 +69,9 @@ func init() {
 }
 
 func runIssuePlanGet(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	client, err := newAPIClient(cmd)
 	if err != nil {
 		return err
@@ -85,6 +90,9 @@ func runIssuePlanGet(cmd *cobra.Command, args []string) error {
 }
 
 func runIssuePlanSet(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	file, _ := cmd.Flags().GetString("file")
 	content, _ := cmd.Flags().GetString("content")
 	if file != "" {
@@ -124,6 +132,9 @@ func runIssuePlanSet(cmd *cobra.Command, args []string) error {
 }
 
 func runIssuePlanReport(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	runID, _ := cmd.Flags().GetString("run")
 	if runID == "" {
 		runID = os.Getenv("MULTICA_TASK_ID")
@@ -174,7 +185,7 @@ func readAllStdin() ([]byte, error) {
 		n, err := os.Stdin.Read(buf)
 		b.Write(buf[:n])
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err
@@ -184,6 +195,9 @@ func readAllStdin() ([]byte, error) {
 }
 
 func runIssuePlanApprove(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	client, err := newAPIClient(cmd)
 	if err != nil {
 		return err

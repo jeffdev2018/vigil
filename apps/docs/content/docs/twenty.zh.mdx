@@ -1,0 +1,57 @@
+---
+title: Twenty CRM
+description: 连接一个 Twenty 实例——智能体会获得该 CRM 自带的 MCP 服务器，CRM 事件进入分诊，被接受的条目会关联回原始记录，成员按邮箱对应。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+[Twenty](https://twenty.com) 是一款开源 CRM。接入工作区后，它会以四种方式成为团队工作的一部分：
+
+- **智能体在 CRM 里工作。** 每次智能体运行都会带上 Twenty 自己的 [MCP](/mcp-server) 服务器（名为 `twenty`），使用工作区的 API 密钥。智能体无需插件或复制密钥，就能搜索联系人和公司、更新一个 opportunity 或记一条笔记。
+- **CRM 事件进入分诊队列。** Twenty 的 webhook（新建一个联系人、opportunity 换阶段……）会变成 [分诊](/triage) 条目，附带记录链接和已变更的字段。是否变成任务由人来决定。
+- **被接受的条目会关联回去。** 当 CRM 中的一个条目被接受后，Multica 会在该记录上记一条 Task（形如 `Vigil ONE-42: <title>`，并链接到这条任务），这样 CRM 里也能看到由它派生出的工作。
+- **两边共用一个身份。** 工作区成员按邮箱与 Twenty 的成员对应。只要两个产品登录同一个 identity provider（**设置 → 安全**中的工作区 SSO），两边就是同一个人；对应关系在设置里可见。
+
+Multica 通过 Twenty 公开的 REST、GraphQL、webhook 和 MCP 接口与它通信；不会在 Twenty 内部运行任何东西。
+
+## 连接工作区
+
+工作区所有者或管理员在**设置 → 集成 → Twenty CRM**下连接它：
+
+1. 在 Twenty 中创建一个 API 密钥（**设置 → APIs & Webhooks**）。这个密钥以创建它的工作区成员的权限行事；给 Multica 用一个专属成员，能让审计记录更清楚。
+2. 在 Multica 中粘贴实例 URL（`https://crm.example.com`，Twenty Cloud 则是 `https://api.twenty.com`）和密钥。
+3. 选择要接收的事件，以及智能体是否可以使用该 CRM。默认订阅 opportunities（所有操作）、新建联系人、新建公司和新建 task，并将 CRM 暴露给智能体。
+4. 点击连接。Multica 会对照实例校验密钥、加密存储它、在 Twenty 中注册 webhook，并展示这次连接的信息：实例、状态、事件、MCP 端点和入站路径。
+
+API 密钥和 webhook secret 都用 `MULTICA_TWENTY_SECRET_KEY` 加密静态存储，二者都不会再次显示。**检查连接**会重新校验密钥并记录结果；被拒绝的密钥会让连接保持错误状态，直到重新连接为止。
+
+<Callout title="自托管">
+在运维者设置 `MULTICA_TWENTY_SECRET_KEY` 之前，这项集成处于关闭状态（参见[环境变量](/environment-variables)）。Twenty 会把 webhook 投递到 `MULTICA_PUBLIC_URL`；没有设置它时，连接仍会为智能体提供服务，设置页面会显示入站路径，方便在 Twenty 里手动注册这个订阅。
+</Callout>
+
+## 智能体能获得什么
+
+打开**暴露给智能体**后，工作区里的每次运行一开始就会挂载 Twenty 的 MCP 服务器，与 Multica 自己的工具并列。Twenty 的服务器是动态的：智能体先列出目录，再执行其中的一个工具（`find_many_people`、`update_one_opportunity` 等）。内置的平台 skill 会告诉智能体：写入前先读取，在结束状态里点名它改动过的每一条记录，绝不把密钥或记录导出粘贴进评论。
+
+关掉这项暴露会在下一次运行时移除该服务器；已经在运行中的运行会保留自己的那份。智能体的信任拨盘不会因此改变：CRM 写入是 Twenty 用这个密钥的权限执行的一次外部动作，所以要给这个密钥配一个权限恰好匹配你想让智能体能做的事的成员。
+
+## 分诊中的事件
+
+每次投递在被接纳前都会被检查：webhook 路径里的 token 标识出工作区，HMAC 签名（对 `${timestamp}:${body}` 计算的 `X-Twenty-Webhook-Signature`，使用 Twenty 为这次订阅签发的 secret）证明发送方身份，超过五分钟的时间戳会被拒绝。没有签名或签名错误的投递会被拒绝，并计入发送方的限流。
+
+被接纳的事件会变成待处理条目，标题形如 `Twenty · Opportunity updated: Acme renewal`，正文里带记录链接、已变更的字段和一段简短摘要；原始事件会留在这条条目上。这个来源和[邮件接入](/triage#email-intake)一样受到门控：由人来接受、忽略或合并。事件模式使用 Twenty 的 `object.operation` 形式，支持通配符（`opportunity.*`、`*.created`、`person.updated`）；修改这个列表会用同一个入站地址在 Twenty 中重新注册订阅。
+
+接受一个条目会像平常一样创建任务，并在后台把回链 Task 记到该记录上；CRM 不可用时不会阻塞接受操作。
+
+## 成员
+
+**设置 → 集成 → Twenty CRM → 成员**列出每一个已按同一邮箱与 Twenty 成员配对的工作区成员，以及在这边找不到对应关系的 Twenty 成员。配对只按邮箱进行：不需要在任何一边新建账号。只要两个产品配置了同一个 identity provider，登录一次，两边都能识别。
+
+## 断开连接
+
+断开连接会删除 Twenty 中的 webhook 订阅，撤销入站 token，并遗忘密钥。已经在队列中的条目和已经创建的任务会保留其历史记录；已经记在 Twenty 里的 Task 仍会留在那里。
+
+## 接下来
+
+- [MCP 服务器](/mcp-server) —— Multica 工作区本身如何是一个 MCP 服务器，以及智能体的目录在 Twenty 的目录旁边是什么样子。
+- [分诊](/triage) —— CRM 事件进入的队列。

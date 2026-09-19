@@ -58,6 +58,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { legKeys, type WorkflowLegs } from "@multica/core/issues/legs";
+import { goalKeys } from "@multica/core/issues/goal-loop";
+import { fleetKeys, type AgentConsult } from "@multica/core/fleet";
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -89,6 +91,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// Bare row renders need a client now that each row queries its consults
+// (JEF-12) — the same wrap the run-state suite below already used.
+function renderRow(ui: React.ReactElement) {
+  return renderWithI18n(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {ui}
+    </QueryClientProvider>,
+  );
+}
+
 describe("ActiveTaskRow run plan (F04)", () => {
   const plan = {
     seq: 1_000_002,
@@ -100,7 +112,7 @@ describe("ActiveTaskRow run plan (F04)", () => {
   };
 
   it("shows the progress counter and the checklist under the row", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow task={makeTask({ plan })} issueId="issue-1" />,
     );
 
@@ -112,19 +124,19 @@ describe("ActiveTaskRow run plan (F04)", () => {
   });
 
   it("renders no counter and no block for a run that published no plan", () => {
-    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    renderRow(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("carries the run's preview chip (F12) so a reviewer can reach the dev server", () => {
-    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    renderRow(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
     expect(screen.getByTestId("run-preview-chip").getAttribute("data-task")).toBe("task-1");
   });
 });
 
 describe("ActiveTaskRow", () => {
   it("renders running status as elapsed time only", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow
         task={makeTask({
           trigger_comment_id: "comment-3",
@@ -332,7 +344,7 @@ describe("per-run token usage", () => {
   // running task carries usage in production. Asserting a token figure here
   // would only prove that a hand-written fixture renders.
   it("shows a running row's timer, and no token figure even if usage exists", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow
         task={makeTask({ usage: [usageSlice()] })}
         issueId="issue-1"
@@ -370,6 +382,16 @@ describe("execution log header geometry", () => {
       </QueryClientProvider>,
     );
   }
+
+  it("shows the running task before pending tasks in queue order", () => {
+    renderSection([
+      makeTask({ id: "new", status: "queued", trigger_summary: "Order: second", created_at: "2026-09-08T03:02:00Z" }),
+      makeTask({ id: "old", status: "queued", trigger_summary: "Order: first", created_at: "2026-09-08T03:01:00Z" }),
+      makeTask({ id: "running", status: "running", trigger_summary: "Order: running", created_at: "2026-09-08T03:00:00Z" }),
+    ]);
+    expect(screen.getAllByText(/^Order:/).map((el) => el.textContent))
+      .toEqual(["Order: running", "Order: first", "Order: second"]);
+  });
 
   function headerOf(): HTMLElement {
     const label = screen.getByText("Execution log");
@@ -587,10 +609,37 @@ describe("workflow legs", () => {
     expect(screen.queryByText("Draft")).toBeNull();
   });
 
+  it("labels a goal-loop continuation leg", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+      makeTask({ id: "task-2", status: "completed", completed_at: "2026-06-08T08:05:00Z", leg_role: "continuation", workflow_root_task_id: "task-1" }),
+    ]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (2)" }));
+    expect(screen.getByText("Continuation")).toBeInTheDocument();
+  });
+
   it("totals the whole workflow, every leg counted", () => {
     renderLog(legs());
     expect(screen.getByText("Workflow")).toBeInTheDocument();
     expect(screen.getByText("3 runs · $4.20 total · 2m 05s")).toBeInTheDocument();
+  });
+
+  // Audit UX (sept. 2026): "$0.00 total" beside the delivery panel's "Cost
+  // unavailable" for the same runs. Counting rule: core legs.test.ts.
+  it("says a workflow cost is unknown instead of totalling it at zero", () => {
+    renderLog(legs({ cost_usd_ticks: 0, unknown_cost_legs: 3 }));
+    expect(screen.getByText("3 runs · cost unknown · 2m 05s")).toBeInTheDocument();
+  });
+
+  it("names the legs a partial total leaves out", () => {
+    renderLog(legs({ unknown_cost_legs: 1 }));
+    expect(screen.getByText("3 runs · $4.20 + 1 run of unknown cost · 2m 05s")).toBeInTheDocument();
   });
 
   it("renders no summary from a malformed or single-leg response", () => {
@@ -602,5 +651,183 @@ describe("workflow legs", () => {
   it("renders no summary before the workflow has loaded", () => {
     renderLog();
     expect(screen.queryByText("Workflow")).toBeNull();
+  });
+});
+
+// Goal loop: a past run's contribution to the issue's goal, badged next to
+// LegBadge/OffPeakBadge. The outcome parsing and label-key mapping are pinned
+// in packages/core/issues/goal-loop.test.ts; this covers the row wiring.
+describe("goal loop badge", () => {
+  function renderLogWithGoal(task: AgentTask, goalOver: Partial<import("@multica/core/types").IssueGoal> = {}) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [task]);
+    qc.setQueryData(goalKeys.issue("ws-1", "issue-1"), {
+      id: "g1", issue_id: "issue-1", goal: "Ship it", status: "active", continuation: 2,
+      max_continuations: 8, no_progress: 0, last_outcome: "", evidence: [], set_by_type: "member",
+      updated_at: "2026-06-08T08:00:00Z", ...goalOver,
+    });
+    return renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("badges a continuing run with its progress against the issue's max continuations", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 2, outcome: "continued" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.getByText("Goal: continued 2/8")).toBeInTheDocument();
+  });
+
+  it("badges the run that satisfied the goal", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 3, outcome: "satisfied" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.getByText("Goal met")).toBeInTheDocument();
+  });
+
+  it("badges the run that stopped needing the human, with the reason as its title", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 3, outcome: "stopped:needs_user_input", reason: "unclear target env" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    const badge = screen.getByText("Goal: waiting for answer");
+    expect(badge).toBeInTheDocument();
+    expect(badge.getAttribute("title")).toBe("unclear target env");
+  });
+
+  it("shows no badge for a run with no goal_loop verdict", () => {
+    renderLogWithGoal(makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.queryByText(/^Goal/)).toBeNull();
+  });
+});
+
+// Consult lines (JEF-12): a run that asked the platform's internal LLM
+// questions mid-run shows one line per consult under its row. The query is
+// seeded like the legs/goal suites above — the schema fallback and unknown
+// state tolerance are pinned in packages/core/fleet/schemas.test.ts.
+describe("run consults", () => {
+  function makeConsult(over: Partial<AgentConsult> = {}): AgentConsult {
+    return {
+      consult_id: "consult-1",
+      task_id: "task-1",
+      agent_id: "agent-1",
+      model: "fleet-mini",
+      question: "Which table holds runs?",
+      answer: "The run queue.",
+      state: "answered",
+      refusal_reason: null,
+      input_tokens: 120,
+      output_tokens: 40,
+      // $0.42 in pricing ticks (1e10 ticks = 1 USD).
+      cost_usd_ticks: 4_200_000_000,
+      created_at: "2026-06-08T08:02:00Z",
+      finalized_at: "2026-06-08T08:02:01Z",
+      ...over,
+    };
+  }
+
+  function renderLogWithConsults(consults: AgentConsult[]) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    ]);
+    qc.setQueryData(fleetKeys.consultsByTask("ws-1", "task-1"), consults);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+  }
+
+  it("renders nothing for a run with no consults", () => {
+    renderLogWithConsults([]);
+    expect(screen.queryByText(/Consult/)).toBeNull();
+  });
+
+  it("shows an answered consult with model and USD cost converted from ticks", () => {
+    renderLogWithConsults([makeConsult()]);
+    expect(screen.getByText("Consulted fleet-mini · $0.42")).toBeInTheDocument();
+  });
+
+  it("says the cost was not reported when the LLM layer sent none", () => {
+    renderLogWithConsults([makeConsult({ cost_usd_ticks: null })]);
+    expect(screen.getByText("Consulted fleet-mini · cost not reported")).toBeInTheDocument();
+  });
+
+  it("renders a failed consult as an inline error", () => {
+    renderLogWithConsults([makeConsult({ state: "failed", refusal_reason: "upstream 500" })]);
+    const line = screen.getByText("Consult to fleet-mini failed");
+    expect(line.className).toContain("text-destructive");
+  });
+
+  it("shows the localized reason for a refused consult", () => {
+    renderLogWithConsults([makeConsult({ state: "refused", refusal_reason: "consult_budget_exceeded", cost_usd_ticks: null })]);
+    expect(screen.getByText("Consult to fleet-mini refused · daily consult budget exhausted")).toBeInTheDocument();
+  });
+
+  it("reads an unknown state as a plain line, never an error", () => {
+    renderLogWithConsults([makeConsult({ state: "streaming" })]);
+    const line = screen.getByText("Consulted fleet-mini · $0.42");
+    expect(line.className).not.toContain("text-destructive");
+  });
+
+  it("localizes the consult line", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    ]);
+    qc.setQueryData(fleetKeys.consultsByTask("ws-1", "task-1"), [makeConsult()]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+      { locale: "fr" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Afficher les exécutions passées (1)" }));
+    expect(screen.getByText("fleet-mini consulté · $0.42")).toBeInTheDocument();
+  });
+});
+
+// Worktree branch block (JEF-255). The block's own states — diff, pending,
+// promoted, discarded, 409 — are pinned in worktree-run-block.test.tsx; what
+// this pins is the wiring: a finished run with a branch gets the block on its
+// execution-log row, and a run without one is unchanged.
+describe("execution log worktree branch (JEF-255)", () => {
+  function renderLogWithTask(task: AgentTask) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [task]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+  }
+
+  it("shows the branch and its close-out actions under a finished worktree run", () => {
+    renderLogWithTask(
+      makeTask({
+        status: "completed",
+        completed_at: "2026-06-08T08:04:00Z",
+        branch_name: "agent/jef-255/task-1",
+      }),
+    );
+    expect(screen.getByTestId("worktree-run-block")).toBeInTheDocument();
+    expect(screen.getByText("agent/jef-255/task-1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Promote" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+  });
+
+  it("renders no block for a run without a branch", () => {
+    renderLogWithTask(
+      makeTask({ status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    );
+    expect(screen.queryByTestId("worktree-run-block")).not.toBeInTheDocument();
   });
 });

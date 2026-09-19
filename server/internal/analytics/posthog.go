@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 const (
@@ -105,6 +107,12 @@ func (c *PostHogClient) Close() {
 
 func (c *PostHogClient) run() {
 	defer c.wg.Done()
+	// A panic while shipping a batch drops that batch and restarts the loop
+	// instead of crashing the process; Close still drains after a restart.
+	util.Supervise(context.Background(), "analytics posthog worker", func(context.Context) { c.loop() })
+}
+
+func (c *PostHogClient) loop() {
 	ticker := time.NewTicker(c.cfg.FlushEvery)
 	defer ticker.Stop()
 

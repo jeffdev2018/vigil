@@ -106,7 +106,7 @@ export function TelegramTab() {
             <p className="text-body font-medium">{t(($) => $.telegram.not_enabled_title)}</p>
             <p className="text-caption text-muted-foreground">
               {t(($) => $.telegram.not_enabled_description_prefix)}{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-micro">
+              <code className="rounded-xs bg-muted px-1 py-0.5 text-micro">
                 MULTICA_TELEGRAM_SECRET_KEY
               </code>{" "}
               {t(($) => $.telegram.not_enabled_description_suffix)}{" "}
@@ -209,7 +209,7 @@ function InstallationRow({
               </span>
             ) : null}
             {!isActive && (
-              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
+              <span className="ml-2 rounded-xs bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
                 {t(($) => $.telegram.revoked_badge)}
               </span>
             )}
@@ -444,7 +444,7 @@ function TelegramAgentBotStatusRow({
       )}
       data-testid="telegram-agent-bot-status"
     >
-      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
       <span className="truncate">{t(($) => $.telegram.agent_bot_connected_label)}</span>
       <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />
     </button>
@@ -491,7 +491,7 @@ function TelegramAgentBotConnectedBadge({
     >
       <div className="flex items-center justify-between gap-3">
         <span className="inline-flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
           <span className="truncate">
             {t(($) => $.telegram.agent_bot_connected_label)}
             {installation.bot_username ? ` · @${installation.bot_username}` : ""}

@@ -10,7 +10,8 @@
     "issues": "Issues",
     "cancelled": "Cancelled",
     "recent": "Recent",
-    "why": "Why"
+    "why": "Why",
+    "brain": "Brain"
   },
   "commands": {
     "current_theme_aria": "Current theme",
@@ -40,5 +41,10 @@
     "task_message": "Run message",
     "decision_record": "Decision record",
     "empty": "No relevant source. Try rephrasing the question."
+  },
+  "brain": {
+    "capture": "Capture to Brain: {{text}}",
+    "captured": "Captured to the Brain inbox",
+    "capture_failed": "The capture failed"
   }
 }

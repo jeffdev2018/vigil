@@ -30,3 +30,35 @@ export function unmarkWorkspaceDeletePending(workspaceId: string) {
 export function isWorkspaceDeletePending(workspaceId: string): boolean {
   return pendingDeletes.has(workspaceId);
 }
+
+/**
+ * Registry of workspace IDs this client is LEAVING.
+ *
+ * Marked in useLeaveWorkspace.onMutate. Same purpose as the delete registry
+ * above, for the other event: the server broadcasts `member:removed` for our
+ * own leave, and the realtime handler would answer it with a full-page
+ * relocate that races the leave flow's navigation and its own
+ * `invalidateQueries` refetch (whoever loses gets a CancelledError). The flow
+ * owns navigation and storage cleanup; the handler only serves removals
+ * decided elsewhere.
+ *
+ * Unlike a delete, the workspace still exists after we leave it, so the mark
+ * is lifted once the flow is done with it — on failure because we are still a
+ * member, and on success right after navigating, by which point the
+ * workspace-context singleton is null and the handler no-ops on its own. A
+ * later re-join followed by a real removal is then handled normally.
+ */
+const pendingLeaves = new Set<string>();
+
+export function markWorkspaceLeavePending(workspaceId: string) {
+  pendingLeaves.add(workspaceId);
+}
+
+export function unmarkWorkspaceLeavePending(workspaceId: string) {
+  pendingLeaves.delete(workspaceId);
+}
+
+/** True if this client initiated a leave for the workspace. */
+export function isWorkspaceLeavePending(workspaceId: string): boolean {
+  return pendingLeaves.has(workspaceId);
+}

@@ -309,12 +309,39 @@ func (h *Handler) RollbackAgentVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	var ids []string
 	_ = json.Unmarshal(target.SkillIds, &ids)
-	if err := h.Queries.SetAgentVersionSkills(ctx, agent.ID); err == nil {
+	// Clear-then-recreate the agent's skill set in one transaction: without
+	// it, a failure partway through (SetAgentVersionSkills, or any single
+	// AddAgentSkillEnabled) left the agent with an arbitrary subset of the
+	// target version's skills while the response still reported 200 OK.
+	skillsTx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to apply the version")
+		return
+	}
+	skillsErr := func() error {
+		defer skillsTx.Rollback(ctx)
+		qtx := h.Queries.WithTx(skillsTx)
+		if err := qtx.SetAgentVersionSkills(ctx, agent.ID); err != nil {
+			return fmt.Errorf("clear skills: %w", err)
+		}
 		for _, id := range ids {
-			if u, err := util.ParseUUID(id); err == nil {
-				_ = h.Queries.AddAgentSkillEnabled(ctx, db.AddAgentSkillEnabledParams{AgentID: agent.ID, SkillID: u})
+			u, err := util.ParseUUID(id)
+			if err != nil {
+				continue
+			}
+			if err := qtx.AddAgentSkillEnabled(ctx, db.AddAgentSkillEnabledParams{AgentID: agent.ID, SkillID: u}); err != nil {
+				return fmt.Errorf("restore skill %s: %w", id, err)
 			}
 		}
+		return skillsTx.Commit(ctx)
+	}()
+	if skillsErr != nil {
+		// Instructions/model were already applied above; the skill set is
+		// the only thing left unreconciled, but the client must not see an
+		// unqualified 200 for a rollback that landed only half-applied.
+		slog.Warn("agent rollback: skill restore failed", "error", skillsErr, "agent_id", uuidToString(agent.ID))
+		writeError(w, http.StatusInternalServerError, "the agent's config was rolled back but restoring its skills failed; retry the rollback")
+		return
 	}
 	after, err := h.Queries.GetAgent(ctx, agent.ID)
 	if err != nil {

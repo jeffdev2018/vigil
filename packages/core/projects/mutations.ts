@@ -59,19 +59,13 @@ export function useDeleteProject() {
   const wsId = useWorkspaceId();
   return useMutation({
     mutationFn: (id: string) => api.deleteProject(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: projectKeys.list(wsId) });
-      const prevList = qc.getQueryData<ListProjectsResponse>(projectKeys.list(wsId));
+    // A delete awaits the server (JEF-397): the row leaves the cache only
+    // once the server has confirmed it is gone, never optimistically.
+    onSuccess: (_data, id) => {
       qc.setQueryData<ListProjectsResponse>(projectKeys.list(wsId), (old) =>
         old ? { ...old, projects: old.projects.filter((p) => p.id !== id), total: old.total - 1 } : old,
       );
       qc.removeQueries({ queryKey: projectKeys.detail(wsId, id) });
-      return { prevList };
-    },
-    onError: (_err, _id, ctx) => {
-      if (ctx?.prevList) qc.setQueryData(projectKeys.list(wsId), ctx.prevList);
-    },
-    onSuccess: (_data, id) => {
       useRecentContextStore.getState().forgetContext(wsId, { type: "project", id });
       clearIssueSurfaceViewState(issueScopeKey({ type: "project", projectId: id }));
     },

@@ -98,6 +98,7 @@ multica issue assign MUL-123 --to "Backend Agent"
 # Comments and runs
 multica issue comment list MUL-123
 multica issue comment add MUL-123 --content "Check the regression tests first"
+multica issue comment update <comment-id> --expected-revision 2 --content "Check the regression tests and release notes"
 multica issue runs MUL-123
 ```
 
@@ -106,6 +107,7 @@ Read long descriptions or comments from stdin to avoid dealing with newlines and
 ```bash
 multica issue create --title "Upgrade notes" --description-stdin < notes.md
 multica issue comment add MUL-123 --content-stdin < review.md
+multica issue comment update <comment-id> --expected-revision 2 --content-file revised-review.md
 ```
 
 View the messages of a single run, or stop one:
@@ -180,6 +182,7 @@ See [Daemon and runtimes](/daemon-runtimes) for how it works and for custom prof
 | `agent`, `skill`, `squad` | Manage agents, skills, and squads |
 | `autopilot` | Manage automations, triggers, and run history |
 | `workspace` | Create, view, and switch workspaces, and invite members |
+| `pack` | Install, upgrade, remove and export function packs |
 | `repo` | Manage workspace repositories and check them out locally |
 | `daemon`, `runtime` | Start and stop the local daemon; view and manage runtimes |
 | `attachment` | Upload or download attachments |
@@ -272,9 +275,9 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | `project` | `list/get/create/update/delete` | Manage projects | |
 | | `status <id> <status>` | Change project status | |
 | | `resource list/add/update/remove` | Manage project resources | `--type`, `--url`, `--local-path`, `--daemon-id`, `--execution-mode` (`in_place` / `worktree` for a local directory) |
-| `label` | `list/get/create/update/delete` | Manage workspace labels | |
+| `label` | `list/get/create/update/delete` | Manage workspace labels | `list`: `--resource-type` (`issue` or `skill`), `--full-id`; `create`: `--name`, `--color`, `--resource-type` (`issue` or `skill`), `--description` |
 | `property` | `list/get/create/update/archive/unarchive` | Manage workspace custom properties | `create`: `--name`, `--type` (`text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `actor`, `multi_actor`), `--option` (repeatable, select types only); `list`: `--include-archived`; the type cannot be changed after creation |
-| `agent` | `list/get/create/update/archive/restore` | Manage agents | `--name`, `--runtime-id` (required for `create`), `--instructions`, `--model`, `--thinking-level`, `--mcp-config`, `--permission-mode`, `--max-concurrent-tasks` |
+| `agent` | `list/get/create/update/archive/restore` | Manage agents | `--name`, `--runtime-id` (required for `create`), `--instructions`, `--conversation-starters`, `--model`, `--thinking-level`, `--mcp-config`, `--permission-mode`, `--max-concurrent-tasks` |
 | | `copy <agent-id>` | Copy into a new agent; the original is untouched | `--name` (defaults to the original name plus ` (copy)`), `--runtime-id` (copying to another runtime also requires `--model`), `--no-skills`; secret configuration such as `custom_env`, `mcp_config`, and `runtime_config` is not copied — re-provide it with the same flags as `create` |
 | | `tasks <id>` | View an agent's runs | |
 | | `avatar <id>` | Upload an avatar | |
@@ -282,10 +285,13 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `skills list/set/add <agent-id>` | Manage attached skills | `--skill-ids` (`set` replaces the full list, `add` appends) |
 | | `mcp list/add/enable/disable/remove <agent-id>` | Assign workspace MCP servers to this agent | Take the server id from `workspace mcp list`. A library entry does nothing until it is added here; `disable` stops sending it without dropping the assignment |
 | `autopilot` | `list/get/create/update/delete` | Manage automations | `create`: `--title`, `--agent`, `--mode` (all required), `--project`, `--subscriber` (repeatable) |
+| | `export <id>` / `import <DAEMON.md>` | Export an autopilot as DAEMON.md, or import one | `import`: `--strategy` (`fail`, `overwrite`, `rename`), `--preview` |
 | | `trigger <id>` | Trigger a run manually | |
 | | `runs <id>` | View run history | |
 | | `trigger-add/trigger-update/trigger-delete/trigger-rotate-url` | Manage schedule and webhook triggers | |
 | `workspace` | `list/get/create/update/switch` | Manage workspaces; `switch` sets the current profile's default workspace | |
+| | `export` / `import <bundle.zip>` | Export the workspace configuration as a bundle, or import one | `export`: `--include-issues`, `--include-notes`, `--template`, `--name`, `--out`; `import`: `--strategy` (`rename`, `merge`, `skip`), `--preview` |
+| `pack` | `list/show/preview/install/installed/items/uninstall/download/preview-file/install-file/export` | Browse the pack catalogue, install, upgrade or uninstall a pack, upload your own, export the workspace as a pack | `list`: `--domain`; `install`/`install-file`: `--strategy`, `--force`; `export`: `--id`, `--version`, `--title`, `--summary`, `--domain`, `--metric-label`, `--metric-description`, `--include-issues`, `--include-notes`, `--out` |
 | | `mcp list/add/update/remove` | Manage the workspace's MCP server library | Writes are owner/admin. A server added here is assigned to no agent — give it to one with `multica agent mcp add`. `list` shows names and transports only; the stored entry is write-only and never returned. `--server-config-file` / `--server-config-stdin` keep tokens out of shell history |
 | | `member list/invite <email>` | View members, send invites | `invite`: `--role` (member or admin, default member) |
 | | `halt` | Hold every agent in this workspace (owner/admin only) | `--reason` |
@@ -295,6 +301,7 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `import` | Import a skill from a URL or local file | `--url` / `--file`, `--on-conflict` (`fail`, `overwrite`, `rename`, `skip`; default `fail`) |
 | | `search <query>` | Search skills | |
 | | `files list/upsert/delete <skill-id>` | Manage the files inside a skill | |
+| | `label list/add/remove <skill-id>` | Manage labels on a skill | `add` / `remove`: `<label-id>` accepts a full UUID or short prefix |
 | `squad` | `list/get/create/update/delete` | Manage squads (`delete` archives) | |
 | | `member list/add/set-role/remove` | Manage squad members | |
 | | `activity <issue-id> <outcome>` | Record a leader evaluation | |

@@ -92,3 +92,45 @@ export function truncateWithEllipsis(text: string, maxLength: number): string {
   }
   return `${chars.slice(0, maxLength - 1).join("").trimEnd()}…`;
 }
+
+/** Outcome of {@link runBulk}: which items succeeded and which failed, with the error. */
+export interface BulkResult<T> {
+  succeeded: T[];
+  failed: { item: T; error: unknown }[];
+}
+
+/**
+ * Run `fn` over every item independently (via `Promise.allSettled`), so one
+ * rejection never stops or hides the outcome of its siblings. Callers get
+ * back which items actually succeeded/failed instead of a single
+ * all-or-nothing exception — the shape a batch UI needs to invalidate caches
+ * unconditionally, show one summary toast, and keep only the failed rows
+ * selected for retry.
+ */
+export async function runBulk<T>(
+  items: readonly T[],
+  fn: (item: T) => Promise<unknown>,
+): Promise<BulkResult<T>> {
+  const settled = await Promise.allSettled(items.map((item) => fn(item)));
+  const succeeded: T[] = [];
+  const failed: BulkResult<T>["failed"] = [];
+  settled.forEach((result, i) => {
+    const item = items[i]!;
+    if (result.status === "fulfilled") succeeded.push(item);
+    else failed.push({ item, error: result.reason });
+  });
+  return { succeeded, failed };
+}
+
+/**
+ * Turn a machine identifier ("handle-out-of-scope-tasks", "context_overflow")
+ * into a readable label ("Handle out of scope tasks"). Strings that already
+ * carry casing or spaces ("Repo triage") are returned untouched so a
+ * human-authored name is never re-cased.
+ */
+export function humanizeIdentifier(id: string): string {
+  const spaced = id.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!spaced) return id;
+  if (spaced !== spaced.toLowerCase()) return spaced;
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}

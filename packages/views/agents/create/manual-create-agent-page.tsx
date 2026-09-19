@@ -6,7 +6,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { runtimeDisplayLabel } from "@multica/core/runtimes";
 import { agentListOptions } from "@multica/core/workspace/queries";
-import { useBackOrReplace, useNavigation } from "../../navigation";
+import { AppLink, useBackOrReplace, useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 import { AgentConfigurationPanel } from "./agent-configuration-panel";
 import { CreateAgentFooter } from "./create-agent-footer";
@@ -28,6 +28,7 @@ import {
  */
 export function ManualCreateAgentPage() {
   const { t } = useT("agents");
+  const { t: tRuntimes } = useT("runtimes");
   const wsId = useWorkspaceId();
   const paths = useWorkspacePaths();
   const navigation = useNavigation();
@@ -153,6 +154,19 @@ export function ManualCreateAgentPage() {
           creating={submit.creating}
           squad={!!squadId}
           error={submit.formError}
+          hint={
+            form.runtimesSettled && form.usableRuntimes.length === 0 ? (
+              <>
+                {tRuntimes(($) => $.page.empty.title)}{" "}
+                <AppLink
+                  href={paths.runtimes()}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {tRuntimes(($) => $.page.connect_remote)}
+                </AppLink>
+              </>
+            ) : null
+          }
           onCreate={() => void submit.create()}
         />
       </div>

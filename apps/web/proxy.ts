@@ -4,7 +4,10 @@ import {
   MULTICA_LOCALE_HEADER,
   resolveLocaleFromSignals,
 } from "./lib/locale-routing";
-import { runtimeRewriteDestination } from "./config/runtime-urls";
+import {
+  isBackendPath,
+  runtimeRewriteDestination,
+} from "./config/runtime-urls";
 import { isOfficialMarketingHost } from "./lib/public-host";
 
 // Old workspace-scoped route segments that existed before the URL refactor
@@ -31,6 +34,22 @@ function resolveLocale(req: NextRequest): string {
     acceptLanguage: req.headers.get("accept-language"),
   });
 }
+
+// Security headers for pages Next renders. The Go router sets its own CSP
+// (server/internal/middleware/csp.go) but never sees these requests. Only the
+// directives that cannot break the app are kept from that policy: fetch
+// directives (default-src, script-src, style-src, connect-src) are left out
+// because Next's inline bootstrap scripts need them relaxed, and sandboxed
+// srcdoc previews (HTML attachments, the iframe scroll bridge) inherit the
+// embedding page's policy. frame-ancestors is 'self' rather than the API's
+// 'none' so same-origin embedding keeps working.
+const PAGE_SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  "Content-Security-Policy":
+    "frame-ancestors 'self'; object-src 'none'; base-uri 'self'",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
 
 // Forward the resolved locale to RSC layouts via the `x-multica-locale`
 // request header. layout.tsx reads it through `await headers()`. The
@@ -108,7 +127,13 @@ export function proxy(req: NextRequest) {
 
   // --- Default: forward locale header to RSC, no redirect/rewrite ---
   // Covers logged-out root path, /login, /:slug/*, and everything else.
-  return nextWithLocale(req);
+  const res = nextWithLocale(req);
+  if (!isBackendPath(pathname)) {
+    for (const [name, value] of Object.entries(PAGE_SECURITY_HEADERS)) {
+      res.headers.set(name, value);
+    }
+  }
+  return res;
 }
 
 export const config = {

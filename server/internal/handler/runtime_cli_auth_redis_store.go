@@ -20,10 +20,10 @@ func cliAuthKey(id string) string               { return cliAuthKeyPrefix + id }
 func cliAuthPendingKey(runtimeID string) string { return cliAuthPendingPrefix + runtimeID }
 
 type RedisCliAuthStore struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 }
 
-func NewRedisCliAuthStore(rdb *redis.Client) *RedisCliAuthStore {
+func NewRedisCliAuthStore(rdb redis.UniversalClient) *RedisCliAuthStore {
 	return &RedisCliAuthStore{rdb: rdb}
 }
 

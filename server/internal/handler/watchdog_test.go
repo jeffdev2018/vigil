@@ -156,7 +156,7 @@ func TestTaskWatchdog(t *testing.T) {
 	}
 	testutil.Call(t, testHandler.SetIssueContractRisk, testutil.WithURLParams(newRequest(http.MethodPut, "/api/issues/"+root+"/contract-risk", map[string]any{"risk": "wild"}), "id", root)).Want(http.StatusBadRequest)
 	testutil.Call(t, testHandler.SetIssueContractRisk, testutil.WithURLParams(newRequest(http.MethodPut, "/api/issues/"+root+"/contract-risk", map[string]any{"risk": "high"}), "id", root)).Want(http.StatusOK)
-	if _, err := testHandler.Queries.UpdateIssueAcceptanceCriteria(ctx, db.UpdateIssueAcceptanceCriteriaParams{ID: parseUUID(root), AcceptanceCriteria: []byte(`[]`)}); err != nil {
+	if _, err := testHandler.Queries.UpdateIssueAcceptanceCriteria(ctx, db.UpdateIssueAcceptanceCriteriaParams{ID: parseUUID(root), AcceptanceCriteria: []byte(`[]`), WorkspaceID: parseUUID(testWorkspaceID)}); err != nil {
 		t.Fatal(err)
 	}
 	var risk string

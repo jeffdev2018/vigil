@@ -71,7 +71,9 @@ services:
       # .env.example.
       DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-}
       DATABASE_MIN_CONNS: ${DATABASE_MIN_CONNS:-}
+      REDIS_CLUSTER_MODE: ${REDIS_CLUSTER_MODE:-false}
       PORT: "8080"
+      MAINTENANCE_PORT: ${MAINTENANCE_PORT:-}
       METRICS_ADDR: ${METRICS_ADDR:-}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to a strong random value — generate one with 'openssl rand -hex 32'}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
@@ -116,6 +118,7 @@ services:
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:-}
       ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
       DISABLE_WORKSPACE_CREATION: ${DISABLE_WORKSPACE_CREATION:-}
+      DO_NOT_TRACK: ${DO_NOT_TRACK:-}
       # Managed Cloud stays off for self-hosting. All managed Cloud clients use
       # this single URL when it is configured.
       MULTICA_CLOUD_URL: ${MULTICA_CLOUD_URL:-}
@@ -146,6 +149,11 @@ services:
       MULTICA_PLUGIN_SURFACE_ORIGIN: ${MULTICA_PLUGIN_SURFACE_ORIGIN:-}
       MULTICA_PLUGIN_API_URL: ${MULTICA_PLUGIN_API_URL:-}
       MULTICA_PLUGIN_DIR: ${MULTICA_PLUGIN_DIR:-}
+      # Exact origins whose MCP/hook endpoints skip the public-HTTPS
+      # requirement, comma-separated (e.g. http://host.docker.internal:3020).
+      # Unset in production; lets a self-host operator point a workspace MCP
+      # server at a gateway running on the Docker host.
+      MULTICA_PLUGIN_DEV_ORIGINS: ${MULTICA_PLUGIN_DEV_ORIGINS:-}
       # Optional API URL shown in self-host daemon setup commands. Set this
       # when the daemon reaches the API through a different URL than the one
       # used for public webhook URLs; otherwise MULTICA_PUBLIC_URL is used.
@@ -172,6 +180,13 @@ services:
       MULTICA_LLM_ROUTING_MODEL: ${MULTICA_LLM_ROUTING_MODEL:-}
       MULTICA_LLM_EMBEDDING_MODEL: ${MULTICA_LLM_EMBEDDING_MODEL:-}
       MULTICA_LLM_MAX_RETRIES: ${MULTICA_LLM_MAX_RETRIES:-}
+      # Typed decisions (pkg/decisions): a separate endpoint and model from
+      # MULTICA_LLM_* above — a decision model refuses chat/completions, so it
+      # cannot be reached through those. All three empty leaves it disabled and
+      # every caller keeps its previous behaviour. See .env.example.
+      MULTICA_DECISIONS_API_KEY: ${MULTICA_DECISIONS_API_KEY:-}
+      MULTICA_DECISIONS_BASE_URL: ${MULTICA_DECISIONS_BASE_URL:-}
+      MULTICA_DECISIONS_MODEL: ${MULTICA_DECISIONS_MODEL:-}
       # Speech-to-text (voice memos, meeting transcription). Any OpenAI-compatible
       # provider. Empty base URL or model disables the feature. See .env.example.
       MULTICA_STT_BASE_URL: ${MULTICA_STT_BASE_URL:-}
@@ -218,6 +233,8 @@ services:
       MULTICA_MODEL_KEY_SECRET_KEY: ${MULTICA_MODEL_KEY_SECRET_KEY:-}
       # SSO (K60) at-rest encryption key for OIDC client secrets
       MULTICA_SSO_SECRET_KEY: ${MULTICA_SSO_SECRET_KEY:-}
+      # Twenty CRM at-rest encryption key for API keys and webhook secrets
+      MULTICA_TWENTY_SECRET_KEY: ${MULTICA_TWENTY_SECRET_KEY:-}
       # Linear Bridge (K21). MULTICA_LINEAR_SECRET_KEY is the opt-in: unset =
       # integration disabled. It encrypts each workspace's Linear OAuth token
       # and webhook secret at rest. The CLIENT_ID / CLIENT_SECRET pair is the

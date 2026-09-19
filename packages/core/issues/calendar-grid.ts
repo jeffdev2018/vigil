@@ -78,6 +78,26 @@ export function currentCalendarMonth(today: Date = new Date()): CalendarMonth {
  * Items whose date is unparseable, absent, or outside the rendered window are
  * dropped — the grid renders a month, and an item with no day has no cell.
  */
+/**
+ * The day a week starts on for `locale`: Intl's week info when the runtime
+ * exposes it, otherwise Sunday for the handful of locales that use it and
+ * Monday everywhere else.
+ */
+export function weekStartsOnFor(locale: string): 0 | 1 {
+  try {
+    const loc = new Intl.Locale(locale) as Intl.Locale & {
+      getWeekInfo?: () => { firstDay: number };
+      weekInfo?: { firstDay: number };
+    };
+    const info = loc.getWeekInfo?.() ?? loc.weekInfo;
+    if (info && typeof info.firstDay === "number") return info.firstDay === 7 ? 0 : 1;
+  } catch {
+    // An unknown tag falls through to the table below.
+  }
+  const region = locale.split(/[-_]/)[1]?.toUpperCase() ?? (locale.toLowerCase() === "en" ? "US" : "");
+  return ["US", "CA", "JP", "KR", "IL", "BR", "MX", "PH", "ZA", "TW"].includes(region) ? 0 : 1;
+}
+
 export function buildCalendarGrid<T>(
   month: CalendarMonth,
   items: T[],

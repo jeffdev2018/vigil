@@ -36,9 +36,11 @@ export interface ValidateLocalDirectoryResult {
 }
 
 async function validateLocalDirectory(
-  path: string,
+  path: unknown,
 ): Promise<ValidateLocalDirectoryResult> {
-  if (!path || !isAbsolute(path)) {
+  // isAbsolute() throws TypeError on a non-string; guard before it so a
+  // malformed IPC call rejects the promise with a normal result instead.
+  if (typeof path !== "string" || !path || !isAbsolute(path)) {
     return { ok: false, reason: "not_absolute" };
   }
   try {

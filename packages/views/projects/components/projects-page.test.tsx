@@ -6,6 +6,7 @@ import type { Project } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { ProjectsPage } from "./projects-page";
+import { toast } from "sonner";
 
 const mocks = vi.hoisted(() => ({
   projects: [] as Project[],
@@ -14,7 +15,9 @@ const mocks = vi.hoisted(() => ({
   pins: [] as Array<{ item_type: string; item_id: string }>,
   updateProject: vi.fn(),
   deleteProject: vi.fn(),
+  deleteProjectAsync: vi.fn(async () => ({})),
   createPin: vi.fn(),
+  createPinAsync: vi.fn(async () => ({})),
   deletePin: vi.fn(),
   openModal: vi.fn(),
   projectViewState: {
@@ -55,14 +58,17 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@multica/core/projects", () => ({
   projectListOptions: () => ({ queryKey: ["projects"] }),
   useUpdateProject: () => ({ mutate: mocks.updateProject }),
-  useDeleteProject: () => ({ mutate: mocks.deleteProject }),
+  useDeleteProject: () => ({
+    mutate: mocks.deleteProject,
+    mutateAsync: mocks.deleteProjectAsync,
+  }),
   useProjectViewStore: (selector: (state: unknown) => unknown) =>
     selector(mocks.projectViewState),
 }));
 
 vi.mock("@multica/core/pins", () => ({
   pinListOptions: () => ({ queryKey: ["pins"] }),
-  useCreatePin: () => ({ mutate: mocks.createPin }),
+  useCreatePin: () => ({ mutate: mocks.createPin, mutateAsync: mocks.createPinAsync }),
   useDeletePin: () => ({ mutate: mocks.deletePin }),
 }));
 
@@ -182,6 +188,10 @@ vi.mock("@multica/ui/components/ui/tooltip", () => ({
   ),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 const PROJECT: Project = {
   id: "project-1",
   workspace_id: "workspace-1",
@@ -240,9 +250,14 @@ beforeEach(() => {
   mocks.pins = [];
   mocks.updateProject.mockClear();
   mocks.deleteProject.mockClear();
+  mocks.deleteProjectAsync.mockReset();
+  mocks.deleteProjectAsync.mockResolvedValue({});
   mocks.createPin.mockClear();
+  mocks.createPinAsync.mockReset();
+  mocks.createPinAsync.mockResolvedValue({});
   mocks.deletePin.mockClear();
   mocks.openModal.mockClear();
+  vi.mocked(toast.error).mockClear();
   mocks.projectViewState.viewMode = "compact";
   mocks.projectViewState.sortField = "name";
   mocks.projectViewState.sortDirection = "asc";
@@ -251,14 +266,51 @@ beforeEach(() => {
 });
 
 describe("ProjectsPage compact row navigation", () => {
-  it("renders the project name as text, not a title link", () => {
+  // The row is a <div> whose click/auxclick handlers are a mouse-only
+  // convenience (ui list-grid documents the split). The title has to be a
+  // real anchor or the row has no keyboard, no "open in new tab" and no
+  // browser context menu at all.
+  it("renders the project name as a real link", () => {
     renderProjects();
 
     const row = projectRow();
-    expect(within(row).getByText(PROJECT.title).tagName).toBe("SPAN");
-    expect(
-      within(row).queryByRole("link", { name: PROJECT.title }),
-    ).not.toBeInTheDocument();
+    const link = within(row).getByRole("link", { name: PROJECT.title });
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/test-workspace/projects/project-1");
+  });
+
+  it("navigates once from the keyboard when the title link is activated", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    renderProjects(makeAdapter({ push }));
+
+    const link = within(projectRow()).getByRole("link", {
+      name: PROJECT.title,
+    });
+    link.focus();
+    expect(link).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(push).toHaveBeenCalledWith("/test-workspace/projects/project-1");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  // Web has no tab adapter, so AppLink leaves a modifier click to the
+  // browser. If the event reached the row, rowLink would ALSO run its
+  // window.open fallback and the user would get two tabs.
+  it("leaves a modifier click on the title to the browser, without the row fallback", () => {
+    const push = vi.fn();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderProjects(makeAdapter({ push }));
+
+    fireEvent.click(
+      within(projectRow()).getByRole("link", { name: PROJECT.title }),
+      { metaKey: true },
+    );
+
+    expect(open).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 
   it("navigates from the row surface", async () => {
@@ -272,17 +324,19 @@ describe("ProjectsPage compact row navigation", () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("does not navigate when inline controls are clicked", async () => {
-    const user = userEvent.setup();
+  it("does not navigate when inline controls are clicked", () => {
     const push = vi.fn();
     renderProjects(makeAdapter({ push }));
     const row = projectRow();
 
-    await user.click(within(row).getByRole("button", { pressed: false }));
-    await user.click(within(row).getByRole("button", { name: "Project actions" }));
-    await user.click(within(row).getAllByRole("button", { name: "In Progress" })[0]!);
-    await user.click(within(row).getAllByRole("button", { name: "High" })[0]!);
-    await user.click(within(row).getByRole("button", { name: "—" }));
+    // rowLink listens to `click`/`auxclick` only, so a bare click bubbling
+    // from each control is the whole contract; a full pointer sequence would
+    // also open every popover (menu, status, priority, date) for nothing.
+    fireEvent.click(within(row).getByRole("button", { pressed: false }));
+    fireEvent.click(within(row).getByRole("button", { name: "Project actions" }));
+    fireEvent.click(within(row).getAllByRole("button", { name: "In Progress" })[0]!);
+    fireEvent.click(within(row).getAllByRole("button", { name: "High" })[0]!);
+    fireEvent.click(within(row).getByRole("button", { name: "—" }));
 
     expect(push).not.toHaveBeenCalled();
   });
@@ -308,6 +362,26 @@ describe("ProjectsPage compact row navigation", () => {
     expect(openInNewTab).toHaveBeenNthCalledWith(2, "/test-workspace/projects/project-1", "Launch Plan");
     expect(openInNewTab).toHaveBeenNthCalledWith(3, "/test-workspace/projects/project-1", "Launch Plan");
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("names the selection toggles and reveals them on focus", async () => {
+    const user = userEvent.setup();
+    renderProjects();
+
+    const rowToggle = within(projectRow()).getByRole("button", {
+      name: `Select ${PROJECT.title}`,
+    });
+    // Both are hidden by `opacity-0` while nothing is selected, so focus has
+    // to reveal them too or the keyboard lands on an invisible control.
+    expect(rowToggle.className).toContain("focus-visible:opacity-100");
+    expect(
+      screen.getByRole("button", { name: "Select all projects" }).className,
+    ).toContain("focus-visible:opacity-100");
+
+    rowToggle.focus();
+    expect(rowToggle).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(rowToggle).toHaveAttribute("aria-pressed", "true");
   });
 
   // Web (no adapter): the row is a <div>, so nothing native catches a

@@ -186,13 +186,8 @@ func parsePermissionInput(workspaceID pgtype.UUID, permissionMode *string, targe
 	return res, true, nil
 }
 
-// replaceInvocationTargets rewrites an agent's invocation allow-list wholesale:
-// clear then re-insert. Called inside create/update after the agent row exists.
-func (h *Handler) replaceInvocationTargets(ctx context.Context, agentID pgtype.UUID, createdBy pgtype.UUID, targets []targetSpec) error {
-	return replaceInvocationTargetsWithQueries(ctx, h.Queries, agentID, createdBy, targets)
-}
-
-// replaceInvocationTargetsWithQueries is the tx-friendly variant: callers that
+// replaceInvocationTargetsWithQueries rewrites an agent's invocation
+// allow-list wholesale: clear then re-insert. Callers that
 // hold a `qtx := h.Queries.WithTx(tx)` can pass it here so the invocation
 // target rows are written inside the same transaction as the agent row. A
 // fresh agent row must not observe a state where the row exists but its targets

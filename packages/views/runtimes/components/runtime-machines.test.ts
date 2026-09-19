@@ -179,9 +179,10 @@ describe("runtime machine grouping", () => {
     const subtitle = machines[0]?.subtitle ?? "";
     expect(subtitle.toLowerCase()).not.toContain("claude code");
     expect(subtitle.toLowerCase()).not.toContain("codex-cli");
-    // Falls back to the daemon-id descriptor — at minimum it must not be
-    // the runtime CLI's marketing string.
-    expect(subtitle).toMatch(/^daemon /);
+    // Nothing readable is left, so the subtitle is empty and the row falls
+    // back to its translated "Local daemon" label (JEF-401): a truncated
+    // daemon id is not a subtitle either.
+    expect(subtitle).toBe("");
   });
 
   it("synthesizes a placeholder local machine when ensureLocalMachine is set and no runtime matches", () => {
@@ -380,9 +381,36 @@ describe("runtime machine grouping", () => {
     expect(machines[0]).toMatchObject({
       id: "cloud:runtime:cloud-1",
       title: "Codex cloud",
-      subtitle: "Cloud worker",
+      subtitle: null,
       section: "cloud",
     });
+  });
+
+  // Regression: the cloud-fallback title was composed here as a hardcoded
+  // English template literal ("${provider} cloud"), rendered as-is by
+  // runtimes-page.tsx/runtime-detail-page.tsx with no t() — the ONE case
+  // among this file's title fallbacks the sibling subtitle (machine.metrics
+  // .cloud_worker) already translated. cloudMachineTitle lets the caller
+  // supply a translated title instead.
+  it("routes the cloud fallback title through cloudMachineTitle when the caller supplies one", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "cloud-1",
+          daemon_id: null,
+          runtime_mode: "cloud",
+          provider: "anthropic",
+          name: "Anthropic cloud",
+          device_info: "",
+        }),
+      ],
+      {
+        now: NOW,
+        cloudMachineTitle: (provider) => `${provider} · cloud (translated)`,
+      },
+    );
+
+    expect(machines[0]?.title).toBe("anthropic · cloud (translated)");
   });
 });
 

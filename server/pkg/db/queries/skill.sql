@@ -132,7 +132,7 @@ ORDER BY s.name ASC;
 -- name: ListAgentSkillSummaries :many
 -- Summary variant for the agent skills list endpoint — omits `content` for
 -- the same reason as ListSkillSummariesByWorkspace.
-SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.created_by, s.created_at, s.updated_at, ask.enabled
+SELECT s.id, s.workspace_id, s.name, s.description, s.config, s.status, s.created_by, s.created_at, s.updated_at, ask.enabled
 FROM skill s
 JOIN agent_skill ask ON ask.skill_id = s.id
 WHERE ask.agent_id = $1

@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
+	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -334,7 +335,7 @@ func (h *Handler) ReportCliAuthResult(w http.ResponseWriter, r *http.Request) {
 			message = "CLI authentication failed"
 		}
 		if len(message) > 1000 {
-			message = message[:1000]
+			message = util.TruncateUTF8Bytes(message, 1000)
 		}
 		err = h.CliAuthStore.Fail(r.Context(), requestID, message)
 	default:

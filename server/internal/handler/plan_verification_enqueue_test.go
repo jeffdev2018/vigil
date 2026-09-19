@@ -7,6 +7,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // F17: exactly one verification run per completed run on an issue with an
@@ -100,5 +101,51 @@ func TestMaybeEnqueuePlanVerificationSkipsWithoutGateOrPlan(t *testing.T) {
 	}
 	if n := countTasksOnIssue(t, noPlan); n != 1 {
 		t.Fatalf("issue without plan queued a verification: %d tasks", n)
+	}
+}
+
+// Regression test for the non-atomic create+enqueue bug: MaybeEnqueuePlanVerification
+// now writes the plan_verification tracking row (task_id = source_task_id,
+// a placeholder) BEFORE calling EnqueueTaskForIssueWithHandoff, specifically
+// so a transient failure between the two can never leave a completed source
+// task without a row that marks it as handled -- which is what let a
+// duplicate, uncontrolled verification run get queued on a later retry.
+// This asserts the mechanism the fix relies on directly: as soon as that
+// placeholder row exists, PlanVerificationExistsForSource already reports
+// true for the source task, before any verification run has been enqueued.
+func TestPlanVerificationPlaceholderRowClosesReFireWindowBeforeEnqueue(t *testing.T) {
+	setPlanVerificationGate(t, true)
+	issue, task := completedAgentRun(t, "verify placeholder")
+	plan := putPlan(t, issue, "1. step")
+	ctx := context.Background()
+
+	if exists, err := testHandler.Queries.PlanVerificationExistsForSource(ctx, parseUUID(task)); err != nil || exists {
+		t.Fatalf("exists = %v %v, want false before any verification row", exists, err)
+	}
+
+	row, err := testHandler.Queries.CreatePlanVerification(ctx, db.CreatePlanVerificationParams{
+		WorkspaceID:  parseUUID(testWorkspaceID),
+		IssueID:      parseUUID(issue),
+		PlanID:       parseUUID(plan.Plan.ID),
+		PlanVersion:  plan.Plan.Version,
+		TaskID:       parseUUID(task), // placeholder: same as source_task_id
+		SourceTaskID: parseUUID(task),
+	})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM plan_verification WHERE id = $1`, uuidToString(row.ID))
+	})
+	if err != nil {
+		t.Fatalf("CreatePlanVerification (placeholder): %v", err)
+	}
+
+	// The guard MaybeEnqueuePlanVerification checks on every completion must
+	// already see this source task as handled -- no verification run has
+	// been enqueued yet.
+	exists, err := testHandler.Queries.PlanVerificationExistsForSource(ctx, parseUUID(task))
+	if err != nil || !exists {
+		t.Fatalf("exists = %v %v, want true right after the placeholder row is written", exists, err)
+	}
+	if n := countTasksOnIssue(t, issue); n != 1 {
+		t.Fatalf("tasks on issue = %d, want still just the source run (nothing enqueued yet)", n)
 	}
 }

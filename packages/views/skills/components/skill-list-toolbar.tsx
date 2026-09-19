@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -12,7 +13,10 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type { Agent, MemberWithUser } from "@multica/core/types";
+import { useQuery } from "@tanstack/react-query";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { labelListOptions } from "@multica/core/labels/queries";
+import type { Agent, Label, MemberWithUser } from "@multica/core/types";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -47,8 +51,9 @@ import {
   type SkillSortDirection,
   type SkillSortField,
 } from "@multica/core/skills/stores";
+import { LabelChip } from "../../labels/label-chip";
 import { useT } from "../../i18n";
-import type { SkillRow } from "./skills-page";
+import type { SkillRow } from "./skill-list-filter";
 import { PAGE_TOOLBAR } from "../../layout/page-header";
 
 export type OriginType = SkillOriginType;
@@ -71,6 +76,7 @@ export function countActiveFilterDimensions(
   if (filters.origins.length > 0) count++;
   if (filters.agents.length > 0) count++;
   if (filters.creators.length > 0) count++;
+  if (filters.labels.length > 0) count++;
   return count;
 }
 
@@ -124,6 +130,9 @@ export function SkillListToolbar({
   visibleCount: number;
 }) {
   const { t } = useT("skills");
+  const [labelSearch, setLabelSearch] = useState("");
+  const wsId = useWorkspaceId();
+  const { data: catalogLabels = [] } = useQuery(labelListOptions(wsId, "skill"));
 
   const activeCount = countActiveFilterDimensions(filters);
   const hasActiveFilters = activeCount > 0;
@@ -139,6 +148,7 @@ export function SkillListToolbar({
     string,
     { member: MemberWithUser; count: number }
   >();
+  const labelCounts = new Map<string, number>();
   for (const row of allRows) {
     originCounts.set(row.originType, (originCounts.get(row.originType) ?? 0) + 1);
     for (const agent of row.agents) {
@@ -151,7 +161,15 @@ export function SkillListToolbar({
       if (entry) entry.count += 1;
       else creatorOptions.set(row.creator.user_id, { member: row.creator, count: 1 });
     }
+    for (const label of row.skill.labels ?? []) {
+      labelCounts.set(label.id, (labelCounts.get(label.id) ?? 0) + 1);
+    }
   }
+
+  const labelQuery = labelSearch.trim().toLowerCase();
+  const filteredLabels = catalogLabels.filter((label: Label) =>
+    label.name.toLowerCase().includes(labelQuery),
+  );
 
   const ORIGIN_LABELS: Record<OriginType, string> = {
     manual: t(($) => $.table.source_manual),
@@ -240,22 +258,6 @@ export function SkillListToolbar({
                 ) : (
                   <span className="hidden md:inline">
                     {t(($) => $.toolbar.filter_label)}
-                  </span>
-                )}
-                {hasActiveFilters && (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label={t(($) => $.toolbar.clear_filters)}
-                    className="-mr-1 ml-0.5 hidden rounded-sm p-0.5 hover:bg-white/20 md:inline-flex"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onClearFilters();
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <X className="size-3" />
                   </span>
                 )}
               </Button>
@@ -389,8 +391,74 @@ export function SkillListToolbar({
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+
+            {/* Labels — Skill-scoped catalog, OR-within-labels like Issues. */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <span className="flex-1">
+                  {t(($) => $.toolbar.section_labels)}
+                </span>
+                {filters.labels.length > 0 && (
+                  <span className="text-caption font-medium text-primary">
+                    {filters.labels.length}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-auto min-w-52 p-0">
+                <div className="border-b border-foreground/5 px-2 py-1.5">
+                  <input
+                    type="text"
+                    value={labelSearch}
+                    onChange={(e) => setLabelSearch(e.target.value)}
+                    placeholder={t(($) => $.toolbar.filter_search_placeholder)}
+                    className="w-full bg-transparent text-body outline-none placeholder:text-muted-foreground"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto p-1">
+                  {filteredLabels.map((label) => {
+                    const checked = filters.labels.includes(label.id);
+                    const count = labelCounts.get(label.id) ?? 0;
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={label.id}
+                        checked={checked}
+                        onCheckedChange={() =>
+                          onToggleFilter("labels", label.id)
+                        }
+                        className={FILTER_ITEM_CLASS}
+                      >
+                        <HoverCheck checked={checked} />
+                        <LabelChip label={label} />
+                        {count > 0 && countBadge(count)}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+                  {filteredLabels.length === 0 && (
+                    <div className="px-2 py-3 text-center text-body text-muted-foreground">
+                      {labelSearch
+                        ? t(($) => $.toolbar.no_results)
+                        : t(($) => $.toolbar.no_labels)}
+                    </div>
+                  )}
+                </div>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* A sibling, not a child of the trigger: nothing nested inside a
+            native <button> is reachable from the keyboard. */}
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t(($) => $.toolbar.clear_filters)}
+            className="text-muted-foreground"
+            onClick={() => onClearFilters()}
+          >
+            <X className="size-3.5" />
+          </Button>
+        )}
 
         {/* Display settings — same paradigm as the issues header: Popover
             with bordered sections, trigger shows the active sort (direction
@@ -466,6 +534,11 @@ export function SkillListToolbar({
                     )
                   }
                   title={
+                    sortDirection === "asc"
+                      ? t(($) => $.toolbar.direction_asc)
+                      : t(($) => $.toolbar.direction_desc)
+                  }
+                  aria-label={
                     sortDirection === "asc"
                       ? t(($) => $.toolbar.direction_asc)
                       : t(($) => $.toolbar.direction_desc)

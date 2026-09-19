@@ -456,7 +456,9 @@ func (h *Handler) ReportMcpCall(w http.ResponseWriter, r *http.Request) {
 		"server": req.Server, "tool": req.Tool, "risk": req.Risk, "class": req.Class, "result": req.Result, "gate_id": req.GateID, "duration_ms": req.DurationMs, "flags": req.Flags,
 	}, nil)
 	if serverID, err := util.ParseUUID(req.ServerID); err == nil && req.Result == "success" {
-		_ = h.Queries.TouchAgentMcpToolUsage(r.Context(), db.TouchAgentMcpToolUsageParams{AgentID: agent.ID, ServerID: serverID, Tool: req.Tool, UsedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}})
+		if err := h.Queries.TouchAgentMcpToolUsage(r.Context(), db.TouchAgentMcpToolUsageParams{AgentID: agent.ID, ServerID: serverID, Tool: req.Tool, UsedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}); err != nil {
+			slog.Warn("mcp gateway: touch tool usage failed", "agent_id", uuidToString(agent.ID), "server_id", req.ServerID, "tool", req.Tool, "error", err)
+		}
 	}
 	if req.Result == "success" && req.First && mcpgov.HighRisk(req.Risk) && agent.OwnerID.Valid {
 		how := "ran alone"

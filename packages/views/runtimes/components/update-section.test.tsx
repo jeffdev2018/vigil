@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nProvider } from "@multica/core/i18n/react";
+import { api } from "@multica/core/api";
 import enCommon from "../../locales/en/common.json";
 import enRuntimes from "../../locales/en/runtimes.json";
+import frCommon from "../../locales/fr/common.json";
+import frRuntimes from "../../locales/fr/runtimes.json";
 import { UpdateSection } from "./update-section";
 
-const TEST_RESOURCES = { en: { common: enCommon, runtimes: enRuntimes } };
+const TEST_RESOURCES = {
+  en: { common: enCommon, runtimes: enRuntimes },
+  fr: { common: frCommon, runtimes: frRuntimes },
+};
 
 vi.mock("@multica/core/api", () => ({
   api: {
@@ -20,9 +26,10 @@ function renderSection(props: {
   runtimeId: string | null;
   launchedBy?: string | null;
   currentVersion?: string;
+  locale?: "en" | "fr";
 }) {
   return render(
-    <I18nProvider locale="en" resources={TEST_RESOURCES}>
+    <I18nProvider locale={props.locale ?? "en"} resources={TEST_RESOURCES}>
       <UpdateSection
         runtimeId={props.runtimeId}
         currentVersion={props.currentVersion ?? "v0.4.0"}
@@ -169,4 +176,58 @@ describe("UpdateSection non-release versions", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Local build")).not.toBeInTheDocument();
   });
+});
+
+// Regression: markCompleted's poll-completion fallback and the currentVersion
+// catch-up path both built `Updated to ${version}` as a raw JS template
+// literal, never passed through t() — rendered in English regardless of the
+// selected locale.
+describe("UpdateSection completion message", () => {
+  const LATEST = "v0.4.20";
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ tag_name: LATEST }),
+      }),
+    );
+    vi.mocked(api.initiateUpdate).mockResolvedValue({
+      id: "update-1",
+      runtime_id: "runtime-1",
+      status: "pending",
+      target_version: LATEST,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // The component polls on a real 2s setInterval; real timers here (rather
+  // than fake ones, which fight jsdom/RTL's own internal polling) keep this
+  // one integration test simple at the cost of ~2s of wall time.
+  it("translates the completion message when the poll reports no output of its own", async () => {
+    vi.mocked(api.getUpdateResult).mockResolvedValue({
+      id: "update-1",
+      runtime_id: "runtime-1",
+      status: "completed",
+      target_version: LATEST,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+
+    renderSection({ runtimeId: "runtime-1", currentVersion: "v0.4.17", locale: "fr" });
+    fireEvent.click(await screen.findByRole("button", { name: "Mettre à jour" }));
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(`Mise à jour vers ${LATEST}`)).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
+  }, 6000);
 });

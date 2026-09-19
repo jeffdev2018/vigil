@@ -111,7 +111,7 @@ function MachineRow({
         accessibilityLabel={online ? "Online" : "Offline"}
         className={cn(
           "size-2 rounded-full",
-          online ? "bg-emerald-500" : "bg-muted-foreground/40",
+          online ? "bg-success" : "bg-muted-foreground/40",
         )}
       />
       <View className="flex-1 min-w-0 gap-0.5">

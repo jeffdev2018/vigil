@@ -73,9 +73,42 @@ const (
 	// workspace_note:deleted fires on a permanent delete.
 	EventWorkspaceNoteCreated = "workspace_note:created"
 	EventWorkspaceNoteUpdated = "workspace_note:updated"
-	EventWorkspaceNoteDeleted = "workspace_note:deleted"
+	// EventBrainCaptureChanged fires when a capture is created, transcribed,
+	// suggested, organized, discarded or reopened (payload: capture_id, status, change).
+	EventBrainCaptureChanged = "brain_capture:changed"
+	// EventFollowupChanged fires when a follow-up (deferred wake-up of an
+	// issue\'s agent) is scheduled or cancelled (payload: issue_id, followup_id, change).
+	EventFollowupChanged = "followup:changed"
+	// EventIssueRecurrenceChanged fires when a recurrence rule is created,
+	// updated or cleared on an issue (payload: issue_id, recurrence_id, change).
+	EventIssueRecurrenceChanged = "issue_recurrence:changed"
+	EventWorkspaceNoteDeleted   = "workspace_note:deleted"
 
 	// Inbox events
+	// Inline approvals (OS plan, chantier 3): something a human is asked to
+	// decide appeared or was settled. Workspace-wide, issue-scoped payload:
+	// {source: decision|transition|goal_question, id, issue_id, kind, outcome?}.
+	// Personal inbox items still carry the ask to each recipient.
+	// EventRunHaltChanged (fleet page): the kill switch or the halt setting
+	// flipped; payload {run_halt, cancelled?}.
+	EventRunHaltChanged = "run_halt:changed"
+
+	// EventCalendarChanged (native calendar): an event was created, moved,
+	// answered, scheduled or cancelled; payload {event_id, issue_id, status}.
+	EventCalendarChanged = "calendar:changed"
+
+	// EventDoctrineChanged (workspace doctrine): a revision was published,
+	// proposed or reviewed, or a report was filed or resolved. Clients
+	// refetch the doctrine and its reports.
+	EventDoctrineChanged = "doctrine:changed"
+
+	// EventPackChanged (packs): a pack was installed, upgraded or removed.
+	// Clients refetch the catalogue and the installed list.
+	EventPackChanged = "pack:changed"
+
+	EventApprovalAsked   = "approval:asked"
+	EventApprovalDecided = "approval:decided"
+
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"
 	EventInboxUnread        = "inbox:unread"
@@ -243,6 +276,12 @@ const (
 	// itself: the daemon still pulls the request through the normal heartbeat
 	// claim, so a lost or duplicated hint is harmless.
 	EventDaemonPendingWork = "daemon:pending_work"
+	// EventDaemonRunHaltChanged is a workspace-scoped hint that the workspace
+	// halt flipped (JEF-257). The daemon reacts by reconciling immediately so
+	// in-flight task watchers re-poll their control status sub-second instead
+	// of on the 5s poll; the poll remains the fallback for daemons that do not
+	// know this frame.
+	EventDaemonRunHaltChanged = "daemon:run_halt_changed"
 	// Generic daemon→server request/response over the WebSocket control
 	// connection (MUL-4257). The daemon sends EventDaemonRPCRequest with a
 	// correlation id + method + body; the server replies EventDaemonRPCResponse

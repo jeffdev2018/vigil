@@ -59,6 +59,7 @@ const mockToastError = vi.hoisted(() => vi.fn());
 const mockModalOpen = vi.hoisted(() => vi.fn());
 const mockGetAgent = vi.hoisted(() => vi.fn());
 const mockUpdateAgent = vi.hoisted(() => vi.fn());
+const mockArchiveAgent = vi.hoisted(() => vi.fn());
 
 vi.mock("@multica/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
@@ -149,7 +150,7 @@ vi.mock("@multica/core/api", () => {
     }
   }
   return {
-    api: { getAgent: mockGetAgent, updateAgent: mockUpdateAgent },
+    api: { getAgent: mockGetAgent, updateAgent: mockUpdateAgent, archiveAgent: mockArchiveAgent },
     ApiError,
   };
 });
@@ -456,6 +457,31 @@ describe("AgentDetailPage DM button", () => {
     expect(
       screen.getByLabelText("Agent actions"),
     ).toBeInTheDocument();
+  });
+
+  // Flows that navigate must await the server: a failed archive used to toast
+  // on the agents list the user had already been sent to.
+  async function confirmArchive() {
+    agentsRef.current = [{ ...baseAgent, owner_id: "user-1" }];
+    const view = renderPage();
+    fireEvent.click(await screen.findByLabelText("Agent actions"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Archive Agent" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }));
+    return view;
+  }
+
+  it("stays on the agent when archiving fails", async () => {
+    mockArchiveAgent.mockRejectedValue(new Error("archive refused"));
+    const { push } = await confirmArchive();
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("archive refused"));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("leaves for the agents list once the archive succeeds", async () => {
+    mockArchiveAgent.mockResolvedValue(undefined);
+    const { push } = await confirmArchive();
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/acme/agents"));
+    expect(mockArchiveAgent).toHaveBeenCalledWith("agent-1");
   });
 
   it("explains an unbound agent and blocks run actions without losing the profile", async () => {

@@ -24,6 +24,7 @@ import {
 } from "@multica/core/pr-walkthrough";
 import type { AnchoredThread } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 import { AnchorAskButton, AnchorComposer, DiffAnchorThread } from "./diff-anchor-thread";
@@ -375,9 +376,9 @@ function PrWalkthroughSkeleton() {
   const { t } = useT("issues");
   return (
     <div className="space-y-2" aria-busy="true" aria-label={t(($) => $.walkthrough.pending)}>
-      <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-      <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-      <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+      <Skeleton className="h-3 w-1/2" />
+      <Skeleton className="h-3 w-3/4" />
+      <Skeleton className="h-3 w-2/3" />
     </div>
   );
 }

@@ -232,6 +232,7 @@ func buildSquadRoster(ctx context.Context, q *db.Queries, squad db.Squad) string
 	}
 
 	skillNamesByAgentID, skillsLoaded := loadSquadMemberSkillNames(ctx, q, members, util.UUIDToString(squad.LeaderID))
+	agentsByID, usersByID := loadSquadMemberAgentsAndUsers(ctx, q, members, util.UUIDToString(squad.LeaderID))
 
 	rows := make([]string, 0, len(members))
 	for _, m := range members {
@@ -240,7 +241,7 @@ func buildSquadRoster(ctx context.Context, q *db.Queries, squad db.Squad) string
 		if m.MemberType == "agent" && util.UUIDToString(m.MemberID) == util.UUIDToString(squad.LeaderID) {
 			continue
 		}
-		row := renderMemberRow(ctx, q, m, skillNamesByAgentID, skillsLoaded)
+		row := renderMemberRow(m, agentsByID, usersByID, skillNamesByAgentID, skillsLoaded)
 		if row != "" {
 			rows = append(rows, row)
 		}
@@ -290,15 +291,68 @@ func loadSquadMemberSkillNames(ctx context.Context, q *db.Queries, members []db.
 	return byAgentID, true
 }
 
+// loadSquadMemberAgentsAndUsers batch-fetches every non-leader member's Agent
+// or user row up front (GetAgentsByIDs / GetUsersByIDs), so renderMemberRow
+// looks the row up from a map instead of issuing one GetAgent/GetUser per
+// member — mirroring the skills batching just above it. A lookup failure
+// (DB error) degrades to an empty map rather than aborting the roster; each
+// member simply renders as unresolved, same as the pre-batching per-member
+// error handling did.
+func loadSquadMemberAgentsAndUsers(ctx context.Context, q *db.Queries, members []db.SquadMember, leaderID string) (map[string]db.Agent, map[string]db.GetUsersByIDsRow) {
+	agentIDs := make([]pgtype.UUID, 0)
+	userIDs := make([]pgtype.UUID, 0)
+	seenAgent := make(map[string]struct{}, len(members))
+	seenUser := make(map[string]struct{}, len(members))
+	for _, m := range members {
+		id := util.UUIDToString(m.MemberID)
+		switch m.MemberType {
+		case "agent":
+			if id == leaderID {
+				continue
+			}
+			if _, ok := seenAgent[id]; ok {
+				continue
+			}
+			seenAgent[id] = struct{}{}
+			agentIDs = append(agentIDs, m.MemberID)
+		case "member":
+			if _, ok := seenUser[id]; ok {
+				continue
+			}
+			seenUser[id] = struct{}{}
+			userIDs = append(userIDs, m.MemberID)
+		}
+	}
+
+	agentsByID := make(map[string]db.Agent, len(agentIDs))
+	if len(agentIDs) > 0 {
+		if rows, err := q.GetAgentsByIDs(ctx, agentIDs); err == nil {
+			for _, ag := range rows {
+				agentsByID[util.UUIDToString(ag.ID)] = ag
+			}
+		}
+	}
+
+	usersByID := make(map[string]db.GetUsersByIDsRow, len(userIDs))
+	if len(userIDs) > 0 {
+		if rows, err := q.GetUsersByIDs(ctx, userIDs); err == nil {
+			for _, u := range rows {
+				usersByID[util.UUIDToString(u.ID)] = u
+			}
+		}
+	}
+	return agentsByID, usersByID
+}
+
 // renderMemberRow renders a single roster row, returning "" if the member
 // can't be resolved or should be skipped (e.g. archived agent).
-func renderMemberRow(ctx context.Context, q *db.Queries, m db.SquadMember, skillNamesByAgentID map[string][]string, skillsLoaded bool) string {
+func renderMemberRow(m db.SquadMember, agentsByID map[string]db.Agent, usersByID map[string]db.GetUsersByIDsRow, skillNamesByAgentID map[string][]string, skillsLoaded bool) string {
 	id := util.UUIDToString(m.MemberID)
 	role := strings.TrimSpace(m.Role)
 	switch m.MemberType {
 	case "agent":
-		ag, err := q.GetAgent(ctx, m.MemberID)
-		if err != nil {
+		ag, ok := agentsByID[id]
+		if !ok {
 			return ""
 		}
 		if ag.ArchivedAt.Valid {
@@ -308,15 +362,14 @@ func renderMemberRow(ctx context.Context, q *db.Queries, m db.SquadMember, skill
 		// capability instead of guessing from the free-text role label.
 		return formatRosterRow(ag.Name, "agent", role, agentSkillsRosterSegment(skillNamesByAgentID, skillsLoaded, id), formatMention(ag.Name, "agent", id))
 	case "member":
-		user, err := q.GetUser(ctx, m.MemberID)
-		if err != nil {
+		user, ok := usersByID[id]
+		if !ok {
 			return ""
 		}
 		// Mention syntax for humans uses the user_id (matches the rest of
 		// the product — see util.MentionRe and frontend mention payloads).
 		// Humans have no Multica skills, so no skills segment is rendered.
-		userID := util.UUIDToString(m.MemberID)
-		return formatRosterRow(user.Name, "member (human)", role, "", formatMention(user.Name, "member", userID))
+		return formatRosterRow(user.Name, "member (human)", role, "", formatMention(user.Name, "member", id))
 	default:
 		return ""
 	}

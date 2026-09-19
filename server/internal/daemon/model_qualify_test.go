@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"sync"
@@ -212,5 +213,78 @@ func TestResolveTaskModelSelectionFailsOpenOnDiscoveryError(t *testing.T) {
 	defer mu.Unlock()
 	if calls != 1 {
 		t.Errorf("catalog reads = %d, want 1 — a failed read must not be retried within the task", calls)
+	}
+}
+
+// TestResolveTaskModelCascadeOrder pins the tier order JEF-12 added on top of
+// the old two-tier resolution: task.model_override (the claim's
+// agent_task_queue.model_override) beats agent.model, which beats the
+// daemon-wide env var, and an all-empty cascade still passes "" through so
+// the backend omits --model and the CLI's own default applies.
+func TestResolveTaskModelCascadeOrder(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		task     Task
+		envModel string
+		want     string
+	}{
+		{
+			name:     "override beats agent model and env",
+			task:     Task{ModelOverride: "claude-opus-5", Agent: &AgentData{Model: "claude-sonnet-5"}},
+			envModel: "claude-haiku-4",
+			want:     "claude-opus-5",
+		},
+		{
+			name: "override beats agent model with empty env",
+			task: Task{ModelOverride: "gpt-5.6", Agent: &AgentData{Model: "gpt-5-mini"}},
+			want: "gpt-5.6",
+		},
+		{
+			name:     "agent model wins when no override",
+			task:     Task{Agent: &AgentData{Model: "claude-sonnet-5"}},
+			envModel: "claude-haiku-4",
+			want:     "claude-sonnet-5",
+		},
+		{
+			name:     "env wins when neither override nor agent model",
+			envModel: "claude-haiku-4",
+			want:     "claude-haiku-4",
+		},
+		{
+			name: "all empty passes through for the CLI default",
+			want: "",
+		},
+		{
+			name:     "nil agent with override still wins",
+			task:     Task{ModelOverride: "claude-opus-5"},
+			envModel: "claude-haiku-4",
+			want:     "claude-opus-5",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveTaskModel(tt.task, tt.envModel); got != tt.want {
+				t.Errorf("resolveTaskModel(%+v, %q) = %q, want %q", tt.task, tt.envModel, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTaskWireDecodesModelOverride pins the claim-payload contract: the
+// server's claim query returns agent_task_queue.model_override, and the
+// daemon must actually read it off the wire — a field that decodes nowhere
+// is a cascade tier that never fires.
+func TestTaskWireDecodesModelOverride(t *testing.T) {
+	t.Parallel()
+	var task Task
+	if err := json.Unmarshal([]byte(`{"id":"t-1","model_override":"claude-opus-5","agent":{"model":"claude-sonnet-5"}}`), &task); err != nil {
+		t.Fatalf("unmarshal claim payload: %v", err)
+	}
+	if task.ModelOverride != "claude-opus-5" {
+		t.Errorf("ModelOverride = %q, want %q from the claim payload", task.ModelOverride, "claude-opus-5")
+	}
+	if got := resolveTaskModel(task, ""); got != "claude-opus-5" {
+		t.Errorf("resolveTaskModel on the decoded claim = %q, want the override to win", got)
 	}
 }

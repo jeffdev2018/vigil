@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithI18n } from "../../test/i18n";
 
 // Client parsing / request body: packages/core/projects/decisions.test.ts.
@@ -57,17 +58,25 @@ beforeEach(() => {
   state.mutate.mockReset();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
+async function pickOption(comboboxName: string, optionName: string | RegExp) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 /** Wait for the project's issues to land, then choose one. */
 async function selectIssue() {
-  await screen.findByRole("option", { name: /JEFF-7/ });
-  fireEvent.change(screen.getByLabelText("Issue"), { target: { value: "i1" } });
+  await pickOption("Issue", /JEFF-7/);
 }
 
 /** …and then wait for its last completed run's messages. */
 async function pickIssue() {
   await selectIssue();
   await waitFor(() =>
-    expect(screen.getByLabelText("Cited run message").querySelectorAll("option").length).toBeGreaterThan(1),
+    expect(screen.getByRole("combobox", { name: "Cited run message" })).not.toBeDisabled(),
   );
 }
 
@@ -76,7 +85,7 @@ describe("RecordDecisionDialog", () => {
     renderDialog();
     await pickIssue();
 
-    fireEvent.change(screen.getByLabelText("Cited run message"), { target: { value: "2" } });
+    await pickOption("Cited run message", /Decided to keep it denormalized/);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  Keep it denormalized  " } });
     fireEvent.change(screen.getByLabelText("Context"), { target: { value: " one read path " } });
     fireEvent.change(screen.getByLabelText("Decision"), { target: { value: " No join " } });
@@ -104,10 +113,14 @@ describe("RecordDecisionDialog", () => {
   it("does not offer synthesized action rows as a citable message", async () => {
     renderDialog();
     await pickIssue();
-    const values = Array.from(
-      screen.getByLabelText("Cited run message").querySelectorAll("option"),
-    ).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(["", "1", "2"]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Cited run message" }));
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual([
+      "Pick the message that states it…",
+      "#1 · Looked at the schema",
+      "#2 · Decided to keep it denormalized",
+    ]);
   });
 
   it("keeps Record disabled until an issue, a cited message, a title and a decision are all set", async () => {
@@ -117,7 +130,7 @@ describe("RecordDecisionDialog", () => {
 
     await pickIssue();
 
-    fireEvent.change(screen.getByLabelText("Cited run message"), { target: { value: "2" } });
+    await pickOption("Cited run message", /Decided to keep it denormalized/);
     expect(record().disabled).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "t" } });

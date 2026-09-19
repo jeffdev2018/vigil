@@ -30,7 +30,7 @@ func TestClaudeHandleAssistantText(t *testing.T) {
 		}),
 	}
 
-	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage))
+	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage), make(map[string]struct{}))
 	output, tools := turn.text, turn.toolUses
 
 	if output != "Hello world" {
@@ -70,7 +70,7 @@ func TestClaudeHandleAssistantToolUse(t *testing.T) {
 		}),
 	}
 
-	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage))
+	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage), make(map[string]struct{}))
 	output, tools := turn.text, turn.toolUses
 
 	if output != "" {
@@ -281,7 +281,7 @@ func TestClaudeHandleAssistantInvalidJSON(t *testing.T) {
 	}
 
 	// Should not panic
-	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage))
+	turn := b.handleAssistant(msg, ch, make(map[string]TokenUsage), make(map[string]struct{}))
 	output, tools := turn.text, turn.toolUses
 
 	if output != "" {
@@ -314,6 +314,57 @@ func TestTrySendDropsWhenFull(t *testing.T) {
 	case m := <-ch:
 		t.Fatalf("expected empty channel, got %+v", m)
 	default:
+	}
+}
+
+// A full channel drops narration but never the messages that say how the
+// run ended: a response, an error or a status wait for the consumer.
+func TestTrySendKeepsTerminalMessagesWhenFull(t *testing.T) {
+	t.Parallel()
+
+	for _, typ := range []MessageType{MessageResponse, MessageError, MessageStatus} {
+		t.Run(string(typ), func(t *testing.T) {
+			t.Parallel()
+			ch := make(chan Message, 1)
+			trySend(ch, Message{Type: MessageText, Content: "delta"})
+			delivered := make(chan struct{})
+			go func() {
+				trySend(ch, Message{Type: typ, Content: "final"})
+				close(delivered)
+			}()
+			// The producer must be waiting, not dropping.
+			select {
+			case <-delivered:
+				t.Fatal("terminal message was dropped on a full channel")
+			case <-time.After(50 * time.Millisecond):
+			}
+			if m := <-ch; m.Content != "delta" {
+				t.Fatalf("first message = %q, want the queued delta", m.Content)
+			}
+			select {
+			case m := <-ch:
+				if m.Type != typ || m.Content != "final" {
+					t.Fatalf("second message = %+v, want the terminal one", m)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("terminal message never arrived after the consumer drained")
+			}
+			<-delivered
+		})
+	}
+}
+
+// A consumer that never comes back must not pin the backend: the wait is
+// bounded.
+func TestTrySendTerminalWaitIsBounded(t *testing.T) {
+	t.Parallel()
+
+	ch := make(chan Message, 1)
+	trySend(ch, Message{Type: MessageText, Content: "delta"})
+	start := time.Now()
+	trySend(ch, Message{Type: MessageError, Content: "boom"})
+	if took := time.Since(start); took < trySendTerminalWait || took > trySendTerminalWait+time.Second {
+		t.Fatalf("terminal send waited %v, want about %v", took, trySendTerminalWait)
 	}
 }
 

@@ -38,6 +38,8 @@ import { useBuilderDraftSync } from "./use-builder-draft-sync";
 import { useBuilderSession } from "./use-builder-session";
 import { useCreateAgentForm } from "./use-create-agent-form";
 import { useCreateAgentSubmit } from "./use-create-agent-submit";
+import { useWorkspacePaths } from "@multica/core/paths";
+import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 
 /**
@@ -75,6 +77,8 @@ export function BuilderWorkspace({
   onRuntimeLabel: (label: string | null) => void;
 }) {
   const { t } = useT("agents");
+  const { t: tRuntimes } = useT("runtimes");
+  const paths = useWorkspacePaths();
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "multica_agent_builder_layout",
   });
@@ -329,9 +333,11 @@ export function BuilderWorkspace({
                   <h2 className="text-title-sm font-semibold tracking-tight">
                     {t(($) => $.creation_studio.live_draft)}
                   </h2>
-                  <p className="mt-1 text-caption text-muted-foreground">
-                    {t(($) => $.creation_studio.live_draft_hint)}
-                  </p>
+                  {displayMessages.length === 0 && !builder.messagesLoading && (
+                    <p className="mt-1 text-caption text-muted-foreground">
+                      {t(($) => $.creation_studio.live_draft_hint)}
+                    </p>
+                  )}
                 </div>
                 <AgentConfigurationPanel
                   compact
@@ -363,6 +369,19 @@ export function BuilderWorkspace({
               creating={submit.creating}
               squad={!!squadId}
               error={submit.formError}
+              hint={
+                form.runtimesSettled && form.usableRuntimes.length === 0 ? (
+                  <>
+                    {tRuntimes(($) => $.page.empty.title)}{" "}
+                    <AppLink
+                      href={paths.runtimes()}
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      {tRuntimes(($) => $.page.connect_remote)}
+                    </AppLink>
+                  </>
+                ) : null
+              }
               onCreate={() => void submit.create()}
               onDiscard={() => setConfirmingDiscard(true)}
               discarding={builder.closing}

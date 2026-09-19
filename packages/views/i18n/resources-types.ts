@@ -17,6 +17,7 @@ import type myIssues from "../locales/en/my-issues.json";
 import type search from "../locales/en/search.json";
 import type inbox from "../locales/en/inbox.json";
 import type triage from "../locales/en/triage.json";
+import type runs from "../locales/en/runs.json";
 import type meetings from "../locales/en/meetings.json";
 import type postmortem from "../locales/en/postmortem.json";
 import type brain from "../locales/en/brain.json";
@@ -26,6 +27,8 @@ import type autopilots from "../locales/en/autopilots.json";
 import type skills from "../locales/en/skills.json";
 import type goals from "../locales/en/goals.json";
 import type cycles from "../locales/en/cycles.json";
+import type roadmap from "../locales/en/roadmap.json";
+import type calendarEvents from "../locales/en/calendar-events.json";
 import type org from "../locales/en/org.json";
 import type contests from "../locales/en/contests.json";
 import type chat from "../locales/en/chat.json";
@@ -36,6 +39,7 @@ import type usage from "../locales/en/usage.json";
 import type squads from "../locales/en/squads.json";
 import type billing from "../locales/en/billing.json";
 import type critic from "../locales/en/critic.json";
+import type tools from "../locales/en/tools.json";
 
 // Module augmentation enables i18next v26 selector API across the monorepo:
 // `t($ => $.signin.title)` resolves to the value in en/auth.json.
@@ -67,6 +71,7 @@ declare global {
     search: typeof search;
     inbox: typeof inbox;
     triage: typeof triage;
+    runs: typeof runs;
     meetings: typeof meetings;
     postmortem: typeof postmortem;
     brain: typeof brain;
@@ -76,6 +81,8 @@ declare global {
     skills: typeof skills;
     goals: typeof goals;
     cycles: typeof cycles;
+    roadmap: typeof roadmap;
+    "calendar-events": typeof calendarEvents;
     org: typeof org;
     contests: typeof contests;
     chat: typeof chat;
@@ -86,6 +93,7 @@ declare global {
     squads: typeof squads;
     billing: typeof billing;
     critic: typeof critic;
+    tools: typeof tools;
   }
 }
 

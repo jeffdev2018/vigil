@@ -127,14 +127,10 @@ function issueIconColor(category: IssueStatusCategory): string {
   // text tint matches the leading status icon visually. Keyed on CATEGORY: a
   // custom status inherits its category's tint, exactly as its glyph does.
   switch (category) {
-    case "in_progress":
+    case "started":
       return "text-warning";
-    case "in_review":
-      return "text-success";
     case "done":
       return "text-info";
-    case "blocked":
-      return "text-destructive";
     default:
       return "text-muted-foreground";
   }
@@ -163,7 +159,7 @@ function SearchIssueRow({ item, query, slug }: SearchIssueRowProps) {
   // (server/internal/handler/issue.go:592). Keep mobile strictly aligned.
   const showSnippet =
     item.match_source === "comment" && !!item.matched_snippet;
-  const { colorOf, labelOf } = useIssueStatuses();
+  const { colorOf, labelOf, iconOf } = useIssueStatuses();
   const category = issueColumnCategory(item);
   const statusLabel = labelOf(item.status);
   return (
@@ -175,7 +171,7 @@ function SearchIssueRow({ item, query, slug }: SearchIssueRowProps) {
         <StatusIcon
           status={item.status}
           category={category}
-          color={colorOf(item.status)}
+          icon={iconOf(item.status)} color={colorOf(item.status)}
           size={14}
         />
         <PriorityIcon priority={item.priority} size={14} />
@@ -269,7 +265,7 @@ interface RecentRowProps {
 }
 
 function RecentRow({ item, slug }: RecentRowProps) {
-  const { colorOf, labelOf } = useIssueStatuses();
+  const { colorOf, labelOf, iconOf } = useIssueStatuses();
   const category = issueColumnCategory(item);
   const statusLabel = labelOf(item.status);
   return (
@@ -281,7 +277,7 @@ function RecentRow({ item, slug }: RecentRowProps) {
         <StatusIcon
           status={item.status}
           category={category}
-          color={colorOf(item.status)}
+          icon={iconOf(item.status)} color={colorOf(item.status)}
           size={14}
         />
         <Text className="text-xs text-muted-foreground shrink-0 w-16">
@@ -316,6 +312,7 @@ export default function SearchModal() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultsState>(EMPTY_RESULTS);
   const [isLoading, setIsLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -359,10 +356,12 @@ export default function SearchModal() {
     if (!q.trim()) {
       setResults(EMPTY_RESULTS);
       setIsLoading(false);
+      setIsError(false);
       return;
     }
 
     setIsLoading(true);
+    setIsError(false);
     debounceRef.current = setTimeout(async () => {
       const controller = new AbortController();
       abortRef.current = controller;
@@ -383,9 +382,14 @@ export default function SearchModal() {
         }
       } catch {
         // Abort throws here too; ignore — a newer request is in flight, or
-        // the user dismissed the modal. Drift / network errors are already
-        // logged inside parseWithFallback + the api logger.
-        if (!controller.signal.aborted) setIsLoading(false);
+        // the user dismissed the modal. A real network/5xx error clears
+        // stale results and surfaces a retry instead of leaving the
+        // previous query's results looking like a match for this one.
+        if (!controller.signal.aborted) {
+          setResults(EMPTY_RESULTS);
+          setIsLoading(false);
+          setIsError(true);
+        }
       }
     }, DEBOUNCE_MS);
   }, []);
@@ -472,16 +476,19 @@ export default function SearchModal() {
               <View className="items-center justify-center py-12">
                 <ActivityIndicator color="#71717a" />
               </View>
+            ) : isError ? (
+              <View className="items-center justify-center gap-3 py-12 px-6">
+                <Text className="text-sm text-destructive text-center">
+                  Search failed. Check your connection and try again.
+                </Text>
+                <Pressable onPress={() => runSearch(query)}>
+                  <Text className="text-sm text-brand">Retry</Text>
+                </Pressable>
+              </View>
             ) : trimmedQuery && !hasResults ? (
               <View className="items-center justify-center py-12 px-6">
                 <Text className="text-sm text-muted-foreground text-center">
                   No results for &ldquo;{trimmedQuery}&rdquo;
-                </Text>
-              </View>
-            ) : !trimmedQuery && recentIssues.length === 0 ? (
-              <View className="items-center justify-center py-12 px-6">
-                <Text className="text-sm text-muted-foreground text-center">
-                  Type to search issues and projects.
                 </Text>
               </View>
             ) : null

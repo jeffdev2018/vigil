@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -81,7 +82,10 @@ func daemonWorkspaceToResponse(id pgtype.UUID, name string) DaemonWorkspaceRespo
 }
 
 func daemonWorkspacesETag(workspaces []DaemonWorkspaceResponse) string {
-	data, _ := json.Marshal(workspaces)
+	data, err := json.Marshal(workspaces)
+	if err != nil {
+		slog.Warn("daemon workspaces etag: marshal failed", "error", err)
+	}
 	sum := sha256.Sum256(data)
 	return fmt.Sprintf(`W/"%x"`, sum)
 }

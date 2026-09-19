@@ -382,7 +382,10 @@ export function ChatThreadList({
                 className="size-3 shrink-0 -rotate-45 fill-current text-muted-foreground"
               />
             )}
-            <span className={cn("min-w-0 flex-1 truncate text-body", unread > 0 ? "font-semibold text-foreground" : "font-medium")}>
+            <span
+              title={titleText}
+              className={cn("min-w-0 flex-1 truncate text-body", unread > 0 ? "font-semibold text-foreground" : "font-medium")}
+            >
               {titleText}
             </span>
             <span className="ml-auto shrink-0 text-micro text-muted-foreground">{timeText}</span>
@@ -421,7 +424,7 @@ export function ChatThreadList({
                   <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-caption">
                     {agentName && (
                       <>
-                        <span className="max-w-[40%] shrink-0 truncate font-medium text-muted-foreground">
+                        <span title={agentName} className="max-w-[40%] shrink-0 truncate font-medium text-muted-foreground">
                           {agentName}
                         </span>
                         <span aria-hidden="true" className="shrink-0 text-faint-foreground">
@@ -559,7 +562,7 @@ function RowAction({
         onClick();
       }}
       className={cn(
-        "inline-flex size-7 items-center justify-center rounded text-muted-foreground transition-colors focus-visible:outline-none",
+        "inline-flex size-7 items-center justify-center rounded-xs text-muted-foreground transition-colors focus-visible:outline-none",
         danger
           ? "hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
           : "hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground",
@@ -601,7 +604,7 @@ function ConfirmRow({
             onCancel();
           }}
           disabled={pending}
-          className="inline-flex h-6 items-center rounded px-2 text-micro font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          className="inline-flex h-6 items-center rounded-xs px-2 text-micro font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
         >
           {cancelText}
         </button>
@@ -617,7 +620,7 @@ function ConfirmRow({
             onConfirm();
           }}
           disabled={pending}
-          className="inline-flex h-6 items-center rounded px-2 text-micro font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+          className="inline-flex h-6 items-center rounded-xs px-2 text-micro font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
         >
           {confirmText}
         </button>

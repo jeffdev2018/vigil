@@ -45,7 +45,9 @@
   },
   "empty": {
     "title": "No agents yet",
-    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime."
+    "description": "Create an agent, then assign it issues.",
+    "description_run_explainer": "Agents run in the browser on the native runtime — or on a computer you connect.",
+    "description_run_explainer_link": "See runtimes"
   },
   "no_matches": {
     "title": "No matches",
@@ -79,6 +81,10 @@
     "owner": "Owner",
     "access": "Access"
   },
+  "table": {
+    "select_all": "Select all agents",
+    "select_agent": "Select {{name}}"
+  },
   "row": {
     "you": "You",
     "archived": "Archived",
@@ -111,6 +117,7 @@
     "set_access_skipped": "{{count}} skipped (not owned by you).",
     "set_access_dialog_confirm": "Apply",
     "set_access_bulk_partial": "Applied to {{succeeded}}; {{failed}} failed (kept in current state).",
+    "bulk_partial": "{{succeeded}} succeeded, {{failed}} failed.",
     "agent_archived_toast": "Agent archived",
     "archive_failed_toast": "Failed to archive agent",
     "agent_restored_toast": "Agent restored",
@@ -132,6 +139,8 @@
     "cancel_dialog_keep": "Keep them",
     "cancel_dialog_confirm": "Cancel all runs",
     "archive_dialog_title": "Archive \"{{name}}\"?",
+    "archive_dialog_title_bulk_one": "Archive {{count}} agent?",
+    "archive_dialog_title_bulk_other": "Archive {{count}} agents?",
     "archive_dialog_description": "The agent won't be assignable or mentionable, and any active runs will be cancelled. All history is preserved and you can restore it later.",
     "archive_dialog_cancel": "Cancel",
     "archive_dialog_confirm": "Archive"
@@ -277,7 +286,9 @@
     "managed_by_runtime_title": "Model selection is managed by this runtime.",
     "managed_by_runtime_hint": "Configure the model on the runtime host (e.g. Hermes reads it from its own config file).",
     "discovery_failed": "discovery failed",
-    "clear_full": "Clear selection (use provider default)"
+    "clear_full": "Clear selection (use provider default)",
+    "custom_label": "Custom",
+    "provider_fallback_label": "Model"
   },
   "tabs": {
     "overview": "Overview",
@@ -322,7 +333,7 @@
     "modes": {
       "blank": {
         "title": "Start blank",
-        "description": "Configure every field yourself. Best when you already know exactly how this agent should work."
+        "description": "Set the name, instructions, and runtime yourself."
       },
       "template": {
         "title": "Use a template",
@@ -330,7 +341,7 @@
       },
       "ai": {
         "title": "Build with AI",
-        "description": "Describe the outcome you want. An Agent Builder will ask focused questions and prepare a live draft."
+        "description": "Create an editable configuration through conversation."
       }
     },
     "sections": {
@@ -339,7 +350,7 @@
       "behavior": "Behavior & capabilities",
       "behavior_hint": "Define how it should work and attach workspace skills it can rely on.",
       "execution": "Execution",
-      "execution_hint": "Choose where the agent runs, and optionally override the runtime's default model, thinking level and speed.",
+      "execution_hint": "Unspecified options use the runtime defaults.",
       "access": "Access",
       "access_hint": "Control who can start runs with this agent. You can change this later."
     },
@@ -362,7 +373,7 @@
     },
     "builder": {
       "setup_title": "Choose a runtime for Agent Builder",
-      "setup_description": "The selected online runtime powers the setup conversation and becomes the new agent's runtime by default.",
+      "setup_description": "This runtime powers setup and is the default for the new agent.",
       "start": "Start conversation",
       "connect_runtime": "Connect a runtime",
       "start_failed": "Could not start Agent Builder.",
@@ -376,7 +387,7 @@
       "runtime_online": "Runtime online",
       "runtime_offline": "Runtime offline",
       "empty_title": "What should this agent do?",
-      "empty_description": "Describe its role, workflow, output, or constraints. A useful first draft will appear on the right.",
+      "empty_description": "Describe what this agent should do.",
       "prompt_review": "Review frontend pull requests",
       "prompt_research": "Research competitors and summarize findings",
       "prompt_assistant": "Help our team plan and write projects",
@@ -385,7 +396,7 @@
       "send": "Send message"
     },
     "live_draft": "Agent configuration",
-    "live_draft_hint": "Conversation updates appear here, and you can adjust any field directly.",
+    "live_draft_hint": "You can edit the draft directly.",
     "duplicate_env_notice": "Instructions, skills and command arguments are copied. Environment variables, MCP servers and machine-local runtime config are not.",
     "duplicate_runtime_reset_notice": "The original runtime is unavailable, so this copy runs on another one. Model, thinking level and speed were cleared because they only apply to the runtime they were chosen on.",
     "create_and_open": "Create & open agent",
@@ -447,6 +458,7 @@
     "create_failed_toast": "Failed to create agent",
     "skill_attach_failed_toast": "Agent created, but failed to attach skills: {{error}}",
     "squad_join_failed_toast": "Agent \"{{name}}\" was created but couldn't join the squad: {{error}}. You can add it manually from Members.",
+    "squad_join_unknown_error": "Unknown error",
     "instructions": {
       "label": "Instructions",
       "placeholder_blank": "Click to write instructions…",
@@ -476,7 +488,7 @@
   },
   "conversation_starters": {
     "label": "Conversation starters",
-    "hint": "Up to three examples, shown when someone opens a new chat with this agent. Selecting one fills the composer without sending it.",
+    "hint": "Up to three. Selecting one fills the composer without sending.",
     "add": "Add suggestion",
     "item_label": "Suggestion {{number}} label",
     "prompt_label": "Suggestion {{number}} prompt",
@@ -537,7 +549,7 @@
       "reveal_action": "Reveal & edit",
       "revealing": "Revealing…",
       "reveal_failed_toast": "Failed to load env values",
-      "empty_editable": "No environment variables configured. Add one to inject it into the agent at launch."
+      "empty_editable": "No environment variables configured."
     },
     "custom_args": {
       "intro": "Add CLI arguments passed when this agent starts.",
@@ -687,7 +699,8 @@
       "dialog_pair_key_placeholder": "Key",
       "dialog_pair_value_placeholder": "Value",
       "dialog_pair_key_aria": "{{label}} key {{index}}",
-      "dialog_pair_value_aria": "{{label}} value {{index}}"
+      "dialog_pair_value_aria": "{{label}} value {{index}}",
+      "dialog_json_help": "Edit the full server configuration as JSON."
     },
     "composio_mcp": {
       "subtitle": "Check a toolkit to let this agent mount it as an MCP server — but only when you (its creator) are the one who triggered the run, directly or down a sub-agent chain.",
@@ -710,7 +723,7 @@
       "mode_label": "Routing mode",
       "mode_local": "Local",
       "mode_gateway": "Gateway",
-      "mode_local_hint": "Default. The daemon spawns `openclaw agent --local …` and the agent loop runs on this host.",
+      "mode_local_hint": "Run on this computer.",
       "mode_gateway_hint": "The daemon dials an OpenClaw Gateway. Leave the endpoint fields blank to inherit them from the daemon host's `~/.openclaw/openclaw.json`.",
       "gateway_legend": "Gateway endpoint",
       "host_label": "Host",
@@ -728,9 +741,10 @@
     "skills": {
       "intro": "This is the agent's effective skill set. Workspace skills are managed here; inherited Codex and Claude Code skills can also be turned off per agent.",
       "assigned_title": "Assigned to agent",
-      "assigned_hint": "Workspace skills travel with the agent. Turn one off temporarily without removing it.",
+      "assigned_hint": "Turn off a skill to pause its use without removing it.",
       "runtime_title": "Inherited from runtime",
       "runtime_hint": "Discovered automatically from {{runtime}} and available whenever this agent runs there.",
+      "runtime_hint_unset": "Discovered automatically from the assigned runtime and available whenever this agent runs there.",
       "workspace_badge": "Workspace",
       "inherited_badge": "Inherited",
       "refresh_action": "Refresh",
@@ -958,7 +972,7 @@
       "runs_one": "run",
       "runs_other": "runs",
       "success_pct": "{{percent}}% success",
-      "success_label": "succeeded",
+      "success_label": "success rate",
       "avg_duration": "avg {{value}}",
       "avg_duration_label": "average duration",
       "failed_count": "{{count}} failed",
@@ -983,7 +997,10 @@
       "cancel_failed_toast": "Failed to cancel run",
       "started_prefix": "Started {{when}}",
       "dispatched_prefix": "Dispatched {{when}}",
-      "queued_prefix": "Queued {{when}}"
+      "queued_prefix": "Queued {{when}}",
+      "success_hint": "Completed runs divided by completed and failed runs. Cancelled runs are excluded.",
+      "success_unavailable": "No completed or failed runs in this period, so there is no success rate to show.",
+      "cancelled_count": "{{count}} cancelled"
     }
   },
   "char_counter": {
@@ -1046,6 +1063,7 @@
   "live_peek": {
     "current_issue_label": "Now on",
     "no_current_issue": "No issue",
+    "issue_load_error": "Couldn't load this issue",
     "last_activity_label": "Last seen",
     "no_recent_activity": "No recent activity",
     "failed_indicator": "Failed"
@@ -1175,7 +1193,15 @@
     "remediation_rerun": "Run again",
     "remediation_runtime_settings": "Open runtime settings",
     "remediation_install_cli": "Install the agent CLI",
-    "remediation_failed": "Could not start a new run"
+    "remediation_failed": "Could not start a new run",
+    "brain_notes_heading": "Brain notes",
+    "brain_note_deleted": "Deleted note",
+    "brain_kind_injected": "Injected",
+    "brain_kind_retrieved": "Retrieved",
+    "brain_kind_opened": "Opened",
+    "display_clipped": "... (too long to show in full — only the start is displayed)",
+    "output_truncated_note": "Output was too long — only the beginning was kept.",
+    "step_duration_unknown": "Exact duration is unavailable."
   },
   "task_failure": {
     "cancelled_by_system": "Cancelled by the system",
@@ -1215,7 +1241,8 @@
       "codex_semantic_inactivity": "Codex semantic inactivity timeout",
       "manual": "Cancelled by user",
       "user_cancelled": "Cancelled by user"
-    }
+    },
+    "cancelled_by_actor": "Cancelled by {{name}}"
   },
   "last_active": {
     "today": "Today",
@@ -1386,5 +1413,14 @@
     "safe_hint": "Safe mode holds every Multica write for your approval and asks the agent to describe external actions instead of doing them; the held payloads are the proof.",
     "safe_started": "Safe replay started",
     "safe_failed": "Could not start the safe replay"
+  },
+  "run_details": {
+    "details": "Runs on {{runtime}} · {{cost}}",
+    "details_auto": "Runs on {{runtime}} or another runtime picked automatically · {{cost}}",
+    "runtime_unknown": "a runtime you cannot see",
+    "cost_average_one": "≈ {{cost}} per run (its last priced run)",
+    "cost_average_other": "≈ {{cost}} per run (average of its last {{count}} priced runs)",
+    "cost_loading": "estimating cost…",
+    "cost_unknown": "cost unknown (no priced run yet)"
   }
 }

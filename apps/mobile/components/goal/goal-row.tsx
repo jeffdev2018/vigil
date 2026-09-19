@@ -10,12 +10,17 @@
  *            success measure (secondary)
  */
 import { View } from "react-native";
+import type { TextStyle } from "react-native";
 import type { Goal } from "@multica/core/types";
 import { formatDateOnly } from "@multica/core/issues/date";
 import { Text } from "@/components/ui/text";
 import { goalProgress, goalStatusLabel } from "@/lib/goal-display";
 
 const INDENT_PX = 20;
+
+// `className="tabular-nums"` is a silent no-op on RN — see
+// components/chat/status-pill.tsx for the reference explanation.
+const TABULAR_NUMS: TextStyle = { fontVariant: ["tabular-nums"] };
 
 interface Props {
   goal: Goal;
@@ -53,7 +58,7 @@ export function GoalRow({ goal, depth }: Props) {
           </View>
         </View>
         {goal.issue_count > 0 ? (
-          <Text className="text-xs text-muted-foreground tabular-nums">
+          <Text className="text-xs text-muted-foreground" style={TABULAR_NUMS}>
             {goal.done_count}/{goal.issue_count}
           </Text>
         ) : (

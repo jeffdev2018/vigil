@@ -53,8 +53,8 @@ export function getShortcutPlatform(): ShortcutPlatform {
  */
 export function detectShortcutRuntime(): ShortcutRuntime {
   if (typeof window === "undefined") return "web";
-  const w = window as unknown as { electron?: unknown; desktopAPI?: unknown };
-  if (w.electron || w.desktopAPI) return "desktop";
+  const w = window as unknown as { desktopAPI?: unknown };
+  if (w.desktopAPI) return "desktop";
   if (
     typeof navigator !== "undefined" &&
     /Electron/i.test(navigator.userAgent)

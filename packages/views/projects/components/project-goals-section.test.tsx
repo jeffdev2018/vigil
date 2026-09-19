@@ -37,7 +37,7 @@ describe("ProjectGoalsSection", () => {
   it("links a goal by sending the full desired list", async () => {
     renderWithI18n(<ProjectGoalsSection projectId="p1" />);
     fireEvent.click(screen.getByRole("button", { name: "Link goals" }));
-    fireEvent.click(await screen.findByLabelText("Ship v2"));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ship v2" }));
     expect(state.calls[0]).toEqual({ projectId: "p1", goalIds: ["g1", "g2"] });
   });
 });

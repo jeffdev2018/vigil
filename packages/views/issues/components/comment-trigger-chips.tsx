@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
 import { AgentStatusDot } from "../../common/actor-avatar";
+import { AgentRunDetails } from "../../agents/components/agent-run-details";
 import { useT } from "../../i18n";
 import { blockedReasonLabel, blockedShortReasonLabel } from "../blocked-trigger-copy";
 
@@ -116,6 +117,8 @@ function TriggerAgentTooltipBody({
             const line = [sourceReason(agent, t), presenceLine].filter(Boolean).join(" ");
             return line ? <div>{line}</div> : null;
           })()}
+          {/* Where the run happens and roughly what it costs, before sending. */}
+          <AgentRunDetails agentId={agent.id} className="block" />
           <div className="text-muted-foreground">{t(($) => $.comment.trigger_click_to_skip)}</div>
         </>
       )}

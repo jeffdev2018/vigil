@@ -136,6 +136,25 @@ type Provider interface {
 	// MergePullRequest (K42) brings the branch up to date with its target
 	// when the platform can, then merges. Conflict is reported, not an error.
 	MergePullRequest(ctx context.Context, instanceURL, token, owner, repo string, number int) (MergeResult, error)
+	// CreatePullRequest (JEF-255) opens a pull/merge request for a branch the
+	// daemon just pushed. An empty Base means the repository's default branch.
+	CreatePullRequest(ctx context.Context, instanceURL, token, owner, repo string, in CreatePullRequestInput) (CreatedPullRequest, error)
+}
+
+// CreatePullRequestInput is what opening a PR needs: title, the pushed head
+// branch, the base (empty = the repository's default branch) and a body.
+type CreatePullRequestInput struct {
+	Title string
+	Head  string
+	Base  string
+	Body  string
+}
+
+// CreatedPullRequest is the platform's answer to CreatePullRequest: where the
+// new PR lives and its number.
+type CreatedPullRequest struct {
+	HTMLURL string
+	Number  int
 }
 
 // MergeResult is the outcome of MergePullRequest: merged, or a conflict the

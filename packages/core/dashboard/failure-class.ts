@@ -23,7 +23,7 @@ export const FAILURE_CLASSES = [
 
 export type FailureClass = (typeof FAILURE_CLASSES)[number];
 
-// Reason → class. Keys are the wire values written by the backend: the 26
+// Reason → class. Keys are the wire values written by the backend: the
 // canonical `taskfailure.Reason` strings, the `"unclassified"` sentinel the
 // failure rollups substitute for a failed row with an empty column, and the
 // pre-MUL-1949 coarse values that still sit in historical rows.
@@ -76,6 +76,13 @@ const REASON_CLASS: Record<string, FailureClass> = {
   // arrive as agent_error.* and inflated the agent class with problems only a
   // machine owner can fix (#7913).
   environment_prepare_failed: "runtime",
+  // The runtime never came back within the reconnect grace, the claim carried
+  // a contradictory agent identity, or the host could not provide the
+  // requested sandbox. The agent process never launched in any of them; each
+  // is fixed on the machine running the daemon.
+  runtime_reconnect_timeout: "runtime",
+  invalid_task_identity: "runtime",
+  sandbox_unavailable: "runtime",
 
   // The agent process itself produced the failure.
   "agent_error.process_failure": "agent",
@@ -90,6 +97,8 @@ const REASON_CLASS: Record<string, FailureClass> = {
 
   // Catchall + legacy coarse values.
   "agent_error.unknown": "other",
+  // The issue closed under the run: nothing failed, the subject went away.
+  issue_terminal: "other",
   agent_error: "other",
   manual: "other",
   unclassified: "other",

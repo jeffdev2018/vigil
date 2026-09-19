@@ -36,6 +36,17 @@ const (
 	// all without this string, and the UI leaves the action out.
 	DaemonCapabilityWorktreeRevertV1 = "worktree-revert-v1"
 
+	// DaemonCapabilityBranchActionV1 advertises that the daemon can promote
+	// (push to origin) or discard (delete branch and worktree) the branch a
+	// terminal run delivered (JEF-255).
+	//
+	// A capability rather than a version check, for the same reason as
+	// worktree-revert-v1: a daemon that does not implement it json-skips
+	// pending_branch_action and never reports, so the request would sit claimed
+	// until the stale sweeper releases it and the user watches a spinner that
+	// can never finish. The server does not enqueue at all without this string.
+	DaemonCapabilityBranchActionV1 = "branch-action-v1"
+
 	// DaemonCapabilityRPCV1 advertises that the daemon can carry
 	// request/response RPCs over the WebSocket control connection (MUL-4257).
 	// Gated so only daemons+servers that both support it route claim over WS;
@@ -74,6 +85,18 @@ const (
 	// DaemonCapabilityMemoryEvaluationV1 advertises support for in-daemon
 	// paired memory evaluation runs claimed via heartbeat.
 	DaemonCapabilityMemoryEvaluationV1 = "memory-evaluation-v1"
+	// DaemonCapabilityCheckoutKeepsWorkV1 advertises that the daemon's
+	// `multica repo checkout` keeps an existing checkout that holds work
+	// (uncommitted changes, untracked files, unpushed commits) instead of
+	// resetting it (MUL-7284).
+	//
+	// The server hands an automatic retry that must start a fresh session its
+	// parent's workdir only when this is present (MUL-7034). That session has no
+	// memory of the work in the directory and will fetch its repositories again.
+	// An older daemon's checkout resets an existing checkout and deletes that
+	// work, so such a daemon keeps getting a fresh directory and the parent's
+	// stays untouched on disk.
+	DaemonCapabilityCheckoutKeepsWorkV1 = "checkout-keeps-work-v1"
 
 	// AppCapabilityChatDraftRestoreV1 is advertised (X-Client-Capabilities) by
 	// app clients that understand the durable draft-restore recovery path:
@@ -183,6 +206,13 @@ type RuntimeProfilesChangedPayload struct {
 // no workspace data is embedded in the event.
 type WorkspacesChangedPayload struct{}
 
+// RunHaltChangedPayload is sent from server to daemon as a wakeup hint when a
+// workspace's run halt is set or lifted (JEF-257). It carries no state: the
+// daemon re-reads control status through the existing HTTP endpoints.
+type RunHaltChangedPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+}
+
 // PendingWorkKind values carried by PendingWorkPayload.Kind. The kind is
 // advisory only — the daemon reacts identically to every kind (one immediate
 // heartbeat, which claims whatever is queued) — so an unknown value from a
@@ -194,6 +224,7 @@ const (
 	PendingWorkKindLocalSkillImport = "local_skill_import"
 	PendingWorkKindWorktreeRevert   = "worktree_revert"
 	PendingWorkKindMemoryEvaluation = "memory_evaluation"
+	PendingWorkKindBranchAction     = "branch_action"
 )
 
 // PendingWorkPayload is sent from server to daemon as a wakeup hint when a
@@ -230,10 +261,12 @@ type TaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	PRURL  string `json:"pr_url,omitempty"`
 	Output string `json:"output,omitempty"`
-	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered on
-	// its branch, measured against the commit its worktree started from. Sent
-	// only for a task the claim marked as an attempt, so an ordinary run pays
-	// nothing for them.
+	// DiffStat / DiffUnified describe what the run delivered on its branch,
+	// measured against the commit its worktree started from. Sent for every
+	// terminal worktree run that carried a branch (JEF-255 widened this from
+	// racing attempts only, F11): an ordinary run pays nothing when it has no
+	// branch, and an attempt that changed nothing reports a zero stat, which is
+	// a real answer rather than a missing one.
 	//
 	// DiffUnified is omitted when the patch exceeded the daemon's byte bound:
 	// the stat alone then tells the UI the diff exists and was truncated. The
@@ -283,12 +316,17 @@ type TaskMessagePayload struct {
 	// A client must treat an unrecognised value as a neutral note rather than
 	// dropping it — a newer daemon may report a type an installed build
 	// predates.
-	Type      string         `json:"type"`
-	Tool      string         `json:"tool,omitempty"`    // tool name for tool_use/tool_result
-	Content   string         `json:"content,omitempty"` // text content
-	Input     map[string]any `json:"input,omitempty"`   // tool input (tool_use only)
-	Output    string         `json:"output,omitempty"`  // tool output (tool_result only)
-	CreatedAt string         `json:"created_at,omitempty"`
+	Type    string         `json:"type"`
+	Tool    string         `json:"tool,omitempty"`    // tool name for tool_use/tool_result
+	Content string         `json:"content,omitempty"` // text content
+	Input   map[string]any `json:"input,omitempty"`   // tool input (tool_use only)
+	Output  string         `json:"output,omitempty"`  // tool output (tool_result only)
+	// OutputTruncated reports whether Output is the whole tool output that ran
+	// (tool_result only). Tri-state: omitted means no daemon ever measured this
+	// record — historical rows and older installed daemons — which clients must
+	// present as unknown rather than as complete.
+	OutputTruncated *bool  `json:"output_truncated,omitempty"`
+	CreatedAt       string `json:"created_at,omitempty"`
 }
 
 // DaemonRegisterPayload is sent from daemon to server on connection.
@@ -478,6 +516,17 @@ type ChatSessionUpdatedPayload struct {
 type DaemonHeartbeatRequestPayload struct {
 	RuntimeID           string `json:"runtime_id"`
 	SupportsBatchImport bool   `json:"supports_batch_import,omitempty"`
+	// DirtyCheckouts (K18) carries the files a human changed in the daemon's
+	// local checkouts, like the HTTP body's field. Deliberately not omitempty:
+	// an empty list clears the previous report, while an absent/null value
+	// (older daemons) leaves the stored report alone.
+	DirtyCheckouts []DaemonDirtyCheckout `json:"dirty_checkouts"`
+}
+
+// DaemonDirtyCheckout is one checkout entry of DaemonHeartbeatRequestPayload.
+type DaemonDirtyCheckout struct {
+	Root  string   `json:"root"`
+	Paths []string `json:"paths"`
 }
 
 // DaemonHeartbeatAckPayload is the server's reply to DaemonHeartbeatRequestPayload.
@@ -513,6 +562,11 @@ type DaemonHeartbeatAckPayload struct {
 	// is destructive and a daemon that silently ignores the field would strand
 	// the request in 'claimed'.
 	PendingWorktreeRevert *DaemonHeartbeatPendingWorktreeRevert `json:"pending_worktree_revert,omitempty"`
+	// PendingBranchAction carries a claimed promote/discard request (JEF-255).
+	// Only ever set for a daemon advertising DaemonCapabilityBranchActionV1:
+	// the action moves refs on the user's own repository and a daemon that
+	// silently ignores the field would strand the request in 'claimed'.
+	PendingBranchAction *DaemonHeartbeatPendingBranchAction `json:"pending_branch_action,omitempty"`
 }
 
 // HeartbeatStatusRuntimeGone is the ack Status used when the runtime row no
@@ -567,4 +621,24 @@ type DaemonHeartbeatPendingWorktreeRevert struct {
 	// LaterTaskIDs are the runs after the target turn, whose turn refs the
 	// daemon drops once the branch is back.
 	LaterTaskIDs []string `json:"later_task_ids,omitempty"`
+}
+
+// DaemonHeartbeatPendingBranchAction describes one promote/discard request
+// against the branch a terminal run delivered (JEF-255).
+//
+// Everything the daemon needs is here, so the work never depends on a second
+// round trip that could see a different state: the repository (LocalPath), the
+// branch, and the base the run started from. Action is "promote" (push the
+// branch to origin) or "discard" (delete the branch and any worktree still
+// registered for it).
+type DaemonHeartbeatPendingBranchAction struct {
+	ID        string `json:"id"`
+	TaskID    string `json:"task_id"`
+	Action    string `json:"action"`
+	LocalPath string `json:"local_path"`
+	Branch    string `json:"branch"`
+	// BaseBranch names the repository's default branch as the server knows it
+	// (a hint, possibly empty). The daemon re-derives the default itself before
+	// any guard decision; this is for the server's own PR-creation bookkeeping.
+	BaseBranch string `json:"base_branch,omitempty"`
 }

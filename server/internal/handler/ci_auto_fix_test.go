@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
@@ -172,6 +174,33 @@ func TestCIAutoFixIgnoresHumanPullRequests(t *testing.T) {
 	var prID string
 	dbfx.QueryRow(t, `SELECT id FROM vcs_pull_request WHERE connection_id = $1 AND pr_number = 22`, connID).Scan(&prID)
 	testutil.Call(t, testHandler.RetryCIAutoFix, testutil.WithURLParams(newRequest(http.MethodPost, "/api/pull-requests/"+prID+"/ci-auto-fix/retry", nil), "id", prID)).Want(http.StatusUnprocessableEntity)
+}
+
+// A manual retry is authorized against the pull request's own workspace
+// with the same owner/admin bar as the CI auto-fix settings: a member of
+// another workspace naming that workspace in X-Workspace-ID, or a plain
+// member of the pull request's workspace, is refused before any run.
+func TestRetryCIAutoFixAuthorizesAgainstPullRequestWorkspace(t *testing.T) {
+	pr := dbfx.Insert(t, "github_pull_request", testutil.Cols{
+		"workspace_id": testWorkspaceID, "installation_id": 1, "repo_owner": "fixture", "repo_name": uuid.NewString(),
+		"pr_number": 1, "title": "Red PR", "state": "open", "html_url": "https://github.com/fixture/app/pull/1",
+		"pr_created_at": time.Now(), "pr_updated_at": time.Now(), "head_sha": "head-red",
+	})
+	retry := func(userID, workspaceID string) *http.Request {
+		req := testutil.WithURLParams(newRequestAs(userID, http.MethodPost, "/api/pull-requests/"+pr+"/ci-auto-fix/retry", nil), "id", pr)
+		req.Header.Set("X-Workspace-ID", workspaceID)
+		return req
+	}
+	outsider := dbfx.User(t, "ci outsider", "ci-outsider-"+uuid.NewString()[:6]+"@example.test")
+	foreign := dbfx.Workspace(t, "CI foreign", "ci-foreign-"+uuid.NewString())
+	dbfx.Member(t, foreign, outsider, "owner")
+	testutil.Call(t, testHandler.RetryCIAutoFix, retry(outsider, foreign)).Want(http.StatusNotFound)
+
+	member := dbfx.User(t, "ci member", "ci-member-"+uuid.NewString()[:6]+"@example.test")
+	dbfx.Member(t, testWorkspaceID, member, "member")
+	testutil.Call(t, testHandler.RetryCIAutoFix, retry(member, testWorkspaceID)).Want(http.StatusForbidden)
+	// The owner passes the gate (no agent run on this pull request).
+	testutil.Call(t, testHandler.RetryCIAutoFix, retry(testUserID, testWorkspaceID)).Want(http.StatusUnprocessableEntity)
 }
 
 func itoa32(n int32) string {

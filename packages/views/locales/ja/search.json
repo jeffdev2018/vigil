@@ -10,7 +10,8 @@
     "issues": "課題",
     "cancelled": "キャンセル済み",
     "recent": "最近の項目",
-    "why": "理由"
+    "why": "理由",
+    "brain": "Brain"
   },
   "commands": {
     "current_theme_aria": "現在のテーマ",
@@ -40,5 +41,10 @@
     "task_message": "実行メッセージ",
     "decision_record": "決定記録",
     "empty": "関連するソースがありません。質問を言い換えてみてください。"
+  },
+  "brain": {
+    "capture": "Brain にキャプチャ: {{text}}",
+    "captured": "キャプチャに追加しました",
+    "capture_failed": "キャプチャに失敗しました"
   }
 }

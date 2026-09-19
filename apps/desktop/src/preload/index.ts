@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { electronAPI } from "@electron-toolkit/preload";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
 import type { FreezeBreadcrumb } from "../shared/freeze-breadcrumb";
 import type {
@@ -367,14 +366,14 @@ const updaterAPI = {
     ipcRenderer.invoke("updater:check"),
 };
 
+// Only the scoped APIs above cross the bridge. Do not expose
+// @electron-toolkit's `electronAPI`: it forwards invoke/send/on to any IPC
+// channel, which nothing in the renderer uses.
 if (process.contextIsolated) {
-  contextBridge.exposeInMainWorld("electron", electronAPI);
   contextBridge.exposeInMainWorld("desktopAPI", desktopAPI);
   contextBridge.exposeInMainWorld("daemonAPI", daemonAPI);
   contextBridge.exposeInMainWorld("updater", updaterAPI);
 } else {
-  // @ts-expect-error - fallback for non-isolated context
-  window.electron = electronAPI;
   // @ts-expect-error - fallback for non-isolated context
   window.desktopAPI = desktopAPI;
   // @ts-expect-error - fallback for non-isolated context

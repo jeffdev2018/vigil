@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // codeartsTerminateGraceNanos optionally overrides, in nanoseconds, how long a
@@ -396,7 +398,7 @@ func (b *codeartsBackend) processEvents(r io.Reader, ch chan<- Message) codeArts
 				}
 				remaining := 4096 - unparsedOutput.Len()
 				if len(line) > remaining {
-					line = line[:remaining]
+					line = util.TruncateUTF8Bytes(line, remaining)
 				}
 				unparsedOutput.WriteString(line)
 			}

@@ -380,7 +380,13 @@ func (s *Supervisor) NodeID() string { return s.nodeID }
 // call Wait to join all supervisor goroutines before exiting.
 func (s *Supervisor) Run(ctx context.Context) {
 	defer close(s.stopChan)
+	// A panicking sweep restarts the loop instead of crashing the process.
+	// cancelAll also runs when ctx ends during the restart backoff.
+	defer s.cancelAll()
+	util.Supervise(ctx, "channel supervisor", s.run)
+}
 
+func (s *Supervisor) run(ctx context.Context) {
 	// First sweep immediately so a freshly-restarted server doesn't wait a
 	// full PollInterval before picking up its installations.
 	s.sweep(ctx)

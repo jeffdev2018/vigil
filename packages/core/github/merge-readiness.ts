@@ -11,6 +11,7 @@ export const KNOWN_MERGE_BLOCKER_KINDS = [
   "open_todos",
   "blocking_issue",
   "no_pr",
+  "adr_required",
 ] as const;
 
 export type KnownMergeBlockerKind = (typeof KNOWN_MERGE_BLOCKER_KINDS)[number];

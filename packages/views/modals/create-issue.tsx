@@ -90,6 +90,7 @@ import {
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
 import { ActorAvatar } from "../common/actor-avatar";
+import { AgentRunDetails } from "../agents/components/agent-run-details";
 import { PropertyIcon } from "../common/property-icon";
 import {
   CustomPropertyValueDisplay,
@@ -145,6 +146,8 @@ function CreateRunHint({
   const willStart = preview.totalCount > 0;
   const isSquad = assigneeType === "squad";
   const triggerAgentId = preview.triggers[0]?.agent_id ?? assigneeId;
+  // The agent whose run starts: the squad's leader comes from the preview.
+  const runAgentId = isSquad ? preview.triggers[0]?.agent_id : triggerAgentId;
 
   // Avatar + copy mirror the flow. A squad doesn't "work" — its leader
   // evaluates and delegates — so the squad path keeps the squad as the subject
@@ -192,7 +195,13 @@ function CreateRunHint({
               profileLink={false}
             />
           )}
-          <span className="truncate">{text}</span>
+          <span className="min-w-0">
+            <span className="block truncate">{text}</span>
+            {/* Where it runs and roughly what a run costs, before Create. */}
+            {willStart && runAgentId && (
+              <AgentRunDetails agentId={runAgentId} className="block truncate" />
+            )}
+          </span>
         </div>
       </div>
     </div>
@@ -291,6 +300,14 @@ export function ManualCreatePanel({
     }
     return draft.shared.projectId;
   });
+  // A cycle opener (the cycle page) seeds the cycle beside its project. The
+  // server only accepts a cycle of the issue's project, so the cycle holds
+  // only while the seeded project is still the one picked.
+  // ponytail: no cycle picker in this modal; add one when cycles are chosen here.
+  const cycleId =
+    typeof data?.cycle_id === "string" && data.project_id === projectId
+      ? data.cycle_id
+      : undefined;
   const [parentIssueId, setParentIssueId] = useState<string | undefined>(
     (data?.parent_issue_id as string) || undefined,
   );
@@ -328,7 +345,7 @@ export function ManualCreatePanel({
   // Fetch parent issue details for the chip (status/identifier/title).
   // List cache usually has it already, so this resolves synchronously.
   const wsId = useWorkspaceId();
-  const { categoryOf: draftStatusCategory } = useIssueStatuses(wsId);
+  const { categoryOf: draftStatusCategory, colorOf, iconOf } = useIssueStatuses(wsId);
   const { data: workspaceProperties = [] } = useQuery(propertyListOptions(wsId));
   const { data: parentIssue } = useQuery({
     ...issueDetailOptions(wsId, parentIssueId ?? ""),
@@ -538,6 +555,7 @@ export function ManualCreatePanel({
           // Stage is only meaningful for a sub-issue (relative to its siblings).
           stage: parentIssueId && stage != null ? stage : undefined,
           project_id: projectId,
+          cycle_id: cycleId,
         });
       }
 
@@ -645,7 +663,7 @@ export function ManualCreatePanel({
       // reset + close/keep-open happens in onAccepted once we report success.
       {
         toast.custom((toastId) => (
-          <div className="bg-popover text-popover-foreground border rounded-lg shadow-lg p-4 w-[360px]">
+          <div className="bg-popover text-popover-foreground border rounded-lg shadow-floating p-4 w-[360px]">
             <div className="flex items-center gap-2 mb-2">
               <div className="flex items-center justify-center size-5 rounded-full bg-emerald-500/15 text-emerald-500">
                 <Check className="size-3" />
@@ -655,6 +673,8 @@ export function ManualCreatePanel({
             <div className="flex items-center gap-2 text-body text-muted-foreground ml-7">
               <StatusIcon
                 status={issue.status}
+                icon={iconOf(issue.status)}
+                color={colorOf(issue.status)}
                 category={issueStatusCategory(issue) ?? undefined}
                 className="size-3.5 shrink-0"
               />
@@ -716,7 +736,7 @@ export function ManualCreatePanel({
         if (dup) {
           toast.custom(
             (toastId) => (
-              <div className="bg-popover text-popover-foreground border rounded-lg shadow-lg p-4 w-[360px]">
+              <div className="bg-popover text-popover-foreground border rounded-lg shadow-floating p-4 w-[360px]">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex items-center justify-center size-5 rounded-full bg-amber-500/15 text-amber-500">
                     <AlertTriangle className="size-3" />
@@ -840,6 +860,7 @@ export function ManualCreatePanel({
     const carry: Record<string, unknown> = {};
     if (parentIssueId) carry.parent_issue_id = parentIssueId;
     if (carryParentIdentifier) carry.parent_issue_identifier = carryParentIdentifier;
+    if (cycleId) Object.assign(carry, { project_id: projectId, cycle_id: cycleId });
     onSwitchMode?.(Object.keys(carry).length > 0 ? carry : null);
   };
 
@@ -1250,6 +1271,8 @@ export function ManualCreatePanel({
                     <DropdownMenuItem onClick={() => setFieldPickerOpen("status")}>
                       <StatusIcon
                         status={status}
+                        icon={iconOf(status)}
+                        color={colorOf(status)}
                         category={draftStatusCategory(status)}
                         className="h-3.5 w-3.5"
                       />

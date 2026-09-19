@@ -1,18 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ActionSheetIOS, Alert, FlatList, Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { SwipeableDecisionCard } from "@/components/inbox/swipeable-decision-card";
 import { inboxDecisionsOptions } from "@/data/queries/inbox";
 import { useRespondInboxDecision } from "@/data/mutations/inbox";
-import type { InboxDecision } from "@/data/schemas";
+import { useWorkspaceApprovals } from "@/data/queries/approvals";
+import type { ApprovalGate, InboxDecision } from "@/data/schemas";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { cn } from "@/lib/utils";
+import { gateDetails } from "@/lib/approvals-display";
+import { useColorScheme } from "@/lib/use-color-scheme";
+import { THEME } from "@/lib/theme";
 import {
   condensedSummary,
   swipeRightAnswer,
@@ -48,6 +58,18 @@ export default function InboxDecisions() {
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
   const { data, isLoading, error, refetch } = useQuery(inboxDecisionsOptions(wsId));
   const respond = useRespondInboxDecision();
+  // Cheap enrichment: the unified approvals feed sometimes carries gate
+  // details (paths, blast radius, dual-approval progress) for a Decision
+  // Card that is really an approval gate. Map by decision id so DecisionRow
+  // can show the same fold ApprovalAskCard uses, when the feed has it.
+  const { data: approvalsFeed } = useWorkspaceApprovals(wsId);
+  const gatesByDecisionId = useMemo(() => {
+    const map = new Map<string, ApprovalGate>();
+    for (const a of approvalsFeed?.approvals ?? []) {
+      if (a.source === "decision" && a.gate) map.set(a.id, a.gate);
+    }
+    return map;
+  }, [approvalsFeed]);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   // Per-card failure text. The card comes back carrying it; retry clears it.
   const [failed, setFailed] = useState<Record<string, string>>({});
@@ -151,6 +173,7 @@ export default function InboxDecisions() {
             done={answered[item.decision.id] === true}
             failure={failed[item.decision.id]}
             pending={respond.isPending}
+            gate={gatesByDecisionId.get(item.decision.id) ?? null}
             onOpenIssue={() =>
               router.push({
                 pathname: "/[workspace]/issue/[id]",
@@ -171,6 +194,7 @@ function DecisionRow({
   done,
   failure,
   pending,
+  gate,
   onOpenIssue,
   onAnswer,
   onOptions,
@@ -179,6 +203,10 @@ function DecisionRow({
   done: boolean;
   failure: string | undefined;
   pending: boolean;
+  /** Gate details for this decision from the unified approvals feed, when
+   *  this Decision Card is really an approval gate. Null for an ordinary
+   *  decision, or while the feed hasn't loaded yet. */
+  gate: ApprovalGate | null;
   onOpenIssue: () => void;
   onAnswer: (answer: DecisionAnswer) => void;
   onOptions: () => void;
@@ -186,6 +214,9 @@ function DecisionRow({
   const d = item.decision;
   const summary = condensedSummary(d);
   const swipeAnswer = swipeRightAnswer(d);
+  const { colorScheme } = useColorScheme();
+  const mutedFg = THEME[colorScheme].mutedForeground;
+  const details = gate ? gateDetails(gate) : null;
   const card = (
     <Card className="gap-2 p-3">
       <Pressable onPress={onOpenIssue}>
@@ -209,6 +240,46 @@ function DecisionRow({
       <Text className="text-base font-medium">{d.question}</Text>
       {summary.deadlineText ? (
         <Text className="text-xs text-muted-foreground">{summary.deadlineText}</Text>
+      ) : null}
+      {!done && gate && details ? (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <View
+              accessibilityRole="button"
+              accessibilityLabel="What it would do"
+              className="flex-row items-center gap-1 active:opacity-70"
+            >
+              <Ionicons name="chevron-forward" size={12} color={mutedFg} />
+              <Text className="text-xs text-muted-foreground">What it would do</Text>
+              {details.requiredApprovals > 1 ? (
+                <Text className="text-xs tabular-nums text-muted-foreground">
+                  · {details.approvals}/{details.requiredApprovals} approvals
+                </Text>
+              ) : null}
+            </View>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <View className="mt-1 gap-1 rounded bg-muted/40 p-2">
+              <Text className="text-xs">
+                <Text className="text-muted-foreground">Gate: </Text>
+                {gate.gate_type}
+                {gate.summary ? ` · ${gate.summary}` : ""}
+              </Text>
+              {details.paths.length > 0 ? (
+                <Text className="text-xs" selectable>
+                  <Text className="text-muted-foreground">Paths: </Text>
+                  {details.paths.join(", ")}
+                </Text>
+              ) : null}
+              {details.blastRadius ? (
+                <Text className="text-xs">
+                  <Text className="text-muted-foreground">Blast radius: </Text>
+                  {details.blastRadius}
+                </Text>
+              ) : null}
+            </View>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
       {done ? (
         <Text className="text-sm text-success">Answered</Text>

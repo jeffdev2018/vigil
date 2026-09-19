@@ -72,4 +72,20 @@ describe("stored agent draft", () => {
       ),
     ).toBe(false);
   });
+
+  // Removing then re-adding a skill during editing rebuilds the Set with a
+  // different insertion order but the same members — that must not look
+  // like an edit and fire a spurious autosave PATCH.
+  it("ignores Set insertion order, only membership", () => {
+    const reordered: AgentDraft = {
+      ...draft(),
+      skillIds: new Set(["skill-2", "skill-1"]),
+    };
+    expect(
+      storedAgentDraftsEqual(
+        toStoredAgentDraft(draft(), "msg-1"),
+        toStoredAgentDraft(reordered, "msg-1"),
+      ),
+    ).toBe(true);
+  });
 });

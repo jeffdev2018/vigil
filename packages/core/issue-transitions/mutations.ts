@@ -45,7 +45,9 @@ export function useCancelIssueTransitionRequest(wsId: string, issueId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (requestId: string) => api.cancelIssueTransitionRequest(requestId),
-    onSettled: () =>
-      qc.invalidateQueries({ queryKey: issueTransitionKeys.requests(wsId, issueId) }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: issueTransitionKeys.requests(wsId, issueId) });
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, issueId) });
+    },
   });
 }

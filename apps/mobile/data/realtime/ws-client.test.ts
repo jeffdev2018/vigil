@@ -91,3 +91,104 @@ describe("WSClient application heartbeat", () => {
     client.disconnect();
   });
 });
+
+// realtime-provider.tsx foregrounding: `const resumed = ws.resume(); if
+// (!resumed) ws.forceReconnect();`. Exercised here at the WSClient level
+// since realtime-provider.tsx itself needs RN/AppState and is out of this
+// Node-only test lane's scope (see vitest.config.ts).
+describe("WSClient.resume()", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    MockWebSocket.instances = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("resuming a paused socket opens exactly one fresh socket, with no redundant forceReconnect", () => {
+    const { client } = connectAuthenticatedClient();
+    client.pause();
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    // Mirrors realtime-provider.tsx's foreground handler exactly.
+    const resumed = client.resume();
+    if (!resumed) client.forceReconnect();
+
+    expect(resumed).toBe(true);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    client.disconnect();
+  });
+
+  it("is a no-op (returns false) on an already-active socket, so the caller's forceReconnect fallback is what reconnects a zombie", () => {
+    const { client } = connectAuthenticatedClient();
+    // Never paused — state is already "active" (the zombie case: iOS
+    // killed the socket without an AppState background event).
+    const resumed = client.resume();
+
+    expect(resumed).toBe(false);
+    expect(MockWebSocket.instances).toHaveLength(1);
+    client.disconnect();
+  });
+});
+
+// A phone reconnects constantly — after every backgrounding, every network
+// switch. By the time it does, a sliding session may have been renewed, and
+// the token captured when this client was built is on its way out (MUL-7436).
+describe("WSClient session renewal", () => {
+  beforeEach(() => {
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    MockWebSocket.instances = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("authenticates each connection with the current token", () => {
+    let current = "token-v1";
+    const client = new WSClient({
+      url: "wss://example.test/ws",
+      token: "token-v1",
+      workspaceSlug: "workspace",
+      getToken: () => current,
+    });
+
+    client.connect();
+    MockWebSocket.instances[0].open();
+    expect(JSON.parse(MockWebSocket.instances[0].sent[0])).toEqual({
+      type: "auth",
+      payload: { token: "token-v1" },
+    });
+
+    current = "token-v2";
+    client.forceReconnect();
+    const reconnected = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    reconnected.open();
+
+    expect(JSON.parse(reconnected.sent[0])).toEqual({
+      type: "auth",
+      payload: { token: "token-v2" },
+    });
+  });
+
+  it("falls back to the constructor token when no reader is supplied", () => {
+    const client = new WSClient({
+      url: "wss://example.test/ws",
+      token: "token-only",
+      workspaceSlug: "workspace",
+    });
+
+    client.connect();
+    MockWebSocket.instances[0].open();
+
+    expect(JSON.parse(MockWebSocket.instances[0].sent[0])).toEqual({
+      type: "auth",
+      payload: { token: "token-only" },
+    });
+  });
+});

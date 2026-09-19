@@ -61,9 +61,18 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
     transition_approval_requested: t(($) => $.types.transition_approval_requested),
+    goal_question: t(($) => $.types.goal_question),
     critic_degraded: t(($) => $.types.critic_degraded),
     critic_budget: t(($) => $.types.critic_budget),
     cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
+    calendar_invitation: t(($) => $.types.calendar_invitation),
+    calendar_reminder: t(($) => $.types.calendar_reminder),
+    doctrine_review: t(($) => $.types.doctrine_review),
+    doctrine_report: t(($) => $.types.doctrine_report),
+    confidence_review: t(($) => $.types.confidence_review),
+    run_limit_warn: t(($) => $.types.run_limit_warn),
+    run_limit_exceeded: t(($) => $.types.run_limit_exceeded),
+    run_limit_stopped: t(($) => $.types.run_limit_stopped),
   };
 }
 
@@ -81,7 +90,7 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
   const { getActorName } = useActorName();
   // Inbox is a cross-workspace surface, so the catalog is read per item's own
   // workspace rather than from the route. (MUL-6243)
-  const { categoryOf, colorOf } = useIssueStatuses(item.workspace_id);
+  const { categoryOf, colorOf, iconOf } = useIssueStatuses(item.workspace_id);
   const statusLabelOf = useStatusLabel(item.workspace_id);
   const details = item.details ?? {};
 
@@ -95,6 +104,7 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
             status={details.to as IssueStatus}
             category={categoryOf(details.to)}
             color={colorOf(details.to)}
+            icon={iconOf(details.to)}
             className="h-3 w-3"
           />
           {statusLabelOf(details.to)}

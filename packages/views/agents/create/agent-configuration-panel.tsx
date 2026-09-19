@@ -99,7 +99,6 @@ export function AgentConfigurationPanel({
     <div className={cn("space-y-8", compact && "space-y-6")}>
       <SettingsSection
         title={t(($) => $.creation_studio.sections.identity)}
-        description={t(($) => $.creation_studio.sections.identity_hint)}
       >
         <SettingsCard>
           <DraftFieldRow
@@ -157,7 +156,6 @@ export function AgentConfigurationPanel({
 
       <SettingsSection
         title={t(($) => $.creation_studio.sections.behavior)}
-        description={t(($) => $.creation_studio.sections.behavior_hint)}
       >
         <SettingsCard>
           <DraftFieldRow
@@ -255,7 +253,6 @@ export function AgentConfigurationPanel({
 
       <SettingsSection
         title={t(($) => $.creation_studio.sections.access)}
-        description={t(($) => $.creation_studio.sections.access_hint)}
       >
         <SettingsCard>
           <div

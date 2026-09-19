@@ -125,6 +125,7 @@ const (
 	OnboardingPathCloudWaitlist  = "cloud_waitlist"  // completed via cloud waitlist soft exit
 	OnboardingPathSkipExisting   = "skip_existing"   // "I've done this before" from welcome
 	OnboardingPathInviteAccept   = "invite_accept"   // accepted at least one invitation from /invitations
+	OnboardingPathNative         = "native"          // chose the in-server runtime: nothing to install
 	OnboardingPathUnknown        = "unknown"         // fallback when the server can't derive the path
 )
 

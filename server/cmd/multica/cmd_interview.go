@@ -40,6 +40,9 @@ func init() {
 }
 
 func runInterviewAsk(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	file, _ := cmd.Flags().GetString("file")
 	var raw []byte
 	var err error

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@multica/core/auth";
+import { AuthRecoveryPage } from "@multica/views/auth";
 import {
   paths,
   resolvePostAuthDestination,
@@ -28,6 +29,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const authStatus = useAuthStore((s) => s.status);
   const hasOnboarded = useHasOnboarded();
   const { workspaces, ready: workspacesReady } = useWorkspaceList({
     enabled: !!user,
@@ -60,6 +62,7 @@ export default function OnboardingPage() {
     }
   }, [isLoading, user, hasOnboarded, workspacesReady, workspaces, router]);
 
+  if (authStatus === "recovering") return <AuthRecoveryPage />;
   if (isLoading || !user || hasOnboarded) return null;
 
   // Layout: page owns its own scroll (root layout sets `body {

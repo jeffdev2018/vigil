@@ -70,9 +70,16 @@ func drainPiSanitizedText(s string) (string, string) {
 			return piControlTokenRE.ReplaceAllString(out.String(), ""), s[i+safeLen:]
 		}
 		out.WriteString(s[i:start])
-		end, ok := scanPiToolMarkupEnd(s, start+prefixLen)
-		if !ok {
+		end, match := scanPiToolMarkupEnd(s, start+prefixLen)
+		switch match {
+		case piMarkupPartial:
 			return piControlTokenRE.ReplaceAllString(out.String(), ""), s[start:]
+		case piMarkupNone:
+			// Ordinary prose containing the prefix: emit it and keep scanning
+			// after it, or the same failed match would stall the buffer.
+			out.WriteString(s[start : start+prefixLen])
+			i = start + prefixLen
+			continue
 		}
 		i = end
 	}
@@ -88,8 +95,13 @@ func stripPiStructuredToolMarkup(s string) string {
 			break
 		}
 		out.WriteString(s[i:start])
-		end, ok := scanPiToolMarkupEnd(s, start+prefixLen)
-		if !ok {
+		end, match := scanPiToolMarkupEnd(s, start+prefixLen)
+		if match == piMarkupNone {
+			out.WriteString(s[start : start+prefixLen])
+			i = start + prefixLen
+			continue
+		}
+		if match == piMarkupPartial {
 			out.WriteString(s[start:])
 			break
 		}
@@ -144,13 +156,28 @@ func nextPiToolMarkupPrefix(s string, from int) (int, int) {
 	return best, bestLen
 }
 
-func scanPiToolMarkupEnd(s string, i int) (int, bool) {
+// piMarkupMatch is the outcome of scanning for tool markup after a prefix.
+type piMarkupMatch int
+
+const (
+	// piMarkupNone: the bytes after the prefix cannot be tool markup.
+	piMarkupNone piMarkupMatch = iota
+	// piMarkupPartial: markup may still complete once more text arrives.
+	piMarkupPartial
+	// piMarkupFull: complete markup; the returned end is valid.
+	piMarkupFull
+)
+
+func scanPiToolMarkupEnd(s string, i int) (int, piMarkupMatch) {
 	nameStart := i
 	for i < len(s) && isPiToolNameByte(s[i]) {
 		i++
 	}
-	if i == nameStart || i >= len(s) || s[i] != '{' {
-		return 0, false
+	if i >= len(s) {
+		return 0, piMarkupPartial
+	}
+	if i == nameStart || s[i] != '{' {
+		return 0, piMarkupNone
 	}
 
 	const quoteMarker = `<|"|>`
@@ -174,13 +201,13 @@ func scanPiToolMarkupEnd(s string, i int) (int, bool) {
 					if strings.HasPrefix(s[i:], "<tool_call|>") {
 						i += len("<tool_call|>")
 					}
-					return i, true
+					return i, piMarkupFull
 				}
 			}
 		}
 		i++
 	}
-	return 0, false
+	return 0, piMarkupPartial
 }
 
 func isPiToolNameByte(b byte) bool {
@@ -323,6 +350,15 @@ func (b *piBackend) Execute(ctx context.Context, prompt string, opts ExecOptions
 		// partial on each delta); the shared stream bound covers that.
 		scanner := newAgentStreamScanner(stdout)
 		var textBuffer strings.Builder
+		// flushText emits whatever the sanitizer is still holding back. Called
+		// at every turn boundary and at EOF: text held at a turn's end can no
+		// longer complete into markup, and a turn reset must not drop it.
+		flushText := func() {
+			if d := flushPiTextBuffer(&textBuffer); d != "" {
+				output.WriteString(d)
+				trySend(msgCh, Message{Type: MessageText, Content: d})
+			}
+		}
 
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -339,8 +375,8 @@ func (b *piBackend) Execute(ctx context.Context, prompt string, opts ExecOptions
 				trySend(msgCh, Message{Type: MessageStatus, Status: "running"})
 
 			case "turn_start":
+				flushText()
 				output.Reset()
-				textBuffer.Reset()
 				lastTurnError = ""
 
 			case "message_update":
@@ -428,10 +464,7 @@ func (b *piBackend) Execute(ctx context.Context, prompt string, opts ExecOptions
 				}
 			}
 		}
-		if d := flushPiTextBuffer(&textBuffer); d != "" {
-			output.WriteString(d)
-			trySend(msgCh, Message{Type: MessageText, Content: d})
-		}
+		flushText()
 
 		waitErr := cmd.Wait()
 		releaseProcessGroup(cmd)

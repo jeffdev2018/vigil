@@ -59,13 +59,13 @@ export function AppCrashBoundary({ children }: { children: ReactNode }) {
  */
 function CrashFallback({ error }: { error: Error }) {
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <DragStrip />
       <div
         role="alert"
         className="flex flex-1 items-center justify-center overflow-auto p-8"
       >
-        <div className="max-w-xl rounded-lg border bg-card p-6 shadow-sm">
+        <div className="max-w-xl rounded-lg border bg-card p-6 shadow-surface">
           <h1 className="text-title font-semibold">Something went wrong</h1>
           <p className="mt-3 text-body text-muted-foreground">
             Multica Desktop hit an unexpected error and could not keep

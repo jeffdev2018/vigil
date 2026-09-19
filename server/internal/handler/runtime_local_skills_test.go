@@ -203,6 +203,33 @@ func TestInMemoryLocalSkillListStore_TimesOutRunningRequests(t *testing.T) {
 	}
 }
 
+// TestInMemoryLocalSkillImportStore_PopPendingBatchClampsNegativeLimit
+// guards a real crash: PopPendingBatch only clamped the upper bound
+// (limit > len(pending)), so a negative limit reached pending[:limit] and
+// panicked (slice bounds out of range). The only production caller
+// (daemon.go) always passes the positive constant
+// maxLocalSkillImportBatch, so this defends the exported
+// LocalSkillImportStore interface method itself rather than trusting every
+// current and future caller.
+func TestInMemoryLocalSkillImportStore_PopPendingBatchClampsNegativeLimit(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryLocalSkillImportStore()
+	if _, err := store.Create(ctx, LocalSkillImportRequestInput{
+		RuntimeID: "runtime-neg",
+		CreatorID: "user-1",
+		SkillKey:  "review-helper",
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := store.PopPendingBatch(ctx, "runtime-neg", -1) // must not panic (index out of range)
+	if err != nil {
+		t.Fatalf("PopPendingBatch: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no requests popped for a negative limit, got %d", len(got))
+	}
+}
+
 func TestInMemoryLocalSkillImportStore_TimesOutRunningRequests(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryLocalSkillImportStore()

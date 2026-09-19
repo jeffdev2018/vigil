@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -114,7 +115,7 @@ func parseCrossReviewReport(text string) CrossReviewReport {
 	for i := len(paragraphs) - 1; i >= 0; i-- {
 		if p := strings.TrimSpace(paragraphs[i]); p != "" {
 			if len(p) > 1000 {
-				p = p[:1000] + "…"
+				p = util.TruncateUTF8Bytes(p, 1000) + "…"
 			}
 			report.Summary = p
 			break
@@ -184,7 +185,7 @@ func (h *Handler) diffBlock(ctx context.Context, issue db.Issue, prURL string) s
 		return "Read the diff yourself with git.\n"
 	}
 	if len(diff) > crossReviewDiffCap {
-		diff = diff[:crossReviewDiffCap] + "\n… (diff truncated; read the rest with git)"
+		diff = util.TruncateUTF8Bytes(diff, crossReviewDiffCap) + "\n… (diff truncated; read the rest with git)"
 	}
 	return "The diff:\n```diff\n" + diff + "\n```\n"
 }
@@ -518,7 +519,7 @@ func (h *Handler) PutCrossReviewSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req service.CrossReview
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -534,19 +535,16 @@ func (h *Handler) PutCrossReviewSettings(w http.ResponseWriter, r *http.Request)
 		}
 		ids = append(ids, raw)
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
 	next := service.CrossReview{Enabled: req.Enabled, OptOutProjectIDs: ids}
-	settings["cross_review"] = next
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, _ := json.Marshal(map[string]any{"cross_review": next})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save cross review settings")
 		return
 	}

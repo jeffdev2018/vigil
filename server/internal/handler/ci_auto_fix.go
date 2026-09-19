@@ -173,8 +173,13 @@ func (h *Handler) autoFix(ctx context.Context, pr ciPullRequest, manual bool) (d
 		_ = h.Queries.DeleteCIAutoFixRun(ctx, row.ID) // the head stays eligible for a later red
 		return db.CiAutoFixRun{}, err
 	}
-	_ = h.Queries.SetCIAutoFixRunTask(ctx, db.SetCIAutoFixRunTaskParams{ID: row.ID, TaskID: task.ID})
-	row.TaskID = task.ID
+	if err := h.Queries.SetCIAutoFixRunTask(ctx, db.SetCIAutoFixRunTaskParams{ID: row.ID, TaskID: task.ID}); err != nil {
+		// The run is queued either way; without the link the auto-fix row
+		// cannot report it, so say so loudly rather than pretend.
+		slog.Error("ci auto-fix: run link failed", "run_id", uuidToString(row.ID), "task_id", uuidToString(task.ID), "error", err)
+	} else {
+		row.TaskID = task.ID
+	}
 	h.audit(ctx, pr.wsID, "system", "", AuditCIAutoFix, "issue", issue.ID, map[string]any{"run_id": uuidToString(row.ID), "task_id": uuidToString(task.ID), "pull_request_id": uuidToString(pr.id), "provider": pr.provider, "head_sha": pr.headSha, "attempt": attempts + 1, "manual": manual, "budget_usd_ticks": cfg.BudgetUsdTicks}, nil)
 	h.publish("ci_auto_fix:queued", uuidToString(pr.wsID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "pull_request_id": uuidToString(pr.id), "task_id": uuidToString(task.ID)})
 	return row, nil
@@ -269,15 +274,26 @@ func (h *Handler) RetryCIAutoFix(w http.ResponseWriter, r *http.Request) {
 	var run db.CiAutoFixRun
 	var err error
 	var wsID pgtype.UUID
+	// The pull request row is loaded by id alone, so authorize against ITS
+	// workspace — never the caller's X-Workspace-ID — with the same bar as
+	// the CI auto-fix settings.
+	authorized := func(prWorkspace pgtype.UUID) bool {
+		if h.resolveWorkspaceID(r) != uuidToString(prWorkspace) {
+			writeError(w, http.StatusNotFound, "pull request not found")
+			return false
+		}
+		_, ok := h.requireWorkspaceRole(w, r, uuidToString(prWorkspace), "pull request not found", "owner", "admin")
+		return ok
+	}
 	if pr, gerr := h.Queries.GetGitHubPullRequestByID(r.Context(), prID); gerr == nil {
 		wsID = pr.WorkspaceID
-		if _, ok := h.permissionProfileScope(w, r); !ok {
+		if !authorized(wsID) {
 			return
 		}
 		run, err = h.autoFixGitHubPRManual(r.Context(), pr)
 	} else if pr, verr := h.Queries.GetVCSPullRequestByID(r.Context(), prID); verr == nil {
 		wsID = pr.WorkspaceID
-		if _, ok := h.permissionProfileScope(w, r); !ok {
+		if !authorized(wsID) {
 			return
 		}
 		run, err = h.autoFixVCSPR(r.Context(), pr, true)
@@ -336,18 +352,15 @@ func (h *Handler) PutCIAutoFixSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "max_attempts must be between 1 and 20 and budget_usd_ticks >= 0")
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	settings := map[string]any{}
-	if len(ws.Settings) > 0 {
-		_ = json.Unmarshal(ws.Settings, &settings)
-	}
-	settings["ci_auto_fix"] = req
-	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+	// Merged server-side (MergeWorkspaceSettings): a read-modify-write of the
+	// whole settings blob lost the writes of any concurrent settings PUT on
+	// a different key.
+	raw, _ := json.Marshal(map[string]any{"ci_auto_fix": req})
+	if _, err := h.Queries.MergeWorkspaceSettings(r.Context(), db.MergeWorkspaceSettingsParams{ID: wsUUID, Settings: raw}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save ci auto-fix settings")
 		return
 	}

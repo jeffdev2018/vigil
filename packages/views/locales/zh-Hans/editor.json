@@ -54,6 +54,7 @@
   },
   "attachment": {
     "download_failed": "下载链接获取失败，请稍后重试。",
+    "preview_fallback_title": "HTML 附件",
     "preview": "预览",
     "preview_loading": "加载预览中…",
     "preview_failed": "预览加载失败",
@@ -113,6 +114,7 @@
   "mermaid": {
     "diagram_label": "Mermaid 图表",
     "render_error": "无法渲染 Mermaid 图。",
+    "render_error_detail": "图表渲染失败。",
     "rendering": "渲染中…",
     "viewer_title": "图表",
     "canvas_label": "图表画布,拖动可平移,滚动可缩放。",

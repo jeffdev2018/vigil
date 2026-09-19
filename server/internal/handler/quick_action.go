@@ -569,7 +569,11 @@ func (h *Handler) CreateQuickAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	count, err := h.Queries.CountActiveQuickActions(r.Context(), wsUUID)
-	if err == nil && count >= maxActiveQuickActionsPerWorkspace {
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check active quick action count")
+		return
+	}
+	if count >= maxActiveQuickActionsPerWorkspace {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("a workspace can have at most %d active quick actions; archive one first", maxActiveQuickActionsPerWorkspace))
 		return
 	}
@@ -697,7 +701,11 @@ func (h *Handler) UpdateQuickAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if *req.Status == "active" && existing.Status != "active" {
 			count, err := h.Queries.CountActiveQuickActions(r.Context(), wsUUID)
-			if err == nil && count >= maxActiveQuickActionsPerWorkspace {
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to check active quick action count")
+				return
+			}
+			if count >= maxActiveQuickActionsPerWorkspace {
 				writeError(w, http.StatusBadRequest, fmt.Sprintf("a workspace can have at most %d active quick actions", maxActiveQuickActionsPerWorkspace))
 				return
 			}
@@ -851,6 +859,11 @@ func (h *Handler) RunQuickAction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// K60: may-invoke-this-agent (canInvokeAgent below) and may-write-this-
+	// project answer different questions; both gates are needed.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -866,6 +879,19 @@ func (h *Handler) RunQuickAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if qa.Status != "active" {
 		writeError(w, http.StatusBadRequest, "quick action is archived")
+		return
+	}
+	// A quick action carries its OWN configured target, so under the "derived vs
+	// named" rule it could be let through. It is refused in the first phase for a
+	// product reason rather than a rule one: it is an instruction to go and DO
+	// the action, not an invitation to talk, and Triage is where nobody has
+	// agreed the work should be done yet. Opening it later is deleting this if.
+	//
+	// Before the comment is written, not after: a quick action is a comment AND
+	// a run, and posting the prompt to an entry that will never run it leaves an
+	// instruction addressed to nobody (MUL-7189 §2.3).
+	if issue.TriageState.Valid {
+		h.writeDispatchBlocked(w, http.StatusForbidden, ReasonIssueInTriage)
 		return
 	}
 

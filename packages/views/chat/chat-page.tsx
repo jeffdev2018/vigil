@@ -32,6 +32,7 @@ import { EmptyState } from "./components/chat-empty-state";
 import { NewChatButton } from "./components/new-chat-button";
 import { QuickAgentBar } from "./components/quick-agent-bar";
 import { useChatController } from "./components/use-chat-controller";
+import { useArchiveSessionFlow } from "./components/use-archive-session-flow";
 import { OfflineBanner } from "./components/offline-banner";
 import { NoAgentBanner } from "./components/no-agent-banner";
 import { ArchivedAgentBanner } from "./components/archived-agent-banner";
@@ -146,21 +147,30 @@ export function ChatPage() {
   };
 
   // Single archive path for both entry points (thread-list row + conversation
-  // header). When the archived chat is the one in view, move the pane off it:
-  // on desktop advance to the next chat (Inbox-style); when compact drop back to
-  // the list, which reads more naturally than being thrown into an unrelated
-  // conversation full-screen. Archiving any other chat leaves the view put.
+  // header), and the same flow the floating window runs — see
+  // useArchiveSessionFlow for the move / rollback contract. Compact is this
+  // page's one deviation: dropping back to the list reads more naturally than
+  // being thrown into an unrelated conversation full-screen.
+  const archiveFlow = useArchiveSessionFlow({
+    activeSessionId: c.activeSessionId,
+    history: c.historySessions,
+    selectSession: c.handleSelectSession,
+    clearSelection: () => c.setActiveSession(null),
+    archive: c.archiveSession,
+  });
+
   const handleArchive = (session: ChatSession) => {
     supersedeAgentIntent();
-    if (session.id === c.activeSessionId) {
-      if (isCompact) {
-        c.setActiveSession(null);
-        setComposingNew(false);
-      } else {
-        c.advanceSelectionAfterArchive(session);
-      }
-    }
-    c.archiveSession(session.id);
+    const composingBefore = composingNew;
+    archiveFlow(session, {
+      moveSelection: isCompact
+        ? () => {
+            c.setActiveSession(null);
+            setComposingNew(false);
+          }
+        : undefined,
+      rollback: () => setComposingNew(composingBefore),
+    });
   };
 
   const startNewChat = (agent: Agent | null) => {
@@ -361,6 +371,9 @@ export function ChatPage() {
         agentAccessRevoked={c.isAgentAccessRevoked}
         agentRuntimeRequired={!c.isAgentRuntimeBound}
         agentName={c.activeAgent?.name}
+        agentId={c.activeAgent?.id}
+        // A new conversation: its first send is the one that starts a run.
+        showRunNotice={!c.activeSessionId}
         projects={c.projects}
         projectId={c.activeProjectId}
         projectContextUnsupported={c.projectContextUnsupported}

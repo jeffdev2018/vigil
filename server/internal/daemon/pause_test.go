@@ -39,3 +39,32 @@ func TestPauseControlWaitsForTheBoundary(t *testing.T) {
 		t.Fatal("one control per task")
 	}
 }
+
+// A pause requested while the task waits for a local directory lock arms its
+// grace timer on the wait's context. That context ends with the wait, and the
+// run-phase request that follows must re-arm the timer, or a silent run is
+// never paused.
+func TestPauseGraceSurvivesTheRequestingContext(t *testing.T) {
+	t.Parallel()
+	p := newPauseControl()
+	p.grace = 200 * time.Millisecond
+
+	waitCtx, waitCancel := context.WithCancel(context.Background())
+	p.request(waitCtx)
+	waitCancel()
+
+	// The run-phase watcher repeats the request on every status poll.
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	deadline := time.After(3 * time.Second)
+	for {
+		p.request(runCtx)
+		select {
+		case <-p.boundary:
+			return
+		case <-deadline:
+			t.Fatal("the grace timer died with the wait context; the pause never fires")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}

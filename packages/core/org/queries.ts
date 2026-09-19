@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { OrgDefinition, OrgModel, OrgStructure, OrgWriteRequest } from "../types";
+import type { OrgDefinition, OrgModel, OrgSimulation, OrgSimulationRequest, OrgStructure, OrgWriteRequest } from "../types";
 import { issueKeys } from "../issues/queries";
 
 // Executable org chart (K75): structures, templates, health, offers.
@@ -23,7 +23,7 @@ export function orgListOptions(wsId: string) {
 }
 
 export function orgDetailOptions(wsId: string, id: string) {
-  return queryOptions({ queryKey: orgKeys.detail(wsId, id), queryFn: () => api.getOrgStructure(id) });
+  return queryOptions({ queryKey: orgKeys.detail(wsId, id), queryFn: () => api.getOrgStructure(id), refetchOnWindowFocus: false });
 }
 
 export function orgTemplatesOptions(wsId: string) {
@@ -46,9 +46,9 @@ export function issueOrgOffersOptions(wsId: string, issueId: string) {
   return queryOptions({ queryKey: orgKeys.offers(wsId, issueId), queryFn: () => api.listIssueOrgOffers(issueId) });
 }
 
-function useOrgMutation<V>(wsId: string, fn: (v: V) => Promise<unknown>) {
+function useOrgMutation<V, R>(wsId: string, fn: (v: V) => Promise<R>) {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: fn, onSettled: () => qc.invalidateQueries({ queryKey: orgKeys.all(wsId) }) });
+  return useMutation({ mutationFn: async (v: V) => { const result = await fn(v); if (result === null) throw new Error("Invalid organization response"); return result; }, onSuccess: () => qc.invalidateQueries({ queryKey: orgKeys.all(wsId) }) });
 }
 
 export function useCreateOrgStructure(wsId: string) {
@@ -67,6 +67,15 @@ export function useSetOrgStructureStatus(wsId: string) {
 
 export function useDeleteOrgStructure(wsId: string) {
   return useOrgMutation(wsId, (id: string) => api.deleteOrgStructure(id));
+}
+
+/**
+ * "Where would this request go?" — POST /api/org/simulate against the
+ * definition on screen. It writes nothing, so there is nothing to invalidate
+ * and nothing to cache: each run answers about the text the user just typed.
+ */
+export function useSimulateOrg() {
+  return useMutation<OrgSimulation, Error, OrgSimulationRequest>({ mutationFn: (v) => api.simulateOrg(v) });
 }
 
 export function useEscalateIssue(wsId: string) {
@@ -117,4 +126,25 @@ export function orgModelLabel(model: OrgModel): string {
 /** Is the structure acting right now. */
 export function orgIsLive(s: Pick<OrgStructure, "status">): boolean {
   return s.status === "active";
+}
+
+export { addOrgMembers, removeOrgMember, moveOrgMember, orgUnitRemovalBlockers, orgLayout, removeOrgUnit, orgWouldCycle, orgDefinitionChanges, parseEditableOrgDefinition } from "./editor";
+
+export function orgTeamCatalogOptions(wsId: string) {
+  return queryOptions({ queryKey: [...orgKeys.all(wsId), "team-catalog"], queryFn: () => api.listOrgTeamTemplates(), staleTime: 300_000 });
+}
+export function usePrepareOrgTeam() {
+  return useMutation({ mutationFn: async (id: string) => {
+    const blob = await api.downloadOrgTeamTemplate(id);
+    const file = new File([blob], `${id}.zip`, { type: "application/zip" });
+    const preview = await api.previewWorkspaceImport(file);
+    return { file, preview };
+  } });
+}
+export function useInstallOrgTeam(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (file: File) => api.importWorkspace(file, "rename", {}), onSuccess: () => {
+    // A team adds agents, skills, projects, routines, issues and an org together.
+    void qc.invalidateQueries({ predicate: query => query.queryKey.includes(wsId) });
+  } });
 }

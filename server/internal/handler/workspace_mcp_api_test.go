@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
 const workspaceMcpTestSecret = "sk-live-workspace-should-never-be-echoed"
@@ -417,5 +420,94 @@ func TestAgentMcpServerBinding_ResponseIsSecretFreeAndAgentActorsCannotWrite(t *
 	testHandler.AddAgentMcpServer(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for an agent actor, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// bindAgentMcpServerForTest attaches a server to an agent directly, so the
+// listing test does not depend on the write handler's own gates.
+func bindAgentMcpServerForTest(t *testing.T, agentID, serverID string) {
+	t.Helper()
+
+	dbfx.InsertNoID(t, "agent_mcp_server", testutil.Cols{
+		"agent_id":  agentID,
+		"server_id": serverID,
+	}, "agent_id = $1 AND server_id = $2", agentID, serverID)
+}
+
+// The tools catalogue page (JEF-426) shows how many agents reach each server,
+// so the library listing carries the count and the membership set.
+func TestListWorkspaceMcpServers_ReportsBoundAgents(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	shared := createWorkspaceMcpServerForTest(t, "shared-"+t.Name(), workspaceMcpTestEntry)
+	free := createWorkspaceMcpServerForTest(t, "free-"+t.Name(), workspaceMcpTestEntry)
+	first := createHandlerTestAgent(t, "mcp catalogue agent one", nil)
+	second := createHandlerTestAgent(t, "mcp catalogue agent two", nil)
+	archived := createHandlerTestAgent(t, "mcp catalogue agent archived", nil)
+	dbfx.Exec(t, `UPDATE agent SET archived_at = now() WHERE id = $1`, archived)
+	bindAgentMcpServerForTest(t, first, shared)
+	bindAgentMcpServerForTest(t, second, shared)
+	bindAgentMcpServerForTest(t, archived, shared)
+
+	code, resp, raw := listWorkspaceMcpServersForTest(t, nil)
+	if code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", code, raw)
+	}
+	byID := map[string]WorkspaceMcpServerResponse{}
+	for _, item := range resp {
+		byID[item.ID] = item
+	}
+
+	bound, ok := byID[shared]
+	if !ok {
+		t.Fatalf("the bound server is missing from the listing: %s", raw)
+	}
+	if bound.AgentCount == nil || *bound.AgentCount != 2 {
+		t.Errorf("agent_count = %v, want 2 (an archived agent cannot run, so it does not count)", bound.AgentCount)
+	}
+	if len(bound.AgentIDs) != 2 || !slices.Contains(bound.AgentIDs, first) || !slices.Contains(bound.AgentIDs, second) {
+		t.Errorf("agent_ids = %v, want exactly %s and %s", bound.AgentIDs, first, second)
+	}
+	if slices.Contains(bound.AgentIDs, archived) {
+		t.Errorf("agent_ids includes the archived agent %s: %v", archived, bound.AgentIDs)
+	}
+
+	unbound, ok := byID[free]
+	if !ok {
+		t.Fatalf("the unbound server is missing from the listing: %s", raw)
+	}
+	if unbound.AgentCount == nil || *unbound.AgentCount != 0 {
+		t.Errorf("agent_count on an unbound server = %v, want 0", unbound.AgentCount)
+	}
+	if len(unbound.AgentIDs) != 0 {
+		t.Errorf("agent_ids on an unbound server = %v, want empty", unbound.AgentIDs)
+	}
+}
+
+// Shape, not timing: the query is keyed by the WORKSPACE, so N servers are
+// answered by one call. A per-server or per-agent variant could not satisfy
+// this test without changing its signature.
+func TestListWorkspaceMcpServerAgents_AnswersEveryServerInOneCall(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	agent := createHandlerTestAgent(t, "mcp catalogue grouped agent", nil)
+	want := map[string]bool{}
+	for _, name := range []string{"grouped-a", "grouped-b", "grouped-c"} {
+		serverID := createWorkspaceMcpServerForTest(t, name+"-"+t.Name(), workspaceMcpTestEntry)
+		bindAgentMcpServerForTest(t, agent, serverID)
+		want[serverID] = true
+	}
+
+	rows, err := testHandler.Queries.ListWorkspaceMcpServerAgents(context.Background(), parseUUID(testWorkspaceID))
+	if err != nil {
+		t.Fatalf("list workspace mcp server agents: %v", err)
+	}
+	for _, row := range rows {
+		delete(want, uuidToString(row.ServerID))
+	}
+	if len(want) != 0 {
+		t.Errorf("one grouped call missed %d of the 3 servers: %v", len(want), want)
 	}
 }

@@ -64,8 +64,3 @@ export const ProjectMembersSchema = z.object({
 export type ProjectMembers = z.infer<typeof ProjectMembersSchema>;
 
 export const EMPTY_PROJECT_MEMBERS: ProjectMembers = { members: [], roles: ["viewer", "contributor", "admin"] };
-
-/** The role a subject would get if its override were cleared. */
-export function inheritedProjectRole(m: Pick<ProjectMemberRole, "ceiling">): ProjectRole {
-  return m.ceiling;
-}

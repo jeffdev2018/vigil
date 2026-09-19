@@ -18,6 +18,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -305,13 +306,13 @@ func (h *Handler) issueAccepted(ctx context.Context, issue db.Issue) bool {
 // change must not wait for a model call.
 func (h *Handler) extractDecisionsAsync(issue db.Issue) {
 	model := h.LLM
-	go func() {
+	util.GoBackground("decision extraction", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		if _, err := h.extractDecisionsWith(ctx, model, issue); err != nil {
 			slog.Warn("decision extraction failed", "error", err, "issue_id", uuidToString(issue.ID))
 		}
-	}()
+	})
 }
 
 // GET /api/projects/{id}/decisions?author_type=agent|member
@@ -393,8 +394,11 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req createDecisionsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -443,6 +447,7 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	authorID := pgtype.UUID{}
 	if err := authorID.Scan(actorID); err != nil {
+		slog.Warn("failed to scan decision record author id", "actor_id", actorID, "error", err)
 		authorID = pgtype.UUID{}
 	}
 	out := make([]DecisionRecordResponse, 0, len(req.Decisions))

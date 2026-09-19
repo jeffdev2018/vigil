@@ -511,9 +511,10 @@ type SetChatSessionPinnedRequest struct {
 }
 
 // SetChatSessionPinned pins or unpins a chat so it sticks to the top of the
-// caller's conversation list. Pin state is per-session and, since sessions are
-// per-creator, inherently per-user. It never bumps updated_at (see the SQL) so
-// an unpinned chat does not jump the activity-sorted list.
+// conversation list. Pin state lives on the shared session row, so with
+// multiplayer participants (K31) it is the creator's call, like rename and
+// archive. It never bumps updated_at (see the SQL) so an unpinned chat does
+// not jump the activity-sorted list.
 func (h *Handler) SetChatSessionPinned(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -530,6 +531,9 @@ func (h *Handler) SetChatSessionPinned(w http.ResponseWriter, r *http.Request) {
 
 	session, ok := h.gatePublicChatSessionForUser(w, r, userID, workspaceID, sessionID)
 	if !ok {
+		return
+	}
+	if !requireChatSessionCreator(w, session, userID) {
 		return
 	}
 
@@ -1218,7 +1222,7 @@ func (h *Handler) RegenerateChatQuickActions(w http.ResponseWriter, r *http.Requ
 		case errors.Is(err, service.ErrChatQuickActionsNoTurn):
 			writeError(w, http.StatusConflict, "no assistant reply to refresh yet")
 		case errors.Is(err, service.ErrChatQuickActionsUnavailable):
-			writeError(w, http.StatusServiceUnavailable, "suggestions are not available on this deployment")
+			writeFeatureDisabled(w, "suggestions_not_available", "suggestions are not available on this deployment")
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to regenerate quick actions")
 		}
@@ -1862,6 +1866,7 @@ func (h *Handler) CancelTaskByUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "task not found")
 		return
 	}
+	actorType, actorID := h.resolveActor(r, userID, workspaceID)
 
 	var (
 		queuedOnly      bool
@@ -1923,7 +1928,6 @@ func (h *Handler) CancelTaskByUser(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "task not found")
 			return
 		}
-		actorType, actorID := h.resolveActor(r, userID, workspaceID)
 		if !h.canAccessPrivateAgent(r.Context(), agent, actorType, actorID, workspaceID) {
 			writeError(w, http.StatusForbidden, "you do not have access to this agent")
 			return
@@ -1935,6 +1939,7 @@ func (h *Handler) CancelTaskByUser(w http.ResponseWriter, r *http.Request) {
 		QueuedOnly:                 queuedOnly,
 		ExpectedChatSession:        expectedSession,
 		QueueAction:                queueAction,
+		CancelledBy:                h.taskCancellationActor(r.Context(), actorType, actorID),
 		UserInitiated:              true,
 	})
 	if errors.Is(err, service.ErrTaskNoLongerQueued) {

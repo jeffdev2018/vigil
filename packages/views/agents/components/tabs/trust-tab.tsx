@@ -11,7 +11,7 @@ import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { CriticPolicySection } from "../../../critic";
-import { useT, useTimeAgo } from "../../../i18n";
+import { tKnown, useT, useTimeAgo } from "../../../i18n";
 
 /**
  * Trust Dial (K26): the agent's autonomy mode, what each mode lets it do,
@@ -34,8 +34,8 @@ export function TrustTab({ agent, canEdit }: { agent: Agent; canEdit: boolean })
   const [reason, setReason] = useState("");
   const current = modeData?.mode ?? agent.trust_mode ?? "propose";
 
-  const label = (m: string) => t(($) => $.trust.modes[m as TrustMode] ?? $.trust.modes.propose);
-  const describe = (m: string) => t(($) => $.trust.describe[m as TrustMode] ?? $.trust.describe.propose);
+  const label = (m: string) => tKnown(t, "trust.modes", m, t(($) => $.trust.modes.propose));
+  const describe = (m: string) => tKnown(t, "trust.describe", m, t(($) => $.trust.describe.propose));
   const apply = (mode: TrustMode) =>
     setMode.mutate(
       { mode, reason: reason.trim() || undefined },

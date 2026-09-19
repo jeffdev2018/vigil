@@ -96,6 +96,12 @@ func (h *Handler) UpdateProjectMemory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "only workspace administrators can publish project memory")
 		return
 	}
+	// K60: a project-role override can still lower an owner/admin's effective
+	// role on this one project (project_role.go: "a row may lower that, never
+	// raise it") — the workspace-role check above does not see that override.
+	if !h.requireProjectRole(w, r, project.ID, ProjectRoleAdmin) {
+		return
+	}
 	var req struct {
 		Rules            *[]string       `json:"rules"`
 		ExpectedRevision *int32          `json:"expected_revision"`

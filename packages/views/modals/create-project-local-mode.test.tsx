@@ -140,8 +140,13 @@ vi.mock("../platform/local-directory", () => ({
     Promise.resolve({ ok: true, path: "/Users/dev/work/game-client", basename: "game-client" }),
   validateLocalDirectory: () => Promise.resolve({ ok: true, is_git_repo: pickedIsGitRepo }),
 }));
+let localDaemonId: string | null = "daemon-1";
 vi.mock("../platform/use-local-daemon-status", () => ({
-  useLocalDaemonStatus: () => ({ daemonId: "daemon-1", deviceName: "MacBook", running: true }),
+  useLocalDaemonStatus: () => ({
+    daemonId: localDaemonId,
+    deviceName: "MacBook",
+    running: localDaemonId !== null,
+  }),
 }));
 
 // Render overlays inline so their contents are assertable.
@@ -167,6 +172,7 @@ vi.mock("@multica/ui/components/ui/dropdown-menu", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "sonner";
 import { CreateProjectModal, buildLocalDirectoryResourceRef } from "./create-project";
 
 async function pickLocalDirectory(user: ReturnType<typeof userEvent.setup>) {
@@ -178,10 +184,12 @@ async function pickLocalDirectory(user: ReturnType<typeof userEvent.setup>) {
 describe("CreateProjectModal — local directory execution mode", () => {
   beforeEach(() => {
     createProjectMock.mockClear();
+    vi.mocked(toast.error).mockClear();
     runtimeCliVersion = "9.9.9";
     runtimeWorktreeMetadata = "advertised";
     serverValidatesWorktree = true;
     pickedIsGitRepo = true;
+    localDaemonId = "daemon-1";
   });
 
   // Preselection, not a silent default change: a git repo the runtime can
@@ -309,6 +317,29 @@ describe("CreateProjectModal — local directory execution mode", () => {
 
     expect(screen.getByRole("radio", { name: /Run in parallel, isolated/i })).toBeDisabled();
     expect(screen.getByText(/not a git repository/i)).toBeInTheDocument();
+  });
+
+  // Regression: the daemon can drop between picking the folder and clicking
+  // Create. The Create button was gated only on `!title.trim() || submitting`,
+  // not on daemon state, so `resources` in handleSubmit silently ended up
+  // undefined and the project would be created with no local directory
+  // attached — no toast, no block.
+  it("blocks submit and reports the failure when the daemon drops after the folder was picked", async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderWithI18n(<CreateProjectModal onClose={vi.fn()} />);
+
+    await pickLocalDirectory(user);
+    localDaemonId = null;
+    // useLocalDaemonStatus is a plain mock, not a subscribed hook, so the
+    // component only sees the new value on its next render.
+    rerender(<CreateProjectModal onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /^Create Project$/i }));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "The daemon went offline while you were picking a folder — reconnect it before creating the project.",
+    );
+    expect(createProjectMock).not.toHaveBeenCalled();
   });
 });
 

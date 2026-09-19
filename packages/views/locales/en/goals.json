@@ -13,7 +13,8 @@
     "loading_issues": "Loading issues...",
     "progress": "{{done}} / {{total}} done",
     "no_owner": "No owner",
-    "no_due_date": "No due date"
+    "no_due_date": "No due date",
+    "load_error": "Could not load the goals"
   },
   "status": {
     "draft": "Draft",

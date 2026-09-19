@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_calendar_event_participant_who;

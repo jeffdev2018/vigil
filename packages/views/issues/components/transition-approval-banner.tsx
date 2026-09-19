@@ -10,6 +10,7 @@ import { memberListOptions } from "@multica/core/workspace/queries";
 import {
   issueTransitionRequestsOptions,
   pendingTransitionRequest,
+  useCancelIssueTransitionRequest,
   useDecideIssueTransitionRequest,
 } from "@multica/core/issue-transitions";
 import { Button } from "@multica/ui/components/ui/button";
@@ -26,6 +27,10 @@ import { useT } from "../../i18n";
  * a caller who may not decide, so a widened approver simply uses the inbox
  * item instead. The narrower affordance is the safe way round: showing a
  * button that 403s is worse than not showing one.
+ *
+ * "Cancel my request" is shown only to the requester, matched the way the
+ * server's CancelIssueTransitionRequest matches it: requested_by_type is
+ * "member" and requested_by_id is the signed-in user's id.
  */
 export function TransitionApprovalBanner({ issueId }: { issueId: string }) {
   const { t } = useT("issues");
@@ -33,6 +38,7 @@ export function TransitionApprovalBanner({ issueId }: { issueId: string }) {
   const { data } = useQuery(issueTransitionRequestsOptions(wsId, issueId));
   const pending = pendingTransitionRequest(data);
   const decide = useDecideIssueTransitionRequest(wsId, issueId);
+  const cancel = useCancelIssueTransitionRequest(wsId, issueId);
   const [note, setNote] = useState("");
 
   const { data: members = [] } = useQuery(memberListOptions(wsId));
@@ -45,6 +51,11 @@ export function TransitionApprovalBanner({ issueId }: { issueId: string }) {
 
   if (!pending) return null;
 
+  const isRequester =
+    currentUser != null &&
+    pending.requested_by_type === "member" &&
+    pending.requested_by_id === currentUser.id;
+
   const run = (decision: "approve" | "reject") => {
     decide.mutate(
       { requestId: pending.id, decision, note: note.trim() || undefined },
@@ -53,6 +64,13 @@ export function TransitionApprovalBanner({ issueId }: { issueId: string }) {
         onError: () => toast.error(t(($) => $.transitions.decide_failed)),
       },
     );
+  };
+
+  const withdraw = () => {
+    cancel.mutate(pending.id, {
+      onSuccess: () => toast.success(t(($) => $.transitions.cancelled_toast)),
+      onError: () => toast.error(t(($) => $.transitions.cancel_failed)),
+    });
   };
 
   return (
@@ -83,6 +101,13 @@ export function TransitionApprovalBanner({ issueId }: { issueId: string }) {
               {t(($) => $.transitions.reject)}
             </Button>
           </div>
+        </div>
+      )}
+      {isRequester && (
+        <div>
+          <Button size="sm" variant="outline" disabled={cancel.isPending} onClick={withdraw}>
+            {t(($) => $.transitions.cancel_request)}
+          </Button>
         </div>
       )}
     </div>

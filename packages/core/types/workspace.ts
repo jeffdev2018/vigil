@@ -23,6 +23,22 @@ export interface Workspace {
   postmortem_cost_threshold_usd_ticks?: number | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Set only on the POST /api/workspaces response, when the new workspace was
+   * seeded from a template run (K76): the seed report, or the reason the
+   * seed failed. The workspace itself is created either way — the server
+   * does not roll the create back — so a caller that reads `template_error`
+   * must still treat the workspace as real.
+   */
+  template?: Record<string, unknown>;
+  template_error?: string;
+  /**
+   * Same as template/template_error, for a catalogue pack seed (packs,
+   * vague B). A create request can supply both template_run_id and pack_id;
+   * the two outcomes are reported separately so neither clobbers the other.
+   */
+  pack?: Record<string, unknown>;
+  pack_error?: string;
 }
 
 /**
@@ -48,6 +64,15 @@ export interface WorkspaceMcpServer {
   tool_count: number;
   tool_policy?: McpToolPolicy;
   tools?: McpCatalogTool[];
+  /**
+   * How many of the workspace's agents reach this server, and which ones
+   * (JEF-426). Present on the WORKSPACE library listing only — absent, not
+   * zero, on an agent's own list and on a write's response, so "nobody has
+   * it" is never confused with "not computed here". Archived agents are not
+   * counted.
+   */
+  agent_count?: number;
+  agent_ids?: string[];
 }
 
 /** Governed MCP gateway (K77). */
@@ -300,4 +325,27 @@ export interface BlastRadiusPreview {
   level: BlastRadiusLevel | "inherit" | (string & {});
   rule_id?: string;
   path_pattern?: string;
+}
+
+// Sandbox policies (JEF-256): declarative network / sensitive-file
+// restrictions for agent runs. Resolved workspace < project < issue,
+// most-restrictive wins, enforced fail-closed by the daemon.
+export type SandboxNetworkMode = "unrestricted" | "allowlist" | "none";
+
+export interface SandboxPolicy {
+  network_mode: SandboxNetworkMode;
+  allowed_hosts: string[];
+  block_sensitive_files: boolean;
+}
+
+// GET/PUT /api/projects/:id/sandbox-policy.
+export interface ProjectSandboxPolicyResponse {
+  policy: SandboxPolicy | null;
+  effective: SandboxPolicy;
+}
+
+// GET/PUT /api/issues/:id/sandbox-override.
+export interface IssueSandboxOverrideResponse {
+  override: SandboxPolicy | null;
+  effective: SandboxPolicy;
 }

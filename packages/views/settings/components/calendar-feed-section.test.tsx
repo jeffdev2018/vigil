@@ -13,6 +13,7 @@ import { CalendarFeedSection } from "./calendar-feed-section";
 
 const data = vi.hoisted(() => ({
   feed: { url: "", last_error: "" } as CalendarFeed,
+  feedError: null as Error | null,
   save: vi.fn(async (_url: string) => undefined),
   remove: vi.fn(async () => undefined),
   upcoming: vi.fn(async (_within?: string) => ({ events: [{}, {}], configured: true })),
@@ -32,7 +33,10 @@ vi.mock("@multica/core/api", async (importOriginal) => ({
 vi.mock("@multica/core/calendar/queries", () => ({
   calendarFeedOptions: () => ({
     queryKey: ["calendar", "ws-1", "feed"],
-    queryFn: async () => data.feed,
+    queryFn: async () => {
+      if (data.feedError) throw data.feedError;
+      return data.feed;
+    },
   }),
   useSetCalendarFeed: () => ({ mutateAsync: data.save, isPending: false }),
   useDeleteCalendarFeed: () => ({ mutateAsync: data.remove, isPending: false }),
@@ -55,6 +59,22 @@ describe("CalendarFeedSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     data.feed = { url: "", last_error: "" };
+    data.feedError = null;
+  });
+
+  // A failed fetch of the settings themselves must not look like "nothing
+  // configured yet" — that would invite the user to type a URL into a form
+  // whose current state is actually unknown.
+  it("reports a load failure instead of showing an empty form", async () => {
+    data.feedError = new Error("network down");
+    render();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(screen.queryByRole("textbox", { name: /calendar feed url/i })).toBeNull();
+
+    data.feedError = null;
+    data.feed = { url: "https://cal.example.test/f.ics", last_error: "" };
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    await waitFor(() => expect(field().value).toBe("https://cal.example.test/f.ics"));
   });
 
   it("saves a pasted URL and trims it", async () => {

@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { captureException } from "@multica/core/analytics";
-import type { SupportedLocale } from "@multica/core/i18n";
+import { HTML_LANG, type SupportedLocale } from "@multica/core/i18n";
 import { resolveEmergencyLocale } from "./emergency-locale";
-import { HTML_LANG } from "@/lib/html-lang";
 
 /**
  * Route-level error boundary for the web app. Next.js renders this (replacing
@@ -51,6 +50,9 @@ export default function GlobalError({
           <button
             type="button"
             onClick={reset}
+            // This boundary replaces the root layout, so neither design
+            // tokens nor utility classes are available here. Keep this 6px
+            // fallback aligned with the resolved product `radius-md`.
             style={{
               marginTop: 16,
               padding: "8px 16px",
@@ -92,8 +94,8 @@ const EMERGENCY_COPY = {
     reload: "다시 불러오기",
   },
   fr: {
-    title: "Un problème est survenu",
-    description: "La page a rencontré une erreur inattendue. Essayez de recharger.",
+    title: "Une erreur s'est produite",
+    description: "La page a rencontré une erreur inattendue. Essayez de la recharger.",
     reload: "Recharger",
   },
 } as const;

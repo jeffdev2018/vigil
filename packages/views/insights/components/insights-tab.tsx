@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import type { InsightWidget } from "@multica/core/insights";
@@ -11,6 +12,7 @@ import {
   useDeleteInsightWidget,
   useUpdateInsightWidget,
 } from "@multica/core/insights";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useT } from "../../i18n";
 import { AskBar } from "./ask-bar";
 import { InsightChart } from "./insight-chart";
@@ -28,20 +30,26 @@ export function InsightsTab({ wsId }: { wsId: string }) {
   const update = useUpdateInsightWidget(wsId);
   const widgets = widgetsQuery.data ?? [];
 
+  const reportReorderFailure = (err: unknown) =>
+    toast.error(
+      err instanceof Error && err.message ? err.message : t(($) => $.insights.reorder_failed),
+    );
+
   const swap = (index: number, direction: -1 | 1) => {
     const current = widgets[index];
     const neighbour = widgets[index + direction];
     if (!current || !neighbour) return;
     // Positions are swapped rather than recomputed, so a reorder is two
-    // independent PATCHes and a failure on one leaves the other consistent.
-    update.mutate({
-      id: current.id,
-      input: { position: neighbour.position, expected_revision: current.revision },
-    });
-    update.mutate({
-      id: neighbour.id,
-      input: { position: current.position, expected_revision: neighbour.revision },
-    });
+    // independent PATCHes and a failure on one leaves the other consistent
+    // (onSettled re-reads the list either way — see useUpdateInsightWidget).
+    update.mutate(
+      { id: current.id, input: { position: neighbour.position, expected_revision: current.revision } },
+      { onError: reportReorderFailure },
+    );
+    update.mutate(
+      { id: neighbour.id, input: { position: current.position, expected_revision: neighbour.revision } },
+      { onError: reportReorderFailure },
+    );
   };
 
   return (
@@ -50,6 +58,12 @@ export function InsightsTab({ wsId }: { wsId: string }) {
 
       {widgetsQuery.isLoading ? (
         <Skeleton className="h-40 w-full" />
+      ) : widgetsQuery.isError ? (
+        // The list read defaults to [], so a 5xx or an offline tab used to
+        // render "nothing pinned yet" — a product claim about a workspace
+        // whose dashboard we never read. Same rule (and same component) as
+        // the Usage and Errors tabs.
+        <LoadErrorState onRetry={() => void widgetsQuery.refetch()} />
       ) : widgets.length === 0 ? (
         <p className="py-8 text-center text-caption text-muted-foreground">
           {t(($) => $.insights.no_widgets)}
@@ -128,7 +142,16 @@ function InsightWidgetCard({
             variant="ghost"
             size="icon-sm"
             aria-label={t(($) => $.insights.remove)}
-            onClick={() => remove.mutate(widget.id)}
+            onClick={() =>
+              remove.mutate(widget.id, {
+                onError: (err) =>
+                  toast.error(
+                    err instanceof Error && err.message
+                      ? err.message
+                      : t(($) => $.insights.remove_failed),
+                  ),
+              })
+            }
           >
             <Trash2 />
           </Button>

@@ -1,0 +1,176 @@
+---
+title: Packs
+description: One file that turns a workspace into a working setup for a function — helpdesk, sales, HR — with the types, views, rules and colleagues that function needs, installed without overwriting anything you already have.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+A **pack** is a ready-to-use workspace setup for one function of a company. Installing the helpdesk pack gives you a `Ticket` work item type, the statuses a ticket really sits in, the labels a desk sorts by, a "Requester team" property, saved views for the queue, a doctrine section with the desk's rules, a triage agent and a stale-ticket sweep — in one write, in one transaction.
+
+It is the [workspace transfer bundle](/workspaces) with a manifest on top: the same preview, the same collision strategies, the same report. What a pack adds is identity — every row it creates is recorded against the pack's id and version, so a pack can be **upgraded** in place, and **uninstalled**.
+
+## Human team first
+
+Every pack works with **no agent at all**. The types, properties, views and rules are what a two-person desk uses on day one; a pack's metric can be moved by people alone. Agents arrive as colleagues: paused, with no runtime bound, `trust_mode: propose` and no secrets. Connect them when you want them, or never.
+
+Nothing in a pack carries a credential, and the install enforces that whatever the file says:
+
+- **Autopilots and their triggers land disabled.** Nothing fires because you installed something.
+- **Business rules land as drafts.** A person activates each one.
+- **Agents land without environment keys** and without a runtime.
+- **Triage sources land without their token.**
+
+## The catalogue
+
+Ten packs ship with Multica, in three rollout waves. Wave 1 is where a company that runs on email starts; wave 3 is the back office.
+
+| Pack | Domain | Wave | What it sets up | Metric |
+|---|---|---|---|---|
+| `helpdesk-it` | helpdesk | 1 | Tickets from colleagues, triaged, answered within a business day, with an agent that drafts and a person who decides | First-response delay |
+| `ops` | ops | 1 | Recurring runbooks, incidents, vendor follow-ups and change requests in one place, with the steps that must happen on time made visible | On-time runbook steps |
+| `customer-support` | support | 2 | External tickets with an SLA tier on every one, refunds and escalations that wait for a human approval, an agent that drafts replies but never sends them | First-response delay against SLA |
+| `sales` | sales | 2 | Leads and deals with a stage on every one, a follow-up cadence nothing falls out of, a proposal drafter, an approval before any discount | Lead to first qualified call |
+| `marketing` | marketing | 2 | Campaigns as projects, every content piece an issue with a channel and a publish date, a writer and a fact-checker, nothing published without a person | Pieces published per week |
+| `leadership` | leadership | 2 | Decisions logged as work items with a named owner and a reversibility call, a weekly briefing, an analyst that prepares options without choosing | Decisions closed with a written rationale |
+| `research` | research | 2 | Questions as work items, sources in the Brain, an explicit confidence, a researcher that drafts and a reviewer that checks provenance | Questions answered with a cited synthesis |
+| `hr` | hr | 3 | A hiring pipeline whose stage is a property, onboarding as a project of dated steps, leave and contract requests as tickets, a confidentiality rule | Onboarding steps completed before day one |
+| `finance` | finance | 3 | Invoices, expenses and close tasks as work items, an approval a person has to give, a second signature above a threshold, a reconciliation assistant | Close completed within N working days |
+| `legal` | legal | 3 | Contract reviews with a counterparty and a risk level, a clause library in the Brain, a person approving every review, a reader that flags deviations | Review turnaround |
+
+Every pack declares exactly **one metric**: the number that says whether the function is working. It is a label, a definition and a hint about where to read it in the workspace — not a dashboard. Read it before you install: a pack whose metric you do not care about is a pack you do not need.
+
+## What a pack contains
+
+| Group | Kinds |
+|---|---|
+| Work shape | Work item statuses and types, labels, custom properties, saved views |
+| Rules | Status transition rules, business rules, ownership rules, a doctrine section |
+| Agents | Permission profiles, skills, agents |
+| Content | Projects, goals, autopilots, triage sources, an organization, Brain notes, sample issues |
+
+Rows are matched **by name** — an agent, a label, a view, a status key. That is what makes an upgrade possible: the same name in a later version is the same row.
+
+## Install
+
+**Settings → Packs** lists the catalogue with what you already have. Installing is an `owner` or `admin` action, and the endpoints behind it accept a person only: an agent that tries gets a `403`, because a pack rewrites the types, rules and doctrine every run is then bound by.
+
+**Preview first.** The preview lists the collisions (anything in the workspace that already carries one of the pack's names), any validation problem in the pack, the strategy that will be used, and a reason when the install would be refused.
+
+| Strategy | What it does | When it is the default |
+|---|---|---|
+| `skip` | Leaves the workspace's row alone and installs the rest | A first install — a pack never overwrites what you already have |
+| `merge` | Updates the workspace's row with the pack's version of it | An upgrade — the pack's own rows follow the new version |
+| `rename` | Installs the pack's row alongside yours, under a free name | Never automatic; ask for it |
+
+The install answers with a **report**: created and merged counts per kind, the rows it skipped and why, warnings, and the full list of rows it touched. That list is the ledger — `multica pack items <install-id>` prints it back, with each row's kind, name and whether it was `created` or `merged`.
+
+<Callout title="A pack fires nothing on its own">
+After an install nothing runs: the autopilots are disabled, the rules are drafts, the agents have no runtime. The first week is yours — put your real work into the views, then turn on one agent.
+</Callout>
+
+## Upgrade
+
+An upgrade is installing a newer version of the same pack id. The catalogue marks it, `merge` becomes the default so the pack's own rows follow the new version, and the previous install's rows are carried forward — what an older version created and this one skipped still belongs to the pack.
+
+Re-installing the version you already have is refused with a `409`; `--force` re-applies it (the transfer is idempotent under `skip`, so it is safe). A **lower** version is always refused: a pack does not downgrade.
+
+## Uninstall
+
+Uninstalling removes the **configuration** a pack installed and keeps the **content**:
+
+- **Removed**: ownership rules, saved views, transition rules, business rules. Agents and autopilots are archived. Labels, properties, statuses and work item types are removed or archived — unless issues still use them, in which case they are kept and the report says how many.
+- **Kept**: projects, goals, Brain notes and issues, plus anything the pack `merged` into a row that existed before it. Those were never only the pack's.
+
+The report names every kept row with its reason, so "the pack is gone but the type is still there" is an answer rather than a surprise.
+
+## Prerequisites
+
+A pack declares what it would like to have — the [native runtime](/native-runtime), a connected runtime, an integration, a channel — and the preview marks each one `met`, `missing` or `unknown`. Nothing is enforced: a pack whose runtime prerequisite is missing still installs, and its agents simply have nothing to run on yet. Optional prerequisites are marked as such.
+
+## Bring your own pack, or export one
+
+A pack is one YAML file, so a team can keep its own next to its code:
+
+```bash
+multica pack download helpdesk-it --out helpdesk-it.pack.yaml   # start from a real one
+multica pack preview-file my-desk.pack.yaml                     # collisions, problems, strategy
+multica pack install-file my-desk.pack.yaml --strategy skip
+```
+
+Going the other way, `pack export` turns the workspace you have tuned into a pack file, with a manifest you supply:
+
+```bash
+multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
+  --summary "How we run support here." --domain support \
+  --metric-label "First-response delay" \
+  --metric-description "Median time to the first reply actually sent." \
+  --include-notes --out my-desk.pack.yaml
+```
+
+The server accepts a pack file up to 32 MB, from the app or from the CLI (`multica pack preview-file` / `install-file`). An export never carries the skills discovered on a connected computer (they belong to that machine), and `--include-skills=false` leaves every skill out. An export carries no credential either — agents lose their environment keys, triggers come back disabled, triage sources come back without their token.
+
+## Pack format
+
+The authoritative contract is `FORMAT.md`, shipped in the repository next to the built-in packs. The rules that matter when you write one:
+
+- **English content.** The product translates its own chrome, not your pack. Titles, instructions, doctrine and sample issues are what your team reads.
+- **Names are the identity.** Keep them stable across versions, or an upgrade creates a second row instead of updating the first.
+- **Agents**: `trust_mode: propose`, `effect_mode: preview`, `runtime_mode: native`, no `env_keys`, and every agent lists the pack's procedure skill.
+- **Statuses**: add only what the function needs beyond the seven built-ins, and give each custom status a `category` among them.
+- **Sample issues say they are examples**, in the title or the first line.
+- **Every pack declares its `metric`**, and bumps its semver `version` on every change.
+
+### Known limits
+
+- Transition rules key on status **categories**, not on a work item type or a property: an approval gate covers every issue moving between those categories.
+- A property cannot be marked required, and two select properties cannot be bound to each other. Write such a rule in the doctrine section and in a business rule.
+- `metric` is one label and one description; a second number goes in the description or the hint.
+- Schedule triggers take a cron expression and a fixed timezone.
+- Sample issues carry no due date and no assignee.
+
+## Start a workspace from a pack
+
+Creating a workspace accepts a `pack_id`: the new workspace is seeded from that catalogue pack as its first act. A failure leaves the workspace in place and reports the error rather than rolling back your workspace — install the pack again once you have fixed what blocked it.
+
+## Use the CLI
+
+```bash
+multica pack list --domain helpdesk
+multica pack show helpdesk-it
+multica pack preview helpdesk-it --strategy skip
+multica pack install helpdesk-it
+multica pack installed
+multica pack items <install-id>
+multica pack uninstall <install-id>
+```
+
+| Command | What |
+|---|---|
+| `pack list [--domain]` | The catalogue with this workspace's install state and upgrades |
+| `pack show <id>` | Manifest, metric, prerequisites with their status, contents per kind |
+| `pack preview <id> [--strategy]` | Collisions, problems, the strategy, why an install would be blocked |
+| `pack install <id> [--strategy] [--force]` | Apply it and print the report |
+| `pack installed` | The install ledger |
+| `pack items <install-id>` | Every row one install created or merged |
+| `pack uninstall <install-id>` | What was removed, what was kept and why |
+| `pack download <id> [--out]` | The pack file itself |
+| `pack preview-file` / `pack install-file <file>` | The same two steps for a pack of your own |
+| `pack export --id --version --title --summary …` | This workspace's configuration as a pack file |
+
+Every command takes `--output json`. See [Using the CLI](/cli) for the shared flags.
+
+## API
+
+- `GET /api/packs` → the catalogue: manifest, counts, `installed_version`, `upgrade_available`, prerequisites with their status. `GET /api/packs/{id}` adds the contents per kind; `GET /api/packs/{id}/download` returns the file.
+- `POST /api/packs/{id}/preview | install {strategy?, force?}` — owner/admin, human actor only.
+- `POST /api/packs/preview | install` — the same, multipart, with the pack file in the `file` field.
+- `GET /api/packs/installed`, `GET /api/packs/installed/{id}` → the ledger and one install's rows.
+- `POST /api/packs/installed/{id}/uninstall` → the install, and the removed / kept report.
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → a `pack.yaml`.
+- Audit actions `pack.installed` and `pack.uninstalled`; the `pack:changed` event keeps an open page current.
+
+## Next steps
+
+- [Workspaces](/workspaces) — import, export and the prepared teams a pack sits next to.
+- [Doctrine](/doctrine) — the section a pack appends, and who may change it afterwards.
+- [Agents](/agents) — connecting the colleagues a pack installed.

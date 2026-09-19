@@ -379,6 +379,14 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		"references/run-preview.md":            "run preview",
 		"references/spending.md":               "spend",
 		"references/racing.md":                 "racing",
+		"references/goal-loop.md":              "long task",
+		"references/mcp-server.md":             "mcp",
+		"references/twenty.md":                 "twenty",
+		"references/runs.md":                   "runs",
+		"references/calendar.md":               "calendar",
+		"references/doctrine.md":               "doctrine",
+		"references/packs.md":                  "pack",
+		"references/wakeups.md":                "follow-up",
 	}
 
 	skill, ok := findSkill(t, PlatformSkillName)
@@ -457,15 +465,32 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				"A name is not an id",
 				"`--output json` writes to stdout",
 				"`--no-start` when you are only recording",
-				"Status is a category, not a literal",
+				"categories describe lifecycle only",
+				"Custom statuses do not inherit built-in automation behavior",
 				"Comment reads stay bounded",
 				"--roots-only --summary --compact",
 				"--thread <thread-id> --tail 30",
+				// MUL-7344: the per-turn `--since` delta IS a bounded read, so
+				// the bounded-reads rule must name it rather than leave an
+				// agent choosing between two contradicting instructions.
+				"that read is the bounded scan",
 			},
 			notWant: []string{
 				// The singular forms this replaced.
 				"open the ONE reference",
 				"there is never a reason to read all eight",
+			},
+		},
+		{
+			// Custom properties moved next to work item types when the merge
+			// pushed references/issues.md past the 500-line template budget.
+			file: "references/issue-types.md",
+			want: []string{
+				"workflow state a human should see and filter by goes in",
+				"goes in the result comment",
+				"--resolve-properties",
+				"display_values",
+				"`value` keeps the stored ids",
 			},
 		},
 		{
@@ -475,7 +500,17 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				"Default for code-changing issue work",
 				"open or update a PR before posting the final Multica issue comment",
 				"This is a default, not",
-				"Use a routable issue key in the PR title, body, or branch",
+				"put a routable issue key in the PR **title**",
+				"body links nothing",
+				// The empty-PR-list guidance drives GitHub write actions, so
+				// both halves of it are pinned: a syntax problem is repairable
+				// by editing the PR, and an integration problem is not — an
+				// agent that keeps editing burns deliveries on a no-op.
+				"editing the title or adding a closing keyword re-runs the scan",
+				"stop editing the PR blind",
+				"whether the installation is bound to this workspace",
+				"redelivered once the receiving side is fixed",
+				"unless the issue should auto-advance",
 				"include the PR URL when a PR exists",
 				"Closes MUL-123",
 				"--status backlog",
@@ -497,8 +532,6 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				// bans were protecting still needs a home, so the
 				// where-state-belongs bullet under custom properties keeps
 				// the routing rule they encoded.
-				"workflow state a human should see and filter by goes in",
-				"goes in the result comment",
 				// #7768: nothing about concurrent runs is pushed into the
 				// prompt any more (MUL-6984), so the skill has to carry the
 				// pull path itself. All three anchors are load-bearing — the
@@ -512,9 +545,6 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 				// #8008: the read path for typed properties. The flag, the
 				// per-item names and the promise that the stored ids stay
 				// beside them are each what a script joins on.
-				"--resolve-properties",
-				"display_values",
-				"`value` keeps the stored ids",
 			},
 			notWant: []string{
 				// MUL-6966 phase 1: this reference must not teach the KV bag
@@ -696,13 +726,14 @@ func TestPlatformSkillCoversPlatformContracts(t *testing.T) {
 			if !ok {
 				t.Fatalf("platform skill does not ship %q", tc.file)
 			}
+			unwrapped := collapseSpace(content)
 			for _, want := range tc.want {
-				if !containsUnwrapped(content, want) {
+				if !containsUnwrapped(unwrapped, want) {
 					t.Errorf("%s missing %q", tc.file, want)
 				}
 			}
 			for _, forbidden := range tc.notWant {
-				if containsUnwrapped(content, forbidden) {
+				if containsUnwrapped(unwrapped, forbidden) {
 					t.Errorf("%s carries banned content %q", tc.file, forbidden)
 				}
 			}
@@ -817,8 +848,12 @@ func TestOnboardingSkillIsScopedToMika(t *testing.T) {
 // wrapped. These anchors pin a claim, not a line layout — matching raw bytes
 // made every reflow of a paragraph look like a deleted contract, which trains
 // authors to fix the test instead of the text.
-func containsUnwrapped(content, want string) bool {
-	return strings.Contains(collapseSpace(content), collapseSpace(want))
+//
+// unwrapped is content already passed through collapseSpace: callers collapse
+// each file once, because re-collapsing a whole reference per anchor made this
+// the slowest test in the package.
+func containsUnwrapped(unwrapped, want string) bool {
+	return strings.Contains(unwrapped, collapseSpace(want))
 }
 
 var whitespaceRun = regexp.MustCompile(`\s+`)

@@ -351,20 +351,17 @@ export function useDeleteChatSession() {
       logger.info("deleteChatSession.start", { sessionId });
       return api.deleteChatSession(sessionId);
     },
-    onMutate: async (sessionId) => {
-      await qc.cancelQueries({ queryKey: chatKeys.sessions(wsId) });
-
-      const prevSessions = qc.getQueryData<ChatSession[]>(chatKeys.sessions(wsId));
-
-      const drop = (old?: ChatSession[]) => old?.filter((s) => s.id !== sessionId);
-      qc.setQueryData<ChatSession[]>(chatKeys.sessions(wsId), drop);
-
-      logger.debug("deleteChatSession.optimistic", { sessionId });
-      return { prevSessions };
+    // A delete awaits the server (JEF-397): the row leaves the cache only
+    // once the server has confirmed it is gone, never optimistically.
+    onSuccess: (_data, sessionId) => {
+      logger.debug("deleteChatSession.success", { sessionId });
+      qc.setQueryData<ChatSession[]>(chatKeys.sessions(wsId), (old) =>
+        old?.filter((s) => s.id !== sessionId),
+      );
+      qc.removeQueries({ queryKey: chatKeys.session(wsId, sessionId) });
     },
-    onError: (err, sessionId, ctx) => {
-      logger.error("deleteChatSession.error.rollback", { sessionId, err });
-      if (ctx?.prevSessions) qc.setQueryData(chatKeys.sessions(wsId), ctx.prevSessions);
+    onError: (err, sessionId) => {
+      logger.error("deleteChatSession.error", { sessionId, err });
     },
     onSettled: (_data, _err, sessionId) => {
       logger.debug("deleteChatSession.settled", { sessionId });

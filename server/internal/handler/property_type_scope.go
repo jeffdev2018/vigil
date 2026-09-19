@@ -173,7 +173,15 @@ func (h *Handler) SetPropertyTypes(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		if property.ArchivedAt.Valid {
+		// Re-read inside the lock: the pre-lock `property` value can be stale
+		// if another request archived/unarchived it between the initial read
+		// and acquiring "props:<wsID>", which would otherwise run the cap
+		// census against a status this property no longer has.
+		locked, err := q.GetIssueProperty(r.Context(), db.GetIssuePropertyParams{ID: propertyID, WorkspaceID: wsUUID})
+		if err != nil {
+			return err
+		}
+		if locked.ArchivedAt.Valid {
 			// An archived property occupies no budget, so nothing to check.
 			return nil
 		}

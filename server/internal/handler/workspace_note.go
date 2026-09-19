@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/multica-ai/multica/server/internal/brainknowledge"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -192,14 +195,30 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 	if tag := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tag"))); tag != "" {
 		params.Tag = pgtype.Text{String: tag, Valid: true}
 	}
-	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
-		params.Search = pgtype.Text{String: search, Valid: true}
-	}
 
-	rows, err := h.Queries.ListWorkspaceNotes(r.Context(), params)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
-		return
+	var rows []db.WorkspaceNote
+	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
+		// The same ranked engine as /api/workspace/notes/search, so MCP
+		// note_list and the search endpoint agree; best match first.
+		hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{
+			WorkspaceID: workspaceID, Query: search, Tag: params.Tag.String, IncludeArchived: params.IncludeArchived, Limit: params.PageLimit,
+		})
+		if err != nil {
+			slog.Error("brain list search failed", "workspace_id", uuidToString(workspaceID), "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
+		for _, hit := range hits {
+			rows = append(rows, hit.Note)
+		}
+		h.recordRunNoteUsage(r, workspaceID, "retrieved", rows)
+	} else {
+		var err error
+		rows, err = h.Queries.ListWorkspaceNotes(r.Context(), params)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list workspace notes")
+			return
+		}
 	}
 	items := make([]WorkspaceNoteResponse, 0, len(rows))
 	for _, n := range rows {
@@ -229,6 +248,13 @@ func (h *Handler) GetWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// A member's plain GET counts as a view. The mobile note screen reads
+	// through this GET, so its view is attributed to mobile.
+	channel := "api"
+	if isMobileClient(r) {
+		channel = "mobile"
+	}
+	h.recordNoteRead(r, note, channel)
 	writeJSON(w, http.StatusOK, workspaceNoteToResponse(note))
 }
 
@@ -270,7 +296,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req CreateWorkspaceNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -322,6 +348,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(note.ID)
 
 	// Undo (K69): a note a run wrote can be removed again.
 	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", note.ID, map[string]any{}, map[string]any{"title": note.Title}, true)
@@ -341,7 +368,7 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateWorkspaceNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -419,6 +446,7 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(updated.ID)
 	// Undo (K69): title, content, tags and pin state as they were before the run's edit.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID,
 		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned},
@@ -550,30 +578,103 @@ func canDeleteWorkspaceNote(note db.WorkspaceNote, member db.Member, actorType s
 }
 
 // WorkspaceNoteContext is one Brain note as the claim response ships it to the
-// daemon. Its json tags mirror execenv.WorkspaceNoteForEnv, which the daemon
-// decodes straight into.
-type WorkspaceNoteContext struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Content   string   `json:"content,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
-	Pinned    bool     `json:"pinned,omitempty"`
-	Source    string   `json:"source,omitempty"`
-	UpdatedAt string   `json:"updated_at,omitempty"`
-}
+// daemon: the shared brainknowledge wire shape the daemon decodes into.
+type WorkspaceNoteContext = brainknowledge.Note
 
-func workspaceNotesToContext(notes []db.WorkspaceNote) []WorkspaceNoteContext {
+func workspaceNotesToContext(notes []db.WorkspaceNote, reasons map[string]service.BriefNoteReason) []WorkspaceNoteContext {
 	out := make([]WorkspaceNoteContext, 0, len(notes))
 	for _, n := range notes {
-		out = append(out, WorkspaceNoteContext{
-			ID:        uuidToString(n.ID),
-			Title:     n.Title,
-			Content:   n.Content,
-			Tags:      n.Tags,
-			Pinned:    n.Pinned,
-			Source:    n.Source,
-			UpdatedAt: timestampToString(n.UpdatedAt),
-		})
+		id := uuidToString(n.ID)
+		note := WorkspaceNoteContext{
+			ID:      id,
+			Title:   n.Title,
+			Content: n.Content,
+			Tags:    n.Tags,
+			Pinned:  n.Pinned,
+			Source:  n.Source,
+			Updated: timestampToString(n.UpdatedAt),
+		}
+		if reason, ok := reasons[id]; ok {
+			note.Reason = reason.Reason
+			note.Score = reason.Score
+		}
+		out = append(out, note)
 	}
 	return out
+}
+
+// brainClaimQuery is what a claimed run's Brain is searched with. The rule
+// lives in service so the native runtime, which cannot import this package,
+// selects from exactly the same question.
+var brainClaimQuery = service.BrainClaimQuery
+
+// brainClaimQueryWireLimit is how much of the query the claim response carries,
+// in runes: enough for the knowledge index to name what the run was searched
+// for, not enough for a long description to bloat every index line.
+const brainClaimQueryWireLimit = 200
+
+// brainClaimQueryForWire flattens the multi-line query into one line and clamps
+// it, so the daemon can print it inside a markdown list item.
+func brainClaimQueryForWire(query string) string {
+	return util.TruncateUTF8Runes(strings.Join(strings.Fields(query), " "), brainClaimQueryWireLimit)
+}
+
+// injectWorkspaceNotesForClaim selects this run's Brain notes by relevance to
+// its own subject and puts them on the claim response, along with the versions
+// the claim transaction records as injected.
+//
+// Non-blocking, like the agent memories that share this assembly point: the
+// shared knowledge base is briefing context, so a failed read costs the run its
+// Workspace Knowledge section, never its dispatch. Unlike memories these hang
+// off the workspace, not the agent, so every agent in the workspace searching
+// the same subject sees the same set.
+func (h *Handler) injectWorkspaceNotesForClaim(ctx context.Context, resp *AgentTaskResponse, task *db.AgentTaskQueue, workspaceID pgtype.UUID, issue *db.Issue) {
+	resp.MemoryContext.WorkspaceNotesStatus = "unavailable"
+	resp.MemoryContext.WorkspaceNotes = []service.NoteVersion{}
+
+	description, labels := "", []string(nil)
+	if issue != nil {
+		description = issue.Description.String
+		// The only extra read the claim pays for the query. Labels are the
+		// workspace's own vocabulary for a ticket, which is often exactly the
+		// word a note was filed under.
+		rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{
+			IssueID:     issue.ID,
+			WorkspaceID: issue.WorkspaceID,
+		})
+		if err != nil {
+			slog.Warn("daemon claim: load issue labels for the Brain query failed; querying without them",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		}
+		for _, row := range rows {
+			labels = append(labels, row.Name)
+		}
+	}
+	// resp.ThreadName is the run's subject whatever kind it is: the issue
+	// title, the chat title (or its first message), the autopilot title, the
+	// quick-create prompt. A run with none of those gets an empty query and
+	// falls back to the pinned-plus-recent selection.
+	query := brainClaimQuery(resp.ThreadName, description, resp.ProjectTitle, labels)
+
+	notes, reasons, err := h.TaskService.SelectWorkspaceNotesForBrief(ctx, workspaceID, query)
+	if err != nil {
+		slog.Warn("daemon claim: load workspace notes failed; continuing without the Brain",
+			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(workspaceID), "error", err)
+		return
+	}
+	resp.MemoryContext.WorkspaceNotesStatus = "loaded"
+	if len(notes) == 0 {
+		return
+	}
+	// Send only what the byte budget keeps, with the count it dropped: the
+	// notes recorded as injected are then exactly the files the daemon writes,
+	// in the same order.
+	kept, omitted := brainknowledge.Select(workspaceNotesToContext(notes, reasons))
+	resp.WorkspaceNotes = kept
+	resp.WorkspaceNotesOmitted = omitted
+	resp.WorkspaceNotesQuery = brainClaimQueryForWire(query)
+	for _, n := range notes[:len(kept)] {
+		resp.MemoryContext.WorkspaceNotes = append(resp.MemoryContext.WorkspaceNotes,
+			service.NoteVersion{ID: uuidToString(n.ID), Revision: n.Revision})
+	}
 }

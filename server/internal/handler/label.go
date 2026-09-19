@@ -437,6 +437,10 @@ func (h *Handler) AttachLabel(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	labelID, ok := parseUUIDOrBadRequest(w, req.LabelID, "label_id")
 	if !ok {
 		return
@@ -512,6 +516,10 @@ func (h *Handler) DetachLabel(w http.ResponseWriter, r *http.Request) {
 	// explicit 404.
 	issue, ok := h.loadIssueForUser(w, r, issueID)
 	if !ok {
+		return
+	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	labelUUID, ok := parseUUIDOrBadRequest(w, labelID, "label id")

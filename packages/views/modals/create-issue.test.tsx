@@ -1252,6 +1252,35 @@ describe("CreateIssueModal", () => {
     expect(mockToastError).toHaveBeenCalledWith("Failed to create issue");
   });
 
+  // Regression (audit): "New issue" from a cycle page filed the issue in the
+  // project but never planned it into the cycle — the modal dropped cycle_id.
+  it("plans the issue into the cycle it was opened from, while the project is unchanged", async () => {
+    const user = userEvent.setup();
+    renderModal(<CreateIssueModal onClose={vi.fn()} data={{ project_id: "proj-2", cycle_id: "cycle-1" }} />);
+
+    fireEvent.change(screen.getByPlaceholderText("Issue title"), { target: { value: "Plan me" } });
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
+
+    await waitFor(() =>
+      expect(mockCreateIssue).toHaveBeenCalledWith(
+        expect.objectContaining({ project_id: "proj-2", cycle_id: "cycle-1" }),
+      ),
+    );
+  });
+
+  it("drops the seeded cycle once another project is picked", async () => {
+    const user = userEvent.setup();
+    renderModal(<CreateIssueModal onClose={vi.fn()} data={{ project_id: "proj-2", cycle_id: "cycle-1" }} />);
+
+    await user.click(screen.getByTestId("project-picker"));
+    fireEvent.change(screen.getByPlaceholderText("Issue title"), { target: { value: "Elsewhere" } });
+    await user.click(screen.getByRole("button", { name: "Create Issue" }));
+
+    await waitFor(() => expect(mockCreateIssue).toHaveBeenCalledTimes(1));
+    expect(mockCreateIssue.mock.calls[0]![0]).toMatchObject({ project_id: "proj-1" });
+    expect(mockCreateIssue.mock.calls[0]![0].cycle_id).toBeUndefined();
+  });
+
   // Manual → agent must preserve the picked project. It now rides the shared
   // draft slot rather than the carry: the switch commits the (data-seeded)
   // project into `shared` so the agent panel reads it from there.

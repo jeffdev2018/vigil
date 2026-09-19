@@ -453,7 +453,9 @@ func (s *InMemoryLocalSkillImportStore) PopPendingBatch(_ context.Context, runti
 		return pending[i].CreatedAt.Before(pending[j].CreatedAt)
 	})
 
-	if limit > len(pending) {
+	if limit <= 0 {
+		limit = 0
+	} else if limit > len(pending) {
 		limit = len(pending)
 	}
 

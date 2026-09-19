@@ -38,7 +38,13 @@ export function PriorityIcon({
   priority: IssuePriority;
   size?: number;
 }) {
-  if (priority === "none") {
+  // priority is server-driven; BARS/COLOR are exhaustive Records over the
+  // IssuePriority union today, but a value the server adds before this
+  // build knows about it must degrade to the SAME visible "none" dash, not
+  // silently fall into the bars branch below with an `undefined` lookup
+  // (which would render as 4 near-invisible bars — indistinguishable from
+  // a real low-signal priority).
+  if (priority === "none" || !(priority in BARS)) {
     return (
       <Svg width={size} height={size} viewBox="0 0 16 16">
         <Line

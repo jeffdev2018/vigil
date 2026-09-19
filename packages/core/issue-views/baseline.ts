@@ -21,6 +21,8 @@ export interface IssueViewBaseline {
   creator: Set<string>;
   project: Set<string>;
   includeNoProject: boolean;
+  /** Goal ids (JEF-395). Exact ids, no constant to validate against. */
+  goal: Set<string>;
   cycle: Set<string>;
   /** Work item type keys (F30). */
   type: Set<string>;
@@ -85,6 +87,9 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
   // for an absent one, so an older view stays valid rather than failing to
   // parse — the same tolerance every other dimension already has.
   const cycleFilters = stringArray(query.cycleFilters);
+  // Goals (JEF-395) follow the cycle rules: an absent key parses to [], and a
+  // goal id is workspace data, so nothing here validates it against a constant.
+  const goalFilters = stringArray(query.goalFilters);
   // Views saved before F30 carry no typeFilters key, and stringArray answers []
   // for an absent one — the same tolerance every other dimension has. Values
   // are NOT checked against a constant: a type key is workspace-defined, so
@@ -117,6 +122,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
     creator: new Set(creatorFilters.map(actorFilterKey)),
     project: new Set(projectFilters),
     includeNoProject,
+    goal: new Set(goalFilters),
     cycle: new Set(cycleFilters),
     type: new Set(typeFilters),
     label: new Set(labelFilters),
@@ -129,6 +135,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
       creatorFilters,
       projectFilters,
       includeNoProject,
+      goalFilters,
       cycleFilters,
       typeFilters,
       labelFilters,

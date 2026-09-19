@@ -38,14 +38,16 @@ const VENDORS = [
 const data = vi.hoisted(() => ({
   list: undefined as Record<string, unknown> | undefined,
   isLoading: false,
+  isError: false,
   role: "owner" as "owner" | "admin" | "member",
+  refetch: vi.fn(),
 }));
 
 // Two queries live on this tab: the keys and the projects (for scope names).
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[] }) =>
     options.queryKey[0] === "model-keys"
-      ? { data: data.list, isLoading: data.isLoading }
+      ? { data: data.list, isLoading: data.isLoading, isError: data.isError, refetch: data.refetch }
       : { data: [{ id: "proj-1", title: "Apollo" }], isLoading: false },
 }));
 
@@ -89,6 +91,7 @@ describe("ModelKeysTab", () => {
     vi.clearAllMocks();
     data.role = "owner";
     data.isLoading = false;
+    data.isError = false;
     data.list = {
       configured: true,
       vendors: VENDORS,
@@ -112,6 +115,19 @@ describe("ModelKeysTab", () => {
     mockCreate.mockResolvedValue({});
     mockRotate.mockResolvedValue({});
     mockRetire.mockResolvedValue({ retired: true });
+  });
+
+  // A failed fetch must not read as "no BYOK key" — that hides a real
+  // backend problem behind a normal onboarding empty state.
+  it("reports a load failure instead of the empty state, with a retry", () => {
+    data.isError = true;
+    data.list = undefined;
+    render(<ModelKeysTab />, { wrapper: Wrapper });
+
+    expect(screen.getByText(enSettings.model_keys.load_error)).toBeInTheDocument();
+    expect(screen.queryByText(enSettings.model_keys.empty_title)).toBeNull();
+    screen.getByRole("button", { name: enSettings.model_keys.retry }).click();
+    expect(data.refetch).toHaveBeenCalled();
   });
 
   it("lists keys with their hint, scope, vendor and usage — never a raw key", () => {

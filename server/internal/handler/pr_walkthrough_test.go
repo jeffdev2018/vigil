@@ -31,7 +31,7 @@ func prWalkthroughCleanup(t *testing.T) {
 	testHandler.DiffFetcher = fakeDiffFetcher{diff: walkthroughFixtureDiff}
 	t.Cleanup(func() {
 		testHandler.DiffFetcher = prev
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM pr_walkthrough WHERE workspace_id = $1`, testWorkspaceID)
 		testPool.Exec(ctx, `UPDATE workspace SET settings = settings - 'pr_walkthrough' WHERE id = $1`, testWorkspaceID)

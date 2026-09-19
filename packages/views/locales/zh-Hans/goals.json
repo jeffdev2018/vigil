@@ -13,7 +13,8 @@
     "loading_issues": "加载任务中...",
     "progress": "已完成 {{done}} / {{total}}",
     "no_owner": "无负责人",
-    "no_due_date": "无截止日期"
+    "no_due_date": "无截止日期",
+    "load_error": "无法加载目标"
   },
   "status": {
     "draft": "草稿",

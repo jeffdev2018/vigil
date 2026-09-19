@@ -1,6 +1,7 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Agent } from "@multica/core/types";
 import type { AgentActivity } from "@multica/core/agents";
 import { renderWithI18n } from "../../test/i18n";
@@ -95,7 +96,6 @@ vi.mock("@multica/core/agents", () => ({
   agentRunCounts30dOptions: () => ({ queryKey: ["agent-run-counts"] }),
   useWorkspaceActivityMap: () => mocks.activity,
   useWorkspacePresenceMap: () => mocks.presence,
-  VISIBILITY_TOOLTIP: { private: "Private", workspace: "Workspace" },
   effectiveAccessScope: (pm: unknown, it: unknown) => {
     if (pm !== "public_to") return "owner-only";
     if ((Array.isArray(it) ? it : []).some((t) => (t as {target_type?: string})?.target_type === "workspace")) return "workspace";
@@ -129,6 +129,7 @@ vi.mock("@multica/core/paths", () => ({
     newAgent: () => "/test-workspace/agents/new",
     newAgentManual: () => "/test-workspace/agents/new/manual",
     agentDetail: (id: string) => `/test-workspace/agents/${id}`,
+    runtimes: () => "/test-workspace/runtimes",
   }),
 }));
 
@@ -196,8 +197,8 @@ function makeAgent(over: Partial<Agent>): Agent {
 // Build a 30-bucket activity series whose most-recent bucket with runs is
 // `daysAgo` days back — `lastActiveDaysAgo` reads exactly this.
 function activityLastActive(daysAgo: number): AgentActivity {
-  const buckets = Array.from({ length: 30 }, () => ({ total: 0, failed: 0 }));
-  buckets[29 - daysAgo] = { total: 1, failed: 0 };
+  const buckets = Array.from({ length: 30 }, () => ({ total: 0, failed: 0, completed: 0, cancelled: 0 }));
+  buckets[29 - daysAgo] = { total: 1, failed: 0, completed: 1, cancelled: 0 };
   return { buckets, daysSinceCreated: 30 };
 }
 
@@ -219,12 +220,17 @@ function makeAdapter(
   };
 }
 
-function renderPage() {
+function renderPage(adapter: NavigationAdapter = makeAdapter()) {
   renderWithI18n(
-    <NavigationProvider value={makeAdapter()}>
+    <NavigationProvider value={adapter}>
       <AgentsPage />
     </NavigationProvider>,
   );
+}
+
+/** The Alpha row, found through its own name cell. */
+function alphaRow(): HTMLElement {
+  return screen.getByRole("row", { name: /Alpha Agent/ });
 }
 
 /** Beta before Alpha in document order? */
@@ -254,6 +260,23 @@ beforeEach(() => {
     models: [],
     access: [],
   };
+});
+
+describe("AgentsPage visibility badge", () => {
+  // Regression: the row's private-visibility lock icon used to render
+  // core's hardcoded-English VISIBILITY_TOOLTIP.private directly, bypassing
+  // i18n entirely. It now goes through the canonical VisibilityBadge
+  // component (useT("agents") visibility.private.tooltip).
+  it("renders the private-visibility tooltip localized, not the removed English constant", () => {
+    mocks.agents = [makeAgent({ id: "a-priv", name: "Private Agent", visibility: "private" })];
+    renderWithI18n(
+      <NavigationProvider value={makeAdapter()}>
+        <AgentsPage />
+      </NavigationProvider>,
+      { locale: "zh-Hans" },
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("仅 owner 和其授权的人可以运行该智能体");
+  });
 });
 
 describe("AgentsPage listReady gate", () => {
@@ -290,6 +313,8 @@ describe("AgentsPage listReady gate", () => {
     expect(screen.getByText("Alpha Agent")).toBeInTheDocument();
     expect(screen.getByText("Beta Agent")).toBeInTheDocument();
     expect(betaPrecedesAlpha()).toBe(true);
+    // The name cell truncates; the full name must survive as a tooltip.
+    expect(screen.getByText("Alpha Agent").getAttribute("title")).toBe("Alpha Agent");
   });
 
   it("renders rows immediately for name sort without waiting on activity/run-counts", () => {
@@ -334,5 +359,71 @@ describe("AgentsPage listReady gate", () => {
 
     expect(screen.getByText("No agents yet")).toBeInTheDocument();
     expect(screen.queryByTestId("skeleton")).not.toBeInTheDocument();
+  });
+});
+
+// The row is a <div> whose click/auxclick handlers are a mouse-only
+// convenience (ui list-grid documents the split, views/navigation/use-row-link
+// repeats it). The title has to be a real anchor or the list has no keyboard
+// path, no "open in new tab" and no browser context menu at all.
+describe("AgentsPage row title link", () => {
+  it("renders the agent name as a real link", () => {
+    renderPage();
+
+    const link = within(alphaRow()).getByRole("link", { name: "Alpha Agent" });
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/test-workspace/agents/a-alpha");
+  });
+
+  it("navigates once from the keyboard when the title link is activated", async () => {
+    const user = userEvent.setup();
+    const push = vi.fn();
+    renderPage(makeAdapter({ push }));
+
+    const link = within(alphaRow()).getByRole("link", { name: "Alpha Agent" });
+    link.focus();
+    expect(link).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(push).toHaveBeenCalledWith("/test-workspace/agents/a-alpha");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  // Web has no tab adapter, so AppLink leaves a modifier click to the browser.
+  // If the event reached the row, rowLink would ALSO run its window.open
+  // fallback and the user would get two tabs.
+  it("leaves a modifier click on the title to the browser, without the row fallback", () => {
+    const push = vi.fn();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderPage(makeAdapter({ push }));
+
+    fireEvent.click(
+      within(alphaRow()).getByRole("link", { name: "Alpha Agent" }),
+      { metaKey: true },
+    );
+
+    expect(open).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("names the selection toggles and reveals them on focus", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const rowToggle = within(alphaRow()).getByRole("button", {
+      name: "Select Alpha Agent",
+    });
+    // Both are hidden by `opacity-0` while nothing is selected, so focus has
+    // to reveal them too or the keyboard lands on an invisible control.
+    expect(rowToggle.className).toContain("focus-visible:opacity-100");
+    expect(
+      screen.getByRole("button", { name: "Select all agents" }).className,
+    ).toContain("focus-visible:opacity-100");
+
+    rowToggle.focus();
+    expect(rowToggle).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(rowToggle).toHaveAttribute("aria-pressed", "true");
   });
 });

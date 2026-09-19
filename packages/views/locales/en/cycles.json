@@ -14,7 +14,8 @@
     "edit": "Edit cycle",
     "delete": "Delete cycle",
     "no_project": "Pick a project to plan a cycle for.",
-    "loading": "Loading cycles"
+    "loading": "Loading cycles",
+    "load_error": "Could not load the cycles"
   },
   "status": {
     "upcoming": "Upcoming",
@@ -46,7 +47,32 @@
     "close_confirm": "Close cycle",
     "cancel": "Cancel",
     "close_error": "Could not close the cycle",
-    "closed_on": "Closed {{date}}"
+    "closed_on": "Closed {{date}}",
+    "empty_issues_title": "No issues in this cycle",
+    "empty_issues_hint": "Create a new issue or assign existing ones to this cycle.",
+    "empty_issues_new_button": "New Issue"
+  },
+  "actors": {
+    "title": "Capacity by actor",
+    "empty": "No per-actor capacity declared yet.",
+    "empty_hint": "Declare what each person or agent can take on for this cycle.",
+    "add": "Add actor",
+    "actor_label": "Actor",
+    "actor_placeholder": "Pick a person or an agent",
+    "points_label": "Points",
+    "remove": "Remove actor",
+    "save": "Save capacities",
+    "error": "Could not save the capacities",
+    "points_invalid": "Points must be a whole number from 0 to 10000."
+  },
+  "velocity": {
+    "title": "Velocity",
+    "loading": "Loading velocity",
+    "empty": "No done work in this cycle yet.",
+    "empty_hint": "Velocity appears here as people and agents complete issues.",
+    "other": "Unassigned or squad work",
+    "done_value": "{{points}} done",
+    "history_title": "Past cycles"
   },
   "form": {
     "create_title": "New cycle",
@@ -69,7 +95,8 @@
     "create": "Create cycle",
     "save": "Save",
     "error": "Could not save the cycle",
-    "date_order": "The end date must be on or after the start date."
+    "date_order": "The end date must be on or after the start date.",
+    "capacity_negative": "Capacity must be zero or greater."
   },
   "delete_dialog": {
     "title": "Delete this cycle?",

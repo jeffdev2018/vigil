@@ -1,6 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { issueStatusCategory } from "@multica/core/issues";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Issue } from "@multica/core/types";
 import { api } from "@multica/core/api";
@@ -23,6 +27,9 @@ interface IssuePickerModalProps {
   description: string;
   excludeIds: string[];
   onSelect: (issue: Issue) => void;
+  /** Optional node between the search input and the list — e.g. a type
+   * selector for relation picking (R01). */
+  above?: ReactNode;
 }
 
 export function IssuePickerModal({
@@ -32,8 +39,10 @@ export function IssuePickerModal({
   description,
   excludeIds,
   onSelect,
+  above,
 }: IssuePickerModalProps) {
   const { t } = useT("modals");
+  const { colorOf, iconOf } = useIssueStatuses(useWorkspaceId());
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +56,17 @@ export function IssuePickerModal({
       setIsLoading(false);
     }
   }, [open]);
+
+  // The debounce timer and its in-flight request outlive a single render —
+  // an unmount mid-debounce (modal closed via its own onOpenChange, or the
+  // whole tree torn down) otherwise left the timer armed and the fetch
+  // running against a component no longer there to receive the result.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const search = useCallback(
     (q: string) => {
@@ -100,6 +120,7 @@ export function IssuePickerModal({
             search(v);
           }}
         />
+        {above}
         <CommandList>
           {isLoading && (
             <div className="py-6 text-center text-body text-muted-foreground">
@@ -127,6 +148,8 @@ export function IssuePickerModal({
                 >
                   <StatusIcon
                     status={issue.status}
+                    color={colorOf(issue.status)}
+                    icon={iconOf(issue.status)}
                     category={issueStatusCategory(issue) ?? undefined}
                     className="h-3.5 w-3.5 shrink-0"
                   />

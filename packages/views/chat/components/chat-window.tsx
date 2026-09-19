@@ -78,6 +78,7 @@ import { SessionRenameInput } from "./session-rename-input";
 import { ChatResizeHandles } from "./chat-resize-handles";
 import { useChatContextItems } from "./use-chat-context-items";
 import { useChatResize } from "./use-chat-resize";
+import { useArchiveSessionFlow } from "./use-archive-session-flow";
 import { useVisualViewportKeyboard } from "./use-visual-viewport-keyboard";
 import { useIsMobile } from "@multica/ui/hooks/use-mobile";
 import {
@@ -89,6 +90,9 @@ import {
 import { useChatProjectContextSupport } from "./use-chat-project-context-support";
 import { createLogger } from "@multica/core/logger";
 import type { Agent, Attachment, ChatMessage, ChatSession, PendingChatTasksResponse } from "@multica/core/types";
+import { workspaceApprovalsOptions, approvalsAskedBy } from "@multica/core/approvals";
+import { ChatApprovalsStrip } from "./chat-approvals-strip";
+import { ParticipantBar, useChatAuthorNames } from "./participant-bar";
 import { useLocale, useT } from "../../i18n";
 
 const uiLogger = createLogger("chat.ui");
@@ -216,6 +220,8 @@ export function ChatWindow() {
   const currentSession = activeSessionId
     ? sessions.find((s) => s.id === activeSessionId)
     : null;
+  // Undefined in a solo chat — the bubbles then render exactly as before K31.
+  const resolveAuthorName = useChatAuthorNames(wsId, activeSessionId ?? null);
   const isSessionArchived = currentSession?.status === "archived";
   const candidateProjectId = currentSession
     ? currentSession.project_id ?? null
@@ -262,6 +268,14 @@ export function ChatWindow() {
     null;
   const activeAgentRuntimeBound =
     !!activeAgent && isAgentRuntimeBound(activeAgent);
+
+  // Inline approvals (OS plan, chantier 3): the pending asks THIS agent
+  // filed, shown above the composer so they can be settled without leaving
+  // the conversation.
+  const { data: approvalsFeed } = useQuery(workspaceApprovalsOptions(wsId));
+  const agentApprovals = activeAgent
+    ? approvalsAskedBy(approvalsFeed?.approvals ?? [], activeAgent.id)
+    : [];
 
   // A session outlives the permission that created it: the agent can be flipped
   // to personal, change owner, or drop this member from its allow-list, and the
@@ -777,7 +791,7 @@ export function ChatWindow() {
     "absolute z-50 flex flex-col overflow-hidden bg-surface-raised @container",
     isMobile
       ? "inset-x-0"
-      : "right-2 rounded-xl shadow-[var(--floating-shadow)] ring-1 ring-surface-border",
+      : "right-2 rounded-xl shadow-floating ring-1 ring-surface-border",
   );
   // Soft keyboards shrink only the *visual* viewport — the layout viewport
   // (and this panel's bottom-anchored parent) keeps its full height, so
@@ -858,6 +872,7 @@ export function ChatWindow() {
                   size="icon-sm"
                   className="rounded-full text-muted-foreground"
                   onClick={handleNewChat}
+                  aria-label={t(($) => $.window.new_chat_tooltip)}
                 />
               }
             >
@@ -884,6 +899,11 @@ export function ChatWindow() {
                     size="icon-sm"
                     className="text-muted-foreground"
                     onClick={toggleExpand}
+                    aria-label={
+                      isExpanded || isAtMax
+                        ? t(($) => $.window.restore_tooltip)
+                        : t(($) => $.window.expand_tooltip)
+                    }
                   />
                 }
               >
@@ -902,6 +922,7 @@ export function ChatWindow() {
                   size="icon-sm"
                   className="text-muted-foreground"
                   onClick={handleMinimize}
+                  aria-label={t(($) => $.window.minimize_tooltip)}
                 />
               }
             >
@@ -911,6 +932,10 @@ export function ChatWindow() {
           </Tooltip>
         </div>
       </div>
+
+      {/* Multiplayer roster (K31), same as the full chat page. Renders
+          nothing for a solo session the viewer did not create. */}
+      {currentSession && <ParticipantBar session={currentSession} wsId={wsId} />}
 
       {/* Messages / skeleton / empty state */}
       {showSkeleton ? (
@@ -943,6 +968,7 @@ export function ChatWindow() {
               : undefined
           }
           quickActionsPendingMessageId={quickActionsPending?.message_id ?? null}
+          resolveAuthorName={resolveAuthorName}
         />
       ) : (
         <EmptyState
@@ -976,6 +1002,8 @@ export function ChatWindow() {
       ) : (
         <OfflineBanner agentName={activeAgent?.name} availability={availability} />
       )}
+
+      <ChatApprovalsStrip approvals={agentApprovals} wsId={wsId} />
 
       <ChatQueue
         tasks={queuedTasks}
@@ -1011,6 +1039,9 @@ export function ChatWindow() {
         agentAccessRevoked={isAgentAccessRevoked}
         agentRuntimeRequired={!activeAgentRuntimeBound}
         agentName={activeAgent?.name}
+        agentId={activeAgent?.id}
+        // A new conversation: its first send is the one that starts a run.
+        showRunNotice={!activeSessionId}
         projects={projects}
         projectId={activeProjectId}
         onProjectChange={handleProjectChange}
@@ -1092,7 +1123,7 @@ export function AgentDropdown({
       triggerRender={
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 -ml-1 cursor-pointer outline-none transition-colors hover:bg-accent aria-expanded:bg-accent"
+          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 -ml-1 cursor-pointer outline-none transition-colors hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring aria-expanded:bg-accent"
         />
       }
       trigger={
@@ -1192,7 +1223,10 @@ interface SessionRowAction extends RowActionItem {
  * (sessions are bound 1:1 to an agent). "New chat" lives in the header's
  * ⊕ button, not inside this dropdown.
  */
-function SessionDropdown({
+// Exported for its own suite: this is the floating window's archive entry
+// point, and mounting the whole ChatWindow to reach it would test everything
+// but the archive.
+export function SessionDropdown({
   sessions,
   agents,
   activeSessionId,
@@ -1305,20 +1339,19 @@ function SessionDropdown({
   // hard-delete: unarchive / delete live only in the full Chat page's Archived
   // view (reachable via the expand button), so a stale floating dropdown can't
   // bypass the "archive first, delete only from Archived" semantics.
-  const handleArchive = (session: ChatSession) => {
-    if (activeSessionId === session.id) {
-      // Archiving the session in view: advance to the next chat (fall back to
-      // the previous, clear only when none remain) instead of stranding the
-      // composer on a now read-only session — mirrors the Chat tab and the
-      // Inbox list. Routing the non-null advance through onSelectSession keeps
-      // selectedAgentId in sync when the next chat belongs to another agent.
-      const idx = historySessions.findIndex((s) => s.id === session.id);
-      const next = historySessions[idx + 1] ?? historySessions[idx - 1] ?? null;
-      if (next) onSelectSession(next);
-      else setActiveSession(null);
-    }
-    setArchived.mutate({ sessionId: session.id, archived: true });
-  };
+  //
+  // The move-and-roll-back sequence is the Chat page's, shared rather than
+  // re-written: this copy used to advance the selection with no rollback, so a
+  // refused archive left the window on another conversation while the archived
+  // one was back in the list.
+  const handleArchive = useArchiveSessionFlow({
+    activeSessionId,
+    history: historySessions,
+    selectSession: onSelectSession,
+    clearSelection: () => setActiveSession(null),
+    archive: (sessionId, options) =>
+      setArchived.mutate({ sessionId, archived: true }, options),
+  });
 
   const handleSubmitRename = (sessionId: string, raw: string) => {
     const trimmed = raw.trim();
@@ -1494,7 +1527,7 @@ function SessionDropdown({
                   setConfirmingStopId(null);
                 }}
                 disabled={stoppingTaskId === pendingTask.task_id}
-                className="inline-flex h-7 items-center rounded px-2 text-micro font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                className="inline-flex h-7 items-center rounded-xs px-2 text-micro font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
               >
                 {t(($) => $.session_history.stop_dialog.cancel)}
               </button>
@@ -1510,7 +1543,7 @@ function SessionDropdown({
                   handleConfirmStop(session, pendingTask);
                 }}
                 disabled={stoppingTaskId === pendingTask.task_id}
-                className="inline-flex h-7 items-center rounded px-2 text-micro font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                className="inline-flex h-7 items-center rounded-xs px-2 text-micro font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
               >
                 {stoppingTaskId === pendingTask.task_id
                   ? t(($) => $.session_history.stop_dialog.confirming)
@@ -1553,8 +1586,8 @@ function SessionDropdown({
                     }}
                     className={
                       action.danger
-                        ? "inline-flex h-7 items-center gap-1 rounded px-1.5 text-micro font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive focus-visible:outline-none"
-                        : "inline-flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none"
+                        ? "inline-flex h-7 items-center gap-1 rounded-xs px-1.5 text-micro font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive focus-visible:outline-none"
+                        : "inline-flex size-7 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:outline-none"
                     }
                     aria-label={action.label}
                     title={action.label}

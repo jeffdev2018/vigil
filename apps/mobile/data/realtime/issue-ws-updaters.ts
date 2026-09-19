@@ -35,6 +35,7 @@ import type {
   TimelineEntry,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
 
 type TimelinePredicate = (entry: TimelineEntry) => boolean;
 type TimelineMutate = (entry: TimelineEntry) => TimelineEntry;
@@ -154,32 +155,62 @@ export function onIssueAuxiliaryRevision(
   invalidateStaleIssueOwnerProjections(qc, wsId, issueId, revision);
 }
 
+function invalidateIssueOwnerProjectionsWhere(
+  qc: QueryClient,
+  wsId: string,
+  issueId: string,
+  shouldInvalidate: (issue: Issue | undefined) => boolean,
+) {
+  const detailKey = issueKeys.detail(wsId, issueId);
+  if (shouldInvalidate(qc.getQueryData<Issue>(detailKey))) {
+    qc.invalidateQueries({ queryKey: detailKey, exact: true });
+  }
+  for (const [key, data] of qc.getQueriesData<Issue[]>({
+    queryKey: issueKeys.myAll(wsId),
+  })) {
+    if (data?.some((issue) => issue.id === issueId && shouldInvalidate(issue))) {
+      qc.invalidateQueries({ queryKey: key, exact: true });
+    }
+  }
+  const listKey = issueKeys.list(wsId);
+  if (qc.getQueryData<Issue[]>(listKey)?.some(
+    (issue) => issue.id === issueId && shouldInvalidate(issue),
+  )) {
+    qc.invalidateQueries({ queryKey: listKey, exact: true });
+  }
+}
+
 function invalidateStaleIssueOwnerProjections(
   qc: QueryClient,
   wsId: string,
   issueId: string,
   revision: number,
 ) {
-  const isStale = (issue: Issue | undefined) =>
-    issue !== undefined &&
-    (issue.revision === undefined || issue.revision < revision);
-  const detailKey = issueKeys.detail(wsId, issueId);
-  if (isStale(qc.getQueryData<Issue>(detailKey))) {
-    qc.invalidateQueries({ queryKey: detailKey, exact: true });
-  }
-  for (const [key, data] of qc.getQueriesData<Issue[]>({
-    queryKey: issueKeys.myAll(wsId),
-  })) {
-    if (data?.some((issue) => issue.id === issueId && isStale(issue))) {
-      qc.invalidateQueries({ queryKey: key, exact: true });
-    }
-  }
-  const listKey = issueKeys.list(wsId);
-  if (qc.getQueryData<Issue[]>(listKey)?.some(
-    (issue) => issue.id === issueId && isStale(issue),
-  )) {
-    qc.invalidateQueries({ queryKey: listKey, exact: true });
-  }
+  invalidateIssueOwnerProjectionsWhere(
+    qc,
+    wsId,
+    issueId,
+    (issue) =>
+      issue !== undefined &&
+      (issue.revision === undefined || issue.revision < revision),
+  );
+}
+
+/** Fallback when an owner change arrives without its revision (the 204
+ * comment delete response, or an older server's comment event). Mirrors
+ * web's `invalidateIssueOwnerProjections`: only loaded projections that
+ * contain the issue are refetched. */
+export function invalidateIssueOwnerProjections(
+  qc: QueryClient,
+  wsId: string,
+  issueId: string,
+) {
+  invalidateIssueOwnerProjectionsWhere(
+    qc,
+    wsId,
+    issueId,
+    (issue) => issue !== undefined,
+  );
 }
 
 export function clearIssueDetail(
@@ -201,6 +232,9 @@ export function invalidateIssueAfterReconnect(
   qc.invalidateQueries({ queryKey: issueKeys.attachments(wsId, issueId) });
   qc.invalidateQueries({ queryKey: issueKeys.activeTasks(wsId, issueId) });
   qc.invalidateQueries({ queryKey: issueKeys.tasks(wsId, issueId) });
+  // goal_loop: a background agent run can advance the loop (continuation,
+  // status, a new question) while this client was disconnected.
+  qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
 }
 
 // =====================================================
@@ -303,12 +337,14 @@ export function removeTimelineEntry(
 }
 
 /**
- * Cascade-delete a comment and every descendant reply (reply-to-reply
- * chains included). Mirrors the server's cascade in `comment.go:DeleteComment`
- * and web's `comment:deleted` handler at
- * `packages/views/issues/hooks/use-issue-timeline.ts:164-194`.
+ * Remove a deleted comment and every cached descendant reply (reply-to-reply
+ * chains included). Mirrors web's `comment:deleted` handler in
+ * `packages/views/issues/hooks/use-issue-timeline.ts`. The server never
+ * removes a comment that still has replies — it tombstones it and sends
+ * comment:updated (#8296) — so a cached descendant of a removed comment is
+ * stale: older servers cascaded the delete to every reply.
  *
- * Without this, removing only the root entry leaves the replies as
+ * Without the sweep, removing only the root entry would leave the replies as
  * "orphans" — `buildTimelineRows` then promotes them to top-level rows
  * (its orphan-rescue branch), so the user would see ghost replies after a
  * thread delete on another client. Same-N rule violation.
@@ -614,6 +650,15 @@ export function patchIssueLabels(
  * most fields but use different actor-key names (Comment uses
  * `author_type/author_id`; TimelineEntry uses `actor_type/actor_id`).
  */
+/**
+ * True when a comment:created payload cannot be appended to the timeline
+ * as-is: the server only sent identifiers (no actor, no timestamp), so
+ * the entry must come from a refetch.
+ */
+export function isPartialCommentPayload(comment: Partial<Comment>): boolean {
+  return !comment.created_at || !comment.author_type;
+}
+
 export function commentToTimelineEntry(comment: Comment): TimelineEntry {
   return {
     type: "comment",
@@ -637,5 +682,8 @@ export function commentToTimelineEntry(comment: Comment): TimelineEntry {
     resolved_by_id: comment.resolved_by_id,
     source_task_id: comment.source_task_id,
     revision: comment.revision,
+    // A delete tombstones a comment that has replies and announces it as
+    // comment:updated; dropping this would render it as an empty comment.
+    deleted_at: comment.deleted_at,
   };
 }

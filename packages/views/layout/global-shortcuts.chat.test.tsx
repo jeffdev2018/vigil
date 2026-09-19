@@ -13,6 +13,12 @@ const h = vi.hoisted(() => ({
   searchToggle: vi.fn(),
 }));
 
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  // The `c` shortcut reads a loaded cycle from the cache; these suites mount
+  // without a QueryClientProvider.
+  useQueryClient: () => ({ getQueriesData: () => [] }),
+}));
 vi.mock("@multica/core/chat", () => ({
   useChatStore: Object.assign(
     (selector: (state: typeof h.chat) => unknown) => selector(h.chat),

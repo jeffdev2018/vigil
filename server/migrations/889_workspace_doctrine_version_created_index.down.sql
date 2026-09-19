@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_workspace_doctrine_version_ws_created;

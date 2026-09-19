@@ -13,7 +13,7 @@
     "filter_all_description": "All runtimes in this view",
     "empty": {
       "title": "No runtimes yet",
-      "hint": "Desktop auto-scans this computer. To use another machine — a server, dev box, or any computer with a terminal — add it here."
+      "hint": "Desktop detects this computer automatically. Connect other computers here."
     },
     "no_matches": {
       "title": "No matches",
@@ -24,16 +24,15 @@
     },
     "bootstrapping": {
       "title": "Starting local runtime…",
-      "hint": "This usually takes a few seconds. Your daemon is registering with the workspace."
+      "hint": "Connecting to the workspace..."
     }
   },
   "mika_setup": {
     "title": "Your runtime is ready. Start with Mika.",
-    "description": "Mika turns your goal into an issue, coordinates the right agent, and helps you add reusable specialists when your workflow needs them.",
+    "description": "Let Mika organize work and coordinate agents.",
     "action": "Start with Mika",
     "failed": "Couldn't start Mika",
     "dialog_title": "Where should Mika run?",
-    "dialog_description": "Pick the runtime Mika will use. You can change it later in settings.",
     "cancel": "Cancel"
   },
   "machine": {
@@ -47,6 +46,7 @@
     "section_remote": "Remote",
     "section_cloud": "Cloud",
     "this_machine": "This device",
+    "unknown_machine": "Unknown machine",
     "cli_sign_in_needed": "Sign-in needed",
     "local_badge": "Local · this machine",
     "pending_custom_runtimes": "Pending custom runtimes",
@@ -80,12 +80,13 @@
       "workload_hint": "{{running}} running · {{queued}} queued",
       "cli": "CLI",
       "cloud_worker": "Cloud worker",
-      "local_daemon": "Local daemon"
+      "local_daemon": "Local daemon",
+      "cloud_worker_named": "{{provider}} cloud"
     },
     "rename": "Rename machine",
     "rename_dialog": {
       "title": "Rename machine",
-      "description": "Give this machine a name you'll recognize. It applies to every runtime on this machine and shows up when you pick a runtime for an agent.",
+      "description": "Used for this computer and all its runtimes.",
       "placeholder": "e.g. Bohan's MacBook",
       "hint": "Leave empty to use the device's default name.",
       "cancel": "Cancel",
@@ -94,7 +95,8 @@
       "toast_saved": "Machine renamed",
       "toast_cleared": "Machine name cleared",
       "toast_failed": "Failed to rename machine"
-    }
+    },
+    "unassigned": "Unassigned"
   },
   "health": {
     "online": {
@@ -262,7 +264,6 @@
     "step2_label": "Start the daemon",
     "step2_hint": "Opens a browser to sign in, then keeps the daemon running in the background.",
     "live_listening": "Waiting for your computer",
-    "live_listening_hint": "We'll detect it as soon as the daemon starts — usually under a minute.",
     "troubleshooting": "Can't open a browser on that computer?",
     "trouble_intro": "Use a token instead of the browser sign-in. This replaces step 2 and works anywhere you have a terminal.",
     "trouble_token_hint_prefix": "Create a token in ",
@@ -273,21 +274,20 @@
     "copy_aria": "Copy",
     "cancel": "Cancel",
     "success_title": "Computer connected",
-    "success_description": "Your computer is online and ready. Create an agent and it can start picking up runs here.",
+    "success_description": "Computer connected. You can now create an agent.",
     "view_runtime": "View runtime",
     "create_agent": "Create an agent"
   },
   "cloud_runtime": {
     "action": "Cloud Runtime",
     "title": "Cloud Runtime",
-    "description": "Launch a managed cloud node and watch its Fleet status.",
+    "description": "Create a cloud runtime.",
     "create_title": "New node",
-    "create_hint": "Choose a name, instance type, and disk size. Fleet applies the rest.",
     "nodes_title": "Fleet nodes",
     "refresh": "Refresh",
     "nodes_empty": "No cloud nodes",
     "nodes_failed": "Cloud Runtime unavailable",
-    "nodes_failed_hint": "Fleet did not return a node list.",
+    "nodes_failed_hint": "Couldn't load cloud nodes. Try again.",
     "node_fallback_name": "Cloud node",
     "create": "Create node",
     "creating": "Creating...",
@@ -359,7 +359,8 @@
       "completed": "Update complete. Daemon is restarting...",
       "failed": "Update failed",
       "timeout": "Timeout"
-    }
+    },
+    "updated_to": "Updated to {{version}}"
   },
   "cli_auth": {
     "authenticated": "Authenticated",
@@ -392,7 +393,11 @@
     "heatmap_average": "avg {{value}}",
     "heatmap_window_total_one": "{{count}}-day total",
     "heatmap_window_total_other": "{{count}}-day total",
-    "tooltip_total": "Total"
+    "tooltip_total": "Total",
+    "tasks_completed": "Completed",
+    "tasks_cancelled": "Cancelled",
+    "tasks_failed": "Failed",
+    "time_run_time": "Run time"
   },
   "list": {
     "col_runtime": "Runtime",
@@ -500,12 +505,16 @@
       "cancel": "Cancel",
       "deleting": "Deleting…",
       "toast_deleted": "Custom runtime deleted from workspace",
-      "error_bound": "This runtime can't be deleted while agents are still using it.",
+      "error_bound": "This custom runtime can't be deleted while agents are still using it — including agents on other machines that registered it.",
       "error_generic": "Failed to delete the runtime."
     }
   },
   "usage": {
     "period_label": "Period",
+    "period_7d": "Last 7 days",
+    "period_30d": "Last 30 days",
+    "period_90d": "Last 90 days",
+    "period_180d": "Last 180 days",
     "dimension_label": "Dimension",
     "kpi_cost_label": "Cost · {{days}}D",
     "kpi_cost_delta": "{{sign}}{{pct}}% vs prev",
@@ -554,6 +563,9 @@
     "cost_by_caption_agent_one": "{{count}} agent on this runtime",
     "cost_by_caption_agent_other": "{{count}} agents on this runtime",
     "cost_by_caption_model_one": "{{count}} model used",
+    "cost_by_show_zero_cost_one": "Show {{count}} agent at $0",
+    "cost_by_show_zero_cost_other": "Show {{count}} agents at $0",
+    "cost_by_hide_zero_cost": "Hide agents at $0",
     "cost_by_caption_model_other": "{{count}} models used",
     "daily_breakdown_toggle": "Daily breakdown table",
     "table_date": "Date",

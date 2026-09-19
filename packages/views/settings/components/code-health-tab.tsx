@@ -4,10 +4,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HeartPulse, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import {
   Table,
@@ -32,6 +34,7 @@ import {
 } from "@multica/core/code-health";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -47,15 +50,6 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * being unsure, already open, or over the per-scan cap.
  */
 
-const SELECT_CLASS =
-  "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
-
-const TONE_CLASS = {
-  success: "text-success",
-  warning: "text-warning",
-  destructive: "text-destructive",
-  muted: "text-muted-foreground",
-} as const;
 
 const SCAN_STATUSES = ["running", "completed", "failed", "empty"] as const;
 const SKIP_REASONS = ["low_confidence", "duplicate", "cap", "budget", "error"] as const;
@@ -81,6 +75,15 @@ export function CodeHealthTab() {
   const scans = scansQuery.data ?? [];
   const agents = agentsQuery.data ?? [];
   const projects = projectsQuery.data ?? [];
+  // scans/agents/projects all feed the history table and the agent/project
+  // pickers below; a fetch failure on any of them must not read as "nothing
+  // here yet" (an admin cannot tell a genuinely empty history from a 500).
+  const hasLoadError = scansQuery.isError || agentsQuery.isError || projectsQuery.isError;
+  const retryLoad = () => {
+    void scansQuery.refetch();
+    void agentsQuery.refetch();
+    void projectsQuery.refetch();
+  };
 
   const [form, setForm] = useState<CodeHealthSettingsInput | null>(null);
   // The form mirrors the server until the admin edits it; a refetch that lands
@@ -187,43 +190,53 @@ export function CodeHealthTab() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="code-health-agent">
-                    {t(($) => $.code_health.agent_label)}
-                  </Label>
-                  <select
-                    id="code-health-agent"
-                    className={SELECT_CLASS}
+                  <Label>{t(($) => $.code_health.agent_label)}</Label>
+                  <Select
+                    items={[
+                      { value: "", label: t(($) => $.code_health.pick_agent) },
+                      ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                    ]}
                     value={form.agent_id}
-                    onChange={(event) => patch({ agent_id: event.target.value })}
+                    onValueChange={(value) => patch({ agent_id: value ?? "" })}
                   >
-                    <option value="">{t(($) => $.code_health.pick_agent)}</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t(($) => $.code_health.agent_label)} size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{t(($) => $.code_health.pick_agent)}</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="code-health-project">
-                    {t(($) => $.code_health.project_label)}
-                  </Label>
-                  <select
-                    id="code-health-project"
-                    className={SELECT_CLASS}
+                  <Label>{t(($) => $.code_health.project_label)}</Label>
+                  <Select
+                    items={[
+                      { value: "", label: t(($) => $.code_health.whole_workspace) },
+                      ...projects.map((project) => ({ value: project.id, label: project.title })),
+                    ]}
                     value={form.project_id}
-                    onChange={(event) => patch({ project_id: event.target.value })}
+                    onValueChange={(value) => patch({ project_id: value ?? "" })}
                   >
-                    <option value="">
-                      {t(($) => $.code_health.whole_workspace)}
-                    </option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t(($) => $.code_health.project_label)} size="sm" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        {t(($) => $.code_health.whole_workspace)}
+                      </SelectItem>
+                      {projects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -297,7 +310,16 @@ export function CodeHealthTab() {
         description={t(($) => $.code_health.history_description)}
       >
         <SettingsCard>
-          {scans.length === 0 ? (
+          {hasLoadError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.code_health.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={retryLoad}>
+                {t(($) => $.code_health.retry)}
+              </Button>
+            </div>
+          ) : scans.length === 0 ? (
             <p
               className="px-4 py-8 text-center text-caption text-muted-foreground"
               data-testid="code-health-scans-empty"
@@ -404,20 +426,10 @@ function ScanRow({
 
 function ScanStatus({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = (SCAN_STATUSES as readonly string[]).includes(status);
-  const tone = scanTone(status);
-  return (
-    <Badge
-      variant={tone === "destructive" ? "destructive" : "outline"}
-      className={TONE_CLASS[tone]}
-      data-testid="code-health-scan-status"
-      data-status={status}
-    >
-      {known
-        ? t(($) => $.code_health.status[status as (typeof SCAN_STATUSES)[number]])
-        : t(($) => $.code_health.status_unknown)}
-    </Badge>
+  const config: StatusBadgeConfig = Object.fromEntries(
+    SCAN_STATUSES.map((s) => [s, { tone: scanTone(s), label: t(($) => $.code_health.status[s]) }]),
   );
+  return <StatusBadge status={status} config={config} data-testid="code-health-scan-status" />;
 }
 
 function SkipReason({ reason }: { reason: string }) {

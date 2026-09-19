@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // DefaultEndpoint is Linear's GraphQL endpoint. Tests point Client.Endpoint at
@@ -337,5 +339,5 @@ func truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	return s[:max] + "…"
+	return util.TruncateUTF8Bytes(s, max) + "…"
 }

@@ -38,6 +38,14 @@ function workspaceScoped(slug: string) {
     // Dated cycles (F29): a project's iterations, their capacity and burndown.
     cycles: () => `${ws}/cycles`,
     cycleDetail: (id: string) => `${ws}/cycles/${encode(id)}`,
+    // Native calendar (OS plan, chantier 19): events, agenda, cycles and
+    // issue due dates joined into one workspace calendar.
+    calendar: () => `${ws}/calendar`,
+    // Roadmap (JEF-247): projects on a timeline plus the issue dependency graph.
+    roadmap: () => `${ws}/roadmap`,
+    // Tools catalogue (JEF-426): every MCP tool the workspace owns, where it
+    // comes from and which agents reach it.
+    tools: () => `${ws}/tools`,
     // Executable org chart (K75): the structures routing work in this workspace.
     org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,
@@ -67,6 +75,9 @@ function workspaceScoped(slug: string) {
     // producer) can link straight at the item it created.
     triage: (itemId?: string) =>
       itemId ? `${ws}/triage?item=${encode(itemId)}` : `${ws}/triage`,
+    // Runs fleet page (OS plan, chantier 4): every run of the workspace's
+    // agents, newest first.
+    runs: () => `${ws}/runs`,
     meetings: () => `${ws}/meetings`,
     meetingDetail: (id: string) => `${ws}/meetings/${encode(id)}`,
     postmortems: () => `${ws}/postmortems`,

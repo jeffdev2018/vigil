@@ -209,6 +209,30 @@ describe("McpServerDialog", () => {
     });
   });
 
+  // Audit finding (P3): StringListEditor/KeyValueEditor rows used
+  // key={index}. With three argument rows, removing the FIRST used to drop
+  // focus entirely from the LAST row's input (React unmounted the DOM node
+  // that had focus, since its old index no longer existed after the
+  // remaining rows shifted up) instead of keeping focus on the row that
+  // logically moved. Stable per-row ids fix that.
+  it("keeps focus on a later argument row's input when an earlier row is removed", async () => {
+    renderDialog({
+      server: managedServer({
+        config: { command: "uvx", args: ["first", "second", "third"] },
+      }),
+    });
+
+    const thirdInput = screen.getByLabelText("Startup arguments 3");
+    thirdInput.focus();
+    expect(document.activeElement).toBe(thirdInput);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove argument 1" }));
+
+    expect(screen.queryByDisplayValue("first")).toBeNull();
+    const survivingThirdInput = screen.getByDisplayValue("third");
+    expect(document.activeElement).toBe(survivingThirdInput);
+  });
+
   it("removes one HTTP header while preserving and editing its siblings", async () => {
     const user = userEvent.setup();
     const { onSave } = renderDialog({

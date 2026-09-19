@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { Issue, UpdateIssueRequest } from "@multica/core/types";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
+import type { IssueDependencyType } from "@multica/core/types";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useModalStore } from "@multica/core/modals";
 import { useUpdateIssue } from "@multica/core/issues/mutations";
@@ -33,7 +34,7 @@ export interface UseIssueActionsResult {
   openSetParent: () => void;
   removeParent: () => void;
   openAddChild: () => void;
-  openAddDependency: (type: "blocks" | "blocked_by") => void;
+  openAddDependency: (type?: IssueDependencyType) => void;
   openDeleteConfirm: (opts?: { onDeletedFallbackPath?: string }) => void;
 }
 
@@ -258,9 +259,9 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
   }, [openModal, issueId]);
 
   const openAddDependency = useCallback(
-    (type: "blocks" | "blocked_by") => {
+    (type?: IssueDependencyType) => {
       if (!issueId) return;
-      openModal("issue-add-dependency", { issueId, type });
+      openModal("issue-add-dependency", type ? { issueId, type } : { issueId });
     },
     [openModal, issueId],
   );

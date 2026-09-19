@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -33,6 +34,11 @@ import (
 // githubAPIBase is the base URL for GitHub's REST API. Mutable so tests can
 // point App-authenticated calls at an httptest server without touching GitHub.
 var githubAPIBase = "https://api.github.com"
+
+// githubInstallationFetchTimeout bounds fetchInstallationAccount's outbound
+// call. Mutable so tests can shorten it instead of waiting out the real
+// timeout against a deliberately slow test server.
+var githubInstallationFetchTimeout = 8 * time.Second
 
 const (
 	githubReturnToGitHub       = "github"
@@ -526,7 +532,7 @@ func (h *Handler) GitHubSetupCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, settingsURL+"&github_error=bad_installation_id", http.StatusFound)
 		return
 	}
-	wsUUID, err := parseStrictUUID(workspaceID)
+	wsUUID, err := util.ParseUUID(workspaceID)
 	if err != nil {
 		http.Redirect(w, r, settingsURL+"&github_error=bad_workspace", http.StatusFound)
 		return
@@ -542,7 +548,7 @@ func (h *Handler) GitHubSetupCallback(w http.ResponseWriter, r *http.Request) {
 	// the row so the workspace owner sees the connection on next reload.
 	connectedBy := pgtype.UUID{}
 	if userID := requestUserID(r); userID != "" {
-		if u, err := parseStrictUUID(userID); err == nil {
+		if u, err := util.ParseUUID(userID); err == nil {
 			connectedBy = u
 		}
 	}
@@ -608,9 +614,9 @@ func (h *Handler) consumePendingGitHubInstallation(ctx context.Context, inst db.
 // placeholder. The next `installation` webhook delivery from GitHub will
 // upsert the row with the real account info — see handleInstallationEvent.
 //
-// The HTTP call is synchronous (no independent timeout — that's a pre-
-// existing wart of the install path), but we deliberately do NOT let a
-// failure abort the setup callback: a network blip here just leaves the
+// The HTTP call is synchronous, bounded by its own timeout below, but we
+// deliberately do NOT let a failure abort the setup callback: a network blip
+// or timeout here just leaves the
 // "unknown" placeholder in place, and the frontend re-queries on the
 // realtime broadcast emitted by the webhook handler, so the UI converges
 // without a manual refresh.
@@ -618,6 +624,10 @@ func fetchInstallationAccount(ctx context.Context, installationID int64) (login,
 	login = "unknown"
 	accountType = "User"
 	avatar = nil
+	// Bound the outbound call so an unresponsive GitHub API can't hang the
+	// /api/github/setup redirect until the caller's own context is cancelled.
+	ctx, cancel := context.WithTimeout(ctx, githubInstallationFetchTimeout)
+	defer cancel()
 	endpoint := fmt.Sprintf("%s/app/installations/%d", strings.TrimRight(githubAPIBase, "/"), installationID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -767,7 +777,7 @@ func (h *Handler) ListGitHubInstallationRepositories(w http.ResponseWriter, r *h
 		return
 	}
 	if !isGitHubRepositoryBrowseConfigured() {
-		writeError(w, http.StatusServiceUnavailable, "github repository browsing is not configured")
+		writeFeatureDisabled(w, "github_repository_browsing_not_configured", "github repository browsing is not configured")
 		return
 	}
 	page, ok := parseGitHubPageParam(w, r, "page", 1, 1, 100000)
@@ -945,11 +955,16 @@ func (h *Handler) DeleteGitHubInstallation(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if err := h.Queries.DeleteGitHubInstallation(r.Context(), db.DeleteGitHubInstallationParams{
+	rows, err := h.Queries.DeleteGitHubInstallation(r.Context(), db.DeleteGitHubInstallationParams{
 		ID:          idUUID,
 		WorkspaceID: wsUUID,
-	}); err != nil {
+	})
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to remove installation")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "installation not found")
 		return
 	}
 	h.publish(protocol.EventGitHubInstallationDeleted, workspaceID, "system", "", map[string]any{
@@ -1008,8 +1023,11 @@ func (h *Handler) ListPullRequestsForIssue(w http.ResponseWriter, r *http.Reques
 // open issue detail page re-queries its PR list and picks up the fresh CI /
 // mergeability state. Runs on a background pipeline goroutine.
 func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UUID) {
+	// The pipeline cannot observe a failure here (onApplied returns nothing),
+	// so every skipped step is logged.
 	pr, err := h.Queries.GetGitHubPullRequestByID(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but pull request read failed; skipping follow-ups", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	// CI auto-fix (K49): the snapshot says the checks are red.
@@ -1027,6 +1045,7 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	h.staleReviewFlagsForHead(ctx, pr.WorkspaceID, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
+		slog.Warn("github: snapshot applied but linked issues read failed; skipping the realtime update", "pull_request_id", uuidToString(prID), "error", err)
 		return
 	}
 	linked := make([]string, 0, len(issueIDs))
@@ -1075,7 +1094,7 @@ func (h *Handler) HandleGitHubWebhook(w http.ResponseWriter, r *http.Request) {
 	if secret == "" {
 		// Refusing to process webhooks at all is safer than treating an
 		// unconfigured deployment as "all signatures valid".
-		writeError(w, http.StatusServiceUnavailable, "github webhooks not configured")
+		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
 	sigHeader := r.Header.Get("X-Hub-Signature-256")
@@ -1593,8 +1612,7 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 	if h.workspaceAutoLinkPRsEnabled(ctx, wsID) {
 		idents := extractIdentifiers(p.PullRequest.Title, p.PullRequest.Body, p.PullRequest.Head.Ref)
 		// closingIdents is the subset of identifiers that this PR explicitly
-		// declared via a closing keyword ("Closes/Fixes/Resolves MUL-X").
-		// Linking still happens for every mention (idents above), but the
+		// declared via a closing keyword ("Closes/Fixes/Resolves MUL-X"). The
 		// link row's close_intent column — and therefore whether the
 		// auto-advance gate eventually fires — is only set for keyword-
 		// declared identifiers. Bare title prefixes and branch-name
@@ -1603,20 +1621,25 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 		for _, c := range extractClosingIdentifiers(p.PullRequest.Title, p.PullRequest.Body) {
 			closingIdents[c] = struct{}{}
 		}
-		// qualifyingIdents are the identifiers that genuinely tie this PR to an
-		// issue: a title prefix, a branch-name reference, or a body closing
-		// keyword. Any identifier that is linked but NOT in this set was matched
-		// only by a bare mention in the PR body ("Related MUL-1", "Follow up in
-		// MUL-1"). Those links are still recorded (auto-link stays generous so
-		// close_intent can be tracked across edits) but are flagged
-		// reference_only and hidden from the issue's PR list — a passing mention
-		// should not surface the PR as a working PR for that issue (MUL-3739).
-		qualifyingIdents := map[string]struct{}{}
+		// claimedIdents are the identifiers this PR actually claims: a title
+		// prefix, a branch-name reference, or a body closing keyword. An
+		// identifier matched only by a bare mention in the body ("Related
+		// MUL-1", "Follow up in MUL-1") is not a claim — a passing mention must
+		// not surface the PR as a working PR for that issue (MUL-3739) — so it
+		// gets no link row at all, and drops one an earlier claim had created.
+		//
+		// MUL-3739 used to write that row anyway and flag it reference_only,
+		// hidden from every read path. A hidden row had no reader, and once the
+		// PR went terminal the preserve gate froze the flag, so adding a closing
+		// keyword to a merged PR's body could never surface it — the one
+		// recovery action a user can take was the one that could not work
+		// (MUL-7072).
+		claimedIdents := map[string]struct{}{}
 		for _, id := range extractIdentifiers(p.PullRequest.Title, p.PullRequest.Head.Ref) {
-			qualifyingIdents[id] = struct{}{}
+			claimedIdents[id] = struct{}{}
 		}
 		for c := range closingIdents {
-			qualifyingIdents[c] = struct{}{}
+			claimedIdents[c] = struct{}{}
 		}
 		// close_intent should follow the PR title/body while the PR is still
 		// editable before its terminal close event. Once GitHub has delivered
@@ -1639,6 +1662,27 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 			if !ok {
 				continue
 			}
+			if _, claimed := claimedIdents[id]; !claimed {
+				// A passing mention. Never links; while the PR is still
+				// editable it also drops a link an earlier claim created, so
+				// the list follows the live parse. Once the PR is terminal the
+				// same preserve rule that freezes close_intent applies: a
+				// post-merge edit must not unlink a PR that did the work.
+				if preserveCloseIntent {
+					continue
+				}
+				if err := h.Queries.UnlinkIssueFromPullRequest(ctx, db.UnlinkIssueFromPullRequestParams{
+					IssueID:       issue.ID,
+					PullRequestID: pr.ID,
+				}); err != nil {
+					slog.Warn("github: unlink failed", "err", err)
+					continue
+				}
+				// Dropping a link can be what lets the issue advance, so the
+				// gate below still re-evaluates it.
+				reevalIssues = append(reevalIssues, issue)
+				continue
+			}
 			_, declared := closingIdents[id]
 			if declared && !closePolicy.permits(id, workspaceID) {
 				// The delivery-wide scan did not prove this workspace is the one
@@ -1649,13 +1693,10 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 				declared = false
 			}
 			closeIntent := declared && !preserveCloseIntent
-			_, qualifies := qualifyingIdents[id]
-			referenceOnly := !qualifies
 			if err := h.Queries.LinkIssueToPullRequest(ctx, db.LinkIssueToPullRequestParams{
 				IssueID:             issue.ID,
 				PullRequestID:       pr.ID,
 				CloseIntent:         closeIntent,
-				ReferenceOnly:       referenceOnly,
 				PreserveCloseIntent: preserveCloseIntent,
 				LinkedByType:        strToText("system"),
 				LinkedByID:          pgtype.UUID{},
@@ -1682,9 +1723,12 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 		// silently auto-closing the issue — if nothing carrying closing
 		// intent was ever delivered, the user should decide manually.
 		if state == "merged" || state == "closed" {
+			// All linked issues belong to this workspace. Resolve custom statuses
+			// once per delivery; built-in statuses still need no catalog read.
+			resolver := issuestatus.NewResolver(wsID)
 			for _, issue := range reevalIssues {
 				// A custom terminal status counts as terminal here. (MUL-6243)
-				if s := issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, issue.Status); s == "done" || s == "cancelled" {
+				if s := resolver.Effective(ctx, h.issueStatusCatalog(), issue.Status); s == "done" || s == "cancelled" {
 					continue
 				}
 				// Combined across providers: an issue may also carry a still-open
@@ -1918,6 +1962,11 @@ func (h *Handler) lookupIssueByIdentifier(ctx context.Context, workspaceID pgtyp
 }
 
 func (h *Handler) advanceIssueToDone(ctx context.Context, issue db.Issue, workspaceID string) {
+	// An issue leaves Triage only by being accepted; a merged "Closes" PR
+	// links to it but must not move it out. (MUL-7189 §2.2)
+	if issue.TriageState.Valid {
+		return
+	}
 	updated, err := h.Queries.UpdateIssueStatus(ctx, db.UpdateIssueStatusParams{
 		ID:          issue.ID,
 		Status:      "done",
@@ -1950,14 +1999,6 @@ func (h *Handler) advanceIssueToDone(ctx context.Context, issue db.Issue, worksp
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-func parseStrictUUID(s string) (pgtype.UUID, error) {
-	var u pgtype.UUID
-	if err := u.Scan(s); err != nil {
-		return pgtype.UUID{}, err
-	}
-	return u, nil
-}
 
 func coalesce(a, fallback string) string {
 	if strings.TrimSpace(a) == "" {

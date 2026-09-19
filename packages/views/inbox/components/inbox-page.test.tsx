@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@multica/core/api";
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import { useInboxFilterStore } from "@multica/core/inbox/filter-store";
 import { InboxPage } from "./inbox-page";
 
@@ -17,22 +18,68 @@ vi.mock("react-resizable-panels", () => ({
 // The page runs two queries — the active list and the archived one. They are
 // told apart by the queryKey their options carry, so each test can stock the
 // two lists independently.
-const listData: { active: InboxItem[]; archived: InboxItem[]; attention: InboxItem[] } = {
+const listData: {
+  active: InboxItem[];
+  archived: InboxItem[];
+  attention: InboxItem[];
+  lookup?: InboxItem[];
+} = {
   active: [],
   archived: [],
   attention: [],
 };
 
+// Inline approvals (OS plan, chantier 3): the workspace approvals feed the
+// detail pane and the row quick actions read from.
+const approvalsData: { approvals: ApprovalItem[] } = { approvals: [] };
+
+const queryCalls: Array<{ queryKey: readonly unknown[]; enabled?: boolean }> = [];
+const lookupState = { isLoading: false, isError: false, refetch: vi.fn() };
+// The main list read, kept separately so a test can fail it. Its data
+// defaults to `[]`, which is why a failed read used to render as "inbox
+// empty" — the regression the load-failure tests below pin.
+const activeState = { isError: false, isFetching: false, refetch: vi.fn() };
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: { queryKey: readonly unknown[] }) => ({
-    data: options.queryKey.includes("archived")
-      ? listData.archived
-      : options.queryKey.includes("attention")
-        ? listData.attention
-        : listData.active,
+  useQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
+    queryCalls.push(options);
+    return ({
+    data: options.queryKey.includes("approvals")
+      ? approvalsData
+      : options.queryKey.includes("archived")
+        ? { items: listData.lookup ?? listData.archived, hasMore: false, nextCursor: null }
+        : options.queryKey.includes("attention")
+          ? listData.attention
+          : listData.active,
     isLoading: false,
     isError: false,
-  }),
+    refetch: vi.fn(),
+    ...(options.queryKey.includes("list") ? activeState : {}),
+    ...(options.queryKey.includes("lookup") ? lookupState : {}),
+  }); },
+  useInfiniteQuery: (options: { queryKey: readonly unknown[]; enabled?: boolean }) => {
+    queryCalls.push(options);
+    return ({
+    data: { pages: [{ items: listData.archived, hasMore: false, nextCursor: null }] },
+    isLoading: false, isError: false, hasNextPage: false,
+    isFetchingNextPage: false, isFetchNextPageError: false,
+    fetchNextPage: vi.fn(), refetch: vi.fn(),
+  }); },
+}));
+
+vi.mock("@multica/core/approvals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/approvals")>()),
+  workspaceApprovalsOptions: () => ({ queryKey: ["approvals", "workspace-1", "workspace"] }),
+}));
+
+// Captures the props each rendered card received, so a test can assert which
+// approval (or none) the detail pane and a row matched without standing up
+// the real card's own mutations/countdown.
+const approvalCardProps = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+vi.mock("../../approvals/approval-card", () => ({
+  ApprovalCard: (props: Record<string, unknown>) => {
+    approvalCardProps.push(props);
+    return <div data-testid="approval-card-stub" />;
+  },
 }));
 
 vi.mock("@multica/core/hooks", () => ({
@@ -60,7 +107,8 @@ vi.mock("@multica/core/issues/stores/draft-store", () => ({
 
 vi.mock("@multica/core/inbox/queries", () => ({
   inboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "list"] }),
-  archivedInboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "archived"] }),
+  archivedInboxPagesOptions: () => ({ queryKey: ["inbox", "workspace-1", "archived", "pages"] }),
+  archivedInboxLookupOptions: () => ({ queryKey: ["inbox", "workspace-1", "archived", "lookup"] }),
   attentionInboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "attention"] }),
   deduplicateInboxItems: (items: InboxItem[]) => items.filter((i) => !i.archived),
   deduplicateArchivedInboxItems: (items: InboxItem[]) => items.filter((i) => i.archived),
@@ -145,8 +193,27 @@ vi.mock("@multica/ui/components/ui/resizable", () => ({
   ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  ResizablePanel: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  ResizablePanel: ({
+    children,
+    id,
+    defaultSize,
+    minSize,
+    maxSize,
+  }: {
+    children: React.ReactNode;
+    id: string;
+    defaultSize?: number;
+    minSize?: number | string;
+    maxSize?: number | string;
+  }) => (
+    <div
+      data-testid={`panel-${id}`}
+      data-default-size={defaultSize}
+      data-min-size={minSize}
+      data-max-size={maxSize}
+    >
+      {children}
+    </div>
   ),
   ResizableHandle: () => null,
 }));
@@ -253,6 +320,16 @@ function reset() {
   listData.active = [];
   listData.archived = [];
   listData.attention = [];
+  listData.lookup = undefined;
+  approvalsData.approvals = [];
+  approvalCardProps.length = 0;
+  lookupState.isLoading = false;
+  lookupState.isError = false;
+  lookupState.refetch.mockClear();
+  activeState.isError = false;
+  activeState.isFetching = false;
+  activeState.refetch.mockClear();
+  queryCalls.length = 0;
   searchParams = new URLSearchParams();
   replace.mockClear();
   markReadMutate.mockClear();
@@ -273,6 +350,18 @@ function reset() {
 }
 
 describe("InboxPage", () => {
+  it("keeps the list subordinate to the detail pane on desktop", () => {
+    reset();
+    layout.width = DESKTOP;
+
+    render(<InboxPage />);
+
+    const listPanel = screen.getByTestId("panel-list");
+    expect(listPanel).toHaveAttribute("data-default-size", "260");
+    expect(listPanel).toHaveAttribute("data-min-size", "240");
+    expect(listPanel).toHaveAttribute("data-max-size", "400");
+  });
+
   it("keeps the title unread count static", () => {
     reset();
     const { container } = render(<InboxPage />);
@@ -293,6 +382,33 @@ describe("InboxPage", () => {
 
     expect(screen.getByTestId("list").dataset.view).toBe("inbox");
     expect(screen.getByTestId("row").textContent).toBe("active-1");
+  });
+
+  it("says the inbox read failed instead of rendering an empty inbox", () => {
+    // The main list's `isError` was never read, so a 5xx or an offline tab
+    // rendered the same "nothing here" the page shows a caught-up member.
+    reset();
+    activeState.isError = true;
+
+    render(<InboxPage />);
+
+    expect(screen.queryByTestId("list")).toBeNull();
+    // The file-wide i18n mock names every string "Inbox", so the copy itself
+    // is pinned by locales/parity.test.ts, not here. What matters here is
+    // that the list is gone, the state is announced, and the retry re-reads
+    // the main list rather than the archive or the attention feed.
+    const alert = screen.getByRole("alert");
+    fireEvent.click(alert.querySelector("button")!);
+    expect(activeState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a genuinely empty inbox distinct from a failed read", () => {
+    reset();
+
+    render(<InboxPage />);
+
+    expect(screen.getByTestId("list").dataset.view).toBe("inbox");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("filters the list by status and priority together", () => {
@@ -366,7 +482,9 @@ describe("InboxPage", () => {
     render(<InboxPage />);
 
     expect(screen.queryByTestId("row")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Inbox" }));
+    // The i18n mock names every control "Inbox", so the clear-filters
+    // button is addressed by its test id rather than its (shared) name.
+    fireEvent.click(screen.getByTestId("inbox-clear-filters"));
     expect(screen.getByTestId("row")).toHaveTextContent("todo-high");
   });
 
@@ -412,6 +530,79 @@ describe("InboxPage", () => {
     expect(screen.getByTestId("list").dataset.view).toBe("attention");
   });
 
+  it("only enables the current inbox view's list", () => {
+    reset();
+    const main = render(<InboxPage />);
+    expect(queryCalls.find((q) => q.queryKey.includes("list"))?.enabled).toBe(true);
+    expect(queryCalls.find((q) => q.queryKey.includes("pages"))?.enabled).toBe(false);
+    main.unmount();
+    reset();
+    searchParams = new URLSearchParams("view=archived");
+    render(<InboxPage />);
+    expect(queryCalls.find((q) => q.queryKey.includes("list"))?.enabled).toBe(false);
+    expect(queryCalls.find((q) => q.queryKey.includes("pages"))?.enabled).toBe(true);
+  });
+
+  it("opens a deep-linked archive group outside the loaded pages with its comment anchor", () => {
+    reset();
+    searchParams = new URLSearchParams("view=archived&issue=old-issue");
+    listData.archived = [item({ id: "recent", archived: true })];
+    listData.lookup = [item({ id: "older", issue_id: "old-issue", archived: true, details: { comment_id: "old-comment" } })];
+    render(<InboxPage />);
+    expect(replace).not.toHaveBeenCalled();
+    expect(issueDetailProps.at(-1)).toMatchObject({ issueId: "old-issue", highlightCommentId: "old-comment" });
+    expect(queryCalls.find((q) => q.queryKey.includes("lookup"))?.enabled).toBe(true);
+  });
+
+  describe.each([PHONE, DESKTOP])("archive deep links at width %s", (width) => {
+    function setupLookup() {
+      reset();
+      layout.width = width;
+      searchParams = new URLSearchParams("view=archived&issue=old-issue");
+      listData.archived = [item({ id: "recent", issue_id: "recent-issue", archived: true })];
+      listData.lookup = [];
+    }
+
+    it("keeps loaded rows visible while resolving the selection, then opens its detail", () => {
+      setupLookup();
+      lookupState.isLoading = true;
+      const { rerender } = render(<InboxPage />);
+      expect(screen.getByTestId("row")).toHaveTextContent("recent");
+      expect(replace).not.toHaveBeenCalled();
+      expect(issueDetailProps).toHaveLength(0);
+
+      lookupState.isLoading = false;
+      listData.lookup = [item({ id: "older", issue_id: "old-issue", archived: true })];
+      rerender(<InboxPage />);
+      expect(issueDetailProps.at(-1)).toMatchObject({ issueId: "old-issue" });
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("keeps the list usable on lookup failure and retries only the lookup", () => {
+      setupLookup();
+      lookupState.isError = true;
+      render(<InboxPage />);
+      expect(screen.getByTestId("row")).toHaveTextContent("recent");
+      expect(replace).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("alert").querySelector("button")!);
+      expect(lookupState.refetch).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByTestId("row"));
+      expect(issueDetailProps.at(-1)).toMatchObject({ issueId: "recent-issue" });
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("only falls back to the issue after the lookup confirms the group is absent", () => {
+      setupLookup();
+      lookupState.isLoading = true;
+      const { rerender } = render(<InboxPage />);
+      expect(replace).not.toHaveBeenCalled();
+      lookupState.isLoading = false;
+      rerender(<InboxPage />);
+      expect(replace).toHaveBeenCalledWith("/acme/issues/old-issue");
+    });
+  });
+
   it("renders the archived list when the URL asks for it", () => {
     // ?view=archived is what makes a refresh, a back/forward step, or a mobile
     // detail-back land in the archive instead of the main inbox.
@@ -439,16 +630,13 @@ describe("InboxPage", () => {
     expect(archivedView.querySelector('[aria-haspopup="menu"]')).toBeNull();
   });
 
-  it("falls back to the main inbox when the archive drains", () => {
-    // Restoring the last archived item must not strand the user on an empty
-    // archive — same fallback chat's archived view has.
+  it("keeps the archive open when it is empty", () => {
     reset();
     searchParams = new URLSearchParams("view=archived");
     listData.archived = [];
-
     render(<InboxPage />);
-
-    expect(replace).toHaveBeenCalledWith("/acme/inbox");
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByTestId("list").dataset.view).toBe("archived");
   });
 
   it("replays the comment highlight when the already-open row is clicked again", () => {
@@ -893,5 +1081,89 @@ describe("InboxPage", () => {
 
     expect(replace).toHaveBeenCalledWith("/acme/issues/issue-404");
     expect(replace).not.toHaveBeenCalledWith("/acme/inbox");
+  });
+
+  describe("inline approvals", () => {
+    it("shows the matching approval above the body for a decision request", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "decision_request", details: { decision_id: "d1" } }),
+      ];
+      approvalsData.approvals = [
+        { id: "d1", source: "decision", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.getByTestId("approval-card-stub")).toBeTruthy();
+      expect(approvalCardProps.at(-1)).toMatchObject({
+        wsId: "workspace-1",
+        showIssue: true,
+        approval: { id: "d1" },
+      });
+    });
+
+    it("matches a transition_approval_requested item by issue id, not decision id", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "transition_approval_requested" }),
+      ];
+      approvalsData.approvals = [
+        { id: "r1", source: "transition", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(approvalCardProps.at(-1)).toMatchObject({ approval: { id: "r1" } });
+    });
+
+    it("matches a goal_question item by issue id", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "goal_question" }),
+      ];
+      approvalsData.approvals = [
+        { id: "g1", source: "goal_question", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(approvalCardProps.at(-1)).toMatchObject({ approval: { id: "g1" } });
+    });
+
+    it("shows nothing to decide when the ask already settled", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "decision_request", details: { decision_id: "d1" } }),
+      ];
+      approvalsData.approvals = [];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.queryByTestId("approval-card-stub")).toBeNull();
+    });
+
+    it("renders the issue itself, not the approval detail pane, for an ordinary issue-linked item", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [item({ id: "inbox-a", issue_id: "issue-a", type: "new_comment" })];
+      approvalsData.approvals = [
+        { id: "d1", source: "decision", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.queryByTestId("approval-card-stub")).toBeNull();
+      expect(issueDetailProps.at(-1)).toMatchObject({ issueId: "issue-a" });
+    });
   });
 });

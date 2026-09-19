@@ -38,6 +38,9 @@ func TestTriageWritesRejectMachineActors(t *testing.T) {
 		// The email intake is a public endpoint authenticated by its token,
 		// not by a session; there is no actor to gate.
 		"POST /api/triage/inbound/email/{token}": false,
+		// Same contract for Twenty CRM webhooks: the token names the
+		// workspace and the HMAC signature is the credential.
+		"POST /api/triage/inbound/twenty/{token}": false,
 		// Verdicts are the one agent-facing write: an agent suggests, the
 		// item's state is untouched, a human still resolves it.
 		"POST /api/triage/items/{id}/verdict": false,

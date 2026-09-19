@@ -19,21 +19,48 @@ type pauseControl struct {
 	requested atomic.Bool
 	once      sync.Once
 	boundary  chan struct{}
+	grace     time.Duration
+
+	// mu guards the grace timer. The deadline is fixed by the first request;
+	// armed is cleared when the context that armed the timer ends first, so
+	// the next request re-arms it for the time left. The poll that sees a
+	// pause during a local-directory wait uses the wait's context, which ends
+	// long before the run does.
+	mu       sync.Mutex
+	deadline time.Time
+	armed    bool
 }
 
 func newPauseControl() *pauseControl {
-	return &pauseControl{boundary: make(chan struct{})}
+	return &pauseControl{boundary: make(chan struct{}), grace: pauseBoundaryGrace}
 }
 
-// request records the human's ask and arms the grace timer.
+// request records the human's ask and arms the grace timer for ctx.
 func (p *pauseControl) request(ctx context.Context) {
-	if p == nil || p.requested.Swap(true) {
+	if p == nil {
 		return
 	}
+	p.mu.Lock()
+	if p.deadline.IsZero() {
+		p.deadline = time.Now().Add(p.grace)
+		p.requested.Store(true)
+	}
+	if p.armed {
+		p.mu.Unlock()
+		return
+	}
+	p.armed = true
+	wait := time.Until(p.deadline)
+	p.mu.Unlock()
 	go func() {
+		timer := time.NewTimer(wait)
+		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-		case <-time.After(pauseBoundaryGrace):
+			p.mu.Lock()
+			p.armed = false
+			p.mu.Unlock()
+		case <-timer.C:
 			p.reach()
 		}
 	}()

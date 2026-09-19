@@ -18,9 +18,11 @@ import (
 	"github.com/multica-ai/multica/server/pkg/agent"
 )
 
-// MemoryRuntimeFixture supplies frozen, non-secret task context. The offline
-// command runs it inside Docker; connected comparisons use runtime-owned auth
-// and local permissions. Neither path resumes a previous session.
+// MemoryRuntimeFixture supplies frozen, non-secret task context. Connected
+// comparisons (handleMemoryEvaluation) run it with runtime-owned auth and local
+// permissions and never resume a previous session. The offline Docker command
+// (`multica agent memory evaluate`) was not ported to this codebase: there is
+// no CLI entry point for it.
 type MemoryRuntimeFixture struct {
 	Provider           string `json:"provider"`
 	Executable         string `json:"executable"`

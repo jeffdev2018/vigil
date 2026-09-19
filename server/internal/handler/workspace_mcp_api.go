@@ -21,7 +21,10 @@ import (
 // runtimeLocalMcpServerSummary, which draws the same line for the same reason.
 //
 // `Enabled` is only meaningful on the agent-scoped list, where it reflects the
-// binding's toggle; it is omitted on the workspace library listing.
+// binding's toggle; it is omitted on the workspace library listing. `AgentCount`
+// and `AgentIDs` are the mirror image: they only mean something on the
+// workspace library listing, and are absent elsewhere rather than reported as
+// zero, so a caller cannot read "no agent" out of "not computed here".
 type WorkspaceMcpServerResponse struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -36,6 +39,12 @@ type WorkspaceMcpServerResponse struct {
 	ToolPolicy *mcpgov.Policy           `json:"tool_policy,omitempty"`
 	Tools      []McpCatalogToolResponse `json:"tools,omitempty"`
 	ToolCount  int                      `json:"tool_count"`
+	// AgentCount / AgentIDs (JEF-426): how many of the workspace's agents reach
+	// this server, and which ones. Both come from one grouped pass over
+	// agent_mcp_server — never a query per agent. No secret: agent ids are
+	// already readable by every member.
+	AgentCount *int     `json:"agent_count,omitempty"`
+	AgentIDs   []string `json:"agent_ids,omitempty"`
 }
 
 // mcpTransportOf classifies a server entry for display, and — because the
@@ -106,9 +115,24 @@ func (h *Handler) ListWorkspaceMcpServers(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "failed to list workspace MCP servers")
 		return
 	}
+	// One grouped query for the whole workspace, not one per server and not one
+	// per agent: the junction is read once and indexed by server here.
+	bindings, err := h.Queries.ListWorkspaceMcpServerAgents(r.Context(), idUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list workspace MCP servers")
+		return
+	}
+	agentsByServer := make(map[string][]string, len(bindings))
+	for _, row := range bindings {
+		agentsByServer[uuidToString(row.ServerID)] = row.AgentIds
+	}
 	resp := make([]WorkspaceMcpServerResponse, 0, len(servers))
 	for _, server := range servers {
-		resp = append(resp, workspaceMcpServerToResponse(server))
+		item := workspaceMcpServerToResponse(server)
+		agentIDs := agentsByServer[item.ID]
+		count := len(agentIDs)
+		item.AgentCount, item.AgentIDs = &count, agentIDs
+		resp = append(resp, item)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

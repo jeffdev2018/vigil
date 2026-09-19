@@ -161,7 +161,7 @@ export function ProjectMemorySection({ wsId, projectId, canEdit }: {
               onChange={(event) => setDraft((current) => current && { ...current, text: event.target.value })} />
             <p className="text-caption text-muted-foreground">{t(($) => $.memory.limit)}</p>
             <Label htmlFor={`${inputId}-expiry`}>{t(($) => $.memory.expiry_label)}</Label>
-            <input id={`${inputId}-expiry`} type="datetime-local" className="w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-sm"
+            <input id={`${inputId}-expiry`} type="datetime-local" className="w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-body"
               value={draft?.expires ?? ""} disabled={busy} readOnly={draft?.restoreRevision !== undefined}
               onChange={(event) => setDraft((current) => current && { ...current, expires: event.target.value })} />
             <p className="text-caption text-muted-foreground">{t(($) => $.memory.expiry_hint)}</p>

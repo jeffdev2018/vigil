@@ -63,7 +63,7 @@ export function SourceContextCommentList({
               className={cn(
                 changeKind && "-my-1 -mr-2 rounded-md px-2 py-1.5",
                 changeKind === "added" && "bg-success/5",
-                changeKind === "changed" && "bg-amber-500/5",
+                changeKind === "changed" && "bg-warning/5",
                 changeKind === "deleted" && "bg-destructive/5",
               )}
               data-source-context-change-kind={changeKind ?? undefined}
@@ -75,14 +75,18 @@ export function SourceContextCommentList({
                     : getAuthorLabel?.(comment) ?? comment.author.name}
                 </span>
                 {comment.id === anchorCommentId && (
-                  <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-info">
+                  <span className="shrink-0 rounded-xs bg-info/10 px-1.5 py-0.5 text-info">
                     {t(($) => $.source_context.source_comment)}
                   </span>
                 )}
                 {changeLabel && <span className="sr-only">{changeLabel}</span>}
               </div>
               <div className="mt-1.5 break-words">
-                <ReadonlyContent content={comment.content} />
+                {comment.deleted === true ? (
+                  <p className="italic text-muted-foreground">{t(($) => $.comment.deleted_placeholder)}</p>
+                ) : (
+                  <ReadonlyContent content={comment.content} />
+                )}
               </div>
             </div>
           </li>

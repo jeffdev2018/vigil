@@ -12,8 +12,8 @@ describe("meetingStatusLabel", () => {
     ).toEqual(["Recording", "Summarizing", "Done", "Failed"]);
   });
 
-  it("says Unknown for a status added server-side, never blank", () => {
-    expect(meetingStatusLabel("paused")).toBe("Unknown");
+  it("falls back to the raw server value rather than dropping it", () => {
+    expect(meetingStatusLabel("paused")).toBe("paused");
   });
 });
 

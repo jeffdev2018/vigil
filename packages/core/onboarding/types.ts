@@ -15,7 +15,11 @@ export type OnboardingCompletionPath =
   | "runtime_skipped"
   | "cloud_waitlist"
   | "skip_existing"
-  | "invite_accept";
+  | "invite_accept"
+  /** Runtime step exit via the native (browser, no-install) runtime card
+   *  (OS plan, chantier 5). Distinct from "full" so the funnel split can
+   *  tell the no-install path apart from CLI/desktop connections. */
+  | "native";
 
 export type Source =
   | "friends_colleagues"

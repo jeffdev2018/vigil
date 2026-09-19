@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
+
+	"github.com/multica-ai/multica/server/internal/brainknowledge"
 )
 
 // RepoContextForEnv describes a workspace repo available for checkout.
@@ -68,6 +70,7 @@ type OrgContextForEnv struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitMission    string   `json:"unit_mission,omitempty"`
 	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
@@ -76,17 +79,9 @@ type OrgContextForEnv struct {
 }
 
 // WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
-// is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
-// daemon decodes straight into it.
-type WorkspaceNoteForEnv struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title"`
-	Content string   `json:"content,omitempty"`
-	Tags    []string `json:"tags,omitempty"`
-	Pinned  bool     `json:"pinned,omitempty"`
-	Source  string   `json:"source,omitempty"`
-	Updated string   `json:"updated_at,omitempty"`
-}
+// is the claim wire shape too, shared with the server through brainknowledge
+// so both sides select and name notes with the same rules.
+type WorkspaceNoteForEnv = brainknowledge.Note
 
 // RepoIndexHintForEnv is one hit from the workspace's shared repo index (K47)
 // as the run receives it. It is the wire shape too (json tags mirror
@@ -242,11 +237,19 @@ type TaskContextForEnv struct {
 	// heading, drafts apart under an "unverified" sub-heading.
 	AgentMemories []AgentMemoryForEnv
 	// WorkspaceNotes are the workspace Brain notes injected into this run:
-	// every pinned note plus the most recently updated ones. They are written
-	// as files under .multica/knowledge/ and announced by the brief's
-	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
-	// they are shared by every agent in the workspace.
+	// every pinned note, the ones relevant to the task, then a few recent
+	// others. They are written as files under .multica/knowledge/ and
+	// announced by the brief's Workspace Knowledge section. Workspace-scoped,
+	// so unlike AgentMemories they are shared by every agent in the workspace.
 	WorkspaceNotes []WorkspaceNoteForEnv
+	// WorkspaceNotesQuery is what the Brain was searched with to pick the
+	// notes marked relevant, for the index to name. Empty when the run had no
+	// searchable subject and from older servers.
+	WorkspaceNotesQuery string
+	// WorkspaceNotesOmitted is how many notes the server already left out for
+	// the byte budget before sending WorkspaceNotes. Zero from older servers,
+	// which send every note and let the daemon's own selection drop the tail.
+	WorkspaceNotesOmitted int
 	// AutopilotMemory is the execution memory of the daemon that started this
 	// run (F24 / JEF-15): what a previous run of the SAME autopilot left for
 	// the next one. Autopilot-scoped, so unlike AgentMemories it never
@@ -317,18 +320,23 @@ type TaskContextForEnv struct {
 	AutopilotTriggerPayload string
 	QuickCreatePrompt       string // non-empty for quick-create tasks
 	IsSquadLeader           bool   // true when THIS TASK runs the agent in the squad-leader role (may exit silently on no_action); derived from the claim's is_leader_task / squad_id, never sniffed from instructions text (MUL-5811)
-	// WorkspaceContext is the workspace-level system prompt (workspace.context
-	// in the DB). Rendered into the brief as `## Workspace Context` when
-	// non-empty so every agent in the workspace sees the same shared context,
-	// regardless of issue / chat / autopilot / quick-create.
+	// WorkspaceContext is the workspace doctrine (workspace.context in the
+	// DB). Rendered into the brief as `## Workspace Doctrine` when non-empty
+	// so every agent in the workspace is bound by the same rules, regardless
+	// of issue / chat / autopilot / quick-create.
 	WorkspaceContext string
+	// WorkspaceDoctrineRevision is the doctrine's revision number, rendered in
+	// the heading. Like the text itself this is durable workspace
+	// configuration, not per-turn state. Zero renders the heading without a
+	// revision, which is also what an older server sends.
+	WorkspaceDoctrineRevision int32
 	// IssueStatuses is the workspace's active CUSTOM status catalog from the
 	// claim payload (MUL-6460), in catalog order. Rendered into the brief's
 	// status-command line so agents can see and use statuses beyond the seven
 	// built-ins. Like WorkspaceContext, this is durable workspace configuration,
 	// not per-turn state: it may legitimately change brief bytes when an admin
 	// edits the catalog between runs of a resumed session, exactly as a
-	// Workspace Context edit does. Empty — including on old servers that never
+	// Workspace Doctrine edit does. Empty — including on old servers that never
 	// send the field — renders the built-in-only line byte-identical to before.
 	IssueStatuses []IssueStatusForEnv
 	// IssueStatusesOmitted is the count of active custom statuses the server's
@@ -939,7 +947,8 @@ type ReuseParams struct {
 }
 
 // Reuse wraps an existing workdir into an Environment and refreshes context files.
-// Returns nil if the workdir does not exist (caller should fall back to Prepare).
+// Returns nil if the workdir does not exist or required provider setup fails
+// (caller should fall back to Prepare).
 func Reuse(params ReuseParams, logger *slog.Logger) *Environment {
 	if _, err := os.Stat(params.WorkDir); err != nil {
 		return nil
@@ -1049,7 +1058,15 @@ func Reuse(params ReuseParams, logger *slog.Logger) *Environment {
 	if params.Provider == "codex" {
 		codexHome := filepath.Join(env.RootDir, codexHomeDirName)
 		if err := prepareCodexHomeWithOpts(codexHome, CodexHomeOptions{CodexVersion: params.CodexVersion, ResumeSessionID: params.ResumeSessionID, IsLocalDirectory: params.LocalDirectory, SessionStoreKey: codexSessionStoreKey(params.Profile, params.Task), CodexCustomArgs: params.CodexCustomArgs}, logger); err != nil {
-			logger.Warn("execenv: refresh codex-home failed", "error", err)
+			// Leaving env.CodexHome empty does not launch Codex against an
+			// ambient home: configureCodexTaskShellEnvironment rejects the empty
+			// value ("task CODEX_HOME is missing") and the run fails before
+			// launch. Decline the reuse instead, so the caller falls back to
+			// Prepare and the task still gets a usable task-local home. The
+			// prior session is not carried over, and a fresh Prepare that fails
+			// the same way still stops the task.
+			logger.Warn("execenv: refresh codex-home failed; forcing fresh prepare", "error", err)
+			return nil
 		} else {
 			env.CodexHome = codexHome
 			if err := hydrateCodexSkills(codexHome, params.Task.AgentSkills, params.Task.DisabledRuntimeSkills, logger); err != nil {

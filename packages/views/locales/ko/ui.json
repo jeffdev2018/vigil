@@ -1,8 +1,13 @@
 {
   "attach_file": "파일 첨부",
   "toggle_sidebar": "왼쪽 사이드바 열기/닫기",
+  "mobile_sidebar_title": "사이드바",
+  "mobile_sidebar_description": "모바일 사이드바를 표시합니다.",
   "copy_code": "코드 복사",
   "plain_text": "일반 텍스트",
+  "add_reaction": "반응 추가",
+  "loading": "로딩 중...",
+  "more_emojis": "이모지 더 보기...",
   "error_boundary": {
     "title": "이 섹션을 표시하는 중 문제가 발생했습니다.",
     "description": "예기치 않은 오류가 발생했습니다.",

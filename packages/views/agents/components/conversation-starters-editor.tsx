@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import {
   AGENT_CONVERSATION_STARTER_LABEL_MAX_LENGTH,
   AGENT_CONVERSATION_STARTER_MAX_LENGTH,
@@ -37,6 +38,14 @@ export function ConversationStartersEditor({
   const fallbackStarters = useFallbackConversationStarters();
   const preview = selectConversationStarters(value, fallbackStarters);
 
+  // `value` holds no id of its own (plain {label, prompt} rows), so a stable
+  // React key has to live here, assigned once per row at creation and kept
+  // in lockstep with add/remove. Falling back to `index` (the old key) lets
+  // an external reset of `value` still render before ids catch up.
+  const [ids, setIds] = useState<string[]>(() =>
+    value.map(() => crypto.randomUUID()),
+  );
+
   const update = (
     index: number,
     field: keyof AgentConversationStarter,
@@ -47,6 +56,16 @@ export function ConversationStartersEditor({
         itemIndex === index ? { ...item, [field]: nextValue } : item,
       ),
     );
+  };
+
+  const addStarter = () => {
+    setIds((prev) => [...prev, crypto.randomUUID()]);
+    onChange([...value, { label: "", prompt: "" }]);
+  };
+
+  const removeStarter = (index: number) => {
+    setIds((prev) => prev.filter((_, i) => i !== index));
+    onChange(value.filter((_, itemIndex) => itemIndex !== index));
   };
 
   return (
@@ -61,7 +80,7 @@ export function ConversationStartersEditor({
       </div>
 
       {value.map((item, index) => (
-        <div key={index} className="rounded-lg border bg-muted/20 p-3">
+        <div key={ids[index] ?? index} className="rounded-lg border bg-muted/20 p-3">
           <div className="flex items-center gap-2">
             <Input
               value={item.label}
@@ -81,9 +100,7 @@ export function ConversationStartersEditor({
               aria-label={t(($) => $.conversation_starters.remove, {
                 number: index + 1,
               })}
-              onClick={() =>
-                onChange(value.filter((_, itemIndex) => itemIndex !== index))
-              }
+              onClick={() => removeStarter(index)}
             >
               <Trash2 className="size-4" aria-hidden="true" />
             </Button>
@@ -109,7 +126,7 @@ export function ConversationStartersEditor({
           variant="outline"
           size="sm"
           disabled={disabled}
-          onClick={() => onChange([...value, { label: "", prompt: "" }])}
+          onClick={addStarter}
         >
           <Plus className="size-4" aria-hidden="true" />
           {t(($) => $.conversation_starters.add)}

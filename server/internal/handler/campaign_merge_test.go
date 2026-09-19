@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -115,6 +116,69 @@ func TestCampaignPlatformRefusalIsConflictAndErrorFallsBackToAgent(t *testing.T)
 		t.Fatalf("fallback shard = %+v", out.Campaign.Shards[0])
 	}
 	_ = agents
+}
+
+// TestBuiltinMergerFallsThroughToVCSWhenGitHubAppDisabled guards a real bug:
+// builtinMerger.MergeIssuePullRequest used to return "github app not
+// configured" as soon as it found an open GitHub PR row with the GitHub App
+// client disabled, without ever trying the VCS fallback loop below. An issue
+// with a stale/tracked-but-irrelevant open GitHub PR row plus a genuinely
+// open VCS (GitLab/Forgejo) PR would incorrectly fail instead of attempting
+// the VCS merge. The GitHub snapshot pipeline is disabled under test (see
+// merge_readiness_test.go), so client.Enabled() is false here exactly like
+// in production when no GitHub App is installed.
+func TestBuiltinMergerFallsThroughToVCSWhenGitHubAppDisabled(t *testing.T) {
+	ctx := context.Background()
+	issueID := dbfx.Issue(t, "fallthrough merge test", testutil.Cols{"status": "in_progress"})
+
+	ghPRID := dbfx.Insert(t, "github_pull_request", testutil.Cols{
+		"workspace_id":    testWorkspaceID,
+		"installation_id": 1,
+		"repo_owner":      "acme",
+		"repo_name":       "widgets",
+		"pr_number":       999,
+		"title":           "stale tracked PR",
+		"state":           "open",
+		"html_url":        "https://github.com/acme/widgets/pull/999",
+		"pr_created_at":   testutil.Raw("now()"),
+		"pr_updated_at":   testutil.Raw("now()"),
+	})
+	dbfx.InsertNoID(t, "issue_pull_request", testutil.Cols{"issue_id": issueID, "pull_request_id": ghPRID},
+		"issue_id = $1 AND pull_request_id = $2", issueID, ghPRID)
+
+	// access_token_encrypted is not valid base64, so a fall-through into the
+	// VCS branch fails deterministically at openVCSSecret instead of making
+	// a real network call — still proof it got well past the GitHub branch.
+	connID := dbfx.Insert(t, "vcs_connection", testutil.Cols{
+		"workspace_id":             testWorkspaceID,
+		"provider":                 "gitlab",
+		"instance_url":             "https://gitlab.example.test",
+		"account_login":            "bot",
+		"access_token_encrypted":   "x",
+		"webhook_secret_encrypted": "y",
+	})
+	vcsPR(t, connID, issueID, 1)
+
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM issue_vcs_pull_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(ctx, `DELETE FROM vcs_pull_request WHERE workspace_id = $1 AND connection_id = $2`, testWorkspaceID, connID)
+		testPool.Exec(ctx, `DELETE FROM vcs_connection WHERE id = $1`, connID)
+		testPool.Exec(ctx, `DELETE FROM issue_pull_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(ctx, `DELETE FROM github_pull_request WHERE id = $1`, ghPRID)
+		testPool.Exec(ctx, `DELETE FROM issue WHERE id = $1`, issueID)
+	})
+
+	issue, err := testHandler.Queries.GetIssue(ctx, parseUUID(issueID))
+	if err != nil {
+		t.Fatalf("GetIssue: %v", err)
+	}
+	_, _, _, mergeErr := builtinMerger{h: testHandler}.MergeIssuePullRequest(ctx, issue)
+	if mergeErr == nil || strings.Contains(mergeErr.Error(), "github app not configured") {
+		t.Fatalf("MergeIssuePullRequest error = %v, want it to have fallen through past the disabled GitHub App into the VCS branch (a base64 decrypt failure on the VCS token), not stopped early", mergeErr)
+	}
+	if !strings.Contains(mergeErr.Error(), "base64") {
+		t.Fatalf("MergeIssuePullRequest error = %v, want the VCS branch's openVCSSecret failure, proving the fall-through reached it", mergeErr)
+	}
 }
 
 func TestCampaignSweeperAdvancesQueues(t *testing.T) {

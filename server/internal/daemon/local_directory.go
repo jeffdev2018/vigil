@@ -111,6 +111,24 @@ func (a *localDirectoryAssignment) DisplayName() string {
 	return filepath.Base(a.AbsPath)
 }
 
+// localDirectoryWaitReason is the wait reason reported while a task queues
+// behind a local directory's path mutex, for the in-place acquire and the
+// worktree snapshot alike. It is rendered to the user, so it names the
+// directory rather than its path (see DisplayName); the absolute path stays in
+// the daemon's own logs.
+//
+// Known rough edge: the holder clause is English and the client renders it
+// inside a localized "Waiting for {reason}" label, so a zh/ja/ko user sees
+// mixed script. Fixing it properly means sending the directory and the holder
+// as separate fields and localizing the join on the client.
+func localDirectoryWaitReason(a *localDirectoryAssignment, holder string) string {
+	reason := a.DisplayName()
+	if holder != "" {
+		reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
+	}
+	return reason
+}
+
 // ValidateExecutionMode rejects a mode this daemon does not implement.
 //
 // Falling back to in_place would be the wrong direction, even though it is the

@@ -30,6 +30,7 @@ import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/workspace-store";
@@ -41,7 +42,9 @@ export default function SwitchWorkspaceRoute() {
   const activeSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
   const { colorScheme } = useColorScheme();
   const t = THEME[colorScheme];
-  const { data, isLoading } = useQuery(workspaceListOptions());
+  const { data, isLoading, error, refetch } = useQuery(
+    workspaceListOptions(),
+  );
 
   const onSelect = (ws: Workspace) => {
     if (ws.slug === activeSlug) return;
@@ -71,6 +74,15 @@ export default function SwitchWorkspaceRoute() {
       {isLoading ? (
         <View className="py-6 items-center">
           <ActivityIndicator />
+        </View>
+      ) : error ? (
+        <View className="items-center justify-center gap-3 px-4 py-8">
+          <Text className="text-sm text-destructive text-center">
+            Failed to load workspaces.
+          </Text>
+          <Button variant="outline" onPress={() => refetch()}>
+            <Text>Retry</Text>
+          </Button>
         </View>
       ) : (
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>

@@ -3,6 +3,7 @@ package slack
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
 	"github.com/slack-go/slack"
@@ -42,5 +43,29 @@ func TestDigestBlocks(t *testing.T) {
 	}
 	if got := chunkText("a\nb", 10); len(got) != 1 || got[0] != "a\nb" {
 		t.Fatalf("short chunk = %q", got)
+	}
+}
+
+// chunkText must never split a multi-byte rune, whether or not there is a
+// newline near the cut point. CJK product copy is a first-class requirement
+// (conventions.zh.mdx), and a mid-rune byte cut produces invalid UTF-8 that
+// Slack rejects.
+func TestChunkTextNeverSplitsARune(t *testing.T) {
+	// No newline anywhere near the cut point: forces the `cut = limit`
+	// fallback path that previously used a raw byte index.
+	noNewline := strings.Repeat("中文混合内容ab测试😀", 30)
+	for _, chunk := range chunkText(noNewline, 2900) {
+		if !utf8.ValidString(chunk) {
+			t.Fatalf("chunk is not valid UTF-8: %q", chunk)
+		}
+	}
+
+	// A newline lands close to the byte budget, right after a multi-byte
+	// rune sequence.
+	withNewline := strings.Repeat("中", 966) + "\n" + strings.Repeat("文", 966)
+	for _, chunk := range chunkText(withNewline, 2900) {
+		if !utf8.ValidString(chunk) {
+			t.Fatalf("chunk is not valid UTF-8: %q", chunk)
+		}
 	}
 }

@@ -1,6 +1,6 @@
 {
-  "title": "Analyses",
-  "tab_usage": "Usage",
+  "title": "Statistiques",
+  "tab_usage": "Consommation",
   "header": {
     "timezone_and_updated": "{{tz}} · mis à jour {{time}}",
     "refresh": "Actualiser"
@@ -11,13 +11,14 @@
     "period_label": "Période"
   },
   "kpi": {
-    "cost_label": "Coût · {{days}}j",
-    "tokens_label": "Tokens · {{days}}j",
+    "cost_label": "Coût · {{days}} j",
+    "tokens_label": "Tokens · {{days}} j",
     "tokens_hint": "Entrée {{input}} · Sortie {{output}}",
-    "run_time_label": "Temps d'exécution · {{days}}j",
+    "run_time_label": "Temps d'exécution · {{days}} j",
     "run_time_hint": "Sur {{tasks}} exécutions",
-    "tasks_label": "Exécutions · {{days}}j",
-    "tasks_hint": "{{failed}} échecs"
+    "tasks_label": "Exécutions · {{days}} j",
+    "tasks_hint": "{{failed}} en échec",
+    "cost_hint": "Estimé d'après les tokens de tous les runs (coût fournisseur quand il est rapporté), pas le montant imputé aux budgets"
   },
   "dim": {
     "label": "Dimension",
@@ -34,7 +35,7 @@
     "metric_tokens": "Tokens",
     "metric_time": "Temps",
     "metric_tasks": "Exécutions",
-    "no_data": "Aucune utilisation sur cette période.",
+    "no_data": "Aucune consommation sur cette fenêtre.",
     "metric_label": "Métrique"
   },
   "weekly": {
@@ -46,28 +47,28 @@
     "partial_label": "{{range}} (partiel · {{covered}} / 7 jours)"
   },
   "errors": {
-    "kpi_failed_label": "Exécutions échouées · {{days}}j",
+    "kpi_failed_label": "Exécutions en échec · {{days}} j",
     "kpi_failed_hint": "Sur {{total}} exécutions",
-    "kpi_rate_label": "Taux d'échec · {{days}}j",
-    "kpi_agents_label": "Agents affectés · {{days}}j",
-    "kpi_agents_hint": "Pire {{name}} · {{count}}",
+    "kpi_rate_label": "Taux d'échec · {{days}} j",
+    "kpi_agents_label": "Agents touchés · {{days}} j",
+    "kpi_agents_hint": "Pire : {{name}} · {{count}}",
     "tooltip_rate": "Taux d'erreur",
     "class": {
-      "auth": "Auth",
-      "rate_limit": "Rate limit",
-      "timeout": "Timeout",
+      "auth": "Authentification",
+      "rate_limit": "Limite de débit",
+      "timeout": "Délai dépassé",
       "provider": "Fournisseur",
       "runtime": "Runtime",
       "agent": "Agent",
       "other": "Autre"
     },
     "title": "Erreurs",
-    "summary": "{{failed}} exécutions échouées sur {{total}} · {{rate}}",
+    "summary": "{{failed}} exécutions sur {{total}} en échec · {{rate}}",
     "mix_title": "Répartition des échecs · {{failed}}",
-    "mix_label": "Mix d'échecs",
+    "mix_label": "Répartition des échecs",
     "codes_label": "Codes d'erreur",
-    "by_agent": "Principaux responsables",
-    "sort_label": "Classer les responsables par",
+    "by_agent": "Principaux fautifs",
+    "sort_label": "Classer les fautifs par",
     "sort_failed": "Échecs",
     "sort_rate": "Taux",
     "header_agent": "Agent",
@@ -75,12 +76,12 @@
     "header_runs": "Exécutions",
     "header_rate": "Taux",
     "other_agents": "Autres agents",
-    "low_sample": "Moins de {{count}} exécutions dans cet intervalle — ce taux n'est pas significatif.",
-    "no_data": "Aucune exécution en échec dans cet intervalle.",
+    "low_sample": "Moins de {{count}} exécutions sur cette fenêtre — ce taux n'est pas significatif.",
+    "no_data": "Aucune exécution en échec sur cette fenêtre.",
     "show_reasons": "Afficher les codes d'erreur",
     "hide_reasons": "Masquer les codes d'erreur",
-    "show_all": "Tout afficher ({{count}})",
-    "show_less": "Afficher les {{count}} premiers"
+    "show_all": "Afficher les {{count}}",
+    "show_less": "Afficher le top {{count}}"
   },
   "leaderboard": {
     "title": "Classement",
@@ -96,11 +97,16 @@
     "header_tasks": "Exécutions",
     "show_all": "Tout afficher",
     "show_less": "Afficher le top {{count}}",
-    "no_data": "Aucune activité d'agent dans cet intervalle."
+    "no_data": "Aucune activité d'agent sur cette fenêtre.",
+    "usage_unreported_one": "{{count}} exécution n'a pas transmis sa consommation",
+    "usage_unreported_other": "{{count}} exécutions n'ont pas transmis leur consommation",
+    "usage_unreported_pending_one": "{{count}} exécution n'a pas transmis sa consommation · les totaux sont encore en cours de traitement",
+    "usage_unreported_pending_other": "{{count}} exécutions n'ont pas transmis leur consommation · les totaux sont encore en cours de traitement",
+    "usage_totals_pending": "Les totaux de consommation sont encore en cours de traitement"
   },
   "empty": {
-    "title": "Aucune utilisation pour le moment",
-    "body": "Une fois que les agents commenceront à travailler ici, leur consommation de tokens et leur temps d'exécution apparaîtront dans cette vue."
+    "title": "Aucune consommation pour l'instant",
+    "body": "Lancez des agents pour voir leur consommation de tokens et leur durée d’exécution."
   },
   "routing_benchmarks": {
     "title": "Benchmarks du routage intelligent",
@@ -126,7 +132,7 @@
     "empty_body": "Une fois que les agents fonctionneront en mode Auto routing, leurs performances sur 90 jours par runtime et modèle s'afficheront ici."
   },
   "duration": {
-    "less_than_minute": "<1m"
+    "less_than_minute": "<1 min"
   },
   "deliverable": {
     "issue_label": "Coût par issue fermée · {{days}}j",
@@ -134,24 +140,30 @@
     "hint": "{{count}} fermées · moyenne ${{mean}}",
     "floor": "certaines utilisations non tarifées",
     "none": "Aucune sur cette période",
-    "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours."
+    "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours.",
+    "load_error": "Impossible de charger le coût par livrable.",
+    "retry": "Réessayer"
   },
   "agent_roi": {
     "title": "ROI par agent · {{days}} j",
     "headline": "{{best}} a fermé {{count}} issues à {{cost}}/issue contre {{cost2}} pour {{second}}",
     "headline_single": "{{best}} a fermé {{count}} issues à {{cost}}/issue",
     "empty": "Aucune activité d'agent sur les {{days}} derniers jours.",
+    "load_error": "Impossible de charger le ROI par agent.",
+    "retry": "Réessayer",
     "agent": "Agent",
     "issues": "Issues fermées",
     "prs": "PR fusionnées",
     "cost": "Coût",
     "cost_per_issue": "Coût / issue",
     "none": "aucune issue fermée",
-    "floor": "plancher"
+    "floor": "plancher",
+    "floor_hint": "Ce total est un minimum : certaines exécutions de cet agent ont utilisé un modèle sans prix connu."
   },
   "scorecards": {
     "title": "Bilans des agents · {{days}}J",
     "scope_note": "Tout le workspace, tous les projets · jours UTC",
+    "load_error": "Impossible de charger les fiches de performance des agents.",
     "agent": "Agent",
     "runs": "Exécutions",
     "accepted": "Acceptés",
@@ -159,12 +171,15 @@
     "reopened": "Réouverts",
     "no_intervention": "Sans intervention",
     "mean_cost": "Coût moyen",
-    "low_sample": "(peu d'exécutions)"
+    "low_sample": "(peu d'exécutions)",
+    "retry": "Réessayer"
   },
   "autopilot_quota": {
     "title": "Runs d'autopilote cette période : {{used}} / {{limit}}",
+    "load_error": "Impossible de charger le quota d'autopilotes.",
     "near_limit": "Proche de la limite : les autopilotes cessent de se déclencher une fois atteinte.",
-    "reached": "Limite atteinte : les autopilotes ne se déclencheront plus avant la remise à zéro de la période."
+    "reached": "Limite atteinte : les autopilotes ne se déclencheront plus avant la remise à zéro de la période.",
+    "retry": "Réessayer"
   },
   "workflow_outcomes": {
     "title": "Résultats par workflow",
@@ -200,6 +215,32 @@
     "too_many_series": "{{count}} catégories — affichées sous forme de tableau.",
     "move_up": "Monter",
     "move_down": "Descendre",
-    "remove": "Supprimer"
+    "remove": "Supprimer",
+    "pin_failed": "Impossible d'épingler cette réponse.",
+    "reorder_failed": "Impossible de réordonner cette carte.",
+    "remove_failed": "Impossible de supprimer cette carte."
+  },
+  "velocity": {
+    "title": "Vélocité",
+    "kpi_member_cycle": "Cycle membres · {{days}}j",
+    "kpi_agent_cycle": "Cycle agents · {{days}}j",
+    "kpi_throughput": "Issues fermées · {{days}}j",
+    "throughput_hint": "{{member}} par les membres · {{agent}} par les agents",
+    "closed_hint": "{{count}} fermées",
+    "no_closed": "Aucune fermeture sur la période",
+    "days_unit": "j",
+    "legend_member": "Membres",
+    "legend_agent": "Agents",
+    "throughput_title": "Débit hebdomadaire",
+    "throughput_empty": "Aucune issue fermée sur la période.",
+    "tooltip_total": "Total",
+    "cost_title": "Coût par issue fermée",
+    "cost_series": "Coût moyen",
+    "cost_caption": "Issues fermées avec des exécutions d'agent — le coût ne couvre que ces exécutions.",
+    "cost_empty": "Aucune issue fermée avec une exécution d'agent sur la période.",
+    "empty_title": "Pas encore de vélocité",
+    "empty_body": "Quand des membres ou des agents fermeront des issues, le temps de cycle et le débit hebdomadaire des {{days}} derniers jours apparaîtront ici.",
+    "load_error": "Impossible de charger la vélocité.",
+    "retry": "Réessayer"
   }
 }

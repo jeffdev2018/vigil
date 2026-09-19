@@ -8,7 +8,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { runtimeListOptions } from "@multica/core/runtimes/queries";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import { deriveAgentPresenceDetail } from "@multica/core/agents/derive-presence";
-import type { AgentTask, Issue } from "@multica/core/types";
+import type { AgentTask } from "@multica/core/types";
 import { workloadConfig } from "../presence";
 import { useT } from "../../i18n";
 
@@ -129,9 +129,6 @@ function AgentActivityTaskRow({
 /**
  * Shared hover-card body for "what are these agents doing right now?" — used
  * by IssueAgentActivityIndicator (per-issue). One row per task.
- *
- * The workspace-wide chip uses WorkspaceAgentActivityHoverContent below,
- * which groups the same rows by issue.
  */
 export function AgentActivityHoverContent({
   tasks,
@@ -165,83 +162,6 @@ export function AgentActivityHoverContent({
   );
 }
 
-interface WorkspaceAgentActivityHoverContentProps {
-  /** Issues the working filter leaves on screen, in list order. Each has at
-   *  least one running task. */
-  issues: readonly Issue[];
-  /** Running tasks for those issues, keyed by issue id. */
-  tasksByIssueId: ReadonlyMap<string, readonly AgentTask[]>;
-  /** Total running tasks across `issues` — the second header figure. */
-  taskCount: number;
-}
-
-/**
- * Hover-card body for the workspace working chip (MUL-4884).
- *
- * The chip says WHO is working ("N agents working"); this card says WHERE.
- * The header carries the two figures the chip does not — how many issues
- * that work lands on, and how many tasks it takes — and the rows group by
- * issue, mirroring what clicking the chip does to the list.
- *
- * It says nothing about work it excludes. Chat/autopilot runs have no
- * linked issue and leave no trace anywhere on this page: no row, no head,
- * no indicator. A footnote about them would explain an absence the user
- * never perceived — inventing a discrepancy rather than resolving one.
- * Same for tasks on issues the current filters or the loaded page exclude.
- *
- * Deliberately not a dashboard: two figures and grouped rows.
- */
-export function WorkspaceAgentActivityHoverContent({
-  issues,
-  tasksByIssueId,
-  taskCount,
-}: WorkspaceAgentActivityHoverContentProps) {
-  const { t } = useT("issues");
-  const now = useActivityNow();
-  const { agentById, runtimeById } = useActivityLookups();
-
-  if (issues.length === 0) {
-    return (
-      <p className="text-caption text-muted-foreground">
-        {t(($) => $.agent_activity.empty_hover)}
-      </p>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="text-caption font-medium text-muted-foreground">
-        {`${t(($) => $.agent_activity.issues_count, {
-          count: issues.length,
-        })} · ${t(($) => $.agent_activity.tasks_count, { count: taskCount })}`}
-      </div>
-      <div className="flex flex-col gap-2.5">
-        {issues.map((issue) => (
-          <div key={issue.id} className="flex flex-col gap-1.5">
-            <div className="flex items-baseline gap-1.5 text-caption">
-              <span className="shrink-0 font-mono text-micro text-muted-foreground">
-                {issue.identifier}
-              </span>
-              <span className="truncate">{issue.title}</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {(tasksByIssueId.get(issue.id) ?? []).map((task) => (
-                <AgentActivityTaskRow
-                  key={task.id}
-                  task={task}
-                  now={now}
-                  agentById={agentById}
-                  runtimeById={runtimeById}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function runtimeFrom<T extends { id: string }>(
   id: string | undefined,
   byId: Map<string, T>,
@@ -254,6 +174,12 @@ function runtimeFrom<T extends { id: string }>(
 // Capped at hours — anything over a day for a running task is a sign of a
 // stuck runtime, but the hover card is not the place to relitigate that;
 // the row will read as `26h 12m` and the user can act.
+//
+// The s/m/h suffixes are deliberately NOT localized: this is a dense
+// elapsed-time chip in a hover card, not prose, and every locale this
+// product ships (ja/ko/zh-Hans included) reads a bare digit+letter pair
+// like `2m 14s` without ambiguity. Swapping to Intl.DurationFormat would
+// trade that density for full-width unit words that do not fit here.
 //
 // Exported so the issue-detail header live chip formats its collapsed
 // single-agent elapsed with the same `2m 14s` / `1h 03m` rule used here.

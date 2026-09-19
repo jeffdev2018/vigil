@@ -21,7 +21,8 @@
     "apply": "저장",
     "uploading": "업로드 중…",
     "loading": "불러오는 중…",
-    "load_failed": "이미지를 불러오지 못했어요"
+    "load_failed": "이미지를 불러오지 못했어요",
+    "encode_failed": "자르기를 처리하지 못했습니다. 다시 시도해 주세요."
   },
   "color_picker": {
     "saturation": "채도와 명도",
@@ -33,6 +34,7 @@
   },
   "save": "저장",
   "cancel": "취소",
+  "unknown": "알 수 없음",
   "delete": "삭제",
   "confirm": "확인",
   "loading": "로딩 중...",
@@ -136,5 +138,48 @@
     "status_pending": "예정",
     "status_in_progress": "진행 중",
     "status_done": "완료"
+  },
+  "property_icons": {
+    "circle-dot": "상태",
+    "signal-high": "우선순위",
+    "user-round": "담당자",
+    "folder-kanban": "프로젝트",
+    "calendar-days": "날짜",
+    "tag": "라벨",
+    "milestone": "마일스톤",
+    "flag": "플래그",
+    "bookmark": "북마크",
+    "star": "별표",
+    "target": "대상",
+    "shield": "보호",
+    "bug": "버그",
+    "zap": "번개",
+    "rocket": "로켓",
+    "sparkles": "반짝임",
+    "lightbulb": "아이디어",
+    "globe-2": "지구본",
+    "link": "링크",
+    "hash": "번호",
+    "list-checks": "체크리스트",
+    "circle-check": "완료",
+    "clock-3": "시간",
+    "briefcase-business": "업무",
+    "layers-3": "레이어",
+    "gauge": "게이지",
+    "database": "데이터베이스",
+    "code-2": "코드",
+    "palette": "디자인",
+    "megaphone": "공지",
+    "map-pin": "위치",
+    "package": "패키지",
+    "wrench": "도구",
+    "heart": "즐겨찾기",
+    "circle-alert": "알림",
+    "lock-keyhole": "비공개"
+  },
+  "load_error": {
+    "title": "이 페이지를 불러올 수 없습니다",
+    "description": "서버가 응답하지 않았습니다. 연결을 확인한 후 다시 시도하세요.",
+    "retry": "다시 시도"
   }
 }

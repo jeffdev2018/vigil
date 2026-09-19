@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { OrgSimulation } from "../types";
 import {
+  OrgSimulationSchema,
   AppConfigSchema,
+  OnboardingChecklistSchema,
+  EMPTY_ONBOARDING_CHECKLIST,
   ProjectMemoryHistorySchema,
   CommentAnchorSchema,
   CommentSchema,
@@ -23,6 +27,7 @@ import {
   AgentTaskListSchema,
   WorktreeRevertRequestSchema,
   ConfidenceReviewSettingsSchema,
+  TaskMessageListSchema,
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
@@ -60,6 +65,7 @@ import {
   InboxItemListSchema,
   InboxUnreadSummarySchema,
   IssueTriggerPreviewSchema,
+  LabelSchema,
   ListIssuesResponseSchema,
   ListPropertiesResponseSchema,
   MALFORMED_RUNTIME_MODEL_LIST_REQUEST,
@@ -664,6 +670,32 @@ describe("IssuePropertySchema (via ListPropertiesResponseSchema)", () => {
   });
 });
 
+// LabelChip trusts `label.color` enough to pass it straight into
+// `style={{ backgroundColor: color }}` (packages/views/labels/label-chip.tsx).
+// The server's normalizeColor already pins the write path to
+// `^#?[0-9a-fA-F]{6}$`, but the schema itself accepted any string — this is
+// the defense-in-depth layer the code comment there promised and never had.
+describe("LabelSchema", () => {
+  const baseLabel = {
+    id: "lbl-1",
+    workspace_id: "ws-1",
+    name: "Bug",
+    color: "#ef4444",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+
+  it("parses a well-formed hex color", () => {
+    const parsed = LabelSchema.parse(baseLabel);
+    expect(parsed.color).toBe("#ef4444");
+  });
+
+  it("falls back to the default gray for a malformed color instead of passing it through", () => {
+    const parsed = LabelSchema.parse({ ...baseLabel, color: "javascript:alert(1)" });
+    expect(parsed.color).toBe("#6b7280");
+  });
+});
+
 // POST /api/issues/preview-trigger feeds this schema through parseWithFallback
 // in client.previewIssueTrigger with fallback { triggers: [], total_count: 0 }
 // (MUL-3375). The four entry points read it to decide "will this start a run",
@@ -774,6 +806,39 @@ describe("TimelineEntriesSchema", () => {
       "https://profiles.example.com/former.png",
     );
   });
+
+  it("preserves the deleted-comment tombstone marker", () => {
+    const parsed = TimelineEntriesSchema.parse([
+      {
+        type: "comment",
+        id: "comment-1",
+        actor_type: "member",
+        actor_id: "user-1",
+        created_at: "2026-01-01T00:00:00Z",
+        content: "",
+        deleted_at: "2026-01-02T00:00:00Z",
+      },
+    ]);
+
+    expect(parsed[0]?.deleted_at).toBe("2026-01-02T00:00:00Z");
+  });
+
+  it("reads a malformed tombstone marker as a live comment instead of failing the timeline", () => {
+    const parsed = TimelineEntriesSchema.parse([
+      {
+        type: "comment",
+        id: "comment-1",
+        actor_type: "member",
+        actor_id: "user-1",
+        created_at: "2026-01-01T00:00:00Z",
+        content: "still here",
+        deleted_at: 42,
+      },
+    ]);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.deleted_at).toBeUndefined();
+  });
 });
 
 // F09: the revert request the UI polls. A malformed response must never read
@@ -808,6 +873,24 @@ describe("WorktreeRevertRequestSchema", () => {
 });
 
 describe("AgentTaskListSchema", () => {
+  it.each([true, false, undefined, null, "true", 1])("safely parses comment cancellation metadata: %s", (value) => {
+    const parsed = AgentTaskListSchema.parse([{ id: "run", cancelled_by_comment_change: value }]);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.cancelled_by_comment_change).toBe(typeof value === "boolean" ? value : undefined);
+  });
+
+  it("parses cancellation actor metadata without making it required", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { id: "new", cancelled_by: { type: "member", id: "user-1", name: "Jiayuan" } },
+      { id: "legacy" },
+      { id: "malformed", cancelled_by: "member" },
+    ]);
+
+    expect(parsed[0]?.cancelled_by).toEqual({ type: "member", id: "user-1", name: "Jiayuan" });
+    expect(parsed[1]?.cancelled_by).toBeUndefined();
+    expect(parsed[2]?.cancelled_by).toBeUndefined();
+  });
+
   const task = {
     id: "task-1",
     agent_id: "agent-1",
@@ -1802,6 +1885,34 @@ describe("dashboard + runtime usage schema drift", () => {
     ).toBe(0);
   });
 
+  it("preserves optional usage coverage without rejecting older or malformed rows", () => {
+    const parsed = DashboardAgentRunTimeListSchema.parse([
+      {
+        agent_id: "new-server",
+        total_seconds: 42,
+        task_count: 3,
+        metered_task_count: 2,
+        failed_count: 0,
+      },
+      {
+        agent_id: "old-server",
+        total_seconds: 42,
+        task_count: 3,
+        failed_count: 0,
+      },
+      {
+        agent_id: "drifted-server",
+        total_seconds: 42,
+        task_count: 3,
+        metered_task_count: "not-a-number",
+        failed_count: 0,
+      },
+    ]);
+    expect(parsed[0]?.metered_task_count).toBe(2);
+    expect(parsed[1]?.metered_task_count).toBeUndefined();
+    expect(parsed[2]?.metered_task_count).toBeUndefined();
+  });
+
   it("coerces a missing agent_id key to \"\" for the usage-by-agent panel", () => {
     const parsed = DashboardUsageByAgentListSchema.parse([
       { model: "claude-opus-4-7", input_tokens: 7 },
@@ -1886,6 +1997,23 @@ describe("dashboard + runtime usage schema drift", () => {
 // it does not reject the mode either — it drops execution_mode and answers 201,
 // leaving the task to run in the user's working copy (#7113). So the absent
 // case has to parse as false, not as "unknown, probably fine".
+// An older server deletes a comment's replies with it and omits this field,
+// so absent or malformed must parse as false: the client then promises nothing
+// about replies and keeps the legacy delete route (#8296).
+describe("AppConfigSchema comment_delete_keep_replies_supported drift", () => {
+  it.each([
+    [undefined, false],
+    ["yes", false],
+    [true, true],
+  ])("%j parses as %s", (value, expected) => {
+    const parsed = AppConfigSchema.parse({
+      cdn_domain: "cdn.example.com",
+      comment_delete_keep_replies_supported: value,
+    });
+    expect(parsed.comment_delete_keep_replies_supported).toBe(expected);
+  });
+});
+
 describe("AppConfigSchema local_worktree_supported drift", () => {
   it("defaults to false when the server predates the signal", () => {
     const parsed = AppConfigSchema.parse({ cdn_domain: "cdn.example.com" });
@@ -1925,6 +2053,26 @@ describe("AppConfigSchema agent_conversation_starters_supported drift", () => {
     expect(
       AppConfigSchema.parse({ agent_conversation_starters_supported: true })
         .agent_conversation_starters_supported,
+    ).toBe(true);
+  });
+});
+
+describe("AppConfigSchema native_runtime_available drift", () => {
+  it("defaults to false when the server predates the native runtime", () => {
+    expect(AppConfigSchema.parse({}).native_runtime_available).toBe(false);
+  });
+
+  it("coerces a malformed declaration to false rather than trusting it", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: "yes" })
+        .native_runtime_available,
+    ).toBe(false);
+  });
+
+  it("carries a genuine declaration through", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: true })
+        .native_runtime_available,
     ).toBe(true);
   });
 });
@@ -2783,12 +2931,12 @@ describe("issue status catalog schemas", () => {
   it("parses a full catalog response", () => {
     const parsed = ListIssueStatusesResponseSchema.parse({
       statuses: [baseStatus],
-      categories: ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"],
+      categories: ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"],
       total: 1,
     });
     expect(parsed.statuses[0]?.key).toBe("human_review");
-    expect(parsed.statuses[0]?.category).toBe("in_review");
-    expect(parsed.categories).toHaveLength(7);
+    expect(parsed.statuses[0]?.category).toBe("started");
+    expect(parsed.categories).toHaveLength(4);
   });
 
   it("falls back to the built-in categories on a malformed response", () => {
@@ -2799,9 +2947,9 @@ describe("issue status catalog schemas", () => {
       { endpoint: "GET /api/issue-statuses" },
     );
     expect(parsed).toEqual(EMPTY_LIST_ISSUE_STATUSES_RESPONSE);
-    // The fallback still names all 7 categories, so a client talking to a
-    // server that predates this endpoint can still render every built-in.
-    expect(parsed.categories).toHaveLength(7);
+    // The fallback still names all 5 lifecycle categories, so a malformed
+    // response cannot leave grouped issue surfaces without columns.
+    expect(parsed.categories).toHaveLength(4);
     expect(parsed.statuses).toEqual([]);
   });
 
@@ -2812,6 +2960,12 @@ describe("issue status catalog schemas", () => {
     expect(parsed.is_system).toBe(false);
     expect(parsed.position).toBe(0);
     expect(parsed.archived_at).toBeNull();
+  });
+
+  it.each([undefined, null, "", "three_quarters", "future-icon"])("keeps catalog readable with icon %s", (icon) => {
+    const parsed = IssueStatusEntrySchema.parse({ ...baseStatus, icon });
+    expect(parsed.key).toBe(baseStatus.key);
+    expect(parsed.icon).toBe(icon);
   });
 
   // PATCH /api/issue-statuses/reorder returns the same catalog shape as the
@@ -4556,12 +4710,13 @@ describe("WorkspaceWorkingAgentListSchema", () => {
 describe("AgentActivityBucketListSchema / AgentRunCountListSchema", () => {
   it("parses live activity buckets and run counts", () => {
     const buckets = parseWithFallback(
-      [{ agent_id: "agent-1", bucket_at: "2026-09-01T00:00:00Z", task_count: 3, failed_count: 1 }],
+      [{ agent_id: "agent-1", bucket_at: "2026-09-01T00:00:00Z", task_count: 3, failed_count: 1, completed_count: 2, cancelled_count: 0 }],
       AgentActivityBucketListSchema,
       EMPTY_AGENT_ACTIVITY_BUCKETS,
       { endpoint: "test" },
     );
     expect(buckets[0]?.task_count).toBe(3);
+    expect(buckets[0]?.completed_count).toBe(2);
 
     const counts = parseWithFallback(
       [{ agent_id: "agent-1", run_count: 12 }],
@@ -5832,5 +5987,172 @@ describe("ProjectMemoryHistorySchema", () => {
     for (const malformed of [null, "oops", 42, [1, 2], {}, { versions: [{ revision: 1 }], next_before_revision: null }]) {
       expect(parseWithFallback(malformed, ProjectMemoryHistorySchema, null, ENDPOINT)).toBeNull();
     }
+  });
+});
+
+// POST /api/org/simulate — the org page's "test a request" answer. Parsed
+// with a null fallback because client.ts throws on it: an empty simulation
+// would be displayed as a real verdict ("no unit takes this, nobody
+// decides"), which is a lie a person would act on.
+describe("OrgSimulationSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/org/simulate" };
+  const simulation = {
+    basis: "draft" as const,
+    structure_id: "struct-1",
+    revision: 3,
+    unit: { id: "team", name: "Team", model: "hierarchy", autonomy: "draft" },
+    receives: { unit_id: "team", unit_name: "Team" },
+    prepares: { kind: "agent" as const, id: "agent-1", name: "Ada" },
+    decides: { kind: "member" as const, id: "user-1", name: "Jeff" },
+    escalation_path: [{ unit_id: "lead", unit_name: "Lead" }],
+    blocking_denies: ["rembourser"],
+    cost_estimate_usd_ticks: 4200,
+    notes: [],
+  };
+
+  it("keeps a valid simulation intact", () => {
+    expect(parseWithFallback(simulation, OrgSimulationSchema, null, ENDPOINT)).toEqual(simulation);
+  });
+
+  it("keeps an unrouted simulation, where no unit takes the request", () => {
+    const unrouted = { ...simulation, unit: null, receives: null, prepares: { kind: "none" as const, id: "", name: "" } };
+    expect(parseWithFallback(unrouted, OrgSimulationSchema, null, ENDPOINT)).toEqual(unrouted);
+  });
+
+  it("defaults an unknown actor kind rather than dropping the answer", () => {
+    const parsed = parseWithFallback<OrgSimulation | null>(
+      { ...simulation, prepares: { kind: "robot", id: "x", name: "X" } },
+      OrgSimulationSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.prepares.kind).toBe("none");
+  });
+
+  it("falls back to null on a malformed payload", () => {
+    for (const malformed of [
+      null,
+      "oops",
+      42,
+      [1, 2],
+      {},
+      { ...simulation, basis: "guess" },
+      { ...simulation, prepares: undefined },
+    ]) {
+      expect(parseWithFallback(malformed, OrgSimulationSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("OnboardingChecklistSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/onboarding/checklist" };
+  const valid = {
+    runtime_kind: "native",
+    native_available: true,
+    runtime_ready: true,
+    agent_created: true,
+    issue_created: true,
+    first_run_completed: false,
+    first_decision_answered: false,
+    complete: false,
+    agents: 1,
+    issues: 2,
+    completed_runs: 0,
+  };
+
+  it("keeps a valid checklist intact", () => {
+    expect(
+      parseWithFallback(valid, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+    ).toEqual(valid);
+  });
+
+  it("defaults an unrecognized runtime_kind to none rather than failing the whole checklist", () => {
+    const parsed = parseWithFallback(
+      { ...valid, runtime_kind: "quantum" },
+      OnboardingChecklistSchema,
+      EMPTY_ONBOARDING_CHECKLIST,
+      ENDPOINT,
+    );
+    expect(parsed.runtime_kind).toBe("none");
+    // Every other field survives — one bad enum must not blank the card.
+    expect(parsed.agent_created).toBe(true);
+  });
+
+  it("falls back to the empty checklist on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+      ).toEqual(EMPTY_ONBOARDING_CHECKLIST);
+    }
+  });
+
+  it("coerces missing/malformed booleans and counts to safe defaults", () => {
+    const parsed = OnboardingChecklistSchema.parse({
+      runtime_ready: "yes",
+      agents: "three",
+    });
+    expect(parsed).toEqual(EMPTY_ONBOARDING_CHECKLIST);
+  });
+});
+
+describe("TaskMessageListSchema", () => {
+  const row = { task_id: "task-1", issue_id: "issue-1", seq: 1, type: "tool_result", output: "log line" };
+
+  // The whole point of the field: a server that never sends it is saying
+  // "nobody measured this", and only `undefined` can carry that. A default of
+  // false would make every historical row assert it is complete.
+  it("leaves a missing truncation flag undefined rather than false", () => {
+    const parsed = TaskMessageListSchema.parse([row]);
+    expect(parsed[0]).not.toHaveProperty("output_truncated", false);
+    expect(parsed[0]?.output_truncated).toBeUndefined();
+  });
+
+  it("keeps both measured values", () => {
+    const parsed = TaskMessageListSchema.parse([
+      { ...row, seq: 1, output_truncated: true },
+      { ...row, seq: 2, output_truncated: false },
+    ]);
+    expect(parsed.map((m) => m.output_truncated)).toEqual([true, false]);
+  });
+
+  // Drift defense. Without a field-level catch, one bad boolean fails its row,
+  // the array fails with it, and parseWithFallback hands the viewer an empty
+  // transcript — a malformed flag would delete the whole run from the screen.
+  // Degrading the field to "unknown" is the correct loss.
+  it("keeps the record and forgets the field when the flag is malformed", () => {
+    const parsed = parseWithFallback<{ output?: string; output_truncated?: boolean }[]>(
+      [{ ...row, output_truncated: "false" }],
+      TaskMessageListSchema,
+      [],
+      { endpoint: "GET /api/tasks/:id/messages" },
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.output).toBe("log line");
+    expect(parsed[0]?.output_truncated).toBeUndefined();
+  });
+
+  it("keeps the surrounding rows when one row's flag is malformed", () => {
+    const parsed = TaskMessageListSchema.parse([
+      { ...row, seq: 1, output_truncated: true },
+      { ...row, seq: 2, output_truncated: 12345 },
+      { ...row, seq: 3, output_truncated: false },
+    ]);
+    expect(parsed.map((m) => m.seq)).toEqual([1, 2, 3]);
+    expect(parsed.map((m) => m.output_truncated)).toEqual([true, undefined, false]);
+  });
+
+  it("falls back to an empty transcript when the response is not a list", () => {
+    const parsed = parseWithFallback(
+      { messages: "nope" },
+      TaskMessageListSchema,
+      [],
+      { endpoint: "GET /api/tasks/:id/messages" },
+    );
+    expect(parsed).toEqual([]);
+  });
+
+  it("downgrades an unknown message type instead of dropping the transcript", () => {
+    const parsed = TaskMessageListSchema.parse([{ ...row, type: "video" }]);
+    expect(parsed[0]?.type).toBe("text");
   });
 });

@@ -188,7 +188,7 @@ function useFilterChips(
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
   const resolveStatusLabel = useStatusLabel(wsId);
-  const { categoryOf, colorOf } = useIssueStatuses(wsId);
+  const { categoryOf, colorOf, iconOf } = useIssueStatuses(wsId);
   const issueTypeCatalog = useIssueTypes(wsId);
 
   const statusFilters = useViewStore((s) => s.statusFilters);
@@ -285,6 +285,7 @@ function useFilterChips(
       creatorFilters: s.creatorFilters,
       projectFilters: s.projectFilters,
       includeNoProject: s.includeNoProject,
+      goalFilters: s.goalFilters,
       cycleFilters: s.cycleFilters,
       typeFilters: s.typeFilters,
       labelFilters: s.labelFilters,
@@ -324,8 +325,7 @@ function useFilterChips(
         s.resetFiltersTo({ ...current, typeFilters: raw.typeFilters });
         break;
       case "goal":
-        // Saved views never fix a goal, so there is nothing to fall back to.
-        s.clearFilterDimension("goal");
+        s.resetFiltersTo({ ...current, goalFilters: raw.goalFilters });
         break;
       default: {
         const propertyId = dimension.slice("property:".length);
@@ -388,6 +388,7 @@ function useFilterChips(
               status={s}
               category={categoryOf(s)}
               color={colorOf(s)}
+              icon={iconOf(s)}
               className="size-3"
             />
           ))}
@@ -494,13 +495,17 @@ function useFilterChips(
       onRemove: () => clearDimension("type"),
     });
   }
-  if (goalFilters.length > 0) {
+  // A view can fix a goal, so the chip shows only what the user added on top.
+  const deltaGoals = baseline
+    ? goalFilters.filter((id) => !baseline.goal.has(id))
+    : goalFilters;
+  if (deltaGoals.length > 0) {
     const goalById = new Map(goals.map((g) => [g.id, g]));
     chips.push({
       key: "goal",
       icon: <Target className={CHIP_ICON_CLASS} />,
       label: t(($) => $.filters.section_goal),
-      value: summarize(goalFilters.map((id) => goalById.get(id)?.title)),
+      value: summarize(deltaGoals.map((id) => goalById.get(id)?.title)),
       onRemove: () => clearDimension("goal"),
     });
   }

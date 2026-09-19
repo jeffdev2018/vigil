@@ -229,9 +229,9 @@ func (o *Outbound) Start(ctx context.Context) {
 		o.workerWG.Add(1)
 		o.terminalWorkerWG.Add(terminalWorkerCount)
 		for range terminalWorkerCount {
-			go o.sendTerminalReplies(ctx)
+			util.GoBackground("telegram outbound: send terminal replies", func() { o.sendTerminalReplies(ctx) })
 		}
-		go o.dispatchTerminalReplies(ctx)
+		util.GoBackground("telegram outbound: dispatch terminal replies", func() { o.dispatchTerminalReplies(ctx) })
 		o.wakeTerminalDispatcher()
 	})
 }

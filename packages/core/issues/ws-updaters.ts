@@ -133,6 +133,7 @@ function patchIssueInFlatCaches(
   orderRevision?: number,
 ) {
   for (const [key, data] of flatListEntries(qc, wsId)) {
+    if (!data.pages.some((page) => page.issues.some((issue) => issue.id === issueId))) continue;
     qc.setQueryData<IssueFlatCache>(key, {
       ...data,
       pages: data.pages.map((page) => ({

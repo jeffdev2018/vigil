@@ -82,7 +82,7 @@ export function SigningSecretSection({
       {minted !== null ? (
         // Shown once. After this dialog closes the value is unrecoverable —
         // the row only keeps the last four characters.
-        <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+        <div className="space-y-1.5 rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
           <div className="text-caption font-medium">
             {t(($) => $.signing_secret.shown_once)}
           </div>
@@ -96,7 +96,7 @@ export function SigningSecretSection({
               className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
             >
               {copied ? (
-                <Check className="size-3.5 text-emerald-500" />
+                <Check className="size-3.5 text-success" />
               ) : (
                 <Copy className="size-3.5" />
               )}

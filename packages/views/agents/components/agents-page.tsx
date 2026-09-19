@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
-  Lock,
   Plus,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -21,7 +20,6 @@ import {
   isAgentRuntimeBound,
   useWorkspaceActivityMap,
   useWorkspacePresenceMap,
-  VISIBILITY_TOOLTIP,
   type AgentPresenceDetail,
 } from "@multica/core/agents";
 import {
@@ -55,13 +53,14 @@ import {
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
-import { useNavigation, useRowLink } from "../../navigation";
+  AppLink,
+  rowLinkInteractiveProps,
+  useNavigation,
+  useRowLink,
+} from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
+import { VisibilityBadge } from "./visibility-badge";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
@@ -91,7 +90,7 @@ import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 // the documented exception to the single-line management-list rule.
 const GRID_COLS =
   "grid-cols-[0.75rem_minmax(120px,1fr)_var(--agc-status-mobile)_1.75rem_0.75rem] " +
-  "@2xl:grid-cols-[0.75rem_1rem_minmax(200px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-created)_1.75rem_0.75rem]";
+  "@2xl:grid-cols-[0.75rem_1rem_minmax(240px,1fr)_var(--agc-status-desktop)_var(--agc-owner)_var(--agc-access)_var(--agc-runtime)_var(--agc-lastactive)_var(--agc-runs)_var(--agc-model)_var(--agc-created)_1.75rem_0.75rem]";
 
 // Two-line rows; the virtualizer's fixed-size contract.
 const ROW_HEIGHT = 64;
@@ -112,10 +111,12 @@ const COLUMN_WIDTHS: Record<AgentColumnKey, number> = {
   created: 104,
 };
 
-// Fixed tracks (edges 12+12, checkbox 16, name min 200, kebab 28) plus the
+// Fixed tracks (edges 12+12, checkbox 16, name min 240, kebab 28) plus the
 // 11 gap-x-3 gaps between the wide template's 12 tracks (zero-width tracks
-// still carry gaps).
-const FIXED_TRACKS_WIDTH = 268 + 11 * 12;
+// still carry gaps). The name track's floor leaves ~190px for the name itself
+// once the avatar and gap are paid, so ~25 characters survive before the
+// ellipsis; the `title` on the cell carries the rest.
+const FIXED_TRACKS_WIDTH = 308 + 11 * 12;
 
 function columnTrackVars(
   isVisible: (key: AgentColumnKey) => boolean,
@@ -315,13 +316,30 @@ function ListError({
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  runtimesHref,
+}: {
+  onCreate: () => void;
+  runtimesHref: string;
+}) {
   const { t } = useT("agents");
   return (
     <CollectionPageState
       icon={Bot}
       title={t(($) => $.empty.title)}
-      description={t(($) => $.empty.description)}
+      description={
+        <>
+          {t(($) => $.empty.description)}{" "}
+          {t(($) => $.empty.description_run_explainer)}{" "}
+          <AppLink
+            href={runtimesHref}
+            className="underline decoration-muted-foreground/30 underline-offset-4 hover:text-foreground"
+          >
+            {t(($) => $.empty.description_run_explainer_link)}
+          </AppLink>
+        </>
+      }
       actions={
         <Button type="button" onClick={onCreate} size="sm">
           <Plus aria-hidden="true" className="size-3" />
@@ -336,11 +354,16 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 // Cells
 // ---------------------------------------------------------------------------
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -348,12 +371,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -370,7 +396,7 @@ function CheckboxCell({
 // documented exception to the single-line rule — agents are few and
 // identity-rich, so this is the "team roster" form (GitHub org members,
 // Slack member list).
-function NameCell({ row }: { row: AgentListRow }) {
+function NameCell({ row, rowHref }: { row: AgentListRow; rowHref: string }) {
   const { t } = useT("agents");
   const { agent, isOwnedByMe } = row;
   const isArchived = !!agent.archived_at;
@@ -386,31 +412,37 @@ function NameCell({ row }: { row: AgentListRow }) {
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span
+          {/* The row's click/auxclick handlers are a mouse convenience on a
+              plain <div> (see ui list-grid + views useRowLink): the keyboard
+              path, "open in new tab" and the browser context menu all come
+              from this anchor. `rowLinkInteractiveProps` stops the event from
+              reaching the row, so web's native modifier-click is not doubled
+              by the row's own window.open fallback. */}
+          <AppLink
+            href={rowHref}
+            newTabTitle={agent.name}
+            {...rowLinkInteractiveProps}
+            title={agent.name}
             className={`min-w-0 truncate text-body font-medium ${
               isArchived ? "text-muted-foreground" : ""
             }`}
           >
             {agent.name}
-          </span>
+          </AppLink>
           {isPrivate && !isArchived && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Lock className="h-3 w-3 shrink-0 text-faint-foreground" />
-                }
-              />
-              <TooltipContent>{VISIBILITY_TOOLTIP.private}</TooltipContent>
-            </Tooltip>
+            <VisibilityBadge value="private" compact className="text-faint-foreground" />
           )}
           {isOwnedByMe && (
-            <span className="shrink-0 rounded bg-muted px-1 text-micro font-medium text-muted-foreground">
+            <span className="shrink-0 rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
               {t(($) => $.row.you)}
             </span>
           )}
         </div>
         {agent.description ? (
-          <div className="mt-0.5 truncate text-caption text-muted-foreground">
+          <div
+            title={agent.description}
+            className="mt-0.5 truncate text-caption text-muted-foreground"
+          >
             {agent.description}
           </div>
         ) : null}
@@ -603,11 +635,12 @@ function AgentListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -1150,7 +1183,10 @@ export function AgentsPage({
         </div>
       ) : showEmpty ? (
         <div className="flex flex-1 items-center justify-center">
-          <EmptyState onCreate={() => navigation.push(paths.newAgent())} />
+          <EmptyState
+            onCreate={() => navigation.push(paths.newAgent())}
+            runtimesHref={paths.runtimes()}
+          />
         </div>
       ) : (
         <>
@@ -1220,9 +1256,15 @@ export function AgentsPage({
                     >
                       <CheckboxCell
                         checked={selectedIds.has(row.agent.id)}
+                        label={t(($) => $.table.select_agent, {
+                          name: row.agent.name,
+                        })}
                         onToggle={() => toggleSelected(row.agent.id)}
                       />
-                      <NameCell row={row} />
+                      <NameCell
+                        row={row}
+                        rowHref={paths.agentDetail(row.agent.id)}
+                      />
                       {isColVisible("status") ? (
                         <StatusCell row={row} />
                       ) : (

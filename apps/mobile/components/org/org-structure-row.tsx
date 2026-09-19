@@ -9,6 +9,7 @@
  *     ▸ Unit name · auto · 3 members · paused · owner
  */
 import { View } from "react-native";
+import type { TextStyle } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import type { OrgStructure, OrgUnit } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
@@ -21,6 +22,10 @@ import { agentListOptions } from "@/data/queries/agents";
 import { memberListOptions } from "@/data/queries/members";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { orgIsLive, orgModelLabel, orgStatusLabel } from "@/lib/org-display";
+
+// `className="tabular-nums"` is a silent no-op on RN — see
+// components/chat/status-pill.tsx for the reference explanation.
+const TABULAR_NUMS: TextStyle = { fontVariant: ["tabular-nums"] };
 
 interface Props {
   structure: OrgStructure;
@@ -71,7 +76,7 @@ export function OrgStructureRow({ structure, projectName }: Props) {
             </Text>
           </View>
         </View>
-        <Text className="text-xs text-muted-foreground tabular-nums">
+        <Text className="text-xs text-muted-foreground" style={TABULAR_NUMS}>
           r{structure.revision}
         </Text>
       </View>

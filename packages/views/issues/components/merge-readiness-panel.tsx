@@ -67,7 +67,7 @@ export function MergeReadinessPanel({ issueId }: { issueId: string }) {
   );
 }
 
-function BlockerLabel({ blocker }: { blocker: MergeBlocker }) {
+export function BlockerLabel({ blocker }: { blocker: MergeBlocker }) {
   const { t } = useT("issues");
   const pr = blocker.pr_number ?? 0;
   const count = blocker.count ?? 0;

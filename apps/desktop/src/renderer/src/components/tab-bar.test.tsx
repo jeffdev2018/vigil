@@ -92,6 +92,23 @@ vi.mock("@multica/views/layout", () => ({
   ),
 }));
 
+const translations = {
+  tab_bar: {
+    pin_tab: "Pin tab",
+    unpin_tab: "Unpin tab",
+    close_tab: "Close tab",
+    close_other_tabs: "Close other tabs",
+    open_as_new_window: "Open as new window",
+    new_tab: "New tab",
+  },
+};
+
+vi.mock("@multica/views/i18n", () => ({
+  useT: () => ({
+    t: (selector: (resources: typeof translations) => string) => selector(translations),
+  }),
+}));
+
 import { TabBar } from "./tab-bar";
 
 function reset() {
@@ -169,6 +186,36 @@ describe("TabBar hover action buttons", () => {
     const { getByLabelText } = render(<TabBar />);
     fireEvent.click(getByLabelText("Unpin tab"));
     expect(state.togglePin).toHaveBeenCalledWith("tA");
+  });
+
+  // Both actions used to be <span role="button"> INSIDE the tab's <button>:
+  // invalid HTML, and ~14px targets revealed by hover alone.
+  it("renders the actions as real buttons beside the tab button, not inside it", () => {
+    const { getAllByLabelText, getByLabelText } = render(<TabBar />);
+    const close = getAllByLabelText("Close tab")[0]!;
+    const pin = getAllByLabelText("Pin tab")[0]!;
+
+    for (const action of [close, pin]) {
+      expect(action.tagName).toBe("BUTTON");
+      // No interactive ancestor: the tab button is a sibling now.
+      expect(action.parentElement?.closest("button")).toBeNull();
+      // size-6 is the 24px minimum target, and focus reveals it.
+      expect(action.className).toContain("size-6");
+      expect(action.className).toContain("focus-visible:opacity-100");
+    }
+    // Still in the same tab frame as the tab it acts on.
+    expect(close.closest("[data-tab-frame]")).toBe(
+      getByLabelText("Issues").closest("[data-tab-frame]"),
+    );
+  });
+
+  it("closes a tab from the keyboard", () => {
+    const { getAllByLabelText } = render(<TabBar />);
+    const close = getAllByLabelText("Close tab")[1]!; // tB (Projects)
+    close.focus();
+    expect(document.activeElement).toBe(close);
+    fireEvent.click(close); // what Enter/Space dispatch on a real button
+    expect(state.closeTab).toHaveBeenCalledWith("tB");
   });
 
   it("hides the X close button on a pinned tab but keeps it on an unpinned tab", () => {

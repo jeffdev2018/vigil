@@ -26,6 +26,8 @@ export type RouteIconName =
   | "CircleUser"
   | "ListTodo"
   | "FolderKanban"
+  | "Map"
+  | "Wrench"
   | "Target"
   | "CalendarRange"
   | "Network"
@@ -51,6 +53,7 @@ export type RouteIconName =
 export type NavLabelKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -58,8 +61,11 @@ export type NavLabelKey =
   | "my_issues"
   | "issues"
   | "projects"
+  | "roadmap"
+  | "tools"
   | "goals"
   | "cycles"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -73,6 +79,7 @@ export type NavLabelKey =
 export type WorkspacePageKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -80,8 +87,11 @@ export type WorkspacePageKey =
   | "myIssues"
   | "issues"
   | "projects"
+  | "roadmap"
+  | "tools"
   | "goals"
   | "cycles"
+  | "calendar"
   | "org"
   | "autopilots"
   | "agents"
@@ -107,6 +117,7 @@ export interface WorkspacePage {
 export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   inbox: { segment: "inbox", icon: "Inbox", navKey: "inbox" },
   triage: { segment: "triage", icon: "Inbox", navKey: "triage" },
+  runs: { segment: "runs", icon: "Server", navKey: "runs" },
   meetings: { segment: "meetings", icon: "AudioLines", navKey: "meetings" },
   postmortems: { segment: "postmortems", icon: "FileText", navKey: "postmortems" },
   brain: { segment: "brain", icon: "BrainCircuit", navKey: "brain" },
@@ -114,8 +125,11 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   myIssues: { segment: "my-issues", icon: "CircleUser", navKey: "my_issues" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },
   projects: { segment: "projects", icon: "FolderKanban", navKey: "projects" },
+  roadmap: { segment: "roadmap", icon: "Map", navKey: "roadmap" },
+  tools: { segment: "tools", icon: "Wrench", navKey: "tools" },
   goals: { segment: "goals", icon: "Target", navKey: "goals" },
   cycles: { segment: "cycles", icon: "CalendarRange", navKey: "cycles" },
+  calendar: { segment: "calendar", icon: "CalendarRange", navKey: "calendar" },
   org: { segment: "org", icon: "Network", navKey: "org" },
   autopilots: { segment: "autopilots", icon: "Zap", navKey: "autopilots" },
   agents: { segment: "agents", icon: "Bot", navKey: "agents" },

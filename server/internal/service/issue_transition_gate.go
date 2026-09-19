@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -211,6 +210,13 @@ func FileIssueTransitionRequest(
 		return FileTransitionResult{}, fmt.Errorf("create transition request: %w", err)
 	}
 
+	if bus != nil {
+		bus.Publish(events.Event{
+			Type: protocol.EventApprovalAsked, WorkspaceID: util.UUIDToString(issue.WorkspaceID), ActorType: actorType, ActorID: actorID,
+			Payload: map[string]any{"source": "transition", "id": util.UUIDToString(req.ID), "issue_id": util.UUIDToString(issue.ID), "kind": "transition"},
+		})
+	}
+
 	// Audit entry — same shape the handler's h.audit writes for the HTTP path.
 	details, _ := json.Marshal(map[string]any{"request_id": util.UUIDToString(req.ID), "from": issue.Status, "to": toStatus})
 	if _, err := q.CreateAuditLogEntry(ctx, db.CreateAuditLogEntryParams{
@@ -260,7 +266,7 @@ func notifyTransitionApprovers(ctx context.Context, q *db.Queries, bus *events.B
 	})
 	title := "Approval needed: " + issue.Title
 	if len(title) > 100+len("…") {
-		title = title[:100] + "…"
+		title = util.TruncateUTF8Bytes(title, 100) + "…"
 	}
 	for _, member := range members {
 		if !memberRoleAllowed(member.Role, roles) {
@@ -287,15 +293,7 @@ func notifyTransitionApprovers(ctx context.Context, q *db.Queries, bus *events.B
 				Type:        protocol.EventInboxNew,
 				WorkspaceID: util.UUIDToString(issue.WorkspaceID),
 				ActorType:   "system",
-				Payload: map[string]any{"item": map[string]any{
-					"id":           util.UUIDToString(item.ID),
-					"workspace_id": util.UUIDToString(item.WorkspaceID),
-					"type":         item.Type,
-					"severity":     item.Severity,
-					"issue_id":     util.UUIDToString(issue.ID),
-					"title":        item.Title,
-					"created_at":   item.CreatedAt.Time.Format(time.RFC3339),
-				}},
+				Payload:     map[string]any{"item": InboxItemPayload(item)},
 			})
 		}
 	}

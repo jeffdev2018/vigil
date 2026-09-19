@@ -10,6 +10,9 @@ import { moveInList, runtimePoolsOptions, useDeleteRuntimePool, useSaveRuntimePo
 import type { AgentRuntime } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { SettingsCard, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
@@ -119,17 +122,43 @@ function PoolCard({
         </ol>
         <div className="flex flex-wrap items-center gap-2">
           {canEdit && (
-            <select aria-label={t(($) => $.workspace.pools_add)} className="rounded-md border border-input bg-transparent px-2 py-1" value="" onChange={(e) => e.target.value && setIds([...ids, e.target.value])}>
-              <option value="">{t(($) => $.workspace.pools_add)}</option>
-              {available.map((r) => <option key={r.id} value={r.id}>{runtimeDisplayLabel(r)}</option>)}
-            </select>
+            <Select
+              items={[
+                { value: "", label: t(($) => $.workspace.pools_add) },
+                ...available.map((r) => ({ value: r.id, label: runtimeDisplayLabel(r) })),
+              ]}
+              value=""
+              onValueChange={(value) => value && setIds([...ids, value])}
+            >
+              <SelectTrigger aria-label={t(($) => $.workspace.pools_add)} size="sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.workspace.pools_add)}</SelectItem>
+                {available.map((r) => <SelectItem key={r.id} value={r.id}>{runtimeDisplayLabel(r)}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
           <label className="flex items-center gap-1 text-muted-foreground">
             {t(($) => $.workspace.pools_degraded)}
-            <select aria-label={t(($) => $.workspace.pools_degraded_aria, { name: pool.name || name })} className="rounded-md border border-input bg-transparent px-2 py-1" value={degraded ?? ""} disabled={!canEdit} onChange={(e) => setDegraded(e.target.value || null)}>
-              <option value="">{t(($) => $.workspace.pools_degraded_none)}</option>
-              {runtimes.filter((r) => !ids.includes(r.id)).map((r) => <option key={r.id} value={r.id}>{runtimeDisplayLabel(r)}</option>)}
-            </select>
+            <Select
+              items={[
+                { value: "", label: t(($) => $.workspace.pools_degraded_none) },
+                ...runtimes.filter((r) => !ids.includes(r.id)).map((r) => ({ value: r.id, label: runtimeDisplayLabel(r) })),
+              ]}
+              value={degraded ?? ""}
+              onValueChange={(value) => setDegraded(value || null)}
+            >
+              <SelectTrigger
+                aria-label={t(($) => $.workspace.pools_degraded_aria, { name: pool.name || name })}
+                size="sm"
+                disabled={!canEdit}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.workspace.pools_degraded_none)}</SelectItem>
+                {runtimes.filter((r) => !ids.includes(r.id)).map((r) => <SelectItem key={r.id} value={r.id}>{runtimeDisplayLabel(r)}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </label>
           {canEdit && (dirty || isNew) && (
             <Button type="button" size="sm" disabled={name.trim() === "" || (ids.length === 0 && !degraded)} onClick={commit}>

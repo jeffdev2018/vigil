@@ -25,7 +25,7 @@
     },
     "empty": {
       "title": "还没有 skill",
-      "description": "创建第一个 skill、从 URL 或本地文件夹导入、或从已连接的运行时复制——之后工作区里每个智能体都能用它。"
+      "description": "创建或导入一个 skill。"
     },
     "no_matches": {
       "title": "无匹配",
@@ -47,6 +47,8 @@
     "supporting_data_warning": "部分工作区数据加载失败。创建者归属、运行时名称、编辑权限可能显示不完整。"
   },
   "table": {
+    "select_all": "选择所有技能",
+    "select_skill": "选择{{name}}",
     "name": "名称",
     "created_by": "添加者",
     "used_by": "被谁使用",
@@ -78,6 +80,7 @@
     "has_partial": "已有 {{owned}}/{{total}}",
     "added_toast": "已添加到 {{name}}",
     "add_failed_toast": "添加 skill 失败",
+    "add_partial_toast": "已添加 {{count}} 个，{{failed}} 个失败",
     "delete": "删除",
     "selected": "已选 {{count}} 项",
     "clear_selection": "清除选择",
@@ -86,6 +89,7 @@
     "delete_dialog_desc_other": "将永久删除选中的 {{count}} 个 skill，并从所有智能体上移除。",
     "deleted_toast_other": "已删除 {{count}} 个 skill",
     "delete_failed_toast": "删除 skill 失败",
+    "delete_partial_toast": "已删除 {{count}} 个，{{failed}} 个失败",
     "update": "更新",
     "update_none": "所选内容中没有你可以更新的已导入 skill",
     "update_dialog_title": "从来源更新 skill？",
@@ -95,7 +99,6 @@
     "update_updating": "更新中 {{done}}/{{total}}...",
     "updated_toast_other": "已从来源更新 {{count}} 个 skill",
     "update_partial_toast": "已更新 {{count}} 个，{{failed}} 个失败",
-    "add_dialog_description": "选择要获得所选 skill 的智能体。",
     "cancel": "取消",
     "add_confirm": "添加（{{num}}）",
     "adding": "添加中...",
@@ -107,6 +110,10 @@
     "filter_active_count_other": "{{count}} 项筛选",
     "clear_filters": "清除筛选",
     "section_usage": "使用状态",
+    "section_labels": "标签",
+    "filter_search_placeholder": "筛选...",
+    "no_labels": "还没有标签",
+    "no_results": "无结果",
     "display": "显示",
     "sort_by": "排序",
     "direction_asc": "升序",
@@ -207,13 +214,15 @@
       "properties_hint": "这些字段与 SKILL.md 的 frontmatter 保持同步。",
       "name": "名称",
       "description": "描述",
-      "description_hint": "{{count}} 个字符。智能体根据这段文字判断是否加载该技能。",
+      "description_hint": "智能体据此决定何时加载 skill。",
       "labels": "标签",
       "used_by_other": "被 {{count}} 个智能体使用",
       "used_by_empty": "还未分配给任何智能体。打开某个智能体的 Skills 标签页进行分配。",
       "permissions_owner": "你可以编辑和删除该技能。改动将在智能体下次运行时生效。",
       "permissions_locked_creator": "只有创建者（{{name}}）或工作区管理员可以编辑该技能。",
-      "permissions_locked": "只有创建者或工作区管理员可以编辑该技能。"
+      "permissions_locked": "只有创建者或工作区管理员可以编辑该技能。",
+      "properties_help": "关于 skill 属性",
+      "character_count": "{{count}} 个字符"
     },
     "files": {
       "list_aria": "技能文件",
@@ -308,9 +317,7 @@
     "load_failed": "加载本地 skill 失败",
     "not_supported": "这个 provider 暂不支持本地 skill 列表。",
     "no_skills_title": "未找到本地 skill",
-    "no_skills_hint": "这个运行时上还没有可发现的本地 skill。",
     "search_placeholder": "搜索本地 skill",
-    "no_search_results_title": "没有匹配的本地 skill",
     "no_search_results_hint": "没有本地 skill 匹配 \"{{query}}\"。",
     "ignored_files_hint": "导入时会忽略软链、不可读文件、超大文件以及超大目录。",
     "ready": "准备导入",
@@ -380,5 +387,34 @@
     "published": "已发布，请在附加到智能体前编辑",
     "dismissed": "提案已丢弃",
     "failed": "无法更新提案"
+  },
+  "studio": {
+    "title": "测试工作室",
+    "description": "用真实的智能体试跑已保存的 skill，然后查看结果。每次测试都会打开一个独立的对话。",
+    "dirty": "运行测试前，请先保存修改或重新加载当前版本。",
+    "saved": "已保存的输入",
+    "new_input": "新建输入",
+    "name": "输入名称",
+    "name_placeholder": "例如：支持 / 退款请求",
+    "input": "测试输入",
+    "input_placeholder": "描述一个要处理的具体请求…",
+    "save": "保存输入",
+    "local": "输入和链接只保存在此设备上。",
+    "agent": "测试智能体",
+    "choose_agent": "选择一个已连接的智能体",
+    "permissions": "测试使用这个智能体平时的权限和预算，不是隔离的沙箱环境。",
+    "run": "运行测试",
+    "starting": "启动中…",
+    "history": "运行历史",
+    "empty": "你的测试结果会显示在这里。",
+    "result": "观察到的结果",
+    "stop": "停止",
+    "version": "Skill 保存于 {{date}}",
+    "running": "测试进行中",
+    "retry": "重试",
+    "no_result": "此测试没有可用结果，其对话仍可在聊天中查看。",
+    "result_empty": "运行一个输入即可查看智能体的结果。",
+    "untitled": "未命名输入",
+    "conversation": "打开对话"
   }
 }

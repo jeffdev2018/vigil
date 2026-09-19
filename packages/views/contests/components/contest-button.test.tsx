@@ -22,7 +22,7 @@ import { ContestButton } from "./contest-button";
 const preflight = (over: Partial<ContestPreflight> = {}): ContestPreflight => ({
   target_type: "task_result", target_id: "t1", issue_id: "i1", author_agent_id: "a1", author_provider: "claude",
   challenger: { kind: "agent", agent_id: "a2", name: "Codex critic", provider: "codex", same_vendor: false },
-  estimated_cost_usd_ticks: 1_230_000, quota_used: 2, quota_limit: 10, max_rounds: 2, existing: 1, ...over,
+  estimated_cost_usd_ticks: 12_300_000_000, quota_used: 2, quota_limit: 10, max_rounds: 2, existing: 1, ...over,
 });
 
 function render() {

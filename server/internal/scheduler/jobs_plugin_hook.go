@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -305,11 +306,13 @@ func advancePluginHookNextRun(ctx context.Context, queries *db.Queries, row db.P
 	if err != nil {
 		return
 	}
-	_, _ = queries.UpdatePluginHookScheduleNextRun(ctx, db.UpdatePluginHookScheduleNextRunParams{
+	if _, err := queries.UpdatePluginHookScheduleNextRun(ctx, db.UpdatePluginHookScheduleNextRunParams{
 		ID:         row.ID,
 		Generation: row.Generation,
 		NextRunAt:  pgtype.Timestamptz{Time: next.UTC(), Valid: true},
-	})
+	}); err != nil {
+		slog.Warn("plugin hook schedule: advancing next_run_at failed", "schedule_id", row.ID, "error", err)
+	}
 }
 
 func pluginHookScheduleScopeID(id, generation pgtype.UUID) string {

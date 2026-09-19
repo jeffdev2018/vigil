@@ -167,17 +167,28 @@ func sourceContextThreadChangeDetails(captured, current service.SourceContextSna
 	currentThread := make([]sourceContextComparableThreadNode, 0, len(current.CommentThread))
 	capturedComments := make(map[string]service.SourceContextCommentSnapshot, len(captured.CommentThread))
 	currentComments := make(map[string]service.SourceContextCommentSnapshot, len(current.CommentThread))
+	// A tombstone only holds its replies' place, so it compares as absent: a
+	// comment deleted after capture reads as removed, not as emptied.
 	for _, comment := range captured.CommentThread {
+		if comment.Deleted {
+			continue
+		}
 		capturedThread = append(capturedThread, sourceContextComparableThreadNode{ID: comment.ID, ParentID: comment.ParentID, Type: comment.Type})
 		capturedComments[comment.ID] = comment
 	}
 	for _, comment := range current.CommentThread {
+		if comment.Deleted {
+			continue
+		}
 		currentThread = append(currentThread, sourceContextComparableThreadNode{ID: comment.ID, ParentID: comment.ParentID, Type: comment.Type})
 		currentComments[comment.ID] = comment
 	}
 	threadChanged := captured.AnchorCommentID != current.AnchorCommentID || !jsonEqual(capturedThread, currentThread)
 	changedCommentIDs := make([]string, 0)
 	for _, capturedComment := range captured.CommentThread {
+		if capturedComment.Deleted {
+			continue
+		}
 		currentComment, exists := currentComments[capturedComment.ID]
 		if !exists {
 			continue
@@ -207,12 +218,18 @@ func sourceContextThreadChangeDetails(captured, current service.SourceContextSna
 	}
 	addedComments := make([]service.SourceContextCommentSnapshot, 0)
 	for _, currentComment := range current.CommentThread {
+		if currentComment.Deleted {
+			continue
+		}
 		if _, exists := capturedComments[currentComment.ID]; !exists {
 			addedComments = append(addedComments, currentComment)
 		}
 	}
 	removedCommentIDs := make([]string, 0)
 	for _, capturedComment := range captured.CommentThread {
+		if capturedComment.Deleted {
+			continue
+		}
 		if _, exists := currentComments[capturedComment.ID]; !exists {
 			removedCommentIDs = append(removedCommentIDs, capturedComment.ID)
 		}
@@ -247,7 +264,7 @@ func (h *Handler) issueSourceContextDetail(ctx context.Context, issue db.Issue) 
 	anchor, anchorErr := h.Queries.GetCommentInWorkspace(ctx, db.GetCommentInWorkspaceParams{
 		ID: row.AnchorCommentID, WorkspaceID: issue.WorkspaceID,
 	})
-	anchorExists := anchorErr == nil && anchor.Type == "comment"
+	anchorExists := anchorErr == nil && anchor.Type == "comment" && !anchor.DeletedAt.Valid
 	if anchorExists {
 		response.AnchorCommentState = "available"
 		response.CurrentSource = &sourceContextCurrentSource{
@@ -665,6 +682,11 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		projectID = parsed
 	}
+	// K60: same gate as POST /issues — a sub-issue filed into a project the
+	// caller can only view is still a write on that project.
+	if !h.requireProjectWrite(w, r, projectID) {
+		return errSourceContextResponseWritten
+	}
 	// Transition rules (F28): same gate as POST /issues — a sub-issue filed
 	// straight into a governed category goes through the rules too.
 	if !h.transitionAllowsCreate(w, r, workspaceID, projectID, status) {
@@ -822,6 +844,10 @@ func (h *Handler) prepareAgentCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: parsed, WorkspaceID: workspaceID}); err != nil {
 			return nil, sourceContextBadRequest("project not found")
+		}
+		// K60: same gate as the manual path above.
+		if !h.requireProjectWrite(w, r, parsed) {
+			return nil, errSourceContextResponseWritten
 		}
 		projectID = parsed
 	}

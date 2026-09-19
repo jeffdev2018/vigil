@@ -14,7 +14,8 @@
     "edit": "サイクルを編集",
     "delete": "サイクルを削除",
     "no_project": "サイクルを計画するプロジェクトを選んでください。",
-    "loading": "サイクルを読み込み中"
+    "loading": "サイクルを読み込み中",
+    "load_error": "サイクルを読み込めませんでした"
   },
   "status": {
     "upcoming": "予定",
@@ -46,7 +47,32 @@
     "close_confirm": "サイクルを終了",
     "cancel": "キャンセル",
     "close_error": "サイクルを終了できませんでした",
-    "closed_on": "{{date}} に終了"
+    "closed_on": "{{date}} に終了",
+    "empty_issues_title": "このサイクルに課題はありません",
+    "empty_issues_hint": "新しい課題を作成するか、既存の課題をこのサイクルに割り当ててください。",
+    "empty_issues_new_button": "新規課題"
+  },
+  "actors": {
+    "title": "アクター別キャパシティ",
+    "empty": "アクター別のキャパシティはまだ設定されていません。",
+    "empty_hint": "このサイクルで各メンバーやエージェントが担当できる量を設定してください。",
+    "add": "アクターを追加",
+    "actor_label": "アクター",
+    "actor_placeholder": "人またはエージェントを選択",
+    "points_label": "ポイント",
+    "remove": "アクターを削除",
+    "save": "キャパシティを保存",
+    "error": "キャパシティを保存できませんでした",
+    "points_invalid": "ポイントは0から10000までの整数で入力してください。"
+  },
+  "velocity": {
+    "title": "ベロシティ",
+    "loading": "ベロシティを読み込み中",
+    "empty": "このサイクルで完了した作業はまだありません。",
+    "empty_hint": "人やエージェントが課題を完了すると、ここにベロシティが表示されます。",
+    "other": "未割り当てまたはスクワッドの作業",
+    "done_value": "{{points}} 完了",
+    "history_title": "過去のサイクル"
   },
   "form": {
     "create_title": "新しいサイクル",
@@ -69,7 +95,8 @@
     "create": "サイクルを作成",
     "save": "保存",
     "error": "サイクルを保存できませんでした",
-    "date_order": "終了日は開始日以降にしてください。"
+    "date_order": "終了日は開始日以降にしてください。",
+    "capacity_negative": "キャパシティは0以上にしてください。"
   },
   "delete_dialog": {
     "title": "このサイクルを削除しますか？",

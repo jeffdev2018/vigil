@@ -14,6 +14,11 @@ import path from "node:path";
 // Co-located test files (foo.ts + foo.test.ts) match how the rest of the
 // monorepo organises vitest suites.
 export default defineConfig({
+  // Metro injects __DEV__ at bundle time; vitest does not, so any module under
+  // test that branches on it (data/api.ts's request log) would throw a
+  // ReferenceError at import. Pin it to the release value so tests exercise the
+  // shipped path and stay quiet.
+  define: { __DEV__: "false" },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),

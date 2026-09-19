@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import type { Agent } from "@multica/core/types";
 import {
@@ -8,6 +9,7 @@ import {
   MIN_RUN_GROUP_ATTEMPTS,
   useStartRunGroup,
 } from "@multica/core/issues/run-group";
+import { runtimeDisplayLabel, runtimeListOptions } from "@multica/core/runtimes";
 import {
   Dialog,
   DialogContent,
@@ -18,19 +20,32 @@ import {
 } from "@multica/ui/components/ui/dialog";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 interface Row {
   agentId: string;
   model: string;
+  runtimeId: string;
 }
 
-const EMPTY_ROWS: Row[] = [{ agentId: "", model: "" }, { agentId: "", model: "" }];
+const EMPTY_ROWS: Row[] = [
+  { agentId: "", model: "", runtimeId: "" },
+  { agentId: "", model: "", runtimeId: "" },
+];
 
 /**
  * Start a race (F11). Between 2 and 5 attempts, each an agent and an optional
  * model that overrides the agent's own — the same agent twice on two models is
- * a legitimate race, so duplicates are not rejected here.
+ * a legitimate race, so duplicates are not rejected here. An attempt may also
+ * pin a runtime (JEF-234) to race CLIs against each other; left on the
+ * default, it runs wherever the agent is bound, exactly as before.
  */
 export function RunGroupStartDialog({
   open,
@@ -49,6 +64,7 @@ export function RunGroupStartDialog({
 }) {
   const { t } = useT("issues");
   const start = useStartRunGroup(wsId, issueId);
+  const { data: runtimes = [] } = useQuery(runtimeListOptions(wsId));
   const [rows, setRows] = useState<Row[]>(EMPTY_ROWS);
   const [note, setNote] = useState("");
 
@@ -61,7 +77,11 @@ export function RunGroupStartDialog({
     if (!valid) return;
     start.mutate(
       {
-        attempts: rows.map((row) => (row.model.trim() ? { agent_id: row.agentId, model: row.model.trim() } : { agent_id: row.agentId })),
+        attempts: rows.map((row) => ({
+          agent_id: row.agentId,
+          ...(row.model.trim() ? { model: row.model.trim() } : {}),
+          ...(row.runtimeId ? { runtime_id: row.runtimeId } : {}),
+        })),
         ...(note.trim() ? { note: note.trim() } : {}),
       },
       { onError, onSuccess: () => { reset(); onOpenChange(false); } },
@@ -81,17 +101,42 @@ export function RunGroupStartDialog({
         >
           {rows.map((row, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <select
-                aria-label={t(($) => $.race.attempt_agent, { index: i + 1 })}
-                className="min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 py-1"
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.race.pick_agent) },
+                  ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+                ]}
                 value={row.agentId}
-                onChange={(e) => setRow(i, { agentId: e.target.value })}
+                onValueChange={(value) => value !== null && setRow(i, { agentId: value })}
               >
-                <option value="">{t(($) => $.race.pick_agent)}</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className="min-w-0 flex-1" aria-label={t(($) => $.race.attempt_agent, { index: i + 1 })}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.race.pick_agent)}</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.race.default_runtime) },
+                  ...runtimes.map((runtime) => ({ value: runtime.id, label: runtimeDisplayLabel(runtime) })),
+                ]}
+                value={row.runtimeId}
+                onValueChange={(value) => value !== null && setRow(i, { runtimeId: value })}
+              >
+                <SelectTrigger className="min-w-0 flex-1" aria-label={t(($) => $.race.attempt_runtime, { index: i + 1 })}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.race.default_runtime)}</SelectItem>
+                  {runtimes.map((runtime) => (
+                    <SelectItem key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 aria-label={t(($) => $.race.attempt_model, { index: i + 1 })}
                 className="h-8 flex-1"
@@ -117,7 +162,7 @@ export function RunGroupStartDialog({
             variant="ghost"
             className="self-start"
             disabled={rows.length >= MAX_RUN_GROUP_ATTEMPTS}
-            onClick={() => setRows((prev) => [...prev, { agentId: "", model: "" }])}
+            onClick={() => setRows((prev) => [...prev, { agentId: "", model: "", runtimeId: "" }])}
           >
             {t(($) => $.race.add_attempt)}
           </Button>

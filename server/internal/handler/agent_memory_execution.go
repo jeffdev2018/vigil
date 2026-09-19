@@ -203,6 +203,10 @@ func (h *Handler) StartMemoryExecution(w http.ResponseWriter, r *http.Request) {
 		if c.Check == "javascript" {
 			report.Suite.CodeImage = os.Getenv("MULTICA_MEMORY_CODE_IMAGE")
 		}
+		// Input/Checks are unused placeholders for the connected-runtime path:
+		// validateConnected only checks len(Cases)==len(TextCases) (this loop's
+		// real purpose), and grading reads Suite.TextCases, never Case.Input or
+		// Case.Checks. Set to satisfy that length invariant, not to be read.
 		report.Suite.Cases = append(report.Suite.Cases, memoryeval.Case{ID: c.ID, Split: c.Split, Input: c.ID, Checks: c.ID})
 	}
 	if err = report.Suite.Validate(); err != nil {

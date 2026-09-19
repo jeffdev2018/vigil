@@ -76,6 +76,9 @@ const (
 	orgHealthWindow            = 7 * 24 * time.Hour
 	orgProposalCooldown        = 24 * time.Hour
 	orgLLMReviewSecondsPerItem = 90
+	// orgMissionMaxRunes caps a unit's free-text mission: one sentence, the
+	// same ceiling the wizard's purpose field uses.
+	orgMissionMaxRunes = 240
 )
 
 var orgModels = []string{OrgModelHierarchy, OrgModelSquads, OrgModelMatrix, OrgModelCircles, OrgModelOwnerNetwork, OrgModelTaskforce, OrgModelMarket}
@@ -90,6 +93,9 @@ var orgNonNegotiableDeny = []string{"delete", "bill", "send_external_without_app
 var orgAutonomyRank = map[string]int{"read_only": 0, "draft": 1, "approve_payload": 2, "auto": 3}
 
 var orgEdgeKinds = map[string]bool{"reports_to": true, "backs_up": true, "escalates_to": true, "consults": true}
+
+// orgDecisionClasses are the external effects a unit must name a decider for.
+var orgDecisionClasses = []string{"money", "outbound_data", "external_message"}
 
 type OrgMember struct {
 	Type   string `json:"type"`
@@ -112,10 +118,14 @@ type OrgUnit struct {
 	// Model is how this unit takes an issue once routed to it. Empty inherits
 	// the parent's (via reports_to) and finally the structure's model, so a
 	// hierarchy can hold a market team next to a squad next to a pool.
-	Model                 string            `json:"model,omitempty"`
-	OwnerID               string            `json:"owner_id,omitempty"`
-	SquadID               string            `json:"squad_id,omitempty"`
-	MissionGoalID         string            `json:"mission_goal_id,omitempty"`
+	Model         string `json:"model,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
+	SquadID       string `json:"squad_id,omitempty"`
+	MissionGoalID string `json:"mission_goal_id,omitempty"`
+	// Mission is the unit's own sentence: what it is here to do. Free text
+	// (unlike MissionGoalID, which points at a goal), carried into the run's
+	// brief so an agent reads why its unit exists.
+	Mission               string            `json:"mission,omitempty"`
 	BudgetUsdTicks        int64             `json:"budget_usd_ticks,omitempty"`
 	Excludes              []string          `json:"excludes"`
 	Autonomy              string            `json:"autonomy"`
@@ -183,6 +193,35 @@ func (d *OrgDefinition) parent(unitID string) *OrgUnit {
 		}
 	}
 	return nil
+}
+
+// orgEscalationChain is the ladder above a unit: its escalates_to edge when
+// it has one, else reports_to, each unit visited once so a cycle terminates.
+// Shared by the run's org context and by the simulation, so a person and an
+// agent are told the same path.
+func orgEscalationChain(d *OrgDefinition, unit *OrgUnit) []*OrgUnit {
+	var out []*OrgUnit
+	seen := map[string]bool{unit.ID: true}
+	for cur := unit; cur != nil; {
+		var next *OrgUnit
+		for _, kind := range []string{"escalates_to", "reports_to"} {
+			for _, e := range d.Edges {
+				if e.From == cur.ID && e.Kind == kind && !seen[e.To] {
+					next = d.unit(e.To)
+				}
+			}
+			if next != nil {
+				break
+			}
+		}
+		if next == nil {
+			return out
+		}
+		seen[next.ID] = true
+		out = append(out, next)
+		cur = next
+	}
+	return out
 }
 
 // orgEffectiveModel is the model a unit operates under: its own, else the
@@ -434,6 +473,9 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 	if !containsStr(orgModels, model) {
 		return orgErrorf("model must be one of: %s", strings.Join(orgModels, ", "))
 	}
+	if err := validateOrgReporting(*d, model); err != nil {
+		return err
+	}
 	if len(d.Units) == 0 {
 		return orgErrorf("a structure needs at least one unit")
 	}
@@ -458,6 +500,10 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		u.Name = strings.TrimSpace(u.Name)
 		if u.ID == "" || u.Name == "" {
 			return orgErrorf("unit #%d needs an id and a name", i+1)
+		}
+		u.Mission = strings.TrimSpace(u.Mission)
+		if len([]rune(u.Mission)) > orgMissionMaxRunes {
+			return orgErrorf("unit %q: the mission is at most %d characters", u.Name, orgMissionMaxRunes)
 		}
 		if seen[u.ID] {
 			return orgErrorf("unit id %q is used twice", u.ID)
@@ -550,7 +596,7 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		}
 		// A unit exposed to external effects names who decides on money, outbound data and external messages.
 		if u.properties()["external_effects"] {
-			for _, class := range []string{"money", "outbound_data", "external_message"} {
+			for _, class := range orgDecisionClasses {
 				if u.Deciders[class] == "" || !memberKnown(u.Deciders[class]) {
 					return orgErrorf("unit %q has external effects: name a member as decider for %s", u.Name, class)
 				}
@@ -674,16 +720,31 @@ func (h *Handler) orgActivationCheck(ctx context.Context, wsUUID pgtype.UUID, mo
 // --- CRUD --------------------------------------------------------------------------
 
 type orgWriteRequest struct {
-	ProjectID       *string         `json:"project_id"`
-	Model           string          `json:"model"`
-	Name            string          `json:"name"`
-	Definition      json.RawMessage `json:"definition"`
-	OwnerID         *string         `json:"owner_id"`
-	DissolveAt      *string         `json:"dissolve_at"`
-	EndCondition    string          `json:"end_condition"`
-	BudgetUsdTicks  int64           `json:"budget_usd_ticks"`
-	EvalAttestation string          `json:"eval_attestation"`
-	Note            string          `json:"note"`
+	ExpectedRevision  *int32          `json:"expected_revision"`
+	RestoreRevisionID string          `json:"restore_revision_id"`
+	ProjectID         *string         `json:"project_id"`
+	Model             string          `json:"model"`
+	Name              string          `json:"name"`
+	Definition        json.RawMessage `json:"definition"`
+	OwnerID           *string         `json:"owner_id"`
+	DissolveAt        *string         `json:"dissolve_at"`
+	EndCondition      *string         `json:"end_condition"`
+	BudgetUsdTicks    *int64          `json:"budget_usd_ticks"`
+	EvalAttestation   string          `json:"eval_attestation"`
+	Note              string          `json:"note"`
+}
+
+func derefOrgBudget(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+func derefOrgString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func (h *Handler) decodeOrgRequest(w http.ResponseWriter, r *http.Request) (orgWriteRequest, OrgDefinition, pgtype.UUID, pgtype.Timestamptz, bool) {
@@ -693,6 +754,10 @@ func (h *Handler) decodeOrgRequest(w http.ResponseWriter, r *http.Request) (orgW
 		return req, OrgDefinition{}, pgtype.UUID{}, pgtype.Timestamptz{}, false
 	}
 	def := decodeOrgDefinition(req.Definition)
+	if req.BudgetUsdTicks != nil && *req.BudgetUsdTicks < 0 {
+		writeError(w, http.StatusBadRequest, "budget must be non-negative")
+		return req, def, pgtype.UUID{}, pgtype.Timestamptz{}, false
+	}
 	var owner pgtype.UUID
 	if req.OwnerID != nil && *req.OwnerID != "" {
 		id, ok := parseUUIDOrBadRequest(w, *req.OwnerID, "owner_id")
@@ -789,7 +854,7 @@ func (h *Handler) GetOrgStructure(w http.ResponseWriter, r *http.Request) {
 	revisions, _ := h.Queries.ListOrgRevisions(r.Context(), db.ListOrgRevisionsParams{StructureID: s.ID, WorkspaceID: wsUUID})
 	revs := make([]map[string]any, 0, len(revisions))
 	for _, rv := range revisions {
-		revs = append(revs, map[string]any{"id": uuidToString(rv.ID), "revision": rv.Revision, "model": rv.Model, "status": rv.Status, "note": rv.Note, "changed_by": uuidToPtr(rv.ChangedBy), "created_at": timestampToString(rv.CreatedAt)})
+		revs = append(revs, map[string]any{"id": uuidToString(rv.ID), "revision": rv.Revision, "model": rv.Model, "status": rv.Status, "definition": decodeOrgDefinition(rv.Definition), "note": rv.Note, "changed_by": uuidToPtr(rv.ChangedBy), "created_at": timestampToString(rv.CreatedAt)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"structure": h.orgToResponse(r.Context(), s), "revisions": revs})
 }
@@ -804,7 +869,9 @@ func (h *Handler) CreateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	req, def, owner, dissolve, ok := h.decodeOrgRequest(w, r)
@@ -834,7 +901,7 @@ func (h *Handler) CreateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !owner.Valid {
 		owner = parseUUID(userID)
 	}
-	s, err := h.createOrgStructure(r.Context(), wsUUID, projectID, req.Model, req.Name, orgStatusDraft, def, owner, dissolve, req.EndCondition, req.BudgetUsdTicks, req.EvalAttestation, parseUUID(userID), req.Note)
+	s, err := h.createOrgStructure(r.Context(), wsUUID, projectID, req.Model, req.Name, orgStatusDraft, def, owner, dissolve, derefOrgString(req.EndCondition), derefOrgBudget(req.BudgetUsdTicks), req.EvalAttestation, parseUUID(userID), req.Note)
 	if err != nil {
 		if strings.Contains(err.Error(), "uq_org_structure") {
 			writeError(w, http.StatusConflict, "this project (or the workspace default) already has a live structure")
@@ -876,7 +943,9 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "structure id")
@@ -900,8 +969,25 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if model == "" {
 		model = prev.Model
 	}
+	if req.ExpectedRevision != nil && *req.ExpectedRevision != prev.Revision {
+		writeError(w, http.StatusConflict, "This structure changed. Reload it before saving.")
+		return
+	}
 	if len(req.Definition) == 0 {
 		def = decodeOrgDefinition(prev.Definition)
+	}
+	if req.RestoreRevisionID != "" {
+		rid, ok := parseUUIDOrBadRequest(w, req.RestoreRevisionID, "restore_revision_id")
+		if !ok {
+			return
+		}
+		rev, err := h.Queries.GetOrgRevision(r.Context(), db.GetOrgRevisionParams{ID: rid, WorkspaceID: wsUUID})
+		if err != nil || rev.StructureID != prev.ID {
+			writeError(w, http.StatusNotFound, "revision not found")
+			return
+		}
+		def, model = decodeOrgDefinition(rev.Definition), rev.Model
+		req.Note = fmt.Sprintf("Restored definition from revision %d", rev.Revision)
 	}
 	if err := h.validateOrg(r.Context(), wsUUID, model, &def); err != nil {
 		h.writeOrgError(w, err)
@@ -921,13 +1007,13 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = prev.Name
 	}
-	endCondition := req.EndCondition
-	if endCondition == "" {
-		endCondition = prev.EndCondition
+	endCondition := prev.EndCondition
+	if req.EndCondition != nil {
+		endCondition = *req.EndCondition
 	}
-	budget := req.BudgetUsdTicks
-	if budget == 0 {
-		budget = prev.BudgetUsdTicks
+	budget := prev.BudgetUsdTicks
+	if req.BudgetUsdTicks != nil {
+		budget = *req.BudgetUsdTicks
 	}
 	if prev.Status == orgStatusActive {
 		if err := h.orgActivationCheck(r.Context(), wsUUID, model, owner, dissolve, endCondition, eval, def); err != nil {
@@ -937,23 +1023,46 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := h.saveOrgRevision(r.Context(), prev, model, name, prev.Status, def, owner, dissolve, endCondition, budget, eval, parseUUID(userID), req.Note)
 	if err != nil {
+		if errors.Is(err, errOrgRevisionConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to save structure")
 		return
 	}
 	writeJSON(w, http.StatusOK, h.orgToResponse(r.Context(), s))
 }
 
+var errOrgRevisionConflict = errors.New("This structure changed. Reload it before saving.")
+
 func (h *Handler) saveOrgRevision(ctx context.Context, prev db.OrgStructure, model, name, status string, def OrgDefinition, owner pgtype.UUID, dissolve pgtype.Timestamptz, endCondition string, budget int64, eval string, by pgtype.UUID, note string) (db.OrgStructure, error) {
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		return db.OrgStructure{}, err
+	}
+	defer tx.Rollback(ctx)
+	var revision int32
+	var currentStatus string
+	if err := tx.QueryRow(ctx, "SELECT revision, status FROM org_structure WHERE id = $1 AND workspace_id = $2 FOR UPDATE", prev.ID, prev.WorkspaceID).Scan(&revision, &currentStatus); err != nil {
+		return db.OrgStructure{}, err
+	}
+	if revision != prev.Revision || currentStatus != prev.Status {
+		return db.OrgStructure{}, errOrgRevisionConflict
+	}
+	q := h.Queries.WithTx(tx)
 	raw, _ := json.Marshal(def)
 	revID := dbid.NewV7()
-	s, err := h.Queries.UpdateOrgStructure(ctx, db.UpdateOrgStructureParams{
+	s, err := q.UpdateOrgStructure(ctx, db.UpdateOrgStructureParams{
 		ID: prev.ID, WorkspaceID: prev.WorkspaceID, Model: model, Name: name, Status: status, RevisionID: revID, Definition: raw, OwnerID: owner,
 		DissolveAt: dissolve, EndCondition: endCondition, BudgetUsdTicks: budget, EvalAttestation: eval,
 	})
 	if err != nil {
 		return db.OrgStructure{}, err
 	}
-	if _, err := h.Queries.CreateOrgRevision(ctx, db.CreateOrgRevisionParams{ID: revID, WorkspaceID: prev.WorkspaceID, StructureID: s.ID, Revision: s.Revision, Model: model, Status: status, Definition: raw, ChangedBy: by, Note: note}); err != nil {
+	if _, err := q.CreateOrgRevision(ctx, db.CreateOrgRevisionParams{ID: revID, WorkspaceID: prev.WorkspaceID, StructureID: s.ID, Revision: s.Revision, Model: model, Status: status, Definition: raw, ChangedBy: by, Note: note}); err != nil {
+		return db.OrgStructure{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return db.OrgStructure{}, err
 	}
 	h.audit(ctx, prev.WorkspaceID, "member", uuidToString(by), AuditOrgSaved, "org_structure", s.ID, map[string]any{"model": model, "revision": s.Revision, "status": status, "units": len(def.Units), "note": note}, nil)
@@ -971,7 +1080,9 @@ func (h *Handler) SetOrgStructureStatus(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if _, ok := h.requireWorkspaceMember(w, r, uuidToString(wsUUID), "workspace not found"); !ok {
+	// Org writes reconfigure routing and agent autonomy workspace-wide:
+	// the same owner/admin bar as DeleteOrgStructure.
+	if _, ok := h.requireWorkspaceRole(w, r, uuidToString(wsUUID), "workspace not found", "owner", "admin"); !ok {
 		return
 	}
 	id, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "structure id")
@@ -1157,11 +1268,15 @@ func (h *Handler) orgFlow(ctx context.Context, s db.OrgStructure, unitID, kind s
 // orgMatchUnit picks the unit a rule routes the issue to, else the model's
 // fallback. A paused unit or one without owner never receives work.
 func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDefinition, issue db.Issue) *OrgUnit {
+	return h.orgMatchUnitWith(ctx, s, def, issue, h.issueLabelNames(ctx, issue))
+}
+
+// orgMatchUnitWith takes the issue's labels from the caller: a simulated
+// issue is not in the database, so its labels cannot be read back from it.
+func (h *Handler) orgMatchUnitWith(ctx context.Context, s db.OrgStructure, def OrgDefinition, issue db.Issue, labelNames []string) *OrgUnit {
 	labels := map[string]bool{}
-	if rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID}); err == nil {
-		for _, l := range rows {
-			labels[strings.ToLower(l.Name)] = true
-		}
+	for _, l := range labelNames {
+		labels[strings.ToLower(l)] = true
 	}
 	paths := service.IssuePaths(issue.Title, issue.Description.String)
 	text := strings.ToLower(issue.Title + "\n" + issue.Description.String)
@@ -1238,12 +1353,18 @@ func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDe
 // matrix model (the unit's effective one) the most competent member for the
 // issue's domain wins.
 func (h *Handler) orgTargetForUnit(ctx context.Context, model string, u *OrgUnit, issue db.Issue) (string, pgtype.UUID) {
+	return h.orgTargetForUnitWith(ctx, model, u, issue, h.issueLabelNames(ctx, issue))
+}
+
+// orgTargetForUnitWith takes the issue's labels from the caller, for the
+// same reason orgMatchUnitWith does: the matrix reads its domain off them.
+func (h *Handler) orgTargetForUnitWith(ctx context.Context, model string, u *OrgUnit, issue db.Issue, labelNames []string) (string, pgtype.UUID) {
 	if u.SquadID != "" {
 		return "squad", parseUUID(u.SquadID)
 	}
 	agents := u.memberIDs("agent")
 	if model == OrgModelMatrix && len(agents) > 1 {
-		domain := h.issueDomainKey(ctx, issue)
+		domain := h.issueDomainKeyWith(ctx, issue, labelNames)
 		rows, _ := h.Queries.ListDomainCompetency(ctx, db.ListDomainCompetencyParams{WorkspaceID: issue.WorkspaceID, DomainKey: domain})
 		bestScore, best := -1.0, ""
 		for _, c := range rows {
@@ -1517,4 +1638,41 @@ func (h *Handler) orgAlert(ctx context.Context, s db.OrgStructure, ownerID, titl
 		return
 	}
 	h.publish(protocol.EventInboxNew, uuidToString(s.WorkspaceID), "system", "", map[string]any{"item": inboxToResponse(item)})
+}
+
+// Reporting graphs must be acyclic, including disconnected components.
+func validateOrgReporting(def OrgDefinition, model string) error {
+	parents := map[string][]string{}
+	for _, e := range def.Edges {
+		if e.Kind == "reports_to" {
+			parents[e.From] = append(parents[e.From], e.To)
+		}
+	}
+	state := map[string]int{}
+	var visit func(string) bool
+	visit = func(id string) bool {
+		if state[id] == 1 {
+			return false
+		}
+		if state[id] == 2 {
+			return true
+		}
+		state[id] = 1
+		for _, parent := range parents[id] {
+			if !visit(parent) {
+				return false
+			}
+		}
+		state[id] = 2
+		return true
+	}
+	for _, u := range def.Units {
+		if model == OrgModelHierarchy && len(parents[u.ID]) > 1 {
+			return orgErrorf("hierarchy: unit %q can have only one reporting parent", u.Name)
+		}
+		if !visit(u.ID) {
+			return orgErrorf("reporting lines contain a cycle")
+		}
+	}
+	return nil
 }

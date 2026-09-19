@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import {
   formatTranscriptLine,
-  hasSpeakers,
   parseTranscriptBlocks,
   parseTranscriptLines,
 } from "./transcript-speakers";
@@ -60,14 +59,6 @@ describe("parseTranscriptBlocks", () => {
   it("drops blank lines and returns nothing for an empty transcript", () => {
     expect(parseTranscriptBlocks("")).toEqual([]);
     expect(parseTranscriptBlocks("\n  \n")).toEqual([]);
-  });
-});
-
-describe("hasSpeakers", () => {
-  it("is true only when something is attributed", () => {
-    expect(hasSpeakers(parseTranscriptBlocks("Speaker 1: a"))).toBe(true);
-    expect(hasSpeakers(parseTranscriptBlocks("a\nb"))).toBe(false);
-    expect(hasSpeakers([])).toBe(false);
   });
 });
 

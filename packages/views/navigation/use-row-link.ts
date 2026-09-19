@@ -12,12 +12,14 @@ import { useNavigation } from "./context";
  * `<a>`) given that row's href. Calling it per row keeps it outside the
  * rules-of-hooks trap of invoking `useNavigation` inside a `.map()`.
  *
- * The whole row navigates on click — the row is the click target, so the
- * name cell stays plain text (no nested `<a>`, which would be a redundant
- * second entry point). Interactive cells (checkbox, kebab, inline editors)
- * must stop propagation so interacting with them never reaches these
- * handlers — spread `rowLinkInteractiveProps` on them rather than wiring
- * `onClick` alone, because the row handles `auxclick` too.
+ * Whole-row navigation is a MOUSE convenience only. The row is a `<div>`, so
+ * it has no keyboard activation, no "open in new tab" and no browser context
+ * menu: those belong to a real `<AppLink>` in the name cell, which every list
+ * row must carry (the invariant `ui/list-grid` documents on `ListGridRow`).
+ * Spread `rowLinkInteractiveProps` on that anchor so its own click never also
+ * reaches the row and opens a second tab. Interactive cells (checkbox, kebab,
+ * inline editors) take the same props rather than wiring `onClick` alone,
+ * because the row handles `auxclick` too.
  *
  * Mirrors AppLink's modifier semantics via `resolveClickIntent`: a plain left
  * click pushes; cmd/ctrl (or a middle click) opens a background tab on

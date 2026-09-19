@@ -319,4 +319,35 @@ describe("useRealtimeSync — task:message carrying a run plan (F04)", () => {
 
     expect(cachedPlan(qc)).toBeUndefined();
   });
+
+  // task:message also stamps last_activity_at as proof of life (F02),
+  // throttled to a 5s resolution. The write-level throttle alone still let
+  // every chunk pay a getQueriesData + findIndex scan of every open task
+  // list; the call itself must be throttled too.
+  it("skips the run-activity scan entirely while under the 5s throttle window", () => {
+    // A task id not touched by any other test in this file: the throttle map
+    // is module-scoped (deliberately, so it survives across events), so a
+    // shared id would leak a stamp from another test's fake clock.
+    const RUN_ACTIVITY_TASK = "33333333-3333-4333-8333-333333333333";
+    const handler = mountWithRuns([run({ id: RUN_ACTIVITY_TASK, last_activity_at: null })]);
+    const scan = vi.spyOn(qc, "getQueriesData");
+
+    handler(msg(RUN_ACTIVITY_TASK, 1, { type: "text", content: "chunk 1" }));
+    const firstStamp = qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at;
+    expect(firstStamp).toBeTruthy();
+    expect(scan).toHaveBeenCalledTimes(1);
+
+    // A second chunk arriving immediately after (same run streaming fast)
+    // must not scan again: the throttle is checked before the loop, not
+    // just before the write inside it.
+    handler(msg(RUN_ACTIVITY_TASK, 2, { type: "text", content: "chunk 2" }));
+    expect(scan).toHaveBeenCalledTimes(1);
+    expect(qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at).toBe(firstStamp);
+
+    // Past the window, the next chunk scans and stamps again.
+    vi.advanceTimersByTime(5_001);
+    handler(msg(RUN_ACTIVITY_TASK, 3, { type: "text", content: "chunk 3" }));
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at).not.toBe(firstStamp);
+  });
 });

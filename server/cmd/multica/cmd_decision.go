@@ -40,6 +40,9 @@ func init() {
 }
 
 func runDecisionAsk(cmd *cobra.Command, args []string) error {
+	if err := requireJSONOutput(cmd); err != nil {
+		return err
+	}
 	question, _ := cmd.Flags().GetString("question")
 	if strings.TrimSpace(question) == "" {
 		return fmt.Errorf("--question is required")

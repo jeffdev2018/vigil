@@ -8,6 +8,10 @@ export {
   INSTALL_RUNTIME_ISSUE_BODY,
 } from "./install-runtime-issue";
 export {
+  FIRST_RUN_ISSUE_TITLE,
+  FIRST_RUN_ISSUE_BODY,
+} from "./first-run-issue";
+export {
   getMikaOnboarding,
   type MikaContentLang,
   type MikaOnboardingDefinition,
@@ -19,7 +23,8 @@ const CONTENT_LANG_BY_LOCALE: Record<SupportedLocale, ContentLang> = {
   "zh-Hans": "zh",
   ko: "ko",
   ja: "ja",
-  // Onboarding content is not localized in French yet: English content.
+  // Mika's onboarding content has no French variant yet, so French users
+  // read the English copy rather than an untranslated placeholder.
   fr: "en",
 };
 

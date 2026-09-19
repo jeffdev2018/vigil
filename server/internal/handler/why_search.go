@@ -40,6 +40,42 @@ func (h *Handler) indexWhy(ctx context.Context, wsID pgtype.UUID, sourceType str
 	}
 }
 
+// whyChunkInput is one row queued for indexWhyBatch.
+type whyChunkInput struct {
+	SourceID pgtype.UUID
+	IssueID  pgtype.UUID
+	Content  string
+}
+
+// indexWhyBatch upserts many chunks of the same source type in one round
+// trip instead of one call per row. Best effort like indexWhy: a failure is
+// logged and never fails the reindex it runs inside. Content that is too
+// short after trimming is dropped from the batch, same filter as indexWhy.
+func (h *Handler) indexWhyBatch(ctx context.Context, wsID pgtype.UUID, sourceType string, items []whyChunkInput) {
+	ids := make([]pgtype.UUID, 0, len(items))
+	sourceIDs := make([]pgtype.UUID, 0, len(items))
+	issueIDs := make([]pgtype.UUID, 0, len(items))
+	contents := make([]string, 0, len(items))
+	for _, it := range items {
+		content := strings.TrimSpace(it.Content)
+		if len([]rune(content)) < whyMinContentChars {
+			continue
+		}
+		ids = append(ids, dbid.NewV7())
+		sourceIDs = append(sourceIDs, it.SourceID)
+		issueIDs = append(issueIDs, it.IssueID)
+		contents = append(contents, content)
+	}
+	if len(ids) == 0 {
+		return
+	}
+	if err := h.Queries.UpsertWhyChunksBatch(ctx, db.UpsertWhyChunksBatchParams{
+		Ids: ids, WorkspaceID: wsID, SourceType: sourceType, SourceIds: sourceIDs, IssueIds: issueIDs, Contents: contents,
+	}); err != nil {
+		slog.Warn("why search: batch index failed", "error", err, "source_type", sourceType, "count", len(ids))
+	}
+}
+
 func (h *Handler) unindexWhy(ctx context.Context, sourceType string, sourceID pgtype.UUID) {
 	if err := h.Queries.DeleteWhyChunk(ctx, db.DeleteWhyChunkParams{SourceType: sourceType, SourceID: sourceID}); err != nil {
 		slog.Warn("why search: unindex failed", "error", err, "source_type", sourceType, "source_id", uuidToString(sourceID))
@@ -121,36 +157,48 @@ func (h *Handler) ReindexWhy(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list comments")
 		return
 	}
-	for _, c := range comments {
-		h.indexWhy(ctx, wsUUID, whySourceComment, c.ID, c.IssueID, c.Content)
-		counts[whySourceComment]++
+	commentItems := make([]whyChunkInput, len(comments))
+	for i, c := range comments {
+		commentItems[i] = whyChunkInput{SourceID: c.ID, IssueID: c.IssueID, Content: c.Content}
 	}
+	h.indexWhyBatch(ctx, wsUUID, whySourceComment, commentItems)
+	counts[whySourceComment] = len(comments)
+
 	records, err := h.Queries.ListWorkspaceDecisionRecordsForWhy(ctx, wsUUID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list decision records")
 		return
 	}
-	for _, d := range records {
-		h.indexWhy(ctx, wsUUID, whySourceDecisionRecord, d.ID, d.IssueID, decisionRecordWhyContent(d.Title, d.Context, d.Decision))
-		counts[whySourceDecisionRecord]++
+	recordItems := make([]whyChunkInput, len(records))
+	for i, d := range records {
+		recordItems[i] = whyChunkInput{SourceID: d.ID, IssueID: d.IssueID, Content: decisionRecordWhyContent(d.Title, d.Context, d.Decision)}
 	}
+	h.indexWhyBatch(ctx, wsUUID, whySourceDecisionRecord, recordItems)
+	counts[whySourceDecisionRecord] = len(records)
+
 	messages, err := h.Queries.ListWorkspaceTextMessagesForWhy(ctx, wsUUID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list run messages")
 		return
 	}
-	for _, m := range messages {
-		h.indexWhy(ctx, wsUUID, whySourceTaskMessage, m.ID, m.IssueID, m.Content.String)
-		counts[whySourceTaskMessage]++
+	messageItems := make([]whyChunkInput, len(messages))
+	for i, m := range messages {
+		messageItems[i] = whyChunkInput{SourceID: m.ID, IssueID: m.IssueID, Content: m.Content.String}
 	}
-	goals, err := h.Queries.ListGoals(ctx, wsUUID)
+	h.indexWhyBatch(ctx, wsUUID, whySourceTaskMessage, messageItems)
+	counts[whySourceTaskMessage] = len(messages)
+
+	goals, err := h.Queries.ListGoalsForWhy(ctx, wsUUID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list goals")
 		return
 	}
-	for _, g := range goals {
-		h.indexWhy(ctx, wsUUID, whySourceGoal, g.ID, pgtype.UUID{}, goalWhyContent(g))
-		counts[whySourceGoal]++
+	goalItems := make([]whyChunkInput, len(goals))
+	for i, g := range goals {
+		goalItems[i] = whyChunkInput{SourceID: g.ID, IssueID: pgtype.UUID{}, Content: goalWhyContent(g)}
 	}
+	h.indexWhyBatch(ctx, wsUUID, whySourceGoal, goalItems)
+	counts[whySourceGoal] = len(goals)
+
 	writeJSON(w, http.StatusOK, map[string]any{"indexed": counts})
 }

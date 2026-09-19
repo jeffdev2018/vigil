@@ -8,6 +8,13 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import { duelCostUsd, duelDuration, issueDuelOptions, useConfirmDuel, useStartDuel, type AgentDuel, type AgentDuelSide, type DuelWinner } from "@multica/core/issues/duel";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
@@ -73,17 +80,37 @@ export function DuelSection({ issueId, canManage = true }: { issueId: string; ca
         open ? (
           <form data-testid="duel-form" className="flex flex-wrap items-center gap-1.5 rounded-md border border-border p-2" onSubmit={(e) => { e.preventDefault(); if (valid) start.mutate({ agent_a_id: agentA, agent_b_id: agentB }, { onError: fail, onSuccess: () => { setOpen(false); setAgentA(""); setAgentB(""); } }); }}>
             {([["a", agentA, setAgentA], ["b", agentB, setAgentB]] as const).map(([side, value, set]) => (
-              <select key={side} aria-label={side === "a" ? t(($) => $.duel.agent_a) : t(($) => $.duel.agent_b)} className="rounded-md border border-input bg-transparent px-2 py-1" value={value} onChange={(e) => set(e.target.value)}>
-                <option value="">{t(($) => $.duel.pick_agent)}</option>
-                {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <Select
+                key={side}
+                items={[
+                  { value: "", label: t(($) => $.duel.pick_agent) },
+                  ...agents.map((a) => ({ value: a.id, label: a.name })),
+                ]}
+                value={value}
+                onValueChange={(next) => next !== null && set(next)}
+              >
+                <SelectTrigger size="sm" aria-label={side === "a" ? t(($) => $.duel.agent_a) : t(($) => $.duel.agent_b)}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.duel.pick_agent)}</SelectItem>
+                  {agents.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             ))}
             {agentA !== "" && agentA === agentB && <span className="text-destructive">{t(($) => $.duel.identical)}</span>}
             <Button type="submit" size="sm" disabled={!valid || start.isPending}>{t(($) => $.duel.launch)}</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>{t(($) => $.duel.cancel)}</Button>
           </form>
         ) : (
-          <button type="button" className="self-start text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>{t(($) => $.duel.open)}</button>
+          <button
+            type="button"
+            className="self-start text-muted-foreground hover:text-foreground"
+            title={t(($) => $.duel.open_hint)}
+            onClick={() => setOpen(true)}
+          >
+            {t(($) => $.duel.open)}
+          </button>
         )
       )}
     </div>

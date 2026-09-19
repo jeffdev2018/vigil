@@ -30,6 +30,9 @@ const (
 	RoutingProblemRuntimeNotInWs     = "runtime_not_in_workspace"
 	RoutingProblemRuntimeOfflineOnly = "runtime_offline_no_fallback"
 	RoutingProblemModelKeyMissing    = "model_key_missing"
+	// RoutingProblemNativeUnconfigured: the agent runs on the native runtime
+	// and the server has no model for it (MULTICA_LLM_API_KEY / _BASE_URL).
+	RoutingProblemNativeUnconfigured = "native_llm_unconfigured"
 )
 
 // RoutingProblem is one reason a trigger for this agent may not run.
@@ -109,6 +112,13 @@ func (s *TaskService) ValidateRouting(ctx context.Context, agent db.Agent, wsID 
 	// Data residency (K46): the same filter the enqueue path then routes
 	// through, so the check and the dispatch cannot disagree. Nil — the common
 	// case — when the workspace declares no policy.
+	if rt.RuntimeMode == "native" && s.NativeRuntimeAvailable != nil && !s.NativeRuntimeAvailable() {
+		return []RoutingProblem{{
+			Code:    RoutingProblemNativeUnconfigured,
+			Message: fmt.Sprintf("%s runs in the browser on the native runtime, but this server has no model configured for it (MULTICA_LLM_API_KEY or MULTICA_LLM_BASE_URL): nothing would ever claim its work.", agentLabel(agent)),
+			Fatal:   true,
+		}}
+	}
 	filter := s.compliantRuntimeFilter(ctx, wsID)
 	if problem := s.residencyProblem(ctx, agent, rt, filter); problem != nil {
 		return []RoutingProblem{*problem}

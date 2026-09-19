@@ -77,7 +77,7 @@ func (h *Handler) requirePluginActionV1(w http.ResponseWriter, r *http.Request) 
 	if h.pluginsV1Enabled(r.Context()) {
 		return true
 	}
-	publicapiv1.WriteProblem(w, r, http.StatusServiceUnavailable, "plugin_api_disabled", "Plugin management is not enabled")
+	publicapiv1.WriteProblem(w, r, http.StatusForbidden, "plugin_api_disabled", "Plugin management is not enabled")
 	return false
 }
 
@@ -348,12 +348,18 @@ func (h *Handler) GetPluginIssue(w http.ResponseWriter, r *http.Request) {
 // drifting copy of them. Widening this set later is additive; getting the side
 // effects wrong now is not.
 func (h *Handler) PatchPluginIssue(w http.ResponseWriter, r *http.Request) {
-	caller, _, ok := h.pluginCaller(w, r, plugincontract.ScopeIssuesWrite)
+	caller, actor, ok := h.pluginCaller(w, r, plugincontract.ScopeIssuesWrite)
 	if !ok {
 		return
 	}
 	issue, ok := h.pluginIssueForUser(w, r, caller, chi.URLParam(r, "issue_ref"))
 	if !ok {
+		return
+	}
+	// K60: a member acting through the plugin bridge is judged by their own
+	// project role, same as the ordinary issue-write endpoint.
+	if actor.Type == "member" && !h.projectWriteAllowedForActor(r, issue.ProjectID, "member", actor.Member.ID, actor.Member.Role) {
+		publicapiv1.WriteProblem(w, r, http.StatusForbidden, "forbidden", "your project role does not allow this")
 		return
 	}
 
@@ -506,7 +512,7 @@ func (h *Handler) ListPluginComments(w http.ResponseWriter, r *http.Request) {
 }
 
 func publicPluginComment(comment db.Comment) publicapiv1.Comment {
-	return publicapiv1.Comment{
+	out := publicapiv1.Comment{
 		ID:         uuidToString(comment.ID),
 		AuthorType: comment.AuthorType,
 		AuthorID:   uuidToString(comment.AuthorID),
@@ -515,6 +521,10 @@ func publicPluginComment(comment db.Comment) publicapiv1.Comment {
 		ParentID:   uuidToString(comment.ParentID),
 		CreatedAt:  comment.CreatedAt.Time.UTC().Format(timeFormatRFC3339),
 	}
+	if comment.DeletedAt.Valid {
+		out.DeletedAt = comment.DeletedAt.Time.UTC().Format(timeFormatRFC3339)
+	}
+	return out
 }
 
 // CreatePluginComment — POST /v1/issues/{issue_ref}/comments
@@ -534,6 +544,12 @@ func (h *Handler) CreatePluginComment(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.pluginIssueForUser(w, r, caller, chi.URLParam(r, "issue_ref"))
 	if !ok {
+		return
+	}
+	// K60: same gate as PatchPluginIssue — a member acting through the plugin
+	// bridge is judged by their own project role.
+	if actor.Type == "member" && !h.projectWriteAllowedForActor(r, issue.ProjectID, "member", actor.Member.ID, actor.Member.Role) {
+		publicapiv1.WriteProblem(w, r, http.StatusForbidden, "forbidden", "your project role does not allow this")
 		return
 	}
 

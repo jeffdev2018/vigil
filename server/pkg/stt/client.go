@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // ErrNotConfigured is returned by Transcribe when the client has no base URL
@@ -117,7 +119,7 @@ func (c *Client) RealtimeSession(ctx context.Context) (RealtimeSession, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet := strings.TrimSpace(string(raw))
 		if len(snippet) > maxErrorBody {
-			snippet = snippet[:maxErrorBody]
+			snippet = util.TruncateUTF8Bytes(snippet, maxErrorBody)
 		}
 		return RealtimeSession{}, fmt.Errorf("stt: upstream %d: %s", resp.StatusCode, snippet)
 	}
@@ -285,7 +287,7 @@ func (c *Client) transcribe(ctx context.Context, filename, contentType string, a
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		snippet := strings.TrimSpace(string(raw))
 		if len(snippet) > maxErrorBody {
-			snippet = snippet[:maxErrorBody]
+			snippet = util.TruncateUTF8Bytes(snippet, maxErrorBody)
 		}
 		return Result{}, fmt.Errorf("stt: upstream %d: %s", resp.StatusCode, snippet)
 	}

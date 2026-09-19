@@ -9,6 +9,7 @@ import { renderWithI18n } from "../../test/i18n";
 
 const state = vi.hoisted(() => ({
   profile: null as WorkProfile | null,
+  fetchError: null as Error | null,
   setAuto: vi.fn(),
   forget: vi.fn(),
 }));
@@ -17,7 +18,13 @@ vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@multica/core/work-profile", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/work-profile")>()),
-  workProfileOptions: () => ({ queryKey: ["wp"], queryFn: async () => state.profile }),
+  workProfileOptions: () => ({
+    queryKey: ["wp"],
+    queryFn: async () => {
+      if (state.fetchError) throw state.fetchError;
+      return state.profile;
+    },
+  }),
   useSetObservationAuto: () => ({ mutate: state.setAuto, isPending: false }),
   useForgetObservation: () => ({ mutate: state.forget, isPending: false }),
 }));
@@ -45,6 +52,7 @@ function render() {
 describe("LearningTab", () => {
   beforeEach(() => {
     state.profile = profile();
+    state.fetchError = null;
     state.setAuto.mockReset();
     state.forget.mockReset();
   });
@@ -79,5 +87,17 @@ describe("LearningTab", () => {
     state.profile = profile({ observations: [], examples: 0 });
     render();
     expect(await screen.findByTestId("learning-empty")).toBeTruthy();
+  });
+
+  // Regression: only {data, isPending} were destructured — a failed fetch
+  // silently defaulted every field to 0/empty, indistinguishable from a
+  // genuinely blank profile.
+  it("shows an error state with retry instead of a false empty profile when the fetch fails", async () => {
+    state.fetchError = new Error("boom");
+    render();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your profile.");
+    expect(screen.queryByTestId("learning-empty")).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
   });
 });

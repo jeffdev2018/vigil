@@ -30,4 +30,13 @@ describe("scorecards", () => {
     expect(scorecardRate(9, 12)).toBe(75);
     expect(scorecardRate(0, 0)).toBeNull();
   });
+
+  it("reads a malformed cost estimate as unknown, never as a free agent", async () => {
+    stubFetchJson({ agent_id: "a", sample_runs: 3, avg_cost_usd_ticks: 25_000_000_000 });
+    expect(await new ApiClient("https://api.example.test").getAgentCostEstimate("a")).toEqual({ agent_id: "a", sample_runs: 3, avg_cost_usd_ticks: 25_000_000_000 });
+    stubFetchJson({ agent_id: "a", sample_runs: "x", avg_cost_usd_ticks: "free" });
+    const est = await new ApiClient("https://api.example.test").getAgentCostEstimate("a");
+    expect(est.avg_cost_usd_ticks).toBeNull();
+    expect(est.sample_runs).toBe(0);
+  });
 });

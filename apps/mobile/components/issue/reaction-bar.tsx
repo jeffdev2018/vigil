@@ -11,8 +11,13 @@
  * (add/remove) via `onToggle`.
  */
 import { Pressable, View } from "react-native";
+import type { TextStyle } from "react-native";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
+
+// `className="tabular-nums"` is a silent no-op on RN — see
+// components/chat/status-pill.tsx for the reference explanation.
+const TABULAR_NUMS: TextStyle = { fontVariant: ["tabular-nums"] };
 
 interface ReactionItem {
   id: string;
@@ -80,9 +85,10 @@ export function ReactionBar({
           <Text className="text-xs">{g.emoji}</Text>
           <Text
             className={cn(
-              "text-xs tabular-nums",
+              "text-xs",
               g.reacted ? "text-brand" : "text-muted-foreground",
             )}
+            style={TABULAR_NUMS}
           >
             {g.count}
           </Text>

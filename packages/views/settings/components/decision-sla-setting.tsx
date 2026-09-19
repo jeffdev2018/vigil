@@ -8,6 +8,9 @@ import { api } from "@multica/core/api";
 import { memberListOptions, workspaceKeys } from "@multica/core/workspace/queries";
 import type { Workspace } from "@multica/core/types";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
@@ -94,20 +97,30 @@ export function DecisionSlaSetting({ workspace, canEdit }: { workspace: Workspac
           />
         </SettingsRow>
         <SettingsRow label={t(($) => $.workspace.decision_sla_substitute_label)} description={t(($) => $.workspace.decision_sla_substitute_description)}>
-          <select
-            aria-label={t(($) => $.workspace.decision_sla_substitute_label)}
-            className="h-8 rounded-md border bg-background px-2 text-caption"
+          <Select
+            items={[
+              { value: "", label: t(($) => $.workspace.decision_sla_substitute_none) },
+              ...members.map((m) => ({ value: m.user_id, label: m.name || m.email })),
+            ]}
             value={policy?.substitute_user_id ?? ""}
-            disabled={!canEdit || saving || !policy}
-            onChange={(e) => policy && void persist({ ...policy, substitute_user_id: e.target.value })}
+            onValueChange={(value) => policy && void persist({ ...policy, substitute_user_id: value ?? "" })}
           >
-            <option value="">{t(($) => $.workspace.decision_sla_substitute_none)}</option>
-            {members.map((m) => (
-              <option key={m.user_id} value={m.user_id}>
-                {m.name || m.email}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              aria-label={t(($) => $.workspace.decision_sla_substitute_label)}
+              size="sm"
+              disabled={!canEdit || saving || !policy}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">{t(($) => $.workspace.decision_sla_substitute_none)}</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {m.name || m.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </SettingsRow>
       </SettingsCard>
     </SettingsSection>

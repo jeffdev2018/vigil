@@ -224,7 +224,9 @@ func (h *Handler) learnFromDecision(ctx context.Context, wsID pgtype.UUID, userI
 		for _, c := range hist {
 			n += c
 		}
-		_, _ = h.Queries.UpsertWorkProfileObservation(ctx, db.UpsertWorkProfileObservationParams{ID: dbid.NewV7(), WorkspaceID: wsID, UserID: uid, Key: hkey, Value: hv, Source: "decisions", Count: int32(n), State: "learned"})
+		if _, err := h.Queries.UpsertWorkProfileObservation(ctx, db.UpsertWorkProfileObservationParams{ID: dbid.NewV7(), WorkspaceID: wsID, UserID: uid, Key: hkey, Value: hv, Source: "decisions", Count: int32(n), State: "learned"}); err != nil {
+			slog.Warn("work profile: upsert decision habit failed", "error", err)
+		}
 	}
 }
 
@@ -383,8 +385,12 @@ func (h *Handler) PatchWorkProfileObservation(w http.ResponseWriter, r *http.Req
 		return
 	}
 	h.audit(r.Context(), wsID, "member", userID, AuditWorkProfileChanged, "work_profile_observation", id, map[string]any{"key": obs.Key, "auto": *req.Auto}, nil)
-	resp, _ := h.workProfileResponse(r.Context(), wsID, parseUUID(userID))
 	_ = updated
+	resp, err := h.workProfileResponse(r.Context(), wsID, parseUUID(userID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "observation updated but failed to load the work profile")
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -432,7 +438,11 @@ func (h *Handler) OverturnDecisionExample(w http.ResponseWriter, r *http.Request
 	}
 	h.demoteRuleIfNoisy(r.Context(), wsID, ex.UserID, ex.Signature)
 	h.audit(r.Context(), wsID, "member", userID, AuditWorkProfileChanged, "decision_training_example", id, map[string]any{"overturned": true, "signature": ex.Signature}, nil)
-	resp, _ := h.workProfileResponse(r.Context(), wsID, parseUUID(userID))
+	resp, err := h.workProfileResponse(r.Context(), wsID, parseUUID(userID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "example overturned but failed to load the work profile")
+		return
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -19,6 +19,7 @@ import type { Agent, SkillSummary } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import { useWorkspacePaths } from "@multica/core/paths";
+import { runBulk } from "@multica/core/utils";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
@@ -54,7 +55,7 @@ import { useT } from "../../i18n";
 import { useIntentNavigate } from "../../navigation";
 import { isRefreshableOrigin, readOrigin } from "../lib/origin";
 import { RefreshSkillDialog } from "./refresh-skill-dialog";
-import type { SkillRow } from "./skills-page";
+import type { SkillRow } from "./skill-list-filter";
 
 // Shared context the row kebab and the batch toolbar both need. Assembled
 // once at the page level.
@@ -155,7 +156,7 @@ function SkillChips({ skills }: { skills: SkillSummary[] }) {
   const visible = skills.slice(0, MAX_SKILL_CHIPS);
   const overflow = skills.slice(MAX_SKILL_CHIPS);
   const chipClass =
-    "max-w-[10rem] truncate rounded bg-muted px-1.5 py-0.5 text-caption text-muted-foreground";
+    "max-w-[10rem] truncate rounded-xs bg-muted px-1.5 py-0.5 text-caption text-muted-foreground";
   return (
     <div className="flex flex-wrap items-center gap-1">
       {visible.map((s) => (
@@ -283,32 +284,35 @@ export function AddToAgentDialog({
     const targets = [...mine, ...others].filter((a) => selectedIds.has(a.id));
     if (targets.length === 0) return;
     setSaving(true);
-    try {
-      for (const agent of targets) {
-        const missing = skillIds.filter(
-          (id) => !agent.skills.some((s) => s.id === id),
-        );
-        if (missing.length > 0) {
-          await api.addAgentSkills(agent.id, { skill_ids: missing });
-        }
+    // Per-agent, failure-tolerant: one agent's addAgentSkills rejecting must
+    // not lose the skills that were already, durably, added to the others —
+    // and the cache must reflect that regardless of how many failed.
+    const { succeeded, failed } = await runBulk(targets, async (agent) => {
+      const missing = skillIds.filter(
+        (id) => !agent.skills.some((s) => s.id === id),
+      );
+      if (missing.length > 0) {
+        await api.addAgentSkills(agent.id, { skill_ids: missing });
       }
-      qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    });
+    qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    setSaving(false);
+    if (failed.length === 0) {
       toast.success(
-        targets.length === 1 && targets[0]
-          ? t(($) => $.actions.added_toast, { name: targets[0].name })
-          : t(($) => $.actions.added_multi_toast, { count: targets.length }),
+        succeeded.length === 1 && succeeded[0]
+          ? t(($) => $.actions.added_toast, { name: succeeded[0].name })
+          : t(($) => $.actions.added_multi_toast, { count: succeeded.length }),
       );
       setSelectedIds(new Set());
       onOpenChange(false);
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? e.message
-          : t(($) => $.actions.add_failed_toast),
-      );
-    } finally {
-      setSaving(false);
+      return;
     }
+    toast.error(
+      t(($) => $.actions.add_partial_toast, {
+        count: succeeded.length,
+        failed: failed.length,
+      }),
+    );
   };
 
   return (
@@ -321,9 +325,6 @@ export function AddToAgentDialog({
           <DialogTitle className="text-body">
             {t(($) => $.actions.add_to_agent)}
           </DialogTitle>
-          <DialogDescription className="text-caption">
-            {t(($) => $.actions.add_dialog_description)}
-          </DialogDescription>
         </DialogHeader>
 
         <SkillChips skills={skills} />
@@ -427,24 +428,27 @@ export function DeleteSkillsDialog({
 
   const handleConfirm = async () => {
     setDeleting(true);
-    try {
-      for (const row of rows) {
-        await api.deleteSkill(row.skill.id);
-      }
-      qc.invalidateQueries({ queryKey: workspaceKeys.skills(ctx.wsId) });
-      qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    // Failure-tolerant per row, same shape as AddToAgentDialog / UpdateSkillsDialog:
+    // one row's deleteSkill rejecting must not leave the others' already-committed
+    // deletion unreflected in the cache.
+    const { succeeded, failed } = await runBulk(rows, (row) =>
+      api.deleteSkill(row.skill.id),
+    );
+    qc.invalidateQueries({ queryKey: workspaceKeys.skills(ctx.wsId) });
+    qc.invalidateQueries({ queryKey: workspaceKeys.agents(ctx.wsId) });
+    setDeleting(false);
+    if (failed.length === 0) {
       toast.success(t(($) => $.actions.deleted_toast, { count }));
       onOpenChange(false);
       onDeleted?.();
-    } catch (e) {
-      toast.error(
-        e instanceof Error && e.message
-          ? e.message
-          : t(($) => $.actions.delete_failed_toast),
-      );
-    } finally {
-      setDeleting(false);
+      return;
     }
+    toast.error(
+      t(($) => $.actions.delete_partial_toast, {
+        count: succeeded.length,
+        failed: failed.length,
+      }),
+    );
   };
 
   return (
@@ -811,7 +815,7 @@ export function SkillBatchToolbar({
           sidebar/split pane open, viewport-centering sits visibly off the
           list's own center. Same rule for every future list page's batch
           toolbar. */}
-      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 shadow-lg max-md:above-chat-launcher">
+      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 shadow-menu max-md:above-chat-launcher">
         <div className="mr-1 flex items-center gap-1.5 border-r pl-1 pr-2">
           <span className="text-body font-medium">
             {t(($) => $.actions.selected, { count: rows.length })}
@@ -820,7 +824,7 @@ export function SkillBatchToolbar({
             type="button"
             aria-label={t(($) => $.actions.clear_selection)}
             onClick={onClear}
-            className="rounded p-0.5 transition-colors hover:bg-accent"
+            className="rounded-xs p-0.5 transition-colors hover:bg-accent"
           >
             <X className="size-3.5 text-muted-foreground" />
           </button>

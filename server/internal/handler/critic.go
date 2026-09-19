@@ -762,7 +762,7 @@ func (h *Handler) PutCriticPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req criticPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -885,7 +885,7 @@ func (h *Handler) CreateCriticVerdict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req criticVerdictRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

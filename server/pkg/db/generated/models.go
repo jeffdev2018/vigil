@@ -68,6 +68,23 @@ type AgentBuilderDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentConsult struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	Model         string             `json:"model"`
+	Question      string             `json:"question"`
+	Answer        pgtype.Text        `json:"answer"`
+	State         string             `json:"state"`
+	RefusalReason pgtype.Text        `json:"refusal_reason"`
+	InputTokens   pgtype.Int8        `json:"input_tokens"`
+	OutputTokens  pgtype.Int8        `json:"output_tokens"`
+	CostUsdTicks  pgtype.Int8        `json:"cost_usd_ticks"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	FinalizedAt   pgtype.Timestamptz `json:"finalized_at"`
+}
+
 type AgentCorrectionSignal struct {
 	ID                  pgtype.UUID        `json:"id"`
 	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
@@ -410,8 +427,21 @@ type AgentTaskQueue struct {
 	ModelOverride pgtype.Text `json:"model_override"`
 	DiffStat      []byte      `json:"diff_stat"`
 	// Consolidated unified diff of the delivered branch (F11), NULL past the 256 KiB bound — diff_stat still holds the shape.
-	DiffUnified   pgtype.Text `json:"diff_unified"`
-	MemoryContext []byte      `json:"memory_context"`
+	DiffUnified     pgtype.Text `json:"diff_unified"`
+	MemoryContext   []byte      `json:"memory_context"`
+	CommentThreadID pgtype.UUID `json:"comment_thread_id"`
+	RuntimePinned   bool        `json:"runtime_pinned"`
+	// JEF-255: when the run's branch was pushed to origin at the user's request. NULL until a promote completes.
+	PromotedAt pgtype.Timestamptz `json:"promoted_at"`
+	// JEF-255: the pull request opened for the promoted branch. Empty when the workspace has no VCS provider for the remote (the push alone satisfies promote).
+	PromotePrUrl string `json:"promote_pr_url"`
+	// JEF-255: when the run's branch and worktree were deleted at the user's request. NULL until a discard completes.
+	DiscardedAt     pgtype.Timestamptz `json:"discarded_at"`
+	HaltFrozenAt    pgtype.Timestamptz `json:"halt_frozen_at"`
+	CancelledByType pgtype.Text        `json:"cancelled_by_type"`
+	CancelledByID   pgtype.UUID        `json:"cancelled_by_id"`
+	CancelledByName pgtype.Text        `json:"cancelled_by_name"`
+	IssueSnapshot   []byte             `json:"issue_snapshot"`
 }
 
 type AgentToLabel struct {
@@ -466,6 +496,8 @@ type Attachment struct {
 	ChatMessageID   pgtype.UUID        `json:"chat_message_id"`
 	TaskID          pgtype.UUID        `json:"task_id"`
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
+	CaptureID       pgtype.UUID        `json:"capture_id"`
+	NoteID          pgtype.UUID        `json:"note_id"`
 }
 
 type AuditLogEntry struct {
@@ -612,12 +644,34 @@ type AutopilotTrigger struct {
 	PublishedByType pgtype.Text `json:"published_by_type"`
 	// The member/agent currently responsible for this trigger's effective config (creator, then last substantive editor). CONFIG audit only: since MUL-6951 the runs this trigger fires act as, and are accountable to, created_by_id instead, so an edit recorded here never moves a run's authority. No FK, app-layer integrity (MUL-4302).
 	PublishedByID pgtype.UUID `json:"published_by_id"`
-	// Actor type of the trigger's immutable creator: member | agent. Only 'member' yields a run principal. NULL for triggers created before MUL-6951 that had no published_by to backfill from.
+	// Actor type of created_by_id: member | agent. Only 'member' yields a run principal. NULL only for a legacy trigger that neither backfill (migrations 449, 467) could fill.
 	CreatedByType pgtype.Text `json:"created_by_type"`
-	// The member a schedule/webhook run fires AS: dispatch admission, the task's originator/accountable, and every delegated run all resolve to this one human (MUL-6951). Written once at creation and never re-stamped, so editing the trigger cannot re-authorize its runs as the editor. NULL means no provable principal and the dispatch fails closed. No FK; workspace membership is re-validated on every dispatch.
+	// The member a schedule/webhook run fires AS: dispatch admission, the task's originator/accountable, and every delegated run all resolve to this one human (MUL-6951). For a trigger created since MUL-6951 it is the creator, written at creation. For a legacy trigger it is a best-effort principal inferred once by backfill and frozen (the last publisher, migration 449, else the autopilot's creator, migration 467), not proof of who created it. Ordinary edits never rewrite it, so editing the trigger cannot re-authorize its runs as the editor. NULL means no principal and the dispatch fails closed. No FK; workspace membership is re-validated on every dispatch.
 	CreatedByID        pgtype.UUID `json:"created_by_id"`
 	EventMatchCriteria string      `json:"event_match_criteria"`
 	WindowMinutes      int32       `json:"window_minutes"`
+}
+
+type BrainCapture struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	Kind                string             `json:"kind"`
+	Content             string             `json:"content"`
+	Url                 string             `json:"url"`
+	TitleHint           string             `json:"title_hint"`
+	AttachmentID        pgtype.UUID        `json:"attachment_id"`
+	Origin              string             `json:"origin"`
+	Status              string             `json:"status"`
+	TranscriptionStatus string             `json:"transcription_status"`
+	Suggestion          []byte             `json:"suggestion"`
+	NoteID              pgtype.UUID        `json:"note_id"`
+	CreatedByType       string             `json:"created_by_type"`
+	CreatedByID         pgtype.UUID        `json:"created_by_id"`
+	SourceTaskID        pgtype.UUID        `json:"source_task_id"`
+	OrganizedBy         pgtype.UUID        `json:"organized_by"`
+	OrganizedAt         pgtype.Timestamptz `json:"organized_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type BudgetOverride struct {
@@ -695,6 +749,48 @@ type BusinessRuleViolation struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type CalendarEvent struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	Title         string             `json:"title"`
+	Description   string             `json:"description"`
+	StartsAt      pgtype.Timestamptz `json:"starts_at"`
+	EndsAt        pgtype.Timestamptz `json:"ends_at"`
+	AllDay        bool               `json:"all_day"`
+	Timezone      string             `json:"timezone"`
+	Location      string             `json:"location"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	Status        string             `json:"status"`
+	CreatedByType string             `json:"created_by_type"`
+	CreatedByID   pgtype.UUID        `json:"created_by_id"`
+	Source        string             `json:"source"`
+	ExternalID    string             `json:"external_id"`
+	DecisionID    pgtype.UUID        `json:"decision_id"`
+	RemindedAt    pgtype.Timestamptz `json:"reminded_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CalendarEventParticipant struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	EventID         pgtype.UUID        `json:"event_id"`
+	ParticipantType string             `json:"participant_type"`
+	ParticipantID   pgtype.UUID        `json:"participant_id"`
+	Response        string             `json:"response"`
+	Required        bool               `json:"required"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type CalendarFeedToken struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	TokenHash   string             `json:"token_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type CampaignShard struct {
 	ID                 pgtype.UUID        `json:"id"`
 	RefactorCampaignID pgtype.UUID        `json:"refactor_campaign_id"`
@@ -710,6 +806,19 @@ type CampaignShard struct {
 	MergeTaskID        pgtype.UUID        `json:"merge_task_id"`
 	Blockers           []byte             `json:"blockers"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ChannelApprovalMessage struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	InstallationID pgtype.UUID        `json:"installation_id"`
+	ChannelType    string             `json:"channel_type"`
+	ChatID         string             `json:"chat_id"`
+	MessageID      string             `json:"message_id"`
+	Source         string             `json:"source"`
+	AskID          pgtype.UUID        `json:"ask_id"`
+	Settled        bool               `json:"settled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type ChannelBindingToken struct {
@@ -732,6 +841,9 @@ type ChannelChatContextGeneration struct {
 	PendingFresh           bool               `json:"pending_fresh"`
 	InitiatorUserID        pgtype.UUID        `json:"initiator_user_id"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	LastMessageID          pgtype.Text        `json:"last_message_id"`
+	LastThreadID           pgtype.Text        `json:"last_thread_id"`
+	LastSenderID           pgtype.Text        `json:"last_sender_id"`
 }
 
 type ChannelChatSessionBinding struct {
@@ -840,6 +952,7 @@ type ChannelTaskDelivery struct {
 	RouteRevision    int64              `json:"route_revision"`
 	Config           []byte             `json:"config"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ChannelSenderID  pgtype.Text        `json:"channel_sender_id"`
 }
 
 type ChannelUserBinding struct {
@@ -1025,7 +1138,8 @@ type Comment struct {
 	AnchorSide         pgtype.Text        `json:"anchor_side"`
 	AnchorReviewFlagID pgtype.UUID        `json:"anchor_review_flag_id"`
 	// Agent-to-agent message intent: question | review | handoff. Written only by POST /api/issues/{id}/agent-messages; NULL on every other comment. An unknown value renders as an ordinary comment.
-	A2aIntent pgtype.Text `json:"a2a_intent"`
+	A2aIntent pgtype.Text        `json:"a2a_intent"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type CommentReaction struct {
@@ -1104,6 +1218,19 @@ type Cycle struct {
 	CreatedBy      pgtype.UUID        `json:"created_by"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// JEF-246: per-actor declared velocity capacity for one cycle. Row present = declared; no row means undeclared, which is different from zero.
+type CycleActorCapacity struct {
+	ID          pgtype.UUID `json:"id"`
+	CycleID     pgtype.UUID `json:"cycle_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	ActorType   string      `json:"actor_type"`
+	// user id when actor_type = 'member' (matching issue.assignee_id), agent id when actor_type = 'agent'.
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	Points    int32              `json:"points"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 // F29: one daily row per open cycle. The only burndown history there is — status changes are not journaled in a queryable shape.
@@ -1512,6 +1639,17 @@ type InsightWidget struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type InstanceTelemetryState struct {
+	Singleton         bool               `json:"singleton"`
+	InstanceID        pgtype.UUID        `json:"instance_id"`
+	LastSuccessfulDay pgtype.Date        `json:"last_successful_day"`
+	PendingDay        pgtype.Date        `json:"pending_day"`
+	PendingBody       []byte             `json:"pending_body"`
+	NextAttemptAt     pgtype.Timestamptz `json:"next_attempt_at"`
+	AttemptCount      int32              `json:"attempt_count"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Issue struct {
 	ID                 pgtype.UUID        `json:"id"`
 	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
@@ -1550,9 +1688,11 @@ type Issue struct {
 	// F01: optional partner actor kind (member|agent, never squad). Names who the assignee works with; triggers no run and carries no status.
 	DelegateType pgtype.Text `json:"delegate_type"`
 	// F01: optional partner actor id, paired with delegate_type. Both halves move together; neither is a foreign key.
-	DelegateID pgtype.UUID `json:"delegate_id"`
-	CycleID    pgtype.UUID `json:"cycle_id"`
-	IssueType  pgtype.Text `json:"issue_type"`
+	DelegateID   pgtype.UUID `json:"delegate_id"`
+	CycleID      pgtype.UUID `json:"cycle_id"`
+	IssueType    pgtype.Text `json:"issue_type"`
+	RecurrenceID pgtype.UUID `json:"recurrence_id"`
+	TriageState  pgtype.Text `json:"triage_state"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
@@ -1615,6 +1755,30 @@ type IssueDependency struct {
 	DependsOnIssueID pgtype.UUID        `json:"depends_on_issue_id"`
 	Type             string             `json:"type"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type IssueGoal struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	Goal             string             `json:"goal"`
+	Status           string             `json:"status"`
+	Continuation     int32              `json:"continuation"`
+	MaxContinuations int32              `json:"max_continuations"`
+	NoProgress       int32              `json:"no_progress"`
+	LastSignature    string             `json:"last_signature"`
+	LastOutcome      string             `json:"last_outcome"`
+	LastBlocker      string             `json:"last_blocker"`
+	LastReason       string             `json:"last_reason"`
+	NextStep         string             `json:"next_step"`
+	Evidence         []byte             `json:"evidence"`
+	Question         []byte             `json:"question"`
+	LastRunID        pgtype.UUID        `json:"last_run_id"`
+	DoneRequestID    pgtype.UUID        `json:"done_request_id"`
+	SetByType        string             `json:"set_by_type"`
+	SetByID          pgtype.UUID        `json:"set_by_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type IssueLabel struct {
@@ -1683,7 +1847,6 @@ type IssuePullRequest struct {
 	LinkedByID    pgtype.UUID        `json:"linked_by_id"`
 	LinkedAt      pgtype.Timestamptz `json:"linked_at"`
 	CloseIntent   bool               `json:"close_intent"`
-	ReferenceOnly bool               `json:"reference_only"`
 }
 
 type IssueReaction struct {
@@ -1694,6 +1857,23 @@ type IssueReaction struct {
 	ActorID     pgtype.UUID        `json:"actor_id"`
 	Emoji       string             `json:"emoji"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type IssueRecurrence struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	CronExpression   string             `json:"cron_expression"`
+	Timezone         string             `json:"timezone"`
+	Mode             string             `json:"mode"`
+	Enabled          bool               `json:"enabled"`
+	NextRunAt        pgtype.Timestamptz `json:"next_run_at"`
+	LastOccurrenceID pgtype.UUID        `json:"last_occurrence_id"`
+	OccurrenceCount  int32              `json:"occurrence_count"`
+	CreatedByType    string             `json:"created_by_type"`
+	CreatedByID      pgtype.UUID        `json:"created_by_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type IssueSourceContext struct {
@@ -1739,6 +1919,7 @@ type IssueStatus struct {
 	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Icon        string             `json:"icon"`
 }
 
 type IssueSubscriber struct {
@@ -1821,7 +2002,6 @@ type IssueVcsPullRequest struct {
 	IssueID       pgtype.UUID        `json:"issue_id"`
 	PullRequestID pgtype.UUID        `json:"pull_request_id"`
 	CloseIntent   bool               `json:"close_intent"`
-	ReferenceOnly bool               `json:"reference_only"`
 	LinkedByType  pgtype.Text        `json:"linked_by_type"`
 	LinkedByID    pgtype.UUID        `json:"linked_by_id"`
 	LinkedAt      pgtype.Timestamptz `json:"linked_at"`
@@ -1990,6 +2170,28 @@ type LinearIssueLink struct {
 	LastSyncedAt          pgtype.Timestamptz `json:"last_synced_at"`
 	LastError             string             `json:"last_error"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
+type MaintenanceJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	JobType        string             `json:"job_type"`
+	JobVersion     int32              `json:"job_version"`
+	ScopeKey       string             `json:"scope_key"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	RequestHash    string             `json:"request_hash"`
+	Status         string             `json:"status"`
+	Revision       int64              `json:"revision"`
+	DryRun         bool               `json:"dry_run"`
+	Options        []byte             `json:"options"`
+	Parameters     []byte             `json:"parameters"`
+	Checkpoint     []byte             `json:"checkpoint"`
+	Progress       []byte             `json:"progress"`
+	Result         []byte             `json:"result"`
+	LastError      string             `json:"last_error"`
+	NextAllowedAt  pgtype.Timestamptz `json:"next_allowed_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
 }
 
 type Meeting struct {
@@ -2431,6 +2633,17 @@ type ProjectReviewConfig struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+// JEF-256: per-project sandbox policy (network mode, host allowlist, sensitive-file block), merged most-restrictive-first into the claim's SandboxSpec.
+type ProjectSandboxPolicy struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	// unrestricted | allowlist | none. allowlist is the only mode whose allowed_hosts carry meaning; the handler rejects hosts under any other mode.
+	NetworkMode         string             `json:"network_mode"`
+	AllowedHosts        []byte             `json:"allowed_hosts"`
+	BlockSensitiveFiles bool               `json:"block_sensitive_files"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
 type QuickAction struct {
 	ID            pgtype.UUID        `json:"id"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
@@ -2506,6 +2719,25 @@ type ReviewFlag struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+// JEF-255: one user request to promote (push + PR) or discard (delete branch and worktree) the branch a terminal run delivered.
+type RunBranchActionRequest struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	TaskID      pgtype.UUID        `json:"task_id"`
+	RuntimeID   pgtype.UUID        `json:"runtime_id"`
+	Action      string             `json:"action"`
+	Status      string             `json:"status"`
+	BranchName  string             `json:"branch_name"`
+	BaseBranch  string             `json:"base_branch"`
+	PrUrl       string             `json:"pr_url"`
+	Error       string             `json:"error"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+}
+
 // A set of attempts racing on one issue (F11). Attempts are agent_task_queue rows carrying run_group_id.
 type RunGroup struct {
 	ID           pgtype.UUID        `json:"id"`
@@ -2517,6 +2749,8 @@ type RunGroup struct {
 	AttemptCount int32              `json:"attempt_count"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	SettledAt    pgtype.Timestamptz `json:"settled_at"`
+	// LLM judge verdict (JEF-234): {status, winner_task_id, justification, scores[], model, judged_at, cost_usd_ticks}. NULL until judged.
+	Judgement []byte `json:"judgement"`
 }
 
 type RunLimitEvent struct {
@@ -2721,15 +2955,16 @@ type SysCronExecution struct {
 }
 
 type TaskMessage struct {
-	ID        pgtype.UUID        `json:"id"`
-	TaskID    pgtype.UUID        `json:"task_id"`
-	Seq       int32              `json:"seq"`
-	Type      string             `json:"type"`
-	Tool      pgtype.Text        `json:"tool"`
-	Content   pgtype.Text        `json:"content"`
-	Input     []byte             `json:"input"`
-	Output    pgtype.Text        `json:"output"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID              pgtype.UUID        `json:"id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Seq             int32              `json:"seq"`
+	Type            string             `json:"type"`
+	Tool            pgtype.Text        `json:"tool"`
+	Content         pgtype.Text        `json:"content"`
+	Input           []byte             `json:"input"`
+	Output          pgtype.Text        `json:"output"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	OutputTruncated pgtype.Bool        `json:"output_truncated"`
 }
 
 // F12: scoped, expiring share link to one run. The code is the credential; unique in 782. No FK by house rule.
@@ -2840,8 +3075,9 @@ type TriageItem struct {
 	OriginID    pgtype.UUID `json:"origin_id"`
 	ActorType   pgtype.Text `json:"actor_type"`
 	ActorID     pgtype.UUID `json:"actor_id"`
-	// Transport-level idempotency key (Idempotency-Key / X-GitHub-Delivery). Empty for unsigned senders; content_digest is the fallback then.
-	DedupeKey     string `json:"dedupe_key"`
+	// Transport-level idempotency key (Idempotency-Key / X-GitHub-Delivery). Empty for unsigned senders; queue collapse then relies on normalized_title alone (see uq_triage_item_pending_title).
+	DedupeKey string `json:"dedupe_key"`
+	// Unused. Always empty: as defined (hash of normalized_title + payload) it cannot distinguish anything uq_triage_item_pending_title does not already fold on normalized_title alone. Kept NOT NULL for schema stability only.
 	ContentDigest string `json:"content_digest"`
 	Title         string `json:"title"`
 	// lower(btrim(regexp_replace(title, '[[:space:]]+', ' ', 'g'))) — the same normalization issueguard uses, so queue collapse and issue duplicate detection agree.
@@ -3093,7 +3329,43 @@ type Workspace struct {
 	// When TRUE, an agent run that resolves to no precise accountable human (would be owner_fallback) is refused at enqueue instead of degrading to the agent owner (MUL-4302 §3.5). Default FALSE = owner_fallback. Never affects authorization (originator_user_id).
 	AttributionFailClosed bool `json:"attribution_fail_closed"`
 	// Draft a postmortem when a completed run costs more than this many cost_usd_ticks (1e-10 USD). NULL disables the costly trigger.
-	PostmortemCostThresholdUsdTicks pgtype.Int8 `json:"postmortem_cost_threshold_usd_ticks"`
+	PostmortemCostThresholdUsdTicks pgtype.Int8        `json:"postmortem_cost_threshold_usd_ticks"`
+	DoctrineRevision                int32              `json:"doctrine_revision"`
+	DoctrineUpdatedAt               pgtype.Timestamptz `json:"doctrine_updated_at"`
+	DoctrineUpdatedBy               pgtype.UUID        `json:"doctrine_updated_by"`
+}
+
+type WorkspaceDoctrineReport struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	DoctrineRevision int32              `json:"doctrine_revision"`
+	Kind             string             `json:"kind"`
+	Summary          string             `json:"summary"`
+	Passage          string             `json:"passage"`
+	ReporterType     string             `json:"reporter_type"`
+	ReporterID       pgtype.UUID        `json:"reporter_id"`
+	TaskID           pgtype.UUID        `json:"task_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	Status           string             `json:"status"`
+	ResolvedBy       pgtype.UUID        `json:"resolved_by"`
+	ResolvedAt       pgtype.Timestamptz `json:"resolved_at"`
+	ResolutionNote   string             `json:"resolution_note"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspaceDoctrineVersion struct {
+	ID                   pgtype.UUID        `json:"id"`
+	WorkspaceID          pgtype.UUID        `json:"workspace_id"`
+	Revision             pgtype.Int4        `json:"revision"`
+	Content              string             `json:"content"`
+	Status               string             `json:"status"`
+	Note                 string             `json:"note"`
+	AuthorID             pgtype.UUID        `json:"author_id"`
+	ReviewedBy           pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	ReviewNote           string             `json:"review_note"`
+	RestoredFromRevision pgtype.Int4        `json:"restored_from_revision"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
 type WorkspaceInvitation struct {
@@ -3160,6 +3432,73 @@ type WorkspaceNote struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+// JEF-412: one searchable passage of a Brain note. Rebuilt from the note when its revision or the chunker version changes; embedding kept while content_hash is unchanged.
+type WorkspaceNotePassage struct {
+	NoteID         pgtype.UUID `json:"note_id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	Ordinal        int32       `json:"ordinal"`
+	Heading        string      `json:"heading"`
+	Body           string      `json:"body"`
+	SearchTitle    string      `json:"search_title"`
+	SearchHeading  string      `json:"search_heading"`
+	SearchBody     string      `json:"search_body"`
+	Tsv            interface{} `json:"tsv"`
+	NoteRevision   int64       `json:"note_revision"`
+	ChunkerVersion int32       `json:"chunker_version"`
+	// md5 of title, heading and body: the identity of what embedding was computed from.
+	ContentHash    string             `json:"content_hash"`
+	Embedding      string             `json:"embedding"`
+	EmbeddingModel pgtype.Text        `json:"embedding_model"`
+	EmbeddedAt     pgtype.Timestamptz `json:"embedded_at"`
+	IndexedAt      pgtype.Timestamptz `json:"indexed_at"`
+}
+
+// JEF-413: one use of a Brain note — injected/retrieved/opened by a run (task_id set) or viewed by a member (task_id NULL, counted once a day).
+type WorkspaceNoteUsage struct {
+	ID           pgtype.UUID `json:"id"`
+	WorkspaceID  pgtype.UUID `json:"workspace_id"`
+	NoteID       pgtype.UUID `json:"note_id"`
+	NoteRevision pgtype.Int8 `json:"note_revision"`
+	Kind         string      `json:"kind"`
+	Channel      string      `json:"channel"`
+	ActorType    string      `json:"actor_type"`
+	// agent id when actor_type = 'agent', user id when actor_type = 'member'.
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	TaskID    pgtype.UUID        `json:"task_id"`
+	Day       pgtype.Date        `json:"day"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspacePackInstall struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	PackID       string             `json:"pack_id"`
+	PackVersion  string             `json:"pack_version"`
+	Title        string             `json:"title"`
+	Source       string             `json:"source"`
+	Strategy     string             `json:"strategy"`
+	BundleSha256 string             `json:"bundle_sha256"`
+	RunID        pgtype.UUID        `json:"run_id"`
+	Status       string             `json:"status"`
+	Report       []byte             `json:"report"`
+	Manifest     []byte             `json:"manifest"`
+	InstalledBy  pgtype.UUID        `json:"installed_by"`
+	InstalledAt  pgtype.Timestamptz `json:"installed_at"`
+	RemovedBy    pgtype.UUID        `json:"removed_by"`
+	RemovedAt    pgtype.Timestamptz `json:"removed_at"`
+}
+
+type WorkspacePackItem struct {
+	ID          pgtype.UUID        `json:"id"`
+	InstallID   pgtype.UUID        `json:"install_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Kind        string             `json:"kind"`
+	RowID       pgtype.UUID        `json:"row_id"`
+	Name        string             `json:"name"`
+	Action      string             `json:"action"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type WorkspaceShareLink struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
@@ -3203,6 +3542,24 @@ type WorkspaceTransferRun struct {
 	CreatedBy    pgtype.UUID        `json:"created_by"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
+}
+
+type WorkspaceTwentyConnection struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	BaseUrl             string             `json:"base_url"`
+	ApiKeySealed        []byte             `json:"api_key_sealed"`
+	WebhookSecretSealed []byte             `json:"webhook_secret_sealed"`
+	InboundTokenSealed  []byte             `json:"inbound_token_sealed"`
+	TwentyWebhookID     string             `json:"twenty_webhook_id"`
+	Events              []string           `json:"events"`
+	ExposeToAgents      bool               `json:"expose_to_agents"`
+	Status              string             `json:"status"`
+	LastError           string             `json:"last_error"`
+	TwentyWorkspaceName string             `json:"twenty_workspace_name"`
+	CreatedByID         pgtype.UUID        `json:"created_by_id"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 // F09: one user request to revert a conversation branch to the turn target_task_id delivered.

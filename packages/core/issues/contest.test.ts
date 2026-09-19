@@ -36,6 +36,8 @@ describe("contest client and helpers", () => {
     expect(rows[1]?.answer?.verdict).toBe("refute");
     expect(contestIsLive({ status: "answering" })).toBe(true);
     expect(contestIsLive({ status: "answered" })).toBe(false);
-    expect(contestCostUsd(1_234_567)).toBe("1.23");
+    // cost_usd_ticks are 1e-10 USD (server/pkg/pricing TicksPerUSD).
+    expect(contestCostUsd(12_345_678_900)).toBe("1.23");
+    expect(contestCostUsd(500_000_000)).toBe("0.05");
   });
 });

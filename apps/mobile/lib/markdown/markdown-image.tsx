@@ -39,7 +39,7 @@ interface Props {
   attachments?: Attachment[];
 }
 
-export function MarkdownImage({ uri, attachments }: Props) {
+export function MarkdownImage({ uri, alt, attachments }: Props) {
   const { open } = useLightbox();
   const sequence = useImageSequence();
   const [aspect, setAspect] = useState<number | null>(null);
@@ -87,13 +87,18 @@ export function MarkdownImage({ uri, attachments }: Props) {
   }, [resolvedUri]);
 
   return (
-    <Pressable onPress={() => open(resolvedUri, sequence)}>
+    <Pressable
+      onPress={() => open(resolvedUri, sequence)}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={alt || undefined}
+    >
       <View className="rounded-lg overflow-hidden bg-muted">
         <ExpoImage
           source={{ uri: resolvedUri }}
           style={{ width: "100%", aspectRatio: aspect ?? 16 / 9 }}
           contentFit="contain"
           transition={150}
+          accessibilityLabel={alt || undefined}
         />
       </View>
     </Pressable>

@@ -188,6 +188,7 @@ func (h *Handler) calendarEvents(ctx context.Context, workspaceID pgtype.UUID, u
 	key := uuidToString(workspaceID) + ":" + userID
 	calendarCacheMu.Lock()
 	entry, cached := calendarCache[key]
+	sweepStaleCalendarCacheEntries(now)
 	calendarCacheMu.Unlock()
 	// A changed URL invalidates the entry: it is a different calendar, and
 	// the previous one's error is not this one's.
@@ -401,4 +402,19 @@ func (h *Handler) forgetCalendarCache(workspaceID pgtype.UUID, userID string) {
 	calendarCacheMu.Lock()
 	delete(calendarCache, uuidToString(workspaceID)+":"+userID)
 	calendarCacheMu.Unlock()
+}
+
+// sweepStaleCalendarCacheEntries evicts entries no calendarEvents call has
+// refreshed since well before their TTL. Called opportunistically (must hold
+// calendarCacheMu) on every calendarEvents call: without it, a (workspace,
+// user) pair that reads its calendar once and never touches feed settings
+// again leaves its entry in this process-wide map for the life of the
+// process. The multiplier keeps a sweep from racing a just-written entry.
+func sweepStaleCalendarCacheEntries(now time.Time) {
+	cutoff := calendarCacheTTL * 4
+	for k, v := range calendarCache {
+		if now.Sub(v.at) >= cutoff {
+			delete(calendarCache, k)
+		}
+	}
 }

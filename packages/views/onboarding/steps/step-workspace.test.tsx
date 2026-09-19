@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
 import enOnboarding from "../../locales/en/onboarding.json";
 import enWorkspace from "../../locales/en/workspace.json";
+// The pack picker's rows read the kind and domain glossary from the settings
+// namespace, which owns the Packs tab — one glossary for the product.
+import enSettings from "../../locales/en/settings.json";
 import type { Workspace } from "@multica/core/types";
 
 const TEST_RESOURCES = {
@@ -13,6 +17,7 @@ const TEST_RESOURCES = {
     common: enCommon,
     onboarding: enOnboarding,
     workspace: enWorkspace,
+    settings: enSettings,
   },
 };
 
@@ -43,6 +48,11 @@ vi.mock("@multica/core/workspace/mutations", () => ({
   useCreateWorkspace: () => ({ mutate: mockCreateMutate, isPending: false }),
 }));
 
+const mockToastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: { error: mockToastError, success: vi.fn() },
+}));
+
 vi.mock("@multica/core/api", () => ({
   api: { getBaseUrl: () => "http://127.0.0.1:8080" },
 }));
@@ -50,6 +60,16 @@ vi.mock("@multica/core/api", () => ({
 const mockTemplates = vi.hoisted(() => ({ list: [] as { id: string; name: string; workspace_name: string }[] }));
 vi.mock("@multica/core/workspace/transfer", () => ({
   workspaceTemplatesOptions: () => ({ queryKey: ["workspace-templates"], queryFn: async () => mockTemplates.list }),
+}));
+
+const mockPacks = vi.hoisted(() => ({
+  catalogue: { packs: [] as unknown[], domains: [] as string[] },
+}));
+vi.mock("@multica/core/packs", () => ({
+  packSeedCatalogueOptions: () => ({
+    queryKey: ["pack-catalogue"],
+    queryFn: async () => mockPacks.catalogue,
+  }),
 }));
 
 import { StepWorkspace } from "./step-workspace";
@@ -342,9 +362,11 @@ describe("StepWorkspace — issue prefix", () => {
     mockTemplates.list = [{ id: "run-1", name: "Agency starter", workspace_name: "Agency" }];
     renderStep({ existing: null, disabled: false });
 
-    const picker = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
-    expect(picker.value).toBe("");
-    fireEvent.change(picker, { target: { value: "run-1" } });
+    const picker = await screen.findByRole("combobox", { name: "Start from" });
+    expect(picker.textContent).toContain("Start from scratch");
+    const user = userEvent.setup();
+    await user.click(picker);
+    await user.click(await screen.findByRole("option", { name: "Agency starter" }));
     fireEvent.change(screen.getByLabelText("Workspace name"), {
       target: { value: "Acme Inc" },
     });
@@ -355,5 +377,134 @@ describe("StepWorkspace — issue prefix", () => {
       template_run_id: "run-1",
     });
     mockTemplates.list = [];
+  });
+});
+
+// Packs (OS plan, vague B): the new workspace can start as a ready-to-use
+// setup for one function. The catalogue read here is the pre-workspace one
+// (/api/pack-catalogue) — no workspace header, no install state — because
+// the workspace being seeded does not exist yet.
+describe("StepWorkspace — pack picker", () => {
+  const HELPDESK = {
+    manifest: {
+      id: "helpdesk-it",
+      title: "IT helpdesk",
+      summary: "Take tickets, triage them, answer them.",
+      domain: "helpdesk",
+      works_without_agents: true,
+    },
+    counts: { labels: 5, views: 3, agents: 2 },
+    contents: { labels: ["Bug"] },
+  };
+  const SALES = {
+    manifest: {
+      id: "sales",
+      title: "Sales pipeline",
+      summary: "Deals, stages, follow-ups.",
+      domain: "sales",
+      works_without_agents: false,
+    },
+    counts: { labels: 2 },
+    contents: {},
+  };
+
+  it("stays hidden when the catalogue is empty", () => {
+    mockPacks.catalogue = { packs: [], domains: [] };
+    renderStep({ existing: null, disabled: false });
+    expect(screen.queryByText("No pack")).not.toBeInTheDocument();
+  });
+
+  it("renders a row per catalogue pack, defaulting to no pack", async () => {
+    mockPacks.catalogue = { packs: [HELPDESK, SALES], domains: ["helpdesk", "sales"] };
+    renderStep({ existing: null, disabled: false });
+
+    const none = await screen.findByRole("radio", { name: /No pack/ });
+    expect(none).toBeChecked();
+    const helpdesk = screen.getByRole("radio", { name: /IT helpdesk/ });
+    expect(helpdesk).not.toBeChecked();
+    // Domain badge, the counts summary and the zero-agent promise all read
+    // off the catalogue entry, not off a hardcoded list.
+    expect(helpdesk.textContent).toContain("Helpdesk");
+    expect(helpdesk.textContent).toContain("5 labels · 3 views · 2 agents");
+    expect(helpdesk.textContent).toContain("No agent needed");
+    expect(
+      screen.getByRole("radio", { name: /Sales pipeline/ }).textContent,
+    ).not.toContain("No agent needed");
+  });
+
+  it("sends the picked pack as pack_id", async () => {
+    mockCreateMutate.mockClear();
+    mockPacks.catalogue = { packs: [HELPDESK, SALES], domains: ["helpdesk", "sales"] };
+    renderStep({ existing: null, disabled: false });
+
+    fireEvent.click(await screen.findByRole("radio", { name: /IT helpdesk/ }));
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate.mock.calls[0]![0]).toMatchObject({
+      slug: "acme-inc",
+      pack_id: "helpdesk-it",
+    });
+  });
+
+  it("sends no pack_id when the user deselects back to no pack", async () => {
+    mockCreateMutate.mockClear();
+    mockPacks.catalogue = { packs: [HELPDESK], domains: ["helpdesk"] };
+    renderStep({ existing: null, disabled: false });
+
+    const helpdesk = await screen.findByRole("radio", { name: /IT helpdesk/ });
+    fireEvent.click(helpdesk);
+    fireEvent.click(helpdesk);
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate.mock.calls[0]![0]).not.toHaveProperty("pack_id");
+    mockPacks.catalogue = { packs: [], domains: [] };
+  });
+
+  // Guards the fix for the audit finding that CreateWorkspace shared one
+  // pair of response fields (template/template_error) between the template
+  // seed and the pack seed: a request supplying both could have the pack's
+  // error silently clobber the template's, or vice versa. The server now
+  // reports pack_error separately (server/internal/handler/workspace.go),
+  // and the UI must surface it the same way it already surfaces
+  // template_error, not silently drop it.
+  it("surfaces pack_error the same way as template_error", () => {
+    mockCreateMutate.mockClear();
+    mockToastError.mockClear();
+    const onCreated = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <I18nProvider locale="en" resources={TEST_RESOURCES}>
+          <StepWorkspace existing={null} onCreated={onCreated} />
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate).toHaveBeenCalledTimes(1);
+    const options = mockCreateMutate.mock.calls[0]![1] as {
+      onSuccess: (workspace: Workspace) => void;
+    };
+    const workspace = {
+      id: "ws1",
+      name: "Acme Inc",
+      slug: "acme-inc",
+      pack_error: "seed failed: no such pack",
+    } as unknown as Workspace;
+    options.onSuccess(workspace);
+
+    expect(mockToastError).toHaveBeenCalledTimes(1);
+    expect(mockToastError.mock.calls[0]![0]).toContain("seed failed: no such pack");
+    // The workspace is real either way: onCreated still runs.
+    expect(onCreated).toHaveBeenCalledWith(workspace);
   });
 });

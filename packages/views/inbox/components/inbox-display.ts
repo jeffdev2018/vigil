@@ -1,4 +1,5 @@
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 
 function singleLine(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -54,6 +55,50 @@ export function isQuickCreateOutcome(type: InboxItem["type"]): boolean {
 
 export function isAutopilotQuotaNotice(type: InboxItem["type"]): boolean {
   return type === "autopilot_quota_exceeded";
+}
+
+/**
+ * Inline approvals (OS plan, chantier 3): the inbox item types that name an
+ * ask a human must decide, and so are act-in-place through the shared
+ * approvals feed rather than the plain title/body detail pane.
+ */
+export function isApprovalAskType(type: InboxItem["type"]): boolean {
+  return (
+    type === "decision_request" ||
+    type === "decision_escalated" ||
+    type === "transition_approval_requested" ||
+    type === "goal_question"
+  );
+}
+
+/**
+ * The pending ask (if any) that an approval-shaped inbox item names, found
+ * in the workspace approvals feed. Null when already settled — the item
+ * still exists in the inbox, but there is nothing left to decide.
+ */
+export function findMatchingApproval(item: InboxItem, approvals: ApprovalItem[]): ApprovalItem | null {
+  if (item.type === "decision_request" || item.type === "decision_escalated") {
+    const decisionId = item.details?.decision_id;
+    if (!decisionId) return null;
+    return approvals.find((a) => a.source === "decision" && a.id === decisionId) ?? null;
+  }
+  if (item.type === "transition_approval_requested") {
+    return approvals.find((a) => a.source === "transition" && a.issue.id === item.issue_id) ?? null;
+  }
+  if (item.type === "goal_question") {
+    return approvals.find((a) => a.source === "goal_question" && a.issue.id === item.issue_id) ?? null;
+  }
+  return null;
+}
+
+/**
+ * Workspace doctrine (OS plan, chantier 22): the two item types whose subject
+ * is the doctrine itself. Neither names an issue to open, so the detail pane
+ * sends the reader to the Doctrine settings tab, where the pending proposal
+ * and the open reports live.
+ */
+export function isDoctrineType(type: InboxItem["type"]): boolean {
+  return type === "doctrine_review" || type === "doctrine_report";
 }
 
 export function getQuickCreateOutcomeDetail(item: InboxItem): string {

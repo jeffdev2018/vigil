@@ -118,7 +118,9 @@ export default function ChatTab() {
   }, [activeSessionId, setStoreActiveSessionId]);
 
   // ── Server state ───────────────────────────────────────────────────────
-  const { data: sessions = [] } = useQuery(chatSessionsOptions(wsId));
+  const { data: sessions = [], isFetched: sessionsFetched } = useQuery(
+    chatSessionsOptions(wsId),
+  );
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
 
@@ -131,16 +133,23 @@ export default function ChatTab() {
   useEffect(() => {
     if (!wsId) return;
     if (hydratedWsRef.current === wsId) return;
-    if (sessions.length === 0) {
-      hydratedWsRef.current = wsId;
-      return;
-    }
+    // Wait for the query to actually resolve (success or error) before
+    // deciding — `sessions.length === 0` is also true while the request
+    // is still in flight on a cold cache, which used to mark hydration
+    // done before the real list ever arrived.
+    if (!sessionsFetched) return;
     hydratedWsRef.current = wsId;
-    setActiveSessionId(sessions[0].id);
-  }, [wsId, sessions]);
-  const { data: messages = [], isLoading: messagesLoading } = useQuery(
-    chatMessagesOptions(activeSessionId),
-  );
+    if (sessions.length > 0) setActiveSessionId(sessions[0].id);
+  }, [wsId, sessions, sessionsFetched]);
+  // `isError`, not just `isLoading`: the list defaults to [], so a refused or
+  // offline read is indistinguishable here from a conversation with nothing in
+  // it. ChatMessageList tells the two apart (lib/chat-list-state.ts).
+  const {
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesFailed,
+    refetch: refetchMessages,
+  } = useQuery(chatMessagesOptions(activeSessionId));
   const { data: pendingTask } = useQuery(
     pendingChatTaskOptions(activeSessionId),
   );
@@ -519,6 +528,8 @@ export default function ChatTab() {
         <ChatMessageList
           messages={visibleMessages}
           loading={messagesLoading}
+          failed={messagesFailed}
+          onRetry={() => void refetchMessages()}
           hasSessions={sessions.length > 0}
           agent={currentAgent}
           onPickPrompt={(text) => setDraft(draftKey, text)}
@@ -547,6 +558,9 @@ export default function ChatTab() {
           allowStop={pendingTask?.status !== "queued"}
           disabled={disabled}
           disabledReason={disabledReason}
+          // A new conversation: its first send is the one that starts a run
+          // (mirrors web's ChatInput showRunNotice).
+          runNoticeAgent={!activeSessionId && currentAgent ? { id: currentAgent.id, name: currentAgent.name } : null}
         />
       </KeyboardAvoidingView>
 

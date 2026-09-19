@@ -7,6 +7,7 @@ import type { AgentMemory } from "@multica/core/types";
 import { agentMemoryEvaluationsOptions, agentMemoryEvaluationOptions, useImportAgentMemoryEvaluation, useDeleteAgentMemoryEvaluation, useUpdateAgentMemory, useCancelMemoryExecution } from "@multica/core/agents";
 import { Button } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { MemoryExecutionForm } from "./memory-execution-form";
 import { useT } from "../../../i18n";
@@ -117,7 +118,7 @@ export function MemoryEvaluationsDialog({ wsId, agentId, memory, onClose }: { ws
               <p className="mt-3 break-all text-caption text-muted-foreground">{t(($) => $.tab_body.memory.evaluations.fingerprints)}: {item.input_hash} / {item.checks_hash}</p>
             </details>)}
             {active && <p>{t(($) => $.tab_body.memory.connected.cancel_hint)}</p>}
-            {eligible && <label className="flex items-start gap-2 rounded-lg border p-3"><input type="checkbox" checked={reviewed} disabled={busy} onChange={(event) => setReviewed(event.target.checked)} className="mt-1" /><span>{t(($) => $.tab_body.memory.evaluations.review_confirmation)}</span></label>}
+            {eligible && <label className="flex items-start gap-2 rounded-lg border p-3"><Checkbox checked={reviewed} disabled={busy} onCheckedChange={(checked) => setReviewed(checked === true)} className="mt-1" /><span>{t(($) => $.tab_body.memory.evaluations.review_confirmation)}</span></label>}
             {!eligible && <p className="text-muted-foreground">{t(($) => $.tab_body.memory.evaluations.unavailable_adoption)}</p>}
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" disabled={busy} onClick={() => {

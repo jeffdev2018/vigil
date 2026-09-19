@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
 import { useLeaveWorkspace, useDeleteWorkspace } from "@multica/core/workspace/mutations";
+import { unmarkWorkspaceLeavePending } from "@multica/core/workspace/pending-delete";
 import {
   memberListOptions,
   workspaceKeys,
@@ -34,7 +35,8 @@ import {
 import { setCurrentWorkspace } from "@multica/core/platform";
 import type { Workspace } from "@multica/core/types";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
-import { useNavigation } from "../../navigation";
+import { AppLink, useNavigation } from "../../navigation";
+import { settingsHref } from "./settings-navigation";
 import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
 import { PlanVerificationSetting } from "./plan-verification-setting";
 import { DecisionSlaSetting } from "./decision-sla-setting";
@@ -44,11 +46,14 @@ import { StandupSetting } from "./standup-setting";
 import { TriageAutoSetting } from "./triage-auto-setting";
 import { TriageEmailSourceSetting } from "./triage-email-source-setting";
 import { ApprovalGatesSetting } from "./approval-gates-setting";
+import { RunHaltSetting } from "./run-halt-setting";
+import { BranchCleanupSetting } from "./branch-cleanup-setting";
 import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
 import { WorkflowLimitsSetting } from "./workflow-limits-setting";
+import { MCPServerSetting } from "./mcp-server-setting";
 import { DataResidencySetting } from "./data-residency-setting";
 import { BatchWindowSetting } from "./batch-window-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
@@ -79,18 +84,13 @@ import { useAutoSave } from "./use-auto-save";
 interface WorkspaceDetailsDraft {
   name: string;
   description: string;
-  context: string;
 }
 
 function workspaceDetailsEqual(
   left: WorkspaceDetailsDraft,
   right: WorkspaceDetailsDraft,
 ) {
-  return (
-    left.name === right.name &&
-    left.description === right.description &&
-    left.context === right.context
-  );
+  return left.name === right.name && left.description === right.description;
 }
 
 export function WorkspaceTab() {
@@ -118,19 +118,14 @@ export function WorkspaceTab() {
    * Send the user to a safe URL, computed from the current cached workspace
    * list minus the workspace that's going away.
    *
-   * Call ordering differs per flow:
-   *   - Delete calls this AFTER the mutation succeeds. The realtime
-   *     `workspace:deleted` handler skips self-initiated deletes (see
-   *     pending-delete.ts), so nothing races this navigation.
-   *   - Leave still calls this BEFORE the mutation fires: `member:removed`
-   *     has no self-initiated marker yet, so if the user were still on the
-   *     workspace's URL when that event arrives, the realtime handler in
-   *     `use-realtime-sync.ts` would trigger a parallel full-page relocate
-   *     that races the mutation's `invalidateQueries` refetch — the loser's
-   *     in-flight fetch gets cancelled, surfacing as an unhandled
-   *     `CancelledError`. Navigating first makes the handler's
-   *     "current === lost workspace" check fail and its relocate no-op.
-   *     Known debt: give leave the same await-then-navigate shape as delete.
+   * Both flows call this AFTER their mutation succeeds. The realtime handlers
+   * skip events this client caused — `workspace:deleted` for delete,
+   * `member:removed` for leave — via the self-initiated registries in
+   * pending-delete.ts, so neither can answer our own request with a parallel
+   * full-page relocate that races this navigation (and races the mutation's
+   * `invalidateQueries` refetch, whose loser surfaces as an unhandled
+   * `CancelledError`). That guard is what let leave stop navigating before
+   * its own request.
    */
   const navigateAwayFromCurrentWorkspace = () => {
     const cachedList =
@@ -158,7 +153,6 @@ export function WorkspaceTab() {
 
   const [name, setName] = useState(workspace?.name ?? "");
   const [description, setDescription] = useState(workspace?.description ?? "");
-  const [context, setContext] = useState(workspace?.context ?? "");
   const [issuePrefix, setIssuePrefix] = useState(workspace?.issue_prefix ?? "");
   const [prefixSaveStatus, setPrefixSaveStatus] =
     useState<SettingsSaveStatus>("idle");
@@ -189,7 +183,6 @@ export function WorkspaceTab() {
   useEffect(() => {
     setName(workspace?.name ?? "");
     setDescription(workspace?.description ?? "");
-    setContext(workspace?.context ?? "");
     setIssuePrefix(workspace?.issue_prefix ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on id only; see comment above
   }, [workspace?.id]);
@@ -206,16 +199,15 @@ export function WorkspaceTab() {
   const prefixInvalid = normalizedPrefix.length === 0;
 
   const detailsDraft = useMemo(
-    () => ({ name, description, context }),
-    [context, description, name],
+    () => ({ name, description }),
+    [description, name],
   );
   const savedDetails = useMemo(
     () => ({
       name: workspace?.name ?? "",
       description: workspace?.description ?? "",
-      context: workspace?.context ?? "",
     }),
-    [workspace?.context, workspace?.description, workspace?.name],
+    [workspace?.description, workspace?.name],
   );
   const saveDetails = useCallback(
     async (next: WorkspaceDetailsDraft) => {
@@ -292,11 +284,19 @@ export function WorkspaceTab() {
       title: t(($) => $.workspace.leave_confirm_title),
       description: t(($) => $.workspace.leave_confirm_description, { name: workspace.name }),
       variant: "destructive",
+      // Await the request, then navigate — same shape as delete below. On
+      // failure the user is still a member and stays exactly where they
+      // started, instead of being dropped on another workspace by a leave
+      // that never happened.
       onConfirm: async () => {
         setActionId("leave");
-        navigateAwayFromCurrentWorkspace();
         try {
           await leaveWorkspace.mutateAsync(workspace.id);
+          navigateAwayFromCurrentWorkspace();
+          // Navigation is done and the workspace-context singleton is null,
+          // so the realtime handler no-ops on its own from here; releasing
+          // the guard keeps a later re-join removable normally.
+          unmarkWorkspaceLeavePending(workspace.id);
         } catch (e) {
           toast.error(e instanceof Error ? e.message : t(($) => $.workspace.toast_leave_failed));
         } finally {
@@ -422,23 +422,28 @@ export function WorkspaceTab() {
             />
           </SettingsRow>
 
+          {/* The workspace context is now the doctrine: versioned, reviewable
+              and published deliberately from its own tab. */}
           <SettingsRow
-            label={t(($) => $.workspace.context_label)}
-            size="text"
-            align="start"
+            label={t(($) => $.workspace.doctrine_moved_label)}
+            description={t(($) => $.workspace.doctrine_moved_description)}
           >
-            <Textarea
-              name="workspace-context"
-              autoComplete="off"
-              aria-label={t(($) => $.workspace.context_label)}
-              value={context}
-              onChange={(event) => setContext(event.target.value)}
-              onBlur={detailsAutoSave.flush}
-              rows={4}
-              disabled={!canManageWorkspace}
-              className="resize-none"
-              placeholder={t(($) => $.workspace.context_placeholder)}
-            />
+            <Button
+              variant="outline"
+              size="sm"
+              render={
+                <AppLink
+                  href={settingsHref(
+                    navigation.pathname,
+                    navigation.searchParams,
+                    "doctrine",
+                  )}
+                />
+              }
+              nativeButton={false}
+            >
+              {t(($) => $.workspace.doctrine_moved_action)}
+            </Button>
           </SettingsRow>
 
           <SettingsRow
@@ -511,11 +516,14 @@ export function WorkspaceTab() {
       {workspace && <TriageAutoSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {wsId && <TriageEmailSourceSetting wsId={wsId} canEdit={canManageWorkspace} />}
       {workspace && <ApprovalGatesSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {wsId && <RunHaltSetting wsId={wsId} canEdit={canManageWorkspace} />}
+      {workspace && <BranchCleanupSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PermissionProfilesSetting canEdit={canManageWorkspace} />}
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
       {workspace && <WorkflowLimitsSetting canEdit={canManageWorkspace} />}
+      {workspace && <MCPServerSetting canEdit={canManageWorkspace} />}
       {workspace && <DataResidencySetting canEdit={canManageWorkspace} />}
       {workspace && <BatchWindowSetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}

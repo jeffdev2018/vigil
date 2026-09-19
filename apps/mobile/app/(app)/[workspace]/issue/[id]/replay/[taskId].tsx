@@ -28,6 +28,7 @@ import {
   formatReplayTokens,
   previewJson,
   replayCountsSoFar,
+  replayFailureSummary,
   replayKindLabel,
   replaySealLabel,
   replaySealState,
@@ -119,6 +120,13 @@ export default function RunReplayRoute() {
           </Text>
         </View>
       </View>
+
+      {/* Why a failed run failed, in words, before any event payload. */}
+      {replayFailureSummary(run) ? (
+        <View className="rounded-lg bg-destructive/10 p-3">
+          <Text className="text-sm text-destructive">{replayFailureSummary(run)}</Text>
+        </View>
+      ) : null}
 
       {/* Scrubber */}
       <View className="flex-row items-center justify-between">

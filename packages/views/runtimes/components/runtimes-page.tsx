@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronRight,
   Cloud,
@@ -27,7 +27,6 @@ import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -56,10 +55,13 @@ import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
 import {
   buildRuntimeMachines,
+  capitalize,
   machineCliSignInNeeded,
   type RuntimeMachine,
 } from "./runtime-machines";
 import { HealthDot, HealthIcon, useHealthLabel } from "./shared";
+import { LoadErrorState } from "../../common/load-error-state";
+import { useNowTick } from "./use-now-tick";
 import { useT, useTimeAgo } from "../../i18n";
 import { daemonRuntimesDocsHref } from "./runtime-docs";
 
@@ -76,14 +78,6 @@ export interface RuntimesPageProps {
   cloudRuntimeEnabled?: boolean;
 }
 
-function useNowTick(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
 
 export function RuntimesPage({
   localDaemonId,
@@ -92,6 +86,7 @@ export function RuntimesPage({
   bootstrapping,
   cloudRuntimeEnabled = false,
 }: RuntimesPageProps = {}) {
+  const { t } = useT("runtimes");
   const isAuthLoading = useAuthStore((state) => state.isLoading);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const wsId = useWorkspaceId();
@@ -99,12 +94,18 @@ export function RuntimesPage({
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [showCloudRuntimeDialog, setShowCloudRuntimeDialog] = useState(false);
 
-  const { data: runtimes = [], isLoading: runtimesLoading } = useQuery(
-    runtimeListOptions(wsId),
-  );
-  const { data: runtimeProfiles = [], isLoading: profilesLoading } = useQuery(
-    runtimeProfileListOptions(wsId),
-  );
+  const {
+    data: runtimes = [],
+    isLoading: runtimesLoading,
+    isError: runtimesError,
+    refetch: refetchRuntimes,
+  } = useQuery(runtimeListOptions(wsId));
+  const {
+    data: runtimeProfiles = [],
+    isLoading: profilesLoading,
+    isError: profilesError,
+    refetch: refetchProfiles,
+  } = useQuery(runtimeProfileListOptions(wsId));
   const { data: agents = [], isLoading: agentsLoading } = useQuery(
     agentListOptions(wsId),
   );
@@ -135,6 +136,10 @@ export function RuntimesPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        cloudMachineTitle: (provider) =>
+          t(($) => $.machine.metrics.cloud_worker_named, { provider: capitalize(provider) }),
+        localMachineTitle: t(($) => $.machine.this_machine),
+        unknownMachineTitle: t(($) => $.machine.unknown_machine),
       }),
     [
       runtimes,
@@ -144,6 +149,7 @@ export function RuntimesPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      t,
     ],
   );
   const orphanProfileRuntimes = useMemo(() => {
@@ -153,10 +159,10 @@ export function RuntimesPage({
       return pendingRuntimeFromProfile({
         profile,
         createdAt: Number.isFinite(createdAt) ? createdAt : 0,
-        fallbackMachineName: "Unassigned",
+        fallbackMachineName: t(($) => $.machine.unassigned),
       });
     });
-  }, [machines, runtimeProfiles]);
+  }, [machines, runtimeProfiles, t]);
 
   if (isAuthLoading || runtimesLoading || profilesLoading) {
     return <RuntimesPageSkeleton />;
@@ -167,6 +173,10 @@ export function RuntimesPage({
     orphanProfileRuntimes.length === 0 &&
     !bootstrapping &&
     hasLocalMachine !== true;
+  // A failed list read also lands on `machines.length === 0`, so the empty
+  // state alone would claim this workspace owns no machine when the truth is
+  // that we could not ask. Nothing to show plus a failed read is an error.
+  const loadFailed = (runtimesError || profilesError) && showEmpty;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -177,7 +187,14 @@ export function RuntimesPage({
         onOpenCloudRuntime={() => setShowCloudRuntimeDialog(true)}
       />
 
-      {showEmpty ? (
+      {loadFailed ? (
+        <LoadErrorState
+          onRetry={() => {
+            if (runtimesError) void refetchRuntimes();
+            if (profilesError) void refetchProfiles();
+          }}
+        />
+      ) : showEmpty ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <EmptyState onConnectRemote={() => setShowConnectDialog(true)} />
         </div>
@@ -312,9 +329,6 @@ function MikaSetupCard({
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{t(($) => $.mika_setup.dialog_title)}</DialogTitle>
-            <DialogDescription>
-              {t(($) => $.mika_setup.dialog_description)}
-            </DialogDescription>
           </DialogHeader>
 
           <MikaRuntimeChoice
@@ -475,18 +489,18 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body font-medium">
+        <span title={machine.title} className="block truncate text-body font-medium">
           {machine.title}
         </span>
         <span className="mt-1 flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-          <span className="truncate">
+          <span className="truncate" title={machine.daemonId ?? undefined}>
             {machine.subtitle ??
               (machine.section === "cloud"
                 ? t(($) => $.machine.metrics.cloud_worker)
                 : t(($) => $.machine.metrics.local_daemon))}
           </span>
           {machine.isCurrent && (
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
+            <span className="shrink-0 rounded-xs bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
               {t(($) => $.machine.this_machine)}
             </span>
           )}
@@ -555,13 +569,13 @@ function ProviderIconStack({ providers }: { providers: string[] }) {
       {visible.map((provider) => (
         <span
           key={provider}
-          className="inline-flex h-5 w-5 items-center justify-center rounded bg-background ring-1 ring-border"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-xs bg-background ring-1 ring-border"
         >
           <ProviderLogo provider={provider} className="h-3.5 w-3.5" />
         </span>
       ))}
       {extra > 0 && (
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-muted px-1 text-micro font-medium text-muted-foreground ring-1 ring-border">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground ring-1 ring-border">
           +{extra}
         </span>
       )}

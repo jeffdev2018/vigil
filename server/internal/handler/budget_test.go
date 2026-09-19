@@ -29,10 +29,10 @@ func TestBudgetPolicyLifecycle(t *testing.T) {
 		t.Fatalf("unexpected created policy: %+v", policy)
 	}
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM budget_override WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_reservation WHERE policy_id = $1`, policy.ID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_period WHERE policy_id = $1`, policy.ID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_policy WHERE id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_override WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_reservation WHERE policy_id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_period WHERE policy_id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_policy WHERE id = $1`, policy.ID)
 	})
 
 	testutil.Call(t, testHandler.CreateBudgetPolicy, newRequest(http.MethodPost, "/api/budgets", map[string]any{
@@ -101,11 +101,82 @@ func TestBudgetPolicyLifecycle(t *testing.T) {
 func TestBudgetPolicyWriteRequiresManager(t *testing.T) {
 	dbfx.Exec(t, `UPDATE member SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	t.Cleanup(func() {
-		// context.Background(): t.Context() is already cancelled inside Cleanup.
+		// context.Background(): context.Background() is already cancelled inside Cleanup.
 		testPool.Exec(context.Background(), `UPDATE member SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	})
 	testutil.Call(t, testHandler.CreateBudgetPolicy, newRequest(http.MethodPost, "/api/budgets", map[string]any{
 		"scope_type": "workspace", "limit_usd_ticks": 1, "period": "daily", "action": "enforce",
 	})).Want(http.StatusForbidden)
 	testutil.Call(t, testHandler.ListBudgetPolicies, newRequest(http.MethodGet, "/api/budgets", nil)).Want(http.StatusOK)
+}
+
+// A server-side cancel settles the run's reservation before the daemon has
+// stopped the agent; the daemon reports the tokens it burned right after.
+// That report must still reach the period's spend, or cancelling a run just
+// before it finishes spends money the cap never sees.
+func TestReportTaskUsageAfterCancelChargesBudget(t *testing.T) {
+	dbfx.Exec(t, `DELETE FROM budget_policy WHERE workspace_id = $1`, testWorkspaceID)
+	policyID := dbfx.Insert(t, "budget_policy", testutil.Cols{
+		"workspace_id": testWorkspaceID, "scope_type": "workspace",
+		"limit_usd_ticks": int64(1_000_000_000_000), "period": "daily", "action": "enforce",
+		"created_by": testUserID,
+	})
+	dbfx.Cleanup(t, `DELETE FROM budget_period WHERE policy_id = $1`, policyID)
+	dbfx.Cleanup(t, `DELETE FROM budget_reservation WHERE policy_id = $1`, policyID)
+
+	runtimeID := handlerTestRuntimeID(t)
+	agentID := dbfx.Agent(t, "budget cancel agent", runtimeID)
+	issueID := dbfx.Issue(t, "budget cancel", testutil.Cols{"assignee_type": "agent", "assignee_id": agentID})
+	taskID := dbfx.Task(t, agentID, testutil.Cols{"runtime_id": runtimeID, "issue_id": issueID})
+	var claim struct {
+		Task *struct {
+			ID string `json:"id"`
+		} `json:"task"`
+	}
+	testutil.Call(t, testHandler.ClaimTaskByRuntime, withURLParam(newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+runtimeID+"/tasks/claim", nil, testWorkspaceID, "budget-daemon"), "runtimeId", runtimeID)).Want(http.StatusOK).JSON(&claim)
+	if claim.Task == nil || claim.Task.ID != taskID {
+		t.Fatalf("claim = %+v, want task %s", claim.Task, taskID)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM budget_reservation WHERE task_id = $1 AND state = 'reserved'`, taskID); n != 1 {
+		t.Fatalf("claimed task holds %d reservations, want 1", n)
+	}
+
+	if _, err := testHandler.TaskService.CancelTask(context.Background(), parseUUID(taskID)); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	testutil.Call(t, testHandler.ReportTaskUsage, withURLParam(newDaemonTokenRequest(http.MethodPost, "/api/daemon/tasks/"+taskID+"/usage", map[string]any{"usage": []map[string]any{{"provider": "anthropic", "model": "claude-x", "input_tokens": 100, "output_tokens": 50, "cost_usd_ticks": 3_000_000}}}, testWorkspaceID, "budget-daemon"), "taskId", taskID)).Want(http.StatusOK)
+
+	var spent, reserved int64
+	dbfx.QueryRow(t, `SELECT COALESCE(SUM(spent_usd_ticks), 0)::bigint, COALESCE(SUM(reserved_usd_ticks), 0)::bigint FROM budget_period WHERE policy_id = $1`, policyID).Scan(&spent, &reserved)
+	if spent != 3_000_000 || reserved != 0 {
+		t.Fatalf("after cancel + late usage spent=%d reserved=%d, want 3000000 / 0", spent, reserved)
+	}
+}
+
+// A direct chat send under an exhausted enforced cap is refused with the
+// structured budget conflict, like every other admission path.
+func TestSendChatMessageRefusedByExhaustedBudget(t *testing.T) {
+	dbfx.Exec(t, `DELETE FROM budget_policy WHERE workspace_id = $1`, testWorkspaceID)
+	policyID := dbfx.Insert(t, "budget_policy", testutil.Cols{
+		"workspace_id": testWorkspaceID, "scope_type": "workspace",
+		"limit_usd_ticks": int64(1), "period": "daily", "action": "enforce",
+		"created_by": testUserID,
+	})
+	dbfx.Cleanup(t, `DELETE FROM budget_period WHERE policy_id = $1`, policyID)
+	dbfx.Cleanup(t, `DELETE FROM budget_reservation WHERE policy_id = $1`, policyID)
+
+	agentID := createHandlerTestAgent(t, "ChatBudgetAgent", []byte("[]"))
+	sessionID := createHandlerTestChatSession(t, agentID)
+	req := newRequest(http.MethodPost, "/api/chat-sessions/"+sessionID+"/messages", map[string]any{"content": "spend more"})
+	req = withChatTestWorkspaceCtx(t, withURLParam(req, "sessionId", sessionID))
+	var body struct {
+		ReasonCode string `json:"reason_code"`
+	}
+	testutil.Call(t, testHandler.SendChatMessage, req).Want(http.StatusConflict).JSON(&body)
+	if body.ReasonCode != string(ReasonBudgetExceeded) {
+		t.Fatalf("reason_code = %q, want %q", body.ReasonCode, ReasonBudgetExceeded)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM agent_task_queue WHERE chat_session_id = $1`, sessionID); n != 0 {
+		t.Fatalf("refused send left %d tasks", n)
+	}
 }

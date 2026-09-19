@@ -52,6 +52,11 @@ export interface WSClientOptions {
   url: string;
   /** Bearer token sent as the first frame. */
   token: string;
+  /** Reads the CURRENT token at auth-frame time. A reconnect can happen long
+   *  after this client was built — long enough for a sliding session to have
+   *  been renewed in between — so `token` above is only the value to fall
+   *  back on when no reader is supplied (MUL-7436). */
+  getToken?: () => string | null;
   /** Workspace slug — server resolves to UUID and gates membership. */
   workspaceSlug: string;
   /** Mobile app version, surfaced to server logs for debuggability. */
@@ -131,12 +136,17 @@ export class WSClient {
     this.teardownSocket();
   }
 
-  /** Paused → active. Used by the provider when AppState=active. */
-  resume() {
-    if (this.state !== "paused") return;
+  /** Paused → active. Used by the provider when AppState=active.
+   *  Returns whether it actually resumed a paused socket — the provider
+   *  uses this to skip a redundant forceReconnect() right after: calling
+   *  both unconditionally opens two sockets back to back whenever the
+   *  socket WAS paused (resume() already opened a fresh one). */
+  resume(): boolean {
+    if (this.state !== "paused") return false;
     this.state = "active";
     this.reconnectAttempt = 0;
     this.openSocket();
+    return true;
   }
 
   /** Force a fresh socket without going through paused. Used when NetInfo
@@ -211,7 +221,10 @@ export class WSClient {
     ws.onopen = () => {
       this.logger.info("[ws] socket open, sending auth frame");
       ws.send(
-        JSON.stringify({ type: "auth", payload: { token: this.opts.token } }),
+        JSON.stringify({
+          type: "auth",
+          payload: { token: this.opts.getToken?.() ?? this.opts.token },
+        }),
       );
     };
 

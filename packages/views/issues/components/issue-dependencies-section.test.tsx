@@ -9,7 +9,7 @@ import { IssueDependenciesSection } from "./issue-dependencies-section";
 // Schema and API fallbacks are covered in packages/core/issues/dependencies.test.ts.
 
 const state = vi.hoisted(() => ({
-  data: { blocks: [], blocked_by: [], related: [] } as IssueDependencies,
+  data: { blocks: [], blocked_by: [], related: [], duplicate: [] } as IssueDependencies,
   remove: vi.fn(),
 }));
 
@@ -30,6 +30,11 @@ vi.mock("../../navigation", () => ({
   ),
 }));
 vi.mock("./status-icon", () => ({ StatusIcon: () => null }));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
+import { toast } from "sonner";
 
 function issue(id: string, title: string, status = "todo") {
   return {
@@ -51,8 +56,9 @@ function renderSection() {
 }
 
 beforeEach(() => {
-  state.data = { blocks: [], blocked_by: [], related: [] };
+  state.data = { blocks: [], blocked_by: [], related: [], duplicate: [] };
   state.remove.mockReset();
+  vi.mocked(toast.error).mockClear();
 });
 
 describe("IssueDependenciesSection", () => {
@@ -67,6 +73,7 @@ describe("IssueDependenciesSection", () => {
       blocks: [{ id: "d1", type: "blocks", issue: issue("b", "Downstream") }],
       blocked_by: [{ id: "d2", type: "blocked_by", issue: issue("c", "Upstream", "done") }],
       related: [],
+      duplicate: [],
     };
     renderSection();
     expect(await screen.findByText("Downstream")).toBeTruthy();
@@ -78,15 +85,50 @@ describe("IssueDependenciesSection", () => {
     expect(screen.getByText("Upstream").closest("a")?.getAttribute("href")).toBe("/ws/issues/c");
   });
 
+  it("lists related and duplicate relations under their own headings (R01)", async () => {
+    state.data = {
+      blocks: [],
+      blocked_by: [],
+      related: [{ id: "d3", type: "related", issue: issue("r", "Sibling work") }],
+      duplicate: [{ id: "d4", type: "duplicate", issue: issue("dupe", "Same ask, filed twice") }],
+    };
+    renderSection();
+    expect(await screen.findByText("Sibling work")).toBeTruthy();
+    expect(screen.getByText("Related")).toBeTruthy();
+    expect(screen.getByText("Same ask, filed twice")).toBeTruthy();
+    expect(screen.getByText("Duplicates")).toBeTruthy();
+  });
+
   it("removes a dependency from the row's button", async () => {
     state.data = {
       blocks: [{ id: "d1", type: "blocks", issue: issue("b", "Downstream") }],
       blocked_by: [],
       related: [],
+      duplicate: [],
     };
     renderSection();
     await screen.findByText("Downstream");
     fireEvent.click(screen.getByRole("button", { name: "Remove dependency" }));
-    expect(state.remove).toHaveBeenCalledWith({ issueId: "a", dependencyId: "d1" });
+    expect(state.remove.mock.calls[0]?.[0]).toEqual({ issueId: "a", dependencyId: "d1" });
+  });
+
+  // Regression: useRemoveIssueDependency had no onError anywhere in this
+  // component — a failed removal resynced silently on the next invalidate.
+  it("shows a toast when removing a dependency fails", async () => {
+    state.data = {
+      blocks: [{ id: "d1", type: "blocks", issue: issue("b", "Downstream") }],
+      blocked_by: [],
+      related: [],
+      duplicate: [],
+    };
+    state.remove.mockImplementation((_vars, opts?: { onError?: (err: unknown) => void }) => {
+      opts?.onError?.(new Error("could not remove"));
+    });
+    renderSection();
+    await screen.findByText("Downstream");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove dependency" }));
+
+    expect(toast.error).toHaveBeenCalledWith("could not remove");
   });
 });

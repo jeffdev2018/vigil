@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
@@ -277,7 +278,7 @@ func finishFailure(
 		errorCode = "handler_error"
 	}
 	if len(errorMsg) > 4000 {
-		errorMsg = errorMsg[:4000]
+		errorMsg = util.TruncateUTF8Bytes(errorMsg, 4000)
 	}
 
 	tag, err := pool.Exec(ctx, `

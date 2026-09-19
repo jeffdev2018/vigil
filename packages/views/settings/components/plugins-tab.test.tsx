@@ -14,10 +14,13 @@ const mockUninstall = vi.hoisted(() => vi.fn());
 const mockPublish = vi.hoisted(() => vi.fn());
 const mockDeletePackage = vi.hoisted(() => vi.fn());
 
+const mockRefetchPackages = vi.hoisted(() => vi.fn());
+
 const data = vi.hoisted(() => ({
   installed: { plugins: [] as Array<Record<string, unknown>> },
   packages: { packages: [] as Array<Record<string, unknown>> },
   role: "owner" as "owner" | "admin" | "member",
+  packagesError: false,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -26,7 +29,12 @@ vi.mock("@tanstack/react-query", () => ({
   // other — which is the normal state right after a publish.
   useQuery: (options: { queryKey?: readonly unknown[] }) =>
     options?.queryKey?.[1] === "packages"
-      ? { data: data.packages, isLoading: false, isError: false }
+      ? {
+          data: data.packages,
+          isLoading: false,
+          isError: data.packagesError,
+          refetch: mockRefetchPackages,
+        }
       : { data: data.installed, isLoading: false, isError: false },
 }));
 
@@ -133,6 +141,7 @@ describe("PluginsTab", () => {
     data.role = "owner";
     data.installed.plugins = [];
     data.packages.packages = [PACKAGE];
+    data.packagesError = false;
     mockPreview.mockResolvedValue(PREVIEW);
     mockInstall.mockResolvedValue(INSTALLATION);
     mockConfigure.mockResolvedValue(INSTALLATION);
@@ -250,5 +259,19 @@ describe("PluginsTab", () => {
     // the native attribute, so assert what a screen reader actually sees.
     expect(screen.getByRole("switch", { name: "Enable Plugin" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Uninstall" })).toBeDisabled();
+  });
+
+  // P3 audit finding: PublishAndInstall's packages query destructured only
+  // data/isLoading, so a failed fetch fell through to the "nothing
+  // published yet" empty copy instead of reporting the failure.
+  it("shows a retry-able error instead of the empty state when the packages fetch fails", async () => {
+    data.packagesError = true;
+    render(<PluginsTab />, { wrapper: Wrapper });
+
+    expect(await screen.findByText("Published packages couldn't be loaded.")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing has been published in this workspace yet.")).toBeNull();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    expect(mockRefetchPackages).toHaveBeenCalled();
   });
 });

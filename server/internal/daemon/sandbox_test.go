@@ -337,6 +337,45 @@ func TestPrepareSandboxLaunchWritesSpecAndSeedsHome(t *testing.T) {
 	}
 }
 
+// A short, dash-heavy task ID used to panic: the container name suffix sliced
+// the dash-stripped ID with min(8, len(task.ID)) — the PRE-strip length — so a
+// task ID with more dashes than min(8, len) leaves post-strip left it short of
+// 8 bytes overflows the slice.
+func TestPrepareSandboxLaunchShortDashHeavyTaskIDDoesNotPanic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix home layout")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proxy, err := sandboxrun.StartProxy("127.0.0.1:0", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxy.Close()
+	d := &Daemon{cfg: Config{ServerBaseURL: "http://127.0.0.1:8080", WorkspacesRoot: filepath.Join(home, "ws")}, logger: slog.New(slog.DiscardHandler)}
+	d.sandboxProxy = proxy
+	tempDir := t.TempDir()
+	// 4 chars, 1 dash: dash-stripped is 3 chars, well short of min(8, len=4).
+	task := Task{ID: "ab-c", Sandbox: &SandboxSpec{Mode: "container"}}
+
+	launch, cleanup, err := d.prepareSandboxLaunch(task, "claude", "container", tempDir, nil, d.logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	raw, err := os.ReadFile(launch.SpecPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spec sandboxrun.Spec
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(spec.ContainerName, "multica-run-abc-") {
+		t.Fatalf("container name = %q, want prefix multica-run-abc-", spec.ContainerName)
+	}
+}
+
 // The refusal must be nameable and moveable: a machine that cannot confine a
 // run is an infrastructure failure, not the agent's, so the pool answers it by
 // moving the run to a host that can rather than by losing it.

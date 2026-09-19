@@ -4,12 +4,18 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/multica-ai/multica/server/internal/logger"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
+
+// issueReactionMaxEmojiRunes generously covers a multi-codepoint emoji
+// sequence (ZWJ, skin tone/gender modifiers, flags); it exists only to cap
+// what an authenticated member can store, not to constrain real emoji.
+const issueReactionMaxEmojiRunes = 32
 
 type IssueReactionResponse struct {
 	ID            string `json:"id"`
@@ -53,6 +59,10 @@ func (h *Handler) AddIssueReaction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -62,12 +72,16 @@ func (h *Handler) AddIssueReaction(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Emoji string `json:"emoji"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Emoji == "" {
 		writeError(w, http.StatusBadRequest, "emoji is required")
+		return
+	}
+	if utf8.RuneCountInString(req.Emoji) > issueReactionMaxEmojiRunes {
+		writeError(w, http.StatusBadRequest, "emoji is too long")
 		return
 	}
 
@@ -108,6 +122,10 @@ func (h *Handler) RemoveIssueReaction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -117,12 +135,16 @@ func (h *Handler) RemoveIssueReaction(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Emoji string `json:"emoji"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Emoji == "" {
 		writeError(w, http.StatusBadRequest, "emoji is required")
+		return
+	}
+	if utf8.RuneCountInString(req.Emoji) > issueReactionMaxEmojiRunes {
+		writeError(w, http.StatusBadRequest, "emoji is too long")
 		return
 	}
 

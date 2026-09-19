@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -155,7 +156,9 @@ func (h *Handler) StartMikaOnboarding(w http.ResponseWriter, r *http.Request) {
 	opening := buildMikaOnboardingOpening(req.Language, agent.Name, workspace.Name)
 
 	var answers questionnaireAnswers
-	_ = json.Unmarshal(user.OnboardingQuestionnaire, &answers)
+	if err := json.Unmarshal(user.OnboardingQuestionnaire, &answers); err != nil {
+		slog.Warn("start mika onboarding: unmarshal stored questionnaire failed", "user_id", userID, "error", err)
+	}
 	prompt := buildMikaOnboardingKickoff(
 		languageName,
 		workspace.Name,
