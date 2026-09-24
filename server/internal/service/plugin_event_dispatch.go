@@ -61,6 +61,10 @@ type dispatchJob struct {
 	eventType    string
 	issueID      pgtype.UUID
 	payload      any
+	// actorType/actorID identify who caused the underlying domain event, so
+	// run() can refuse delivering it back to the installation that caused it.
+	actorType string
+	actorID   string
 }
 
 func NewPluginEventDispatcher(service *PluginService) *PluginEventDispatcher {
@@ -145,7 +149,7 @@ func (d *PluginEventDispatcher) sweepOnce() {
 // Note it takes no context from that request. Tying an outbound hook to the
 // request that triggered it would cancel the hook the moment the browser got
 // its response, which is exactly when the hook is only just starting.
-func (d *PluginEventDispatcher) Dispatch(eventType, workspaceID string, payload any) {
+func (d *PluginEventDispatcher) Dispatch(eventType, workspaceID, actorType, actorID string, payload any) {
 	if d == nil || d.service == nil || workspaceID == "" {
 		return
 	}
@@ -163,6 +167,8 @@ func (d *PluginEventDispatcher) Dispatch(eventType, workspaceID string, payload 
 		installation: db.PluginInstallation{WorkspaceID: parsedWorkspace},
 		eventType:    eventType,
 		payload:      payload,
+		actorType:    actorType,
+		actorID:      actorID,
 	}:
 	default:
 		d.mu.Lock()
@@ -244,6 +250,16 @@ func (d *PluginEventDispatcher) run(job dispatchJob) {
 		if !installation.Enabled {
 			continue
 		}
+		// Self-trigger guard: a plugin's own write (e.g. its event hook posts a
+		// comment, which republishes comment.created) must not fire that same
+		// installation's event hook again. Without this an installation can wire
+		// itself into an unbounded loop purely through the product's own event
+		// bus, with no third party involved at all. Only the exact installation
+		// that caused the event is skipped — every other installation still sees
+		// it normally.
+		if jobCausedByInstallation(job, installation) {
+			continue
+		}
 		manifest, err := ParseInstallationManifest(installation)
 		if err != nil {
 			continue
@@ -255,6 +271,13 @@ func (d *PluginEventDispatcher) run(job dispatchJob) {
 			d.deliver(ctx, installation, hook, job)
 		}
 	}
+}
+
+// jobCausedByInstallation reports whether this installation's own write
+// produced the event now being dispatched — separated from run() so the
+// condition is testable without a database.
+func jobCausedByInstallation(job dispatchJob, installation db.PluginInstallation) bool {
+	return job.actorType == "plugin" && job.actorID != "" && job.actorID == uuidString(installation.ID)
 }
 
 func hookWantsEvent(hook plugincontract.Hook, eventType string) bool {

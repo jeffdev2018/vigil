@@ -5,6 +5,8 @@ export const pluginKeys = {
   all: (wsId: string) => ["workspaces", wsId, "plugins"] as const,
   installed: (wsId: string) => [...pluginKeys.all(wsId), "installed"] as const,
   packages: (wsId: string) => [...pluginKeys.all(wsId), "packages"] as const,
+  agentTools: (wsId: string, agentId: string) =>
+    [...pluginKeys.all(wsId), "agent-tools", agentId] as const,
 };
 
 export function pluginInstallationsOptions(wsId: string) {
@@ -78,5 +80,19 @@ export function pluginMCPToolsOptions(wsId: string, installationId: string, hook
     enabled: wsId.length > 0 && installationId.length > 0 && hookKey.length > 0,
     staleTime: 5_000,
     retry: false,
+  });
+}
+
+/**
+ * The plugin agent-tool hooks available in the workspace, with whether THIS
+ * agent has been granted (`bound`) each one. `wsId` and `agentId` both key the
+ * cache — the same query under a different agent, or after a workspace
+ * switch, must not read another agent's grants.
+ */
+export function agentPluginToolsOptions(wsId: string, agentId: string) {
+  return queryOptions({
+    queryKey: pluginKeys.agentTools(wsId, agentId),
+    queryFn: () => api.listAgentPluginTools(agentId),
+    enabled: wsId.length > 0 && agentId.length > 0,
   });
 }

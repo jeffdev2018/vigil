@@ -9,7 +9,7 @@ import type {
 } from "@multica/core/types";
 import { providerSupportsMcpConfig } from "@multica/core/agents";
 import { useFeatureEnabled } from "@multica/core/config";
-import { COMPOSIO_MCP_APPS_FLAG } from "@multica/core/feature-flags";
+import { COMPOSIO_MCP_APPS_FLAG, PLUGINS_V1_FLAG } from "@multica/core/feature-flags";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { larkInstallationsOptions } from "@multica/core/lark";
 import { slackInstallationsOptions } from "@multica/core/slack";
@@ -36,6 +36,7 @@ import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
 import { AgentMcpTab } from "./tabs/agent-mcp-tab";
+import { PluginToolsTab } from "./tabs/plugin-tools-tab";
 import { IntegrationsTab } from "./tabs/integrations-tab";
 import { RuntimeConfigTab } from "./tabs/runtime-config-tab";
 import { HistoryTab } from "./tabs/history-tab";
@@ -57,6 +58,7 @@ export type DetailTab =
   | "memory"
   | "mcp_config"
   | "composio_mcp"
+  | "plugin_tools"
   | "integrations"
   | "general"
   | "access"
@@ -74,6 +76,7 @@ type SecondaryTab = {
     | "memory"
     | "mcp_config"
     | "composio_mcp"
+    | "plugin_tools"
     | "integrations"
     | "general"
     | "access"
@@ -90,6 +93,7 @@ const CAPABILITY_TABS: SecondaryTab[] = [
   { id: "memory", labelKey: "memory" },
   { id: "mcp_config", labelKey: "mcp_config" },
   { id: "composio_mcp", labelKey: "composio_mcp" },
+  { id: "plugin_tools", labelKey: "plugin_tools" },
   { id: "integrations", labelKey: "integrations" },
 ];
 
@@ -175,6 +179,7 @@ export function AgentOverviewPane({
     COMPOSIO_MCP_APPS_FLAG,
     false,
   );
+  const pluginsEnabled = useFeatureEnabled(PLUGINS_V1_FLAG, false);
   const [activeView, setActiveView] = useState<DetailTab>(() =>
     isDetailTab(urlView) ? urlView : "overview",
   );
@@ -222,6 +227,7 @@ export function AgentOverviewPane({
     return CAPABILITY_TABS.filter((tab) => {
       if (tab.id === "mcp_config") return showMcp;
       if (tab.id === "composio_mcp") return showComposioMcp;
+      if (tab.id === "plugin_tools") return pluginsEnabled;
       if (tab.id === "integrations") return integrationsConfigured;
       return true;
     });
@@ -230,6 +236,7 @@ export function AgentOverviewPane({
     composioMCPAppsEnabled,
     currentUserId,
     integrationsConfigured,
+    pluginsEnabled,
     runtime,
   ]);
 
@@ -499,6 +506,9 @@ export function AgentOverviewPane({
                   )}
                   {effectiveView === "composio_mcp" && (
                     <AgentMcpTab agent={agent} />
+                  )}
+                  {effectiveView === "plugin_tools" && (
+                    <PluginToolsTab agent={agent} canEdit={canEdit} />
                   )}
                   {effectiveView === "integrations" && (
                     <IntegrationsTab agent={agent} />

@@ -230,6 +230,7 @@ import type {
   PluginPreviewRequest,
   PluginInstallRequest,
   PluginConfigRequest,
+  AgentPluginTool,
   IssuePullRequestsResponse,
   ListGitHubInstallationsResponse,
   ListGitHubRepositoriesResponse,
@@ -953,6 +954,7 @@ import {
   PluginTokenIssueSchema,
   PluginInstallationSchema,
   PluginPreviewSchema,
+  AgentPluginToolListSchema,
   WorkspaceMcpServerListSchema,
   McpServerToolCatalogSchema,
   WorkspaceMcpServerSchema,
@@ -7465,6 +7467,36 @@ export class ApiClient {
     await this.fetch(`/api/workspaces/${workspaceId}/plugins/${installationId}`, {
       method: "DELETE",
     });
+  }
+
+  /**
+   * Every plugin agent-tool hook installed in the workspace, with whether
+   * THIS agent has been granted it. Deny-by-default: installing a plugin
+   * grants an agent nothing — `bound` only flips through bind/unbind below.
+   * Returns [] when plugins are disabled, same as an unparseable response.
+   */
+  async listAgentPluginTools(agentId: string): Promise<AgentPluginTool[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/plugin-tools`);
+    return parseWithFallback(raw, AgentPluginToolListSchema, [] as AgentPluginTool[], {
+      endpoint: "GET /api/agents/{agentId}/plugin-tools",
+    });
+  }
+
+  async bindAgentPluginTool(agentId: string, installationId: string, hookKey: string): Promise<boolean> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${agentId}/plugin-tools/${installationId}/${encodeURIComponent(hookKey)}`,
+      { method: "PUT" },
+    );
+    return parseWithFallback(raw, z.object({ bound: z.boolean().catch(false) }).loose(), { bound: true }, {
+      endpoint: "PUT /api/agents/{agentId}/plugin-tools/{installationId}/{hookKey}",
+    }).bound;
+  }
+
+  async unbindAgentPluginTool(agentId: string, installationId: string, hookKey: string): Promise<void> {
+    await this.fetch(
+      `/api/agents/${agentId}/plugin-tools/${installationId}/${encodeURIComponent(hookKey)}`,
+      { method: "DELETE" },
+    );
   }
 
   // Members

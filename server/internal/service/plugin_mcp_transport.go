@@ -31,6 +31,13 @@ type PluginMCPApproval struct {
 	Tools      []remotemcp.Tool `json:"tools"`
 	ApprovedAt string           `json:"approved_at"`
 	ApprovedBy string           `json:"approved_by,omitempty"`
+	// Endpoint is the hook's transport URL at approval time. A plugin manifest
+	// update that repoints the hook's URL must not silently inherit the old
+	// approval — that would let an administrator's "yes" to server A cover
+	// whatever now answers at the hook's new URL. mcpConnectionsFor treats any
+	// mismatch (including empty, from approvals stored before this field
+	// existed) as unapproved.
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 // PluginMCPApprovals maps hook key to its approval.
@@ -114,10 +121,15 @@ func (s *PluginService) ApproveMCPHookTools(ctx context.Context, installation db
 		// like "approved, with nothing in it".
 		delete(approvals, hookKey)
 	} else {
+		hook, err := FindHook(installation, hookKey)
+		if err != nil {
+			return db.PluginInstallation{}, err
+		}
 		approvals[hookKey] = PluginMCPApproval{
 			Tools:      approved,
 			ApprovedAt: time.Now().UTC().Format(time.RFC3339),
 			ApprovedBy: uuidString(userID),
+			Endpoint:   hook.Transport.URL,
 		}
 	}
 
@@ -143,11 +155,17 @@ func (s *PluginService) ApproveMCPHookTools(ctx context.Context, installation db
 // approved tool went missing or its schema drifted.
 //
 // A hook with no approval yields no connection. That is the point — installing
-// the plugin is not the grant, approving the tools is.
-func (s *PluginService) AgentMCPConnections(ctx context.Context, workspaceID pgtype.UUID) ([]remotemcp.Connection, error) {
+// the plugin is not the grant, approving the tools is. Deny by default adds a
+// second, independent gate on top: even an approved hook yields no connection
+// for an agent nobody bound it to, exactly like AgentHookTools.
+func (s *PluginService) AgentMCPConnections(ctx context.Context, workspaceID, agentID pgtype.UUID) ([]remotemcp.Connection, error) {
 	installations, err := s.Queries.ListWorkspacePluginInstallations(ctx, workspaceID)
 	if err != nil {
 		return nil, &PluginError{Kind: PluginErrorUnavailable, Message: "list plugin installations", Err: err}
+	}
+	bound, err := s.boundAgentPluginTools(ctx, agentID)
+	if err != nil {
+		return nil, err
 	}
 
 	connections := make([]remotemcp.Connection, 0)
@@ -155,16 +173,18 @@ func (s *PluginService) AgentMCPConnections(ctx context.Context, workspaceID pgt
 		if !installation.Enabled {
 			continue
 		}
-		connections = append(connections, mcpConnectionsFor(installation)...)
+		connections = append(connections, mcpConnectionsFor(installation, bound)...)
 	}
 	return connections, nil
 }
 
 // mcpConnectionsFor turns one installation's approved mcp hooks into broker
-// connections. Separated from the workspace query so the three conditions that
+// connections. Separated from the workspace query so the conditions that
 // decide whether a hook is offered at all — mcp transport, agent trigger, a
-// non-empty approval — are testable without a database.
-func mcpConnectionsFor(installation db.PluginInstallation) []remotemcp.Connection {
+// non-empty approval, the endpoint still matching, and now the agent binding —
+// are testable without a database. bound may be nil, which behaves as "bound
+// to nothing" (fails closed rather than panicking on a nil map read).
+func mcpConnectionsFor(installation db.PluginInstallation, bound map[agentPluginToolBinding]bool) []remotemcp.Connection {
 	manifest, err := ParseInstallationManifest(installation)
 	if err != nil {
 		// One unreadable manifest must not hide every other plugin's tools.
@@ -183,6 +203,16 @@ func mcpConnectionsFor(installation db.PluginInstallation) []remotemcp.Connectio
 		}
 		approval, ok := approvals[hook.Key]
 		if !ok || len(approval.Tools) == 0 {
+			continue
+		}
+		if approval.Endpoint != hook.Transport.URL {
+			// The manifest's hook URL moved since approval (or this approval
+			// predates the Endpoint field entirely, so it is empty). Either way
+			// the administrator never approved whatever answers at the current
+			// URL — treat the hook as unapproved until it is re-approved.
+			continue
+		}
+		if !bound[agentPluginToolBinding{installationID: uuidString(installation.ID), hookKey: hook.Key}] {
 			continue
 		}
 		credentialHeader := ""

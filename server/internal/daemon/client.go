@@ -264,6 +264,46 @@ func (c *Client) ResolveRemoteMCPCredential(ctx context.Context, daemonToken, ta
 	return headers, nil
 }
 
+// ErrPluginMCPCallRefused marks a BeginPluginMCPCall refusal (rate limit or
+// open circuit breaker) so the broker can distinguish "the server said no,
+// refuse this call locally" from an ordinary transport error, which is
+// something else's job to retry.
+var ErrPluginMCPCallRefused = errors.New("plugin mcp call refused")
+
+// BeginPluginMCPCall gates an agent-triggered MCP tools/call before the
+// broker proxies it straight to the plugin's own MCP server. That proxy never
+// touches the server, so without this call the rate limit, circuit breaker
+// and invocation log the http hook path already gets would never see an
+// MCP-transport call at all (contributionID must carry the `plugin:` prefix —
+// see remotemcp.PluginContributionPrefix).
+func (c *Client) BeginPluginMCPCall(ctx context.Context, daemonToken, taskID, contributionID string) error {
+	path := fmt.Sprintf("/api/daemon/tasks/%s/plugin-mcp/%s/calls",
+		url.PathEscape(taskID), url.PathEscape(contributionID))
+	if err := c.postJSONWithToken(ctx, path, daemonToken, map[string]any{}, nil); err != nil {
+		var reqErr *requestError
+		if errors.As(err, &reqErr) && (reqErr.StatusCode == http.StatusTooManyRequests || reqErr.StatusCode == http.StatusServiceUnavailable) {
+			return fmt.Errorf("%w: %s", ErrPluginMCPCallRefused, reqErr.Error())
+		}
+		return err
+	}
+	return nil
+}
+
+// ReportPluginMCPCall records how a BeginPluginMCPCall-admitted call actually
+// finished, so a failing MCP server trips the same circuit breaker an http
+// hook would. Best-effort from the daemon's side: the tool call already
+// happened either way, and a failure to report it must not surface as a
+// second tool error.
+func (c *Client) ReportPluginMCPCall(ctx context.Context, daemonToken, taskID, contributionID, result string, latencyMs int, errText string) {
+	path := fmt.Sprintf("/api/daemon/tasks/%s/plugin-mcp/%s/calls",
+		url.PathEscape(taskID), url.PathEscape(contributionID))
+	body := map[string]any{"result": result, "latency_ms": latencyMs}
+	if errText != "" {
+		body["error"] = errText
+	}
+	_ = c.postJSONWithToken(ctx, path, daemonToken, body, nil)
+}
+
 // batchClaimRequestTimeout is the short, request-scoped deadline for the
 // machine-level batch claim (MUL-4257). Unlike the per-runtime claim — which
 // gets the full 30s control-plane timeout because a stall there only blocks

@@ -308,6 +308,7 @@
     "custom_args": "Custom Args",
     "mcp_config": "MCP",
     "composio_mcp": "MCP Apps",
+    "plugin_tools": "Plugin Tools",
     "integrations": "Integrations",
     "runtime_config": "Routing",
     "discard_dialog_title": "Discard unsaved changes?",
@@ -717,6 +718,15 @@
       "redacted_hint": "Only the agent's creator can view or change which apps it may use.",
       "shared_warning": "This agent is shared. People who can run this agent may use the Composio apps you enable here. Use Private or narrow the access list if these apps expose sensitive data.",
       "workspace_warning": "Public to workspace: any workspace member may use these Composio apps through this agent."
+    },
+    "plugin_tools": {
+      "subtitle": "An agent gets a plugin's tools only once you grant them here. Installing a plugin grants nothing.",
+      "loading": "Loading plugin tools…",
+      "load_failed": "Couldn't load plugin tools. Try again shortly.",
+      "empty_title": "No plugin tools available",
+      "empty_link_to_settings": "Install a plugin in Settings → Plugins",
+      "toggle_aria": "Grant {{tool}} to this agent",
+      "save_failed_toast": "Couldn't save — please try again"
     },
     "runtime_config": {
       "intro": "Choose how the OpenClaw runtime executes this agent's turns. Local mode runs the agent inside the daemon process. Gateway mode forwards each turn to an OpenClaw Gateway — useful when the daemon host is a lightweight coordinator and the agent should run on a more powerful machine.",

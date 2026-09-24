@@ -92,6 +92,7 @@ import {
   PluginInstallationListResponseSchema,
   PluginMCPToolListSchema,
   PluginPreviewSchema,
+  AgentPluginToolListSchema,
   EMPTY_PLUGIN_INSTALLATION_LIST,
   EMPTY_PLUGIN_PREVIEW,
   InboxBulkActionResponseSchema,
@@ -2961,6 +2962,50 @@ describe("Plugin schemas", () => {
       }],
     });
     expect(installation.hooks[0]?.schedule?.next_run_at).toBe("2026-08-23T10:15:00Z");
+  });
+});
+
+describe("AgentPluginToolListSchema", () => {
+  it("parses a well-formed list of hooks with their bound state", () => {
+    const parsed = AgentPluginToolListSchema.parse([
+      {
+        installation_id: "installation-1",
+        plugin_key: "com.example.hello",
+        hook_key: "digest",
+        name: "Digest",
+        description: "Summarizes the issue",
+        transport: "http",
+        bound: true,
+      },
+    ]);
+    expect(parsed).toEqual([
+      {
+        installation_id: "installation-1",
+        plugin_key: "com.example.hello",
+        hook_key: "digest",
+        name: "Digest",
+        description: "Summarizes the issue",
+        transport: "http",
+        bound: true,
+      },
+    ]);
+  });
+
+  // Deny-by-default: a malformed response must never be read as "granted".
+  // A wrong-typed `bound` or a non-array payload both degrade to the empty/
+  // unbound shape rather than throwing or defaulting to true.
+  it("degrades a malformed response to an empty list instead of throwing", () => {
+    const parsed = parseWithFallback("not-json", AgentPluginToolListSchema, [], {
+      endpoint: "GET /api/agents/{agentId}/plugin-tools",
+    });
+    expect(parsed).toEqual([]);
+  });
+
+  it("treats a wrong-typed bound field as unbound rather than dropping the row", () => {
+    const parsed = AgentPluginToolListSchema.parse([
+      { installation_id: "installation-1", hook_key: "digest", bound: "true" },
+    ]);
+    expect(parsed[0]?.bound).toBe(false);
   });
 });
 

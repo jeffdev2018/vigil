@@ -289,6 +289,7 @@
     "custom_args": "カスタム引数",
     "mcp_config": "MCP",
     "composio_mcp": "MCP アプリ",
+    "plugin_tools": "プラグインツール",
     "integrations": "連携",
     "runtime_config": "ルーティング",
     "discard_dialog_title": "保存していない変更を破棄しますか？",
@@ -597,6 +598,15 @@
       "redacted_hint": "この agent が使用できるアプリを閲覧・変更できるのは作成者のみです。",
       "shared_warning": "このエージェントは共有されています。このエージェントを実行できる人は、ここで有効化した Composio アプリを利用できます。これらのアプリが機微なデータを扱う場合は、Private にするかアクセス範囲を絞ってください。",
       "workspace_warning": "ワークスペースに公開：ワークスペースの全メンバーがこのエージェントを通じてこれらの Composio アプリを利用できます。"
+    },
+    "plugin_tools": {
+      "subtitle": "エージェントは、ここで付与されて初めてプラグインのツールを使用できます。プラグインをインストールしただけでは何も付与されません。",
+      "loading": "プラグインツールを読み込み中…",
+      "load_failed": "プラグインツールを読み込めませんでした。しばらくしてから再試行してください。",
+      "empty_title": "利用可能なプラグインツールがありません",
+      "empty_link_to_settings": "設定 → プラグイン からプラグインをインストール",
+      "toggle_aria": "このエージェントに {{tool}} を付与",
+      "save_failed_toast": "保存できませんでした。もう一度お試しください"
     },
     "runtime_config": {
       "intro": "OpenClaw ランタイムがこのエージェントの各ターンをどのように実行するかを選択します。Local モードはエージェントを daemon プロセス内で実行します。Gateway モードは各ターンを OpenClaw Gateway に転送します — daemon のホストが軽量な調整役で、エージェントの実作業はより強力なマシンで動かしたい場合に有用です。",

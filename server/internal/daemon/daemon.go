@@ -8267,6 +8267,12 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		},
 		d.remoteMCPToolGate(task, taskLog),
 		d.runSecretResolver(task),
+		func(beginCtx context.Context, contributionID string) error {
+			return d.client.BeginPluginMCPCall(beginCtx, task.RemoteMCPDaemonToken, task.ID, contributionID)
+		},
+		func(reportCtx context.Context, contributionID, result string, latencyMs int, errText string) {
+			d.client.ReportPluginMCPCall(reportCtx, task.RemoteMCPDaemonToken, task.ID, contributionID, result, latencyMs, errText)
+		},
 		taskLog,
 	)
 	if remoteMCPErr != nil {

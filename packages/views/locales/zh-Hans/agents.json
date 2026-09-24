@@ -296,6 +296,7 @@
     "custom_args": "自定义参数",
     "mcp_config": "MCP",
     "composio_mcp": "MCP 应用",
+    "plugin_tools": "插件工具",
     "integrations": "集成",
     "runtime_config": "路由",
     "discard_dialog_title": "放弃未保存的修改？",
@@ -704,6 +705,15 @@
       "redacted_hint": "只有该智能体的创建者才能查看或修改它可使用的应用。",
       "shared_warning": "该智能体已共享。能够运行该智能体的人可以通过它使用你在此启用的 Composio 应用。如果这些应用涉及敏感数据，请改用\"私有\"或缩小访问范围。",
       "workspace_warning": "公开给工作区：工作区内任何成员都可以通过该智能体使用这些 Composio 应用。"
+    },
+    "plugin_tools": {
+      "subtitle": "只有在这里授权后，智能体才能使用插件的工具。安装插件本身不会授予任何权限。",
+      "loading": "正在加载插件工具…",
+      "load_failed": "无法加载插件工具，请稍后重试。",
+      "empty_title": "暂无可用的插件工具",
+      "empty_link_to_settings": "前往 设置 → 插件 安装插件",
+      "toggle_aria": "为该智能体授权 {{tool}}",
+      "save_failed_toast": "保存失败，请重试"
     },
     "runtime_config": {
       "intro": "选择 OpenClaw 运行时执行该智能体每一回合的方式。Local 模式让智能体直接在守护进程内运行；Gateway 模式则把每一回合转发到一个 OpenClaw Gateway——适合守护进程宿主只是轻量协调机、希望真正算力落在更强的远端机器上的场景。",

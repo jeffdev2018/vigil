@@ -11,6 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bindAgentPluginTool = `-- name: BindAgentPluginTool :one
+INSERT INTO agent_plugin_tool (workspace_id, agent_id, installation_id, hook_key)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (agent_id, installation_id, hook_key) DO NOTHING
+RETURNING id, workspace_id, agent_id, installation_id, hook_key, created_at
+`
+
+type BindAgentPluginToolParams struct {
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	AgentID        pgtype.UUID `json:"agent_id"`
+	InstallationID pgtype.UUID `json:"installation_id"`
+	HookKey        string      `json:"hook_key"`
+}
+
+// ON CONFLICT DO NOTHING + idx_agent_plugin_tool_binding: binding an
+// already-bound tool is a no-op, not a duplicate row or an error the admin
+// has to route around.
+func (q *Queries) BindAgentPluginTool(ctx context.Context, arg BindAgentPluginToolParams) (AgentPluginTool, error) {
+	row := q.db.QueryRow(ctx, bindAgentPluginTool,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.InstallationID,
+		arg.HookKey,
+	)
+	var i AgentPluginTool
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AgentID,
+		&i.InstallationID,
+		&i.HookKey,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const countInstallationsOfPackageVersions = `-- name: CountInstallationsOfPackageVersions :one
 SELECT count(*) FROM plugin_installation
 WHERE package_version_id IN (
@@ -322,6 +358,22 @@ func (q *Queries) CreatePluginPackageVersion(ctx context.Context, arg CreatePlug
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteAgentPluginToolsByInstallation = `-- name: DeleteAgentPluginToolsByInstallation :exec
+DELETE FROM agent_plugin_tool WHERE installation_id = $1
+`
+
+// Called inside Uninstall's transaction: an uninstalled plugin's bindings are
+// meaningless (the installation id resolves to nothing), so they are removed
+// with it rather than left as orphaned rows nothing ever prunes. Workspace
+// deletion cleans up the rest (DeleteWorkspacePluginData, workspace_delete.sql)
+// since agent_plugin_tool carries workspace_id directly; there is currently no
+// standalone hard-delete-one-agent path, so no by-agent variant exists yet —
+// add one alongside it if that path is introduced.
+func (q *Queries) DeleteAgentPluginToolsByInstallation(ctx context.Context, installationID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAgentPluginToolsByInstallation, installationID)
+	return err
 }
 
 const deleteExpiredPluginInvocations = `-- name: DeleteExpiredPluginInvocations :execrows
@@ -835,6 +887,47 @@ func (q *Queries) GetWorkspacePluginPackageVersion(ctx context.Context, arg GetW
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAgentPluginTools = `-- name: ListAgentPluginTools :many
+
+SELECT id, workspace_id, agent_id, installation_id, hook_key, created_at FROM agent_plugin_tool WHERE agent_id = $1 ORDER BY installation_id, hook_key
+`
+
+// Agent <-> plugin tool bindings (deny by default).
+//
+// An enabled installation's agent-tool hooks and mcp tools are offered to an
+// agent only once bound here — the same opt-in shape as an agent's own MCP
+// connection settings. hook_key is not validated against the current
+// manifest at bind or list time: AgentHookTools / the mcp connection builder
+// already re-read the manifest on every claim, so a binding for a hook a
+// later upgrade dropped simply never matches anything, with no separate
+// cleanup required.
+func (q *Queries) ListAgentPluginTools(ctx context.Context, agentID pgtype.UUID) ([]AgentPluginTool, error) {
+	rows, err := q.db.Query(ctx, listAgentPluginTools, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentPluginTool{}
+	for rows.Next() {
+		var i AgentPluginTool
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.InstallationID,
+			&i.HookKey,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEnabledPluginHookSchedules = `-- name: ListEnabledPluginHookSchedules :many
@@ -1360,6 +1453,22 @@ func (q *Queries) SetPluginMCPApprovals(ctx context.Context, arg SetPluginMCPApp
 		&i.PackageVersionID,
 	)
 	return i, err
+}
+
+const unbindAgentPluginTool = `-- name: UnbindAgentPluginTool :exec
+DELETE FROM agent_plugin_tool
+WHERE agent_id = $1 AND installation_id = $2 AND hook_key = $3
+`
+
+type UnbindAgentPluginToolParams struct {
+	AgentID        pgtype.UUID `json:"agent_id"`
+	InstallationID pgtype.UUID `json:"installation_id"`
+	HookKey        string      `json:"hook_key"`
+}
+
+func (q *Queries) UnbindAgentPluginTool(ctx context.Context, arg UnbindAgentPluginToolParams) error {
+	_, err := q.db.Exec(ctx, unbindAgentPluginTool, arg.AgentID, arg.InstallationID, arg.HookKey)
+	return err
 }
 
 const updatePluginHookScheduleDefinition = `-- name: UpdatePluginHookScheduleDefinition :one

@@ -278,6 +278,15 @@ type AgentPermissionProfile struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentPluginTool struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	AgentID        pgtype.UUID        `json:"agent_id"`
+	InstallationID pgtype.UUID        `json:"installation_id"`
+	HookKey        string             `json:"hook_key"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AgentRuntime struct {
 	ID                  pgtype.UUID        `json:"id"`
 	WorkspaceID         pgtype.UUID        `json:"workspace_id"`

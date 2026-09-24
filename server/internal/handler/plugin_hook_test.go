@@ -356,7 +356,7 @@ func TestEventDispatchRespectsTheFeatureFlagEndToEnd(t *testing.T) {
 
 	dispatch := func() *service.PluginEventDispatcher {
 		dispatcher := service.NewPluginEventDispatcher(testHandler.PluginService)
-		dispatcher.Dispatch(plugincontract.EventIssueCreated, testWorkspaceID, map[string]any{})
+		dispatcher.Dispatch(plugincontract.EventIssueCreated, testWorkspaceID, "member", "", map[string]any{})
 		return dispatcher
 	}
 

@@ -54,6 +54,22 @@ func (h *Handler) InvokeAgentPluginHook(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Deny by default: an enabled installation's agent-tool hooks are not
+	// reachable by an agent that was never bound to them, regardless of what
+	// the manifest declares. A hard 403 here, not the 200-with-error-body
+	// InvokeAgentHook's own failures use below — this is an authorization
+	// boundary, not a hook execution outcome the agent should read as a tool
+	// error.
+	bound, err := h.PluginService.AgentPluginToolBound(r.Context(), task.AgentID, uuidToString(installation.ID), req.HookKey)
+	if err != nil {
+		writePluginError(w, err, "failed to check plugin tool binding")
+		return
+	}
+	if !bound {
+		writeError(w, http.StatusForbidden, "this hook is not bound to the calling agent")
+		return
+	}
+
 	result, err := h.PluginService.InvokeAgentHook(
 		r.Context(), uuidToString(installation.ID), req.HookKey, task.AgentID, req.Input)
 	if err != nil {

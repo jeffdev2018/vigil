@@ -37,6 +37,17 @@ type remoteMCPBrokerSet struct {
 
 type remoteMCPCredentialResolver func(context.Context, string) (http.Header, error)
 
+// remoteMCPCallBeginner and remoteMCPCallReporter give a Plugin-contributed
+// mcp connection (contribution id carrying remotemcp.PluginContributionPrefix)
+// a round trip to the server around each tools/call. The broker proxies that
+// call straight to the plugin's own MCP server — the server is never
+// otherwise on this path — so without these the rate limit, circuit breaker
+// and invocation log an http-transport hook gets through InvokeHook never see
+// an mcp-transport call at all. nil disables both, same as the other
+// resolvers when the caller has nothing to wire.
+type remoteMCPCallBeginner func(ctx context.Context, contributionID string) error
+type remoteMCPCallReporter func(ctx context.Context, contributionID, result string, latencyMs int, errText string)
+
 // runSecretResolver (K09) trades a run-scoped `mss_` token for its value.
 type runSecretResolver func(context.Context, string) (string, error)
 
@@ -88,7 +99,7 @@ func (set *remoteMCPBrokerSet) Close() {
 	})
 }
 
-func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider, advertiseHost string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, resolveSecret runSecretResolver, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
+func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider, advertiseHost string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, resolveSecret runSecretResolver, beginPluginCall remoteMCPCallBeginner, reportPluginCall remoteMCPCallReporter, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
 	if len(connections) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -160,8 +171,10 @@ func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, pr
 			taskID: taskID, connection: connection, endpoint: endpoint,
 			client: remotemcp.NewSecureHTTPClient(endpoint), credentialHeaders: headers,
 			resolveCredential: resolveCredential, gate: gate, path: "/" + pathToken,
-			resolveSecret: resolveSecret,
-			semaphore:     make(chan struct{}, remoteMCPMaxConcurrency), logger: logger,
+			resolveSecret:    resolveSecret,
+			beginPluginCall:  beginPluginCall,
+			reportPluginCall: reportPluginCall,
+			semaphore:        make(chan struct{}, remoteMCPMaxConcurrency), logger: logger,
 		}
 		server := &http.Server{Handler: proxy, ReadHeaderTimeout: 5 * time.Second}
 		set.servers = append(set.servers, server)
@@ -250,6 +263,8 @@ type remoteMCPProxy struct {
 	resolveCredential remoteMCPCredentialResolver
 	gate              remoteMCPToolGate
 	resolveSecret     runSecretResolver
+	beginPluginCall   remoteMCPCallBeginner
+	reportPluginCall  remoteMCPCallReporter
 	path              string
 	semaphore         chan struct{}
 	calls             atomic.Int64
@@ -267,6 +282,8 @@ func (proxy *remoteMCPProxy) ServeHTTP(w http.ResponseWriter, request *http.Requ
 	started := time.Now()
 	toolName := ""
 	resultClass := "rejected"
+	pluginCallBegun := false
+	isPluginContribution := strings.HasPrefix(proxy.connection.ContributionID, remotemcp.PluginContributionPrefix)
 	defer func() {
 		if proxy.logger != nil {
 			proxy.logger.Info("Remote MCP broker call",
@@ -277,6 +294,18 @@ func (proxy *remoteMCPProxy) ServeHTTP(w http.ResponseWriter, request *http.Requ
 				"duration_ms", time.Since(started).Milliseconds(),
 				"result_class", resultClass,
 			)
+		}
+		// Report the outcome only for a call BeginAgentMCPCall actually
+		// admitted — a request rejected before that point (bad JSON-RPC,
+		// concurrency limit, unapproved tool) never reached the server's
+		// gate and must not appear as a plugin call outcome. Detached
+		// context and a goroutine: this is telemetry for the *next* call's
+		// rate/breaker check, not something the response to THIS one should
+		// wait on.
+		if pluginCallBegun && proxy.reportPluginCall != nil {
+			latency := int(time.Since(started).Milliseconds())
+			status, errText := pluginCallResultStatus(resultClass)
+			go proxy.reportPluginCall(context.Background(), proxy.connection.ContributionID, status, latency, errText)
 		}
 	}()
 	if request.URL.Path != proxy.path || request.Method != http.MethodPost {
@@ -324,6 +353,21 @@ func (proxy *remoteMCPProxy) ServeHTTP(w http.ResponseWriter, request *http.Requ
 				writeRemoteMCPError(w, rpcRequest.ID, -32004, "Blocked by approval gate: "+reason)
 				return
 			}
+		}
+		// This is the one place a Plugin-contributed mcp hook's tools/call is
+		// still local to the daemon: the proxy dials the plugin's own MCP
+		// server directly below, so the server's rate limit, breaker and
+		// invocation log only see it if this call tells them. A refusal here
+		// (429/503 from the server) is refused locally, exactly like the
+		// approval gate above — the agent gets a tool error, not a task
+		// failure.
+		if isPluginContribution && proxy.beginPluginCall != nil {
+			if err := proxy.beginPluginCall(request.Context(), proxy.connection.ContributionID); err != nil {
+				resultClass = "plugin_call_refused"
+				writeRemoteMCPError(w, rpcRequest.ID, -32006, "Plugin call refused: "+err.Error())
+				return
+			}
+			pluginCallBegun = true
 		}
 	}
 	// Run-scoped secrets (K09): tokens become values here, in memory, for this call only.
@@ -418,6 +462,22 @@ func decodeRemoteMCPSSEData(contentType string, raw []byte) ([]byte, error) {
 		}
 	}
 	return nil, errors.New("Remote MCP SSE response contained no data")
+}
+
+// pluginCallResultStatus maps the broker's internal resultClass onto the
+// ("ok"/"refused"/"timeout"/"failed") vocabulary
+// service.ReportAgentMCPCallOutcome expects — the same one InvokeHook's
+// hookFailureStatus produces for an http-transport hook, so a failing mcp
+// server trips the breaker the same way a failing http endpoint does.
+func pluginCallResultStatus(resultClass string) (status, errText string) {
+	switch resultClass {
+	case "success":
+		return "ok", ""
+	case "gated", "secret_refused":
+		return "refused", resultClass
+	default:
+		return "failed", resultClass
+	}
 }
 
 func allowedRemoteMCPMethod(method string) bool {

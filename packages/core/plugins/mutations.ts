@@ -136,3 +136,23 @@ export function useRevokePluginToken(wsId: string) {
     onSettled: invalidate,
   });
 }
+
+/** Grants this agent one plugin's hook as a callable tool. */
+export function useBindAgentPluginTool(wsId: string, agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ installationId, hookKey }: { installationId: string; hookKey: string }) =>
+      api.bindAgentPluginTool(agentId, installationId, hookKey),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: pluginKeys.agentTools(wsId, agentId) }),
+  });
+}
+
+/** Revokes a previously granted hook. */
+export function useUnbindAgentPluginTool(wsId: string, agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ installationId, hookKey }: { installationId: string; hookKey: string }) =>
+      api.unbindAgentPluginTool(agentId, installationId, hookKey),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: pluginKeys.agentTools(wsId, agentId) }),
+  });
+}
