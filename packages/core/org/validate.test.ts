@@ -123,6 +123,8 @@ describe("validateOrgDefinition", () => {
       committees: [{ decision_type: "release", unit_ids: ["a"], quorum: 2, max_rounds: 1 }],
     });
     expect(codes(committee, { model: "owner_network" })).toEqual(["committee_termination"]);
+    const unnamed = def({ units: [unit({ id: "a" })], committees: [{ decision_type: " ", unit_ids: ["a"], quorum: 1, max_rounds: 1 }] });
+    expect(codes(unnamed, { model: "owner_network" })).toEqual(["committee_decision_missing"]);
     const market = def({ units: [unit({ id: "a" })] });
     expect(codes(market, { model: "market" })).toEqual(["market_price_cap"]);
     market.market.price_cap_usd_ticks = 5_000_000;

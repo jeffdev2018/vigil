@@ -353,6 +353,7 @@
     "rule_of_two_edge": "{{from}} → {{to}} cumule les trois expositions : une approbation humaine sera exigée sur ce lien.",
     "deciders_missing": "« {{unit}} » a des effets externes : nommez qui décide pour {{classes}}.",
     "committee_termination": "Comité « {{decision}} » : fixez un quorum entre 1 et {{max}} et au moins un tour.",
+    "committee_decision_missing": "Un comité n'a pas de type de décision.",
     "market_price_cap": "Un marché a besoin du plafond de prix humain.",
     "squads_needs_agents": "« {{unit}} » fonctionne en squad : donnez-lui une squad ou des agents.",
     "circles_needs_role": "« {{unit}} » fonctionne en cercles : donnez-lui au moins un rôle."
@@ -727,8 +728,13 @@
       "model_title": "Modèle",
       "model_hint": "Changer de modèle change la façon dont le travail circule dans chaque équipe.",
       "committees_empty": "Aucun comité défini.",
-      "committee_row": "{{decision}} · {{count}} équipes · quorum {{quorum}}",
-      "committee_no_effect": "Un comité n'a aucun effet à l'exécution aujourd'hui : le serveur le valide seulement."
+      "committee_no_effect": "Un comité n'a aucun effet à l'exécution aujourd'hui : le serveur le valide seulement.",
+      "committee_add": "Ajouter un comité",
+      "committee_remove": "Retirer ce comité",
+      "committee_decision": "Type de décision (ex. recrutement)",
+      "committee_teams": "Équipes qui votent",
+      "committee_quorum": "Quorum",
+      "committee_rounds": "Tours au plus"
     },
     "health": {
       "empty": "Aucune demande routée ces 7 derniers jours. Testez-en une pour voir le chemin qu'elle prendrait.",

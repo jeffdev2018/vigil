@@ -350,6 +350,7 @@
     "rule_of_two_edge": "{{from}} → {{to}} 累计了三种暴露：该链路将需要人工审批。",
     "deciders_missing": "“{{unit}}”具有外部影响：请指定 {{classes}} 的决策人。",
     "committee_termination": "委员会“{{decision}}”：法定人数请设在 1 到 {{max}} 之间，轮次至少 1 轮。",
+    "committee_decision_missing": "有委员会缺少决策类型。",
     "market_price_cap": "内部市场需要由人设定价格上限。",
     "squads_needs_agents": "“{{unit}}”以 squads 运行：请为它指定 squad 或智能体成员。",
     "circles_needs_role": "“{{unit}}”以 circles 运行：请至少指定一个角色。"
@@ -706,11 +707,8 @@
     "directory_error": "无法加载团队目录。",
     "overview": {
       "eyebrow": "组织",
-      "teams_one": "{{count}} 个团队",
       "teams_other": "{{count}} 个团队",
-      "humans_one": "{{count}} 位人类",
       "humans_other": "{{count}} 位人类",
-      "agents_one": "{{count}} 个智能体",
       "agents_other": "{{count}} 个智能体",
       "watch_title": "值得关注",
       "watch_empty": "没有需要关注的事项。",
@@ -721,8 +719,13 @@
       "model_title": "模型",
       "model_hint": "更改模型会改变工作在每个团队中的流转方式。",
       "committees_empty": "未定义任何委员会。",
-      "committee_row": "{{decision}} · {{count}} 个团队 · 法定人数 {{quorum}}",
-      "committee_no_effect": "委员会目前在执行时没有任何效果：服务器仅对其进行校验。"
+      "committee_no_effect": "委员会目前在执行时没有任何效果：服务器仅对其进行校验。",
+      "committee_add": "添加委员会",
+      "committee_remove": "移除此委员会",
+      "committee_decision": "决策类型（如：招聘）",
+      "committee_teams": "参与表决的团队",
+      "committee_quorum": "法定人数",
+      "committee_rounds": "最多轮次"
     },
     "health": {
       "empty": "最近 7 天没有路由任何请求。测试一个请求，看看它会走哪条路径。",

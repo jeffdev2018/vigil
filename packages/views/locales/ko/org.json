@@ -350,6 +350,7 @@
     "rule_of_two_edge": "{{from}} → {{to}} 경로가 세 가지 노출을 합칩니다. 이 연결에는 사람의 승인이 필요합니다.",
     "deciders_missing": "“{{unit}}”에 외부 효과가 있습니다. {{classes}}의 결정자를 지정하세요.",
     "committee_termination": "위원회 “{{decision}}”: 정족수를 1에서 {{max}} 사이로, 라운드를 1회 이상으로 정하세요.",
+    "committee_decision_missing": "결정 유형이 없는 위원회가 있습니다.",
     "market_price_cap": "마켓에는 사람이 정하는 가격 상한이 필요합니다.",
     "squads_needs_agents": "“{{unit}}”은(는) squads로 동작합니다. squad 또는 에이전트 구성원을 지정하세요.",
     "circles_needs_role": "“{{unit}}”은(는) circles로 동작합니다. 역할을 최소 하나 지정하세요."
@@ -706,11 +707,8 @@
     "directory_error": "팀 디렉터리를 불러오지 못했습니다.",
     "overview": {
       "eyebrow": "조직",
-      "teams_one": "{{count}}개 팀",
       "teams_other": "{{count}}개 팀",
-      "humans_one": "사람 {{count}}명",
       "humans_other": "사람 {{count}}명",
-      "agents_one": "에이전트 {{count}}개",
       "agents_other": "에이전트 {{count}}개",
       "watch_title": "확인이 필요함",
       "watch_empty": "확인할 사항이 없습니다.",
@@ -721,8 +719,13 @@
       "model_title": "모델",
       "model_hint": "모델을 바꾸면 각 팀에서 작업이 흐르는 방식이 바뀝니다.",
       "committees_empty": "정의된 위원회가 없습니다.",
-      "committee_row": "{{decision}} · 팀 {{count}}개 · 정족수 {{quorum}}",
-      "committee_no_effect": "위원회는 오늘 실행 시점에 아무런 효과가 없습니다. 서버는 검증만 합니다."
+      "committee_no_effect": "위원회는 오늘 실행 시점에 아무런 효과가 없습니다. 서버는 검증만 합니다.",
+      "committee_add": "위원회 추가",
+      "committee_remove": "이 위원회 삭제",
+      "committee_decision": "결정 유형 (예: 채용)",
+      "committee_teams": "투표하는 팀",
+      "committee_quorum": "정족수",
+      "committee_rounds": "최대 라운드"
     },
     "health": {
       "empty": "최근 7일 동안 라우팅된 요청이 없습니다. 하나를 테스트해서 어떤 경로로 가는지 확인해 보세요.",

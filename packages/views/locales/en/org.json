@@ -353,6 +353,7 @@
     "rule_of_two_edge": "{{from}} → {{to}} cumulates the three exposures: a human approval will be required on that link.",
     "deciders_missing": "“{{unit}}” has external effects: name who decides on {{classes}}.",
     "committee_termination": "Committee “{{decision}}”: set a quorum between 1 and {{max}} and at least one round.",
+    "committee_decision_missing": "A committee has no decision type.",
     "market_price_cap": "A market needs the human price cap.",
     "squads_needs_agents": "“{{unit}}” runs as a squad: give it a squad or agent members.",
     "circles_needs_role": "“{{unit}}” runs as circles: give it at least one role."
@@ -727,8 +728,13 @@
       "model_title": "Model",
       "model_hint": "Changing the model changes how work circulates through every team.",
       "committees_empty": "No committee defined.",
-      "committee_row": "{{decision}} · {{count}} teams · quorum {{quorum}}",
-      "committee_no_effect": "A committee has no effect at run time today: the server only validates it."
+      "committee_no_effect": "A committee has no effect at run time today: the server only validates it.",
+      "committee_add": "Add a committee",
+      "committee_remove": "Remove this committee",
+      "committee_decision": "Decision type (e.g. hiring)",
+      "committee_teams": "Teams that vote",
+      "committee_quorum": "Quorum",
+      "committee_rounds": "Rounds at most"
     },
     "health": {
       "empty": "No request routed in the last 7 days. Test one to see the path it would take.",

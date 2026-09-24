@@ -7177,7 +7177,7 @@ export const RuntimeProfileSchema = z.object({
   display_name: z.string().catch(""),
   protocol_family: z.string().catch(""),
   runtime_type: z.string().nullish().catch(undefined),
-  command_name: z.string().catch(""),
+  command_name: z.string(),
   description: z.string().nullable().catch(null),
   fixed_args: z.array(z.string()).catch([]).default([]),
   visibility: z.enum(["workspace", "private"]).catch("workspace"),

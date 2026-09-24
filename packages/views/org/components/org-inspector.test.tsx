@@ -180,6 +180,23 @@ describe("OrgInspector", () => {
     expect(screen.getByText(/consults/)).toHaveTextContent("Informational only, no effect on routing");
   });
 
+  it("adds a committee, then puts a team in an existing one", async () => {
+    const user = userEvent.setup();
+    const { onChange } = setup();
+    await user.click(screen.getByText("Collective decisions and market"));
+    await user.click(screen.getByRole("button", { name: "Add a committee" }));
+    expect((onChange.mock.calls.at(-1)?.[0] as OrgDefinition).committees).toEqual([{ decision_type: "", unit_ids: [], quorum: 1, max_rounds: 3 }]);
+  });
+
+  it("putting a team in a committee calls onChange", async () => {
+    const user = userEvent.setup();
+    const withCommittee = { ...definition, committees: [{ decision_type: "release", unit_ids: [], quorum: 1, max_rounds: 2 }] };
+    const { onChange } = setup({ definition: withCommittee });
+    await user.click(screen.getByText("Collective decisions and market"));
+    await user.click(screen.getByRole("checkbox", { name: "Front line" }));
+    expect((onChange.mock.calls.at(-1)?.[0] as OrgDefinition).committees[0]?.unit_ids).toEqual(["u1"]);
+  });
+
   it("blocks editing when readOnly", () => {
     setup({ selection: { kind: "unit", unitId: "u1" }, readOnly: true });
     expect(screen.getByLabelText("Team name")).toBeDisabled();
