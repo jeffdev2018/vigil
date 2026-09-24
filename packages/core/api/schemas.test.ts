@@ -3723,7 +3723,8 @@ describe("RuntimeProfileSchema", () => {
       parseWithFallback(validProfile, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
         endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
       }),
-    ).toEqual(validProfile);
+      // A profile that predates runtime_type reads as its protocol (#8576).
+    ).toEqual({ ...validProfile, runtime_type: validProfile.protocol_family });
   });
 
   it("falls back to EMPTY_RUNTIME_PROFILE when a required field is missing", () => {
@@ -4489,7 +4490,8 @@ describe("RuntimeProfileSchema", () => {
       parseWithFallback(validProfile, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
         endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
       }),
-    ).toEqual(validProfile);
+      // A profile that predates runtime_type reads as its protocol (#8576).
+    ).toEqual({ ...validProfile, runtime_type: validProfile.protocol_family });
   });
 
   it("falls back to EMPTY_RUNTIME_PROFILE when a required field is missing", () => {
