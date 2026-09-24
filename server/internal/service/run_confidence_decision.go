@@ -54,14 +54,14 @@ import (
 // shapes — no evidence at all, and a claim without evidence — their own step
 // instead of collapsing them.
 var runConfidenceLevels = []string{
-	"no outcome shown at all, or the run reports failing",
-	"claims the work is done but names nothing concrete that was changed, run or filed",
-	"names some concrete outcome, but not enough to cover what the issue asked",
-	"names concrete outcomes covering most of the issue, with a gap or an unverified part",
-	"names concrete outcomes covering the issue, with verification",
+	"nothing was done: no recorded action and nothing concrete named, or the run reports failing",
+	"the run claims the work is done, but no action was recorded and nothing concrete is named",
+	"something was done, but it does not cover what the issue asked",
+	"the recorded actions cover most of what the issue asked, with a gap or an unverified part",
+	"the recorded actions cover what the issue asked",
 }
 
-const runConfidenceInstructions = "How much evidence does this completed run show that its delivery correctly and completely addresses the issue? Weigh evidence, not tone: files changed, tests run, a pull request opened. Judge only what the closing output actually shows."
+const runConfidenceInstructions = "How much evidence is there that this completed run addressed the issue? The actions the server recorded are facts and outrank the run's own words, which are a claim: a recorded action that accomplishes the issue counts even when the run describes it poorly. Weigh evidence, not tone. Evidence takes the shape of the work — a comment posted, an issue updated, a note written, a file changed, a test run, a pull request opened."
 
 // requestChangesCap mirrors the rule the previous prompt stated in words: "A
 // reviewer verdict of request_changes caps the score below 0.5." A cap belongs
@@ -72,10 +72,16 @@ const requestChangesCap = 0.49
 // scoreRunConfidenceByDecision returns the score and rationale for a finished
 // run, or ok=false when the decision could not be had — in which case the
 // caller stores nothing, exactly as it did when the chat model failed.
-func (s *TaskService) scoreRunConfidenceByDecision(ctx context.Context, issueTitle, output, reviewVerdict string, threshold float64) (score float64, rationale string, judgeModel string, ok bool) {
+func (s *TaskService) scoreRunConfidenceByDecision(ctx context.Context, issueTitle, output, reviewVerdict string, receipts []runReceipt, threshold float64) (score float64, rationale string, judgeModel string, ok bool) {
 	state := map[string]any{
 		"issue_title":      issueTitle,
 		"run_final_output": nativeHeadTail(output, runConfidenceOutputBudget),
+	}
+	// The server's own record of what the run did. Without it the only
+	// evidence is the run's prose, and a run that did the work but described
+	// it badly scored as one that did nothing.
+	if len(receipts) > 0 {
+		state["actions_the_server_recorded_for_this_run"] = receipts
 	}
 	if v := strings.TrimSpace(reviewVerdict); v != "" {
 		state["independent_reviewer_verdict"] = v
@@ -118,7 +124,7 @@ func (s *TaskService) scoreRunConfidenceByDecision(ctx context.Context, issueTit
 // nothing: the score is given to it.
 const runConfidenceRationalePrompt = `You explain, in one sentence, why a completed run of an AI coding agent scored low on delivery confidence. The score is given to you and you must not dispute it.
 
-Write for the person who is about to review that delivery. Name what the run's output does and does not show — files changed, tests run, a pull request opened. No apology, no praise, no advice.
+Write for the person who is about to review that delivery. Name what the run did and did not do, using the recorded actions when there are any and the run's own words otherwise. Work takes many shapes: a comment posted, an issue updated, a note written, a file changed, a test run. No apology, no praise, no advice.
 
 Reply with a JSON object of exactly this shape and nothing else: {"rationale": "one sentence, at most 280 characters"}. Never include secrets, credentials, tokens, file contents or personal data.`
 

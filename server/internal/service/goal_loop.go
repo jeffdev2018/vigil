@@ -293,7 +293,7 @@ func (s *GoalLoopService) AfterRunCompleted(ctx context.Context, task db.AgentTa
 		verdict.Blocker = "needs_user_input"
 		verdict.Reason = question.Prompt
 	default:
-		answer, err := s.judge(ctx, issue, goal, closing, verdict.Continuation, int(goal.MaxContinuations))
+		answer, err := s.judge(ctx, issue, goal, closing, receiptsFromResult(task.Result), verdict.Continuation, int(goal.MaxContinuations))
 		if err != nil {
 			slog.Warn("goal loop: judge unavailable", "task_id", util.UUIDToString(task.ID), "error", err)
 			verdict.Outcome = "stopped:judge_unavailable"
@@ -428,11 +428,11 @@ func (s *GoalLoopService) settings(ctx context.Context, wsID pgtype.UUID) GoalLo
 // judge asks the model, with no tools, whether the closing status meets the
 // issue's goal. The answer is JSON with a closed blocker vocabulary;
 // anything else is an error and stops the loop.
-func (s *GoalLoopService) judge(ctx context.Context, issue db.Issue, goal db.IssueGoal, closing string, continuation, max int) (goalJudgeAnswer, error) {
+func (s *GoalLoopService) judge(ctx context.Context, issue db.Issue, goal db.IssueGoal, closing string, receipts []runReceipt, continuation, max int) (goalJudgeAnswer, error) {
 	// A decision endpoint takes the verdict; see goal_loop_decision.go for
 	// why the verdict and the prose no longer travel together.
 	if s.Decisions.Enabled() {
-		return s.judgeByDecision(ctx, issue, goal, closing, continuation, max)
+		return s.judgeByDecision(ctx, issue, goal, closing, receipts, continuation, max)
 	}
 	if s.LLM == nil || !s.LLM.Enabled() {
 		return goalJudgeAnswer{}, errors.New("the assist-layer LLM is not configured")
