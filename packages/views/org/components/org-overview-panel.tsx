@@ -14,6 +14,7 @@ import { OrgProblemList } from "./org-problem-list";
 import { OrgHealth } from "./org-health";
 import { useT } from "../../i18n";
 import { OrgDateTimePicker } from "./org-datetime-picker";
+import { OrgCommitteesEditor } from "./org-committees-editor";
 import { ORG_END_CONDITION_VALUES, ORG_MODEL_VALUES, orgEndConditionLabel, orgModelDescription, orgModelLabel } from "../labels";
 
 /** The whole organization: nothing selected on the chart. */
@@ -200,15 +201,7 @@ export function OrgOverviewPanel({
         <CollapsibleContent className="mt-3 flex flex-col gap-3">
           <div>
             <h4 className="text-caption font-medium">{t(($) => $.coherence.sections.committees)}</h4>
-            {definition.committees.length === 0 ? (
-              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.inspector.overview.committees_empty)}</p>
-            ) : (
-              <ul className="mt-1 flex flex-col gap-1">
-                {definition.committees.map((c, i) => (
-                  <li key={i} className="text-caption">{t(($) => $.inspector.overview.committee_row, { decision: c.decision_type, count: c.unit_ids.length, quorum: c.quorum })}</li>
-                ))}
-              </ul>
-            )}
+            <OrgCommitteesEditor definition={definition} onChange={onChange} readOnly={readOnly} />
             <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.inspector.overview.committee_no_effect)}</p>
           </div>
           <Separator />

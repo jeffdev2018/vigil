@@ -83,6 +83,7 @@ const REASON_CLASS: Record<string, FailureClass> = {
   runtime_reconnect_timeout: "runtime",
   invalid_task_identity: "runtime",
   sandbox_unavailable: "runtime",
+  runtime_access_denied: "runtime",
 
   // The agent process itself produced the failure.
   "agent_error.process_failure": "agent",
