@@ -48,6 +48,8 @@ vi.mock("@multica/core/plugins", () => ({
   useUninstallPlugin: () => ({ mutateAsync: mockUninstall, isPending: false }),
   usePublishPluginPackage: () => ({ mutateAsync: mockPublish, isPending: false }),
   useDeletePluginPackage: () => ({ mutateAsync: mockDeletePackage, isPending: false }),
+  useRotatePluginToken: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRevokePluginToken: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@multica/core/paths", () => ({
