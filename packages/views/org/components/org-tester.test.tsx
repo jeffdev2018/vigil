@@ -155,7 +155,9 @@ describe("OrgTester", () => {
     run();
     await screen.findByTestId("org-tester-result");
     const blocked = screen.getByTestId("org-tester-blocked").textContent ?? "";
-    expect(blocked).toContain("refund");
+    // "refund" is a known capability, shown through its label ("Refund");
+    // "deploy" is not, so orgCapabilityLabel falls back to the raw verb.
+    expect(blocked).toContain("Refund");
     expect(blocked).toContain("deploy");
     expect(blocked).toContain("the request will be escalated with its context; this unit will not carry it out.");
   });

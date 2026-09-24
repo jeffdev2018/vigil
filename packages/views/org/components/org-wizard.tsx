@@ -23,16 +23,13 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { useT } from "../../i18n";
+import { OrgDateTimePicker } from "./org-datetime-picker";
 import { validateOrgDefinition } from "@multica/core/org/validate";
 import { OrgProblemList } from "./org-problem-list";
 import { useOrgWizardDraftStore } from "@multica/core/org/draft-store";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { OrgTemplateCards } from "./org-template-cards";
 import { RadioGroup, RadioGroupItem } from "@multica/ui/components/ui/radio-group";
-import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
-import { Calendar } from "@multica/ui/components/ui/calendar";
-import { TimeInput } from "@multica/ui/components/ui/time-input";
-import { CalendarClock } from "lucide-react";
 import { orgAutonomyLabel, orgEndConditionLabel } from "../labels";
 
 const STEPS = 4;
@@ -66,44 +63,6 @@ function Choice<T extends string>({
         ))}
       </RadioGroup>
     </fieldset>
-  );
-}
-
-/** A date + time combined into an ISO instant, from `packages/ui`'s Calendar
- *  (date) and TimeInput (time) — no native `<input type="datetime-local">`. */
-function TaskforceDissolvePicker({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string | null;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = value ? new Date(value) : undefined;
-  const time = current ? `${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}` : "18:00";
-
-  const combine = (day: Date, hhmm: string) => {
-    const [h, m] = hhmm.split(":").map((n) => Number(n));
-    const next = new Date(day);
-    next.setHours(h ?? 18, m ?? 0, 0, 0);
-    return next.toISOString();
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button type="button" variant="outline" size="sm" className="w-fit justify-start gap-2" />}>
-        <CalendarClock className="size-3.5" />
-        {current ? current.toLocaleString() : placeholder}
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={current} onSelect={(d) => { if (d) onChange(combine(d, time)); }} />
-        <div className="flex items-center justify-end border-t p-2">
-          <TimeInput value={time} onChange={(v) => onChange(combine(current ?? new Date(), v))} disabled={!current} />
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -331,7 +290,7 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                   {taskforceTermination === "date" && (
                     <label className="flex flex-col gap-1 text-caption text-muted-foreground">
                       {t(($) => $.wizard.flow.taskforce_dissolve_label)}
-                      <TaskforceDissolvePicker
+                      <OrgDateTimePicker
                         value={taskforceDissolveAt}
                         onChange={(v) => setDraft({ taskforceDissolveAt: v })}
                         placeholder={t(($) => $.wizard.flow.taskforce_dissolve_placeholder)}

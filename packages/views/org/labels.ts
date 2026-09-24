@@ -26,10 +26,8 @@ const unknown = (t: T): string => t(($) => $.unknown_value);
 export const ORG_AUTONOMY_VALUES = ORG_AUTONOMY_ORDER;
 
 /** "Lit seulement" / "Prépare des brouillons" / … — the single autonomy
- *  vocabulary. `org.json`'s old `autonomy.*` set duplicated this (and its
- *  "draft" collided with the draft *status*); the wizard and tester now read
- *  this one instead. `autonomy.*` itself stays in `org.json` — org-editor.tsx
- *  (forbidden, being rewritten) still reads it. */
+ *  vocabulary. The old `autonomy.*` set duplicated it, and its "draft"
+ *  collided with the draft *status*. */
 export function orgAutonomyLabel(t: T, autonomy: string): string {
   return tKnown(t, "unit.trust_level", autonomy, unknown(t));
 }
