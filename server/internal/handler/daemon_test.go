@@ -121,6 +121,28 @@ func TestRemoteMCPDaemonTokenForClaim(t *testing.T) {
 	}
 }
 
+func TestRemoteMCPDaemonTokenForClaimCoversPluginHookTools(t *testing.T) {
+	runtime := db.AgentRuntime{
+		WorkspaceID: parseUUID(testWorkspaceID),
+		DaemonID:    strToText("daemon-plugin-hooks"),
+	}
+	// A task whose only extra tools are plugin hooks still needs the token:
+	// the daemon sends it on every plugin-hooks call.
+	raw, params, err := remoteMCPDaemonTokenForClaim(AgentTaskResponse{
+		PluginHookTools: []service.PluginHookTool{{InstallationID: "inst", HookKey: "search", Name: "search"}},
+	}, runtime)
+	if err != nil {
+		t.Fatalf("remoteMCPDaemonTokenForClaim: %v", err)
+	}
+	if !strings.HasPrefix(raw, "mdt_") || len(params) != 1 {
+		t.Fatalf("no daemon token minted for a task with plugin hook tools")
+	}
+	// Nothing to authenticate, nothing minted.
+	if raw, params, err := remoteMCPDaemonTokenForClaim(AgentTaskResponse{}, runtime); err != nil || raw != "" || len(params) != 0 {
+		t.Fatalf("token minted for a task with neither remote MCP nor plugin tools")
+	}
+}
+
 func TestListDaemonWorkspaces_UserScopedAndConditional(t *testing.T) {
 	w := testutil.Call(t, testHandler.ListDaemonWorkspaces, newRequest(http.MethodGet, "/api/daemon/workspaces", nil)).Want(http.StatusOK)
 
