@@ -37,7 +37,7 @@ import {
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Switch } from "@multica/ui/components/ui/switch";
-import { mcpHooks, PluginHookActivity, PluginMCPApproval, PluginScheduleActivity } from "../../plugins";
+import { mcpHooks, PluginHookActivity, PluginMCPApproval, PluginScheduleActivity, PluginTokenPanel } from "../../plugins";
 import { useLocale, useT } from "../../i18n";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
@@ -662,6 +662,8 @@ function InstalledPlugin({
             ))}
           </div>
         ) : null}
+
+        <PluginTokenPanel wsId={wsId} installationId={installation.id} canManage={canManage} />
 
         {contributions.length > 0 ? (
           <div className="space-y-1">

@@ -1803,6 +1803,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// The broker asks for an mcp hook's credential at connection time, so
 		// a secret never sits in a task record.
 		r.Get("/tasks/{id}/plugin-mcp/{contributionId}/credential", h.ResolvePluginMCPCredential)
+		// The broker's mcp-transport tools/call goes straight to the plugin's
+		// own MCP server and never touches the server otherwise, so this is
+		// how it still gets a rate limit, a circuit breaker and an invocation
+		// record: called once to gate the call, once to report its outcome.
+		r.Post("/tasks/{id}/plugin-mcp/{contributionId}/calls", h.RecordPluginMCPCall)
 
 		r.Post("/runtimes/{runtimeId}/tasks/claim", h.ClaimTaskByRuntime)
 		r.Post("/runtimes/{runtimeId}/memory-evaluations/{evaluationId}/claim", h.ClaimMemoryExecution)
@@ -3342,6 +3347,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/mcp-servers/{serverId}/enabled", h.SetAgentMcpServerEnabled)
 					r.Put("/mcp-servers/{serverId}/policy", h.SetAgentMcpServerPolicy)
 					r.Delete("/mcp-servers/{serverId}", h.RemoveAgentMcpServer)
+					// Plugin agent-tool hooks bound to this agent. Deny by
+					// default, same shape as the mcp-servers routes above: a
+					// plugin's hook does nothing for this agent until bound
+					// here.
+					r.Get("/plugin-tools", h.ListAgentPluginTools)
+					r.Put("/plugin-tools/{installationId}/{hookKey}", h.BindAgentPluginTool)
+					r.Delete("/plugin-tools/{installationId}/{hookKey}", h.UnbindAgentPluginTool)
 					// Dedicated env-management endpoint. Admits the agent
 					// owner or a workspace owner/admin; agent actors are
 					// denied. Every reveal / write is audited to

@@ -228,3 +228,18 @@ export interface PluginMCPTool {
   approved: boolean;
   drifted: boolean;
 }
+
+/**
+ * One plugin agent-tool hook as it applies to a specific agent. Deny-by-
+ * default: installing a plugin into the workspace grants the agent nothing —
+ * it gets the hook as a callable tool only once `bound` is true here.
+ */
+export interface AgentPluginTool {
+  installation_id: string;
+  plugin_key: string;
+  hook_key: string;
+  name: string;
+  description: string;
+  transport: string;
+  bound: boolean;
+}

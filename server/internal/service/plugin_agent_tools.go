@@ -79,15 +79,62 @@ func PluginToolName(pluginKey, hookKey string) string {
 	return readable + "_" + hex.EncodeToString(digest[:])[:6] + "__" + clean(hookKey)
 }
 
-// AgentHookTools lists the hooks an agent running in this workspace may call.
+// agentPluginToolBinding is the (installation, hook) pair a binding names,
+// used as a set key so lookup is O(1) per candidate hook/tool instead of a
+// query per candidate.
+type agentPluginToolBinding struct {
+	installationID string
+	hookKey        string
+}
+
+// boundAgentPluginTools loads agentID's bindings as a set. Deny by default:
+// an installed, enabled plugin's tools are not offered to an agent until
+// someone binds them, the same opt-in shape as the agent's own MCP connection
+// settings. A read failure fails closed (returns the error) rather than
+// silently offering nothing — that would look identical to "no tools bound"
+// and hide a real outage behind a wrong-looking but unremarkable result.
+func (s *PluginService) boundAgentPluginTools(ctx context.Context, agentID pgtype.UUID) (map[agentPluginToolBinding]bool, error) {
+	bindings, err := s.Queries.ListAgentPluginTools(ctx, agentID)
+	if err != nil {
+		return nil, &PluginError{Kind: PluginErrorUnavailable, Message: "list agent plugin tool bindings", Err: err}
+	}
+	bound := make(map[agentPluginToolBinding]bool, len(bindings))
+	for _, binding := range bindings {
+		bound[agentPluginToolBinding{installationID: uuidString(binding.InstallationID), hookKey: binding.HookKey}] = true
+	}
+	return bound, nil
+}
+
+// AgentPluginToolBound reports whether agentID is bound to installationID's
+// hookKey. The handler for the agent-triggered invoke route calls this
+// directly, before InvokeAgentHook, so an unbound call gets an explicit 403
+// rather than the 200-with-error-body InvokeAgentHook's own failures use
+// (those are hook execution outcomes an agent should read as a tool error;
+// this is an authorization boundary, and looks identical to one on the wire
+// only if nothing distinguishes them).
+func (s *PluginService) AgentPluginToolBound(ctx context.Context, agentID pgtype.UUID, installationID, hookKey string) (bool, error) {
+	bound, err := s.boundAgentPluginTools(ctx, agentID)
+	if err != nil {
+		return false, err
+	}
+	return bound[agentPluginToolBinding{installationID: installationID, hookKey: hookKey}], nil
+}
+
+// AgentHookTools lists the agent-tool hooks agentID may call.
 //
 // Disabled installations are skipped, which is what makes disabling a plugin
 // take effect on the next task rather than only in the UI. An uninstalled one
-// has no row at all.
-func (s *PluginService) AgentHookTools(ctx context.Context, workspaceID pgtype.UUID) ([]PluginHookTool, error) {
+// has no row at all. A hook that is offered by an enabled installation but was
+// never bound to this agent is skipped too — deny by default; installing a
+// plugin grants nothing to any agent until an admin explicitly binds it.
+func (s *PluginService) AgentHookTools(ctx context.Context, workspaceID, agentID pgtype.UUID) ([]PluginHookTool, error) {
 	installations, err := s.Queries.ListWorkspacePluginInstallations(ctx, workspaceID)
 	if err != nil {
 		return nil, &PluginError{Kind: PluginErrorUnavailable, Message: "list plugin installations", Err: err}
+	}
+	bound, err := s.boundAgentPluginTools(ctx, agentID)
+	if err != nil {
+		return nil, err
 	}
 
 	tools := make([]PluginHookTool, 0)
@@ -104,6 +151,9 @@ func (s *PluginService) AgentHookTools(ctx context.Context, workspaceID pgtype.U
 			if !HookIsAgentTool(hook) {
 				continue
 			}
+			if !bound[agentPluginToolBinding{installationID: uuidString(installation.ID), hookKey: hook.Key}] {
+				continue
+			}
 			tools = append(tools, PluginHookTool{
 				InstallationID: uuidString(installation.ID),
 				HookKey:        hook.Key,
@@ -115,6 +165,64 @@ func (s *PluginService) AgentHookTools(ctx context.Context, workspaceID pgtype.U
 	}
 	// Stable order so a task's tool list does not reshuffle between claims for
 	// no reason, which shows up as cache churn in provider-side prompt caching.
+	sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
+	return tools, nil
+}
+
+// AvailableAgentPluginTool is one hook a workspace admin could bind to an
+// agent, with whether that agent already is.
+type AvailableAgentPluginTool struct {
+	InstallationID string `json:"installation_id"`
+	PluginKey      string `json:"plugin_key"`
+	HookKey        string `json:"hook_key"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Transport      string `json:"transport"`
+	Bound          bool   `json:"bound"`
+}
+
+// AvailableAgentPluginTools lists every agent-trigger hook an enabled
+// installation in the workspace declares, across both transports (unlike
+// AgentHookTools, which only lists what is both bound AND directly callable
+// as an http tool). This is the admin's picker, not the agent's tool list:
+// admins bind a hook here before AgentHookTools or AgentMCPConnections can
+// ever surface it to the agent, so this has to show mcp-transport hooks too
+// even though those are wired through the mcp connection builder rather than
+// through a tool call this route would make.
+func (s *PluginService) AvailableAgentPluginTools(ctx context.Context, workspaceID, agentID pgtype.UUID) ([]AvailableAgentPluginTool, error) {
+	installations, err := s.Queries.ListWorkspacePluginInstallations(ctx, workspaceID)
+	if err != nil {
+		return nil, &PluginError{Kind: PluginErrorUnavailable, Message: "list plugin installations", Err: err}
+	}
+	bound, err := s.boundAgentPluginTools(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	tools := make([]AvailableAgentPluginTool, 0)
+	for _, installation := range installations {
+		if !installation.Enabled {
+			continue
+		}
+		manifest, err := ParseInstallationManifest(installation)
+		if err != nil {
+			continue
+		}
+		for _, hook := range manifest.Contributes.Hooks {
+			if !HookAllowsTrigger(hook, plugincontract.TriggerAgent) {
+				continue
+			}
+			tools = append(tools, AvailableAgentPluginTool{
+				InstallationID: uuidString(installation.ID),
+				PluginKey:      manifest.Key,
+				HookKey:        hook.Key,
+				Name:           PluginToolName(manifest.Key, hook.Key),
+				Description:    hook.Description,
+				Transport:      hook.Transport.Type,
+				Bound:          bound[agentPluginToolBinding{installationID: uuidString(installation.ID), hookKey: hook.Key}],
+			})
+		}
+	}
 	sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
 	return tools, nil
 }
@@ -135,6 +243,13 @@ func (s *PluginService) InvokeAgentHook(ctx context.Context, installationID, hoo
 	if err != nil {
 		return HookResult{}, err
 	}
+	// The deny-by-default binding check lives in the handler
+	// (InvokeAgentPluginHook), not here: it needs to answer with a hard 403,
+	// distinct from every failure below which the daemon deliberately turns
+	// into a 200 tool-error body for the agent to read. Keeping one check in
+	// one place also means InvokeAgentHook's agentID stays what HookActor
+	// always meant it as — whoever the resulting writes are attributed to —
+	// without this function also being the enforcement point.
 	return s.InvokeHook(ctx, HookInvocation{
 		Installation: caller.Installation,
 		Hook:         hook,

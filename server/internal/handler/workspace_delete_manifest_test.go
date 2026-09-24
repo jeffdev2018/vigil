@@ -215,6 +215,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"task_supplement_capability":     workspaceDelete,
 	"pinned_item":                    workspaceDelete,
 	"plugin_installation":            workspaceDelete,
+	"agent_plugin_tool":              workspaceDelete,
 	"plugin_hook_schedule":           workspaceDelete,
 	"plugin_invocation":              workspaceDelete,
 	"plugin_storage":                 workspaceDelete,

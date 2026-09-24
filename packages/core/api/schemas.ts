@@ -323,6 +323,23 @@ export const PluginMCPToolListSchema = z.object({
   tools: z.array(PluginMCPToolSchema).default([]),
 }).loose();
 
+/**
+ * One plugin agent-tool hook as it applies to one agent. The dangerous
+ * direction is one-sided, same as `PluginMCPToolSchema.approved`: a response
+ * missing or malforming `bound` must read as NOT bound, never as granted.
+ */
+export const AgentPluginToolSchema = z.object({
+  installation_id: z.string().catch(""),
+  plugin_key: z.string().catch(""),
+  hook_key: z.string().catch(""),
+  name: z.string().catch(""),
+  description: z.string().catch(""),
+  transport: z.string().catch(""),
+  bound: z.boolean().catch(false),
+}).loose();
+
+export const AgentPluginToolListSchema = z.array(AgentPluginToolSchema).catch([]);
+
 export const PluginManifestSummarySchema = z.object({
   key: z.string().default(""),
   name: z.string().default(""),

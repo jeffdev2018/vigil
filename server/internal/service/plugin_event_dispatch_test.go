@@ -72,7 +72,7 @@ func TestEventDispatchShedsLoadRatherThanGrowingWithoutBound(t *testing.T) {
 	// Well past the queue depth. Every call must return, none may panic, and
 	// Dispatch must stay safe after the pool has stopped.
 	for i := 0; i < dispatchQueueDepth*3; i++ {
-		dispatcher.Dispatch(plugincontract.EventIssueCreated, "00000000-0000-4000-8000-000000000001", nil)
+		dispatcher.Dispatch(plugincontract.EventIssueCreated, "00000000-0000-4000-8000-000000000001", "member", "", nil)
 	}
 	dropped := dispatcher.Dropped()
 	if dropped == 0 {
@@ -219,11 +219,44 @@ func TestEventDispatchStampsThePluginActor(t *testing.T) {
 	}
 }
 
+// A plugin's own write must not re-trigger its own event hook. Without this,
+// an installation whose hook posts a comment (which republishes
+// comment.created) would receive its own comment as a new event, forever —
+// a loop with no third party involved at all.
+func TestSelfTriggeredEventIsSkippedForTheCausingInstallation(t *testing.T) {
+	installation := db.PluginInstallation{ID: testInstallationID(t)}
+	otherID, err := parseUUIDValue("22222222-2222-4222-8222-222222222222")
+	if err != nil {
+		t.Fatalf("parse other uuid: %v", err)
+	}
+	other := db.PluginInstallation{ID: otherID}
+
+	selfCaused := dispatchJob{actorType: "plugin", actorID: uuidString(installation.ID)}
+	if !jobCausedByInstallation(selfCaused, installation) {
+		t.Fatal("an event whose actor IS this installation must be recognized as self-caused")
+	}
+	if jobCausedByInstallation(selfCaused, other) {
+		t.Fatal("a different installation must still receive the event")
+	}
+
+	// A member- or agent-caused event is never self-triggered, regardless of id.
+	memberCaused := dispatchJob{actorType: "member", actorID: uuidString(installation.ID)}
+	if jobCausedByInstallation(memberCaused, installation) {
+		t.Fatal("a member-caused event must never be treated as plugin self-trigger")
+	}
+
+	// No actor recorded (e.g. a system event): never skipped.
+	noActor := dispatchJob{actorType: "plugin", actorID: ""}
+	if jobCausedByInstallation(noActor, installation) {
+		t.Fatal("an empty actor id must not match any installation")
+	}
+}
+
 // recordingSink stands in for the dispatcher so the vocabulary mapping is
 // asserted directly, with no worker pool or endpoint in the way.
 type recordingSink func(eventType string)
 
-func (r recordingSink) Dispatch(eventType, _ string, _ any) { r(eventType) }
+func (r recordingSink) Dispatch(eventType, _, _, _ string, _ any) { r(eventType) }
 
 // The shape that took down cmd/server's router test: a dispatcher built over a
 // Queries whose pool was never opened.

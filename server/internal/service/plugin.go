@@ -756,6 +756,12 @@ func (s *PluginService) Uninstall(ctx context.Context, installation db.PluginIns
 	if err := queries.DeletePluginSkillsByInstallation(ctx, installation.ID); err != nil {
 		return &PluginError{Kind: PluginErrorUnavailable, Message: "delete plugin skills", Err: err}
 	}
+	// Every agent binding that named this installation's tools goes with it —
+	// the bindings are the deny-by-default grant, and an uninstalled
+	// installation has nothing left for them to grant access to.
+	if err := queries.DeleteAgentPluginToolsByInstallation(ctx, installation.ID); err != nil {
+		return &PluginError{Kind: PluginErrorUnavailable, Message: "delete agent plugin tool bindings", Err: err}
+	}
 	if err := queries.DeletePluginInstallation(ctx, installation.ID); err != nil {
 		return &PluginError{Kind: PluginErrorUnavailable, Message: "delete plugin installation", Err: err}
 	}

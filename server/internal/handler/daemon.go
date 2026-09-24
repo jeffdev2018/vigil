@@ -2703,7 +2703,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// tools rather than failing the claim: a plugin that cannot be listed must
 	// not stop an agent from working on the issue.
 	if h.PluginService != nil && h.pluginsV1Enabled(r.Context()) {
-		if tools, toolErr := h.PluginService.AgentHookTools(r.Context(), parseUUID(runtimeWorkspaceID)); toolErr != nil {
+		if tools, toolErr := h.PluginService.AgentHookTools(r.Context(), parseUUID(runtimeWorkspaceID), task.AgentID); toolErr != nil {
 			slog.Warn("plugins: could not list agent hook tools", "workspace_id", runtimeWorkspaceID, "error", toolErr)
 		} else {
 			resp.PluginHookTools = tools
@@ -2712,7 +2712,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		// what validatePinnedRemoteMCPTools already reads, so an approved tool
 		// that went missing or whose schema drifted refuses at startup without
 		// any new enforcement code.
-		if connections, connErr := h.PluginService.AgentMCPConnections(r.Context(), parseUUID(runtimeWorkspaceID)); connErr != nil {
+		if connections, connErr := h.PluginService.AgentMCPConnections(r.Context(), parseUUID(runtimeWorkspaceID), task.AgentID); connErr != nil {
 			slog.Warn("plugins: could not list agent MCP connections", "workspace_id", runtimeWorkspaceID, "error", connErr)
 		} else if len(connections) > 0 {
 			resp.RemoteMCPConnections = append(resp.RemoteMCPConnections, connections...)

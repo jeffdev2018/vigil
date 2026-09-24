@@ -344,3 +344,39 @@ UPDATE plugin_installation
 SET mcp_approvals = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- Agent <-> plugin tool bindings (deny by default).
+--
+-- An enabled installation's agent-tool hooks and mcp tools are offered to an
+-- agent only once bound here — the same opt-in shape as an agent's own MCP
+-- connection settings. hook_key is not validated against the current
+-- manifest at bind or list time: AgentHookTools / the mcp connection builder
+-- already re-read the manifest on every claim, so a binding for a hook a
+-- later upgrade dropped simply never matches anything, with no separate
+-- cleanup required.
+
+-- name: ListAgentPluginTools :many
+SELECT * FROM agent_plugin_tool WHERE agent_id = $1 ORDER BY installation_id, hook_key;
+
+-- name: BindAgentPluginTool :one
+-- ON CONFLICT DO NOTHING + idx_agent_plugin_tool_binding: binding an
+-- already-bound tool is a no-op, not a duplicate row or an error the admin
+-- has to route around.
+INSERT INTO agent_plugin_tool (workspace_id, agent_id, installation_id, hook_key)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (agent_id, installation_id, hook_key) DO NOTHING
+RETURNING *;
+
+-- name: UnbindAgentPluginTool :exec
+DELETE FROM agent_plugin_tool
+WHERE agent_id = $1 AND installation_id = $2 AND hook_key = $3;
+
+-- name: DeleteAgentPluginToolsByInstallation :exec
+-- Called inside Uninstall's transaction: an uninstalled plugin's bindings are
+-- meaningless (the installation id resolves to nothing), so they are removed
+-- with it rather than left as orphaned rows nothing ever prunes. Workspace
+-- deletion cleans up the rest (DeleteWorkspacePluginData, workspace_delete.sql)
+-- since agent_plugin_tool carries workspace_id directly; there is currently no
+-- standalone hard-delete-one-agent path, so no by-agent variant exists yet —
+-- add one alongside it if that path is introduced.
+DELETE FROM agent_plugin_tool WHERE installation_id = $1;

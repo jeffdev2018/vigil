@@ -32,6 +32,17 @@ const mcpHookManifest = `{
 	}]}
 }`
 
+// toolboxBoundToTestInstallation is the bound set mcpConnectionsFor now also
+// requires: an approved, endpoint-matching hook still yields no connection
+// unless the agent was separately bound to it. Every test in this file that
+// installs to testInstallationID(t) and wants to get past that second gate
+// uses this.
+func toolboxBoundToTestInstallation(t *testing.T) map[agentPluginToolBinding]bool {
+	return map[agentPluginToolBinding]bool{
+		{installationID: uuidString(testInstallationID(t)), hookKey: "toolbox"}: true,
+	}
+}
+
 func mcpInstallation(t *testing.T, approvals string) db.PluginInstallation {
 	t.Helper()
 	if approvals == "" {
@@ -57,14 +68,37 @@ func TestUnapprovedMCPHookYieldsNoConnection(t *testing.T) {
 	if tools := (&PluginService{}).ApprovedMCPTools(installation, "toolbox"); len(tools) != 0 {
 		t.Fatalf("an unapproved hook reported approved tools: %v", tools)
 	}
-	if connections := mcpConnectionsFor(installation); len(connections) != 0 {
+	if connections := mcpConnectionsFor(installation, nil); len(connections) != 0 {
 		t.Fatalf("an unapproved hook produced %d connections, want none", len(connections))
 	}
 
 	// An approval that exists but is empty is a withdrawal, not an allow-all.
 	withdrawn := mcpInstallation(t, `{"toolbox":{"tools":[]}}`)
-	if connections := mcpConnectionsFor(withdrawn); len(connections) != 0 {
+	if connections := mcpConnectionsFor(withdrawn, nil); len(connections) != 0 {
 		t.Fatalf("a withdrawn hook produced %d connections, want none", len(connections))
+	}
+}
+
+// A manifest update that repoints an already-approved hook's URL must not
+// inherit the old approval: the administrator approved server A's tools, not
+// whatever now answers at the hook's new URL. Same for approvals stored
+// before Endpoint existed — those come back with an empty Endpoint, which
+// also must not match.
+func TestMCPApprovalDoesNotSurviveEndpointChange(t *testing.T) {
+	approvals, err := json.Marshal(PluginMCPApprovals{
+		"toolbox": {Tools: []remotemcp.Tool{{Name: "search", SchemaDigest: "sha256:aaa"}}, Endpoint: "https://evil.example.com/mcp"},
+	})
+	if err != nil {
+		t.Fatalf("marshal approvals: %v", err)
+	}
+	if connections := mcpConnectionsFor(mcpInstallation(t, string(approvals)), toolboxBoundToTestInstallation(t)); len(connections) != 0 {
+		t.Fatalf("an approval for a different endpoint produced %d connections, want none", len(connections))
+	}
+
+	// Legacy approval with no Endpoint at all (pre-dates this field).
+	legacy := `{"toolbox":{"tools":[{"name":"search","schema_digest":"sha256:aaa"}]}}`
+	if connections := mcpConnectionsFor(mcpInstallation(t, legacy), toolboxBoundToTestInstallation(t)); len(connections) != 0 {
+		t.Fatalf("a legacy approval with no endpoint produced %d connections, want none (must be re-approved)", len(connections))
 	}
 }
 
@@ -72,12 +106,12 @@ func TestUnapprovedMCPHookYieldsNoConnection(t *testing.T) {
 // to its approved tools and to the exact hosts the consent screen showed.
 func TestApprovedMCPHookBecomesABrokerConnection(t *testing.T) {
 	approvals, err := json.Marshal(PluginMCPApprovals{
-		"toolbox": {Tools: []remotemcp.Tool{{Name: "search", SchemaDigest: "sha256:aaa"}}},
+		"toolbox": {Tools: []remotemcp.Tool{{Name: "search", SchemaDigest: "sha256:aaa"}}, Endpoint: "https://tools.example.com/mcp"},
 	})
 	if err != nil {
 		t.Fatalf("marshal approvals: %v", err)
 	}
-	connections := mcpConnectionsFor(mcpInstallation(t, string(approvals)))
+	connections := mcpConnectionsFor(mcpInstallation(t, string(approvals)), toolboxBoundToTestInstallation(t))
 	if len(connections) != 1 {
 		t.Fatalf("got %d connections, want exactly one", len(connections))
 	}
@@ -185,7 +219,7 @@ func TestMCPConnectionRequiresTheAgentTrigger(t *testing.T) {
 
 	// Even with its tools approved, it is not offered to an agent.
 	installation.McpApprovals = []byte(`{"toolbox":{"tools":[{"name":"search"}]}}`)
-	if connections := mcpConnectionsFor(installation); len(connections) != 0 {
+	if connections := mcpConnectionsFor(installation, toolboxBoundToTestInstallation(t)); len(connections) != 0 {
 		t.Fatalf("a manual-only hook produced %d connections, want none", len(connections))
 	}
 }

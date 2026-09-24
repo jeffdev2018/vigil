@@ -146,6 +146,7 @@ export type {
   PluginInvocation,
   PluginMCPTool,
   PluginTokenIssue,
+  AgentPluginTool,
 } from "./plugin";
 export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem, ArchivedInboxPage, ArchivedInboxFacets } from "./inbox";
 export type {

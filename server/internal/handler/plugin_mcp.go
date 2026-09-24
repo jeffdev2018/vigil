@@ -2,11 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
 
@@ -146,6 +148,14 @@ func (h *Handler) ResolvePluginMCPCredential(w http.ResponseWriter, r *http.Requ
 		writePluginError(w, err, "failed to load the Plugin")
 		return
 	}
+	if !installation.Enabled {
+		// A disabled installation must lose every capability, not just the ones
+		// an admin remembered to also revoke. Otherwise "disable" leaves a live
+		// credential reachable through this route while the installation looks
+		// off everywhere else.
+		writeError(w, http.StatusForbidden, "this Plugin is disabled")
+		return
+	}
 
 	header, credential, err := h.PluginService.MCPHookCredential(r.Context(), installation, hookKey)
 	if err != nil {
@@ -156,4 +166,75 @@ func (h *Handler) ResolvePluginMCPCredential(w http.ResponseWriter, r *http.Requ
 		"credential_header": header,
 		"credential":        credential,
 	})
+}
+
+// pluginMCPCallRequest is empty for the gate call the daemon makes before
+// proxying a tools/call, and carries Result for the report call it makes
+// after. One route serves both: Result's presence is what tells them apart.
+type pluginMCPCallRequest struct {
+	Result    string `json:"result,omitempty"`
+	LatencyMs int    `json:"latency_ms,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+// RecordPluginMCPCall — POST /api/daemon/tasks/{id}/plugin-mcp/{contributionId}/calls
+//
+// The broker proxies an mcp-transport hook's tools/call straight to the
+// plugin's own MCP server — that is the whole reason an mcp hook exists
+// instead of another http one — so the server is never on that path and never
+// sees the rate limit, circuit breaker or invocation log an http-transport
+// hook gets through InvokeHook. This route is how the daemon gives it back:
+// called once before proxying, with no body, to gate the call (429 if the
+// hook's rate limit is exceeded, 503 if its breaker is open, 403 if the
+// installation is disabled); called again after, with `result` set, to record
+// how it actually finished so a failing MCP server trips the breaker exactly
+// as a failing http hook would.
+func (h *Handler) RecordPluginMCPCall(w http.ResponseWriter, r *http.Request) {
+	if !h.requirePluginsV1(w, r) {
+		return
+	}
+	_, workspaceID, ok := h.requireDaemonTaskAccessWithWorkspace(w, r, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+	installationID, hookKey, ok := splitPluginContributionID(chi.URLParam(r, "contributionId"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "malformed contribution id")
+		return
+	}
+	installation, err := h.PluginService.InstallationForWorkspace(r.Context(), parseUUID(workspaceID), installationID)
+	if err != nil {
+		writePluginError(w, err, "failed to load the Plugin")
+		return
+	}
+
+	var req pluginMCPCallRequest
+	if r.Body != nil {
+		// Best effort: the gate call sends no body at all, and a malformed one
+		// on the report call must not hide the outcome — it still records.
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	if req.Result == "" {
+		if err := h.PluginService.BeginAgentMCPCall(r.Context(), installation, hookKey); err != nil {
+			var pluginErr *service.PluginError
+			if errors.As(err, &pluginErr) {
+				switch pluginErr.Kind {
+				case service.PluginErrorQuota:
+					writeError(w, http.StatusTooManyRequests, pluginErr.Message)
+					return
+				case service.PluginErrorUnavailable:
+					writeError(w, http.StatusServiceUnavailable, pluginErr.Message)
+					return
+				}
+			}
+			writePluginError(w, err, "failed to admit the call")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"allowed": true})
+		return
+	}
+
+	h.PluginService.ReportAgentMCPCallOutcome(r.Context(), installation, hookKey, req.Result, req.LatencyMs, req.Error)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

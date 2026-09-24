@@ -19,3 +19,4 @@ export {
 export type { PluginModalTarget } from "./plugin-modal-surface";
 export { PluginHookActivity, PluginScheduleActivity, summarizeInvocations } from "./plugin-hook-activity";
 export { PluginMCPApproval, mcpHooks, initialSelection } from "./plugin-mcp-approval";
+export { PluginTokenPanel } from "./plugin-token-panel";

@@ -17,6 +17,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util/secretbox"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/plugincontract"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
@@ -279,9 +280,18 @@ func TestExamplePluginHooksReachAnAgentAsTools(t *testing.T) {
 		sentinel: quietServer(t, func(http.ResponseWriter, *http.Request) {}),
 		metrics:  metricsServer(t),
 	}
-	installExamplePlugin(t, servers)
+	installationID := installExamplePlugin(t, servers)
+	agentID := dbfx.Agent(t, "deploy-sentinel agent", dbfx.Runtime(t, "deploy-sentinel runtime"))
+	for _, hookKey := range []string{"correlate_deploys", "request_rollback"} {
+		if _, err := testHandler.Queries.BindAgentPluginTool(context.Background(), db.BindAgentPluginToolParams{
+			WorkspaceID: parseUUID(testWorkspaceID), AgentID: parseUUID(agentID),
+			InstallationID: parseUUID(installationID), HookKey: hookKey,
+		}); err != nil {
+			t.Fatalf("bind %q: %v", hookKey, err)
+		}
+	}
 
-	tools, err := testHandler.PluginService.AgentHookTools(context.Background(), parseUUID(testWorkspaceID))
+	tools, err := testHandler.PluginService.AgentHookTools(context.Background(), parseUUID(testWorkspaceID), parseUUID(agentID))
 	if err != nil {
 		t.Fatalf("agent hook tools: %v", err)
 	}
@@ -382,6 +392,13 @@ func TestExamplePluginMCPToolsNeedApproval(t *testing.T) {
 		metrics:  metricsServer(t),
 	}
 	installationID := installExamplePlugin(t, servers)
+	agentID := dbfx.Agent(t, "deploy-sentinel mcp agent", dbfx.Runtime(t, "deploy-sentinel mcp runtime"))
+	if _, err := testHandler.Queries.BindAgentPluginTool(context.Background(), db.BindAgentPluginToolParams{
+		WorkspaceID: parseUUID(testWorkspaceID), AgentID: parseUUID(agentID),
+		InstallationID: parseUUID(installationID), HookKey: "metrics",
+	}); err != nil {
+		t.Fatalf("bind metrics: %v", err)
+	}
 
 	recorder := httptest.NewRecorder()
 	testHandler.ListPluginMCPTools(recorder, pluginHandlerRequest(http.MethodGet, "/mcp/tools", nil, map[string]string{
@@ -409,7 +426,7 @@ func TestExamplePluginMCPToolsNeedApproval(t *testing.T) {
 	}
 
 	// Nothing approved yet, so an agent gets no connection at all.
-	connections, err := testHandler.PluginService.AgentMCPConnections(context.Background(), parseUUID(testWorkspaceID))
+	connections, err := testHandler.PluginService.AgentMCPConnections(context.Background(), parseUUID(testWorkspaceID), parseUUID(agentID))
 	if err != nil {
 		t.Fatalf("agent mcp connections: %v", err)
 	}
@@ -426,7 +443,7 @@ func TestExamplePluginMCPToolsNeedApproval(t *testing.T) {
 		t.Fatalf("approve: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 
-	connections, err = testHandler.PluginService.AgentMCPConnections(context.Background(), parseUUID(testWorkspaceID))
+	connections, err = testHandler.PluginService.AgentMCPConnections(context.Background(), parseUUID(testWorkspaceID), parseUUID(agentID))
 	if err != nil {
 		t.Fatalf("agent mcp connections after approval: %v", err)
 	}

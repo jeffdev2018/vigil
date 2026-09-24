@@ -716,6 +716,13 @@ deleted_package_versions AS (
 deleted_packages AS (
     DELETE FROM plugin_package
     WHERE workspace_id = $1
+),
+-- Agent<->plugin-tool bindings are workspace-scoped in their own right, same
+-- reasoning as deleted_invocations above: a binding naming an already-
+-- uninstalled installation must not survive the workspace it was made in.
+deleted_agent_plugin_tools AS (
+    DELETE FROM agent_plugin_tool
+    WHERE workspace_id = $1
 )
 DELETE FROM plugin_installation WHERE id IN (SELECT id FROM installations);
 
