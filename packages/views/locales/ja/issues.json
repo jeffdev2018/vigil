@@ -668,7 +668,9 @@
     "trigger_blocked_a2a_depth_exceeded": "エージェント間の連鎖が、起点となった人から離れすぎています",
     "trigger_blocked_a2a_budget_exceeded": "この課題は現時点でエージェント間メッセージの上限に達しました",
     "trigger_blocked_short_a2a_depth_exceeded": "連鎖が長すぎます",
-    "trigger_blocked_short_a2a_budget_exceeded": "エージェント間メッセージ超過"
+    "trigger_blocked_short_a2a_budget_exceeded": "エージェント間メッセージ超過",
+    "via_plugin": "{{name}} 経由",
+    "via_unknown_plugin": "プラグイン経由"
   },
   "reply": {
     "placeholder": "返信を残す...",

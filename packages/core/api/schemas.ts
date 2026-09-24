@@ -1222,6 +1222,7 @@ const TimelineEntrySchema = z.object({
   // Agent-to-agent message intent (F19). Same free-string contract as
   // CommentSchema.a2a_intent.
   a2a_intent: z.string().nullish(),
+  via_plugin_id: z.string().nullish().catch(null),
   reactions: z.array(ReactionSchema).optional(),
   attachments: z.array(AttachmentSchema).optional(),
   source_task_id: z.string().nullable().optional(),
@@ -1398,6 +1399,7 @@ export const CommentSchema = z.object({
   // the column has no CHECK, so a value this build cannot label must render as
   // an ordinary comment rather than fail the whole comment's parse.
   a2a_intent: z.string().nullish(),
+  via_plugin_id: z.string().nullish().catch(null),
   // Diff anchor (F07). `nullish` rather than required: a backend that predates
   // the feature omits it entirely, and the thread must still render.
   anchor: CommentAnchorSchema.nullish().catch(null),

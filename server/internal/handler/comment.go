@@ -58,7 +58,11 @@ type CommentResponse struct {
 	// keys off this column rather than a `type` value the client controls.
 	// A free string on the wire: a value this client does not know renders as an
 	// ordinary comment, so a newer backend never blanks an older UI.
-	A2aIntent   *string              `json:"a2a_intent,omitempty"`
+	A2aIntent *string `json:"a2a_intent,omitempty"`
+	// ViaPluginID names the plugin installation a comment was posted through
+	// (Plugin Action API): the author is still the member who used the plugin.
+	// Omitted for every comment written directly.
+	ViaPluginID *string              `json:"via_plugin_id,omitempty"`
 	Reactions   []ReactionResponse   `json:"reactions"`
 	Attachments []AttachmentResponse `json:"attachments"`
 	// Orientation stats — populated only on the roots_only path and omitted in
@@ -140,6 +144,7 @@ func commentToResponse(c db.Comment, reactions []ReactionResponse, attachments [
 		DeletedAt:      timestampToPtr(c.DeletedAt),
 		QuickActionID:  uuidToPtr(c.QuickActionID),
 		A2aIntent:      textToPtr(c.A2aIntent),
+		ViaPluginID:    uuidToPtr(c.ViaPluginID),
 		Reactions:      reactions,
 		Attachments:    attachments,
 	}
@@ -840,6 +845,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 					SourceTaskID:   r.SourceTaskID,
 					QuickActionID:  r.QuickActionID,
 					A2aIntent:      r.A2aIntent,
+					ViaPluginID:    r.ViaPluginID,
 					Revision:       r.Revision,
 					DeletedAt:      r.DeletedAt,
 				}
@@ -936,6 +942,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				SourceTaskID:   r.SourceTaskID,
 				QuickActionID:  r.QuickActionID,
 				A2aIntent:      r.A2aIntent,
+				ViaPluginID:    r.ViaPluginID,
 				Revision:       r.Revision,
 				DeletedAt:      r.DeletedAt,
 			}
@@ -1026,6 +1033,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				SourceTaskID:   r.SourceTaskID,
 				QuickActionID:  r.QuickActionID,
 				A2aIntent:      r.A2aIntent,
+				ViaPluginID:    r.ViaPluginID,
 				Revision:       r.Revision,
 				DeletedAt:      r.DeletedAt,
 			})
@@ -1086,7 +1094,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 					Content: r.Content, Type: r.Type, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 					ParentID: r.ParentID, WorkspaceID: r.WorkspaceID, ResolvedAt: r.ResolvedAt,
 					ResolvedByType: r.ResolvedByType, ResolvedByID: r.ResolvedByID,
-					SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, Revision: r.Revision,
+					SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, ViaPluginID: r.ViaPluginID, Revision: r.Revision,
 					DeletedAt: r.DeletedAt,
 				}
 				stats[uuidToString(r.ID)] = rootStat{ReplyCount: int(r.ReplyCount), LastActivityAt: r.LastActivityAt}
@@ -1117,7 +1125,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				Content: r.Content, Type: r.Type, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 				ParentID: r.ParentID, WorkspaceID: r.WorkspaceID, ResolvedAt: r.ResolvedAt,
 				ResolvedByType: r.ResolvedByType, ResolvedByID: r.ResolvedByID,
-				SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, Revision: r.Revision,
+				SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, ViaPluginID: r.ViaPluginID, Revision: r.Revision,
 				DeletedAt: r.DeletedAt,
 			}
 			stats[uuidToString(r.ID)] = rootStat{ReplyCount: int(r.ReplyCount), LastActivityAt: r.LastActivityAt}

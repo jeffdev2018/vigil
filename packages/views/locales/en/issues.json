@@ -686,7 +686,9 @@
     "trigger_blocked_a2a_depth_exceeded": "This agent-to-agent chain is too far from the person who started it",
     "trigger_blocked_a2a_budget_exceeded": "This issue has reached its agent-to-agent message allowance for now",
     "trigger_blocked_short_a2a_depth_exceeded": "Chain too long",
-    "trigger_blocked_short_a2a_budget_exceeded": "Too many agent messages"
+    "trigger_blocked_short_a2a_budget_exceeded": "Too many agent messages",
+    "via_plugin": "via {{name}}",
+    "via_unknown_plugin": "via a plugin"
   },
   "reply": {
     "placeholder": "Leave a reply...",

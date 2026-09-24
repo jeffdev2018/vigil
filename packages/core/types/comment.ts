@@ -94,6 +94,9 @@ export interface Comment {
   // no field for it — so the chip it drives cannot be forged. A free string: an
   // intent this build cannot label renders as an ordinary comment.
   a2a_intent?: string | null;
+  // The plugin installation this comment was posted through, if any. The
+  // author stays the member who used the plugin.
+  via_plugin_id?: string | null;
   // Set only on a comment deleted while it still had replies (#8296): the
   // server keeps an empty tombstone so the replies keep their parent. Older
   // servers omit it.
