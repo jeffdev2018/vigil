@@ -383,6 +383,37 @@ func TestPluginCommentIsAuthoredByTheUserAndMarkedWithThePlugin(t *testing.T) {
 	if viaPlugin == nil || *viaPlugin != installationID {
 		t.Fatalf("via_plugin_id = %v, want %s", viaPlugin, installationID)
 	}
+	// ...and the ordinary comment list says so, so the timeline can show it.
+	_, listed := listComments(t, issueID, "")
+	found := false
+	for _, c := range listed {
+		if c.ID == created.ID {
+			found = true
+			if c.ViaPluginID == nil || *c.ViaPluginID != installationID {
+				t.Fatalf("listed via_plugin_id = %v, want %s", c.ViaPluginID, installationID)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("plugin comment %s missing from the comment list", created.ID)
+	}
+	// The issue page renders the timeline, not the comment list.
+	entries, status := fetchTimeline(t, issueID)
+	if status != http.StatusOK {
+		t.Fatalf("timeline status=%d", status)
+	}
+	found = false
+	for _, e := range entries {
+		if e.ID == created.ID {
+			found = true
+			if e.ViaPluginID == nil || *e.ViaPluginID != installationID {
+				t.Fatalf("timeline via_plugin_id = %v, want %s", e.ViaPluginID, installationID)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("plugin comment %s missing from the timeline", created.ID)
+	}
 }
 
 func TestPluginActionCannotReachAnotherWorkspacesIssue(t *testing.T) {

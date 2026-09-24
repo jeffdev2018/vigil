@@ -108,7 +108,7 @@ thread_stats AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision, c.deleted_at,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.via_plugin_id, c.revision, c.deleted_at,
        ts.reply_count AS reply_count,
        ts.last_activity_at AS last_activity_at
 FROM selected_roots sr
@@ -154,7 +154,7 @@ thread_stats AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision, c.deleted_at,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.via_plugin_id, c.revision, c.deleted_at,
        ts.reply_count AS reply_count,
        ts.last_activity_at AS last_activity_at
 FROM selected_roots sr
@@ -195,14 +195,14 @@ descendants AS (
     SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
            c.created_at, c.updated_at, c.parent_id, c.workspace_id,
            c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-           c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision, c.deleted_at
+           c.source_task_id, c.quick_action_id, c.a2a_intent, c.via_plugin_id, c.revision, c.deleted_at
     FROM comment c
     JOIN thread_root tr ON c.id = tr.id
     UNION
     SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
            c.created_at, c.updated_at, c.parent_id, c.workspace_id,
            c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-           c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision, c.deleted_at
+           c.source_task_id, c.quick_action_id, c.a2a_intent, c.via_plugin_id, c.revision, c.deleted_at
     FROM comment c
     JOIN descendants d ON c.parent_id = d.id
     WHERE c.issue_id = @issue_id AND c.workspace_id = @workspace_id
@@ -211,7 +211,7 @@ reply_page AS (
     SELECT d.id, d.issue_id, d.author_type, d.author_id, d.content, d.type,
            d.created_at, d.updated_at, d.parent_id, d.workspace_id,
            d.resolved_at, d.resolved_by_type, d.resolved_by_id,
-           d.source_task_id, d.quick_action_id, d.a2a_intent, d.revision, d.deleted_at
+           d.source_task_id, d.quick_action_id, d.a2a_intent, d.via_plugin_id, d.revision, d.deleted_at
     FROM descendants d
     WHERE d.id NOT IN (SELECT id FROM thread_root)
       AND (
@@ -224,19 +224,19 @@ reply_page AS (
 SELECT id, issue_id, author_type, author_id, content, type,
        created_at, updated_at, parent_id, workspace_id,
        resolved_at, resolved_by_type, resolved_by_id,
-       source_task_id, quick_action_id, a2a_intent, revision, deleted_at
+       source_task_id, quick_action_id, a2a_intent, via_plugin_id, revision, deleted_at
 FROM (
     SELECT d.id, d.issue_id, d.author_type, d.author_id, d.content, d.type,
            d.created_at, d.updated_at, d.parent_id, d.workspace_id,
            d.resolved_at, d.resolved_by_type, d.resolved_by_id,
-           d.source_task_id, d.quick_action_id, d.a2a_intent, d.revision, d.deleted_at
+           d.source_task_id, d.quick_action_id, d.a2a_intent, d.via_plugin_id, d.revision, d.deleted_at
     FROM descendants d
     JOIN thread_root tr ON d.id = tr.id
     UNION ALL
     SELECT id, issue_id, author_type, author_id, content, type,
            created_at, updated_at, parent_id, workspace_id,
            resolved_at, resolved_by_type, resolved_by_id,
-           source_task_id, quick_action_id, a2a_intent, revision, deleted_at
+           source_task_id, quick_action_id, a2a_intent, via_plugin_id, revision, deleted_at
     FROM reply_page
 ) combined
 ORDER BY created_at ASC, id ASC;
@@ -301,7 +301,7 @@ picked AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision, c.deleted_at,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.via_plugin_id, c.revision, c.deleted_at,
        p.root_id AS thread_root_id,
        p.last_activity_at AS thread_last_activity_at
 FROM picked p

@@ -37,6 +37,7 @@ import { FileUploadButton } from "@multica/ui/components/common/file-upload-butt
 import { api, dispatchReasonCode, errorCode } from "@multica/core/api";
 import { ReplyInput } from "./reply-input";
 import { A2AIntentChip } from "./a2a-intent-chip";
+import { PluginViaChip } from "./plugin-via-chip";
 import { AnchorChip } from "./anchor-chip";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
@@ -763,6 +764,7 @@ function CommentRow({
         {/* Agent-to-agent message (F19): what this agent asked the next one for,
             and who was asked. Body-visible by design — see A2AIntentChip. */}
         <A2AIntentChip intent={entry.a2a_intent} content={entry.content} />
+        <PluginViaChip pluginId={entry.via_plugin_id} />
 
         {isResolution && (
           <span className="text-caption font-medium text-success">
@@ -1263,6 +1265,7 @@ function CommentCardImpl({
               {/* Agent-to-agent message (F19). Sits with the other header
                   chips; the body below stays fully visible. */}
               <A2AIntentChip intent={entry.a2a_intent} content={entry.content} />
+              <PluginViaChip pluginId={entry.via_plugin_id} />
               <AnchorChip
                 anchor={entry.anchor}
                 stale={entry.anchor_stale}

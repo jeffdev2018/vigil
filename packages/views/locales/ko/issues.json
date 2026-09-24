@@ -668,7 +668,9 @@
     "trigger_blocked_a2a_depth_exceeded": "에이전트 간 연결이 시작한 사람으로부터 너무 멀어졌습니다",
     "trigger_blocked_a2a_budget_exceeded": "이 이슈는 현재 에이전트 간 메시지 한도에 도달했습니다",
     "trigger_blocked_short_a2a_depth_exceeded": "연결이 너무 김",
-    "trigger_blocked_short_a2a_budget_exceeded": "에이전트 메시지 과다"
+    "trigger_blocked_short_a2a_budget_exceeded": "에이전트 메시지 과다",
+    "via_plugin": "{{name}} 통해",
+    "via_unknown_plugin": "플러그인 통해"
   },
   "reply": {
     "placeholder": "답글 남기기...",

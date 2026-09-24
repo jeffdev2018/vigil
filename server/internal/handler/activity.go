@@ -42,7 +42,9 @@ type TimelineEntry struct {
 	QuickActionID *string `json:"quick_action_id,omitempty"`
 	// Agent-to-agent message intent (F19), so the timeline chips it without a
 	// second fetch. Omitted on activity rows and on ordinary comments.
-	A2aIntent      *string              `json:"a2a_intent,omitempty"`
+	A2aIntent *string `json:"a2a_intent,omitempty"`
+	// ViaPluginID: the plugin installation a comment was posted through.
+	ViaPluginID    *string              `json:"via_plugin_id,omitempty"`
 	Reactions      []ReactionResponse   `json:"reactions,omitempty"`
 	Attachments    []AttachmentResponse `json:"attachments,omitempty"`
 	ResolvedAt     *string              `json:"resolved_at,omitempty"`
@@ -320,6 +322,7 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			CommentType:    &commentType,
 			QuickActionID:  uuidToPtr(c.QuickActionID),
 			A2aIntent:      textToPtr(c.A2aIntent),
+			ViaPluginID:    uuidToPtr(c.ViaPluginID),
 			ParentID:       uuidToPtr(c.ParentID),
 			CreatedAt:      timestampToString(c.CreatedAt),
 			UpdatedAt:      &updatedAt,

@@ -668,7 +668,9 @@
     "trigger_blocked_a2a_depth_exceeded": "该智能体调用链距离发起人已经太远",
     "trigger_blocked_a2a_budget_exceeded": "此议题的智能体互发消息数量暂时已达上限",
     "trigger_blocked_short_a2a_depth_exceeded": "调用链过长",
-    "trigger_blocked_short_a2a_budget_exceeded": "智能体消息过多"
+    "trigger_blocked_short_a2a_budget_exceeded": "智能体消息过多",
+    "via_plugin": "通过 {{name}}",
+    "via_unknown_plugin": "通过插件"
   },
   "reply": {
     "placeholder": "回复...",

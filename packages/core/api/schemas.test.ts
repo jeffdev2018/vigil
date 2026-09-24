@@ -3674,6 +3674,16 @@ describe("CommentAnchorSchema", () => {
     expect(CommentSchema.parse(base).a2a_intent ?? null).toBeNull();
   });
 
+  it("keeps the plugin a comment was posted through, and drops a malformed one", () => {
+    const base = {
+      id: "c1", issue_id: "i1", author_type: "member", author_id: "u1", content: "hi",
+      type: "comment", parent_id: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    };
+    expect(CommentSchema.parse({ ...base, via_plugin_id: "inst-1" }).via_plugin_id).toBe("inst-1");
+    expect(CommentSchema.parse({ ...base, via_plugin_id: 42 }).via_plugin_id).toBeNull();
+    expect(CommentSchema.parse(base).via_plugin_id ?? null).toBeNull();
+  });
+
   it("survives an anchor that is not an object at all", () => {
     const parsed = CommentSchema.parse({
       id: "c1",

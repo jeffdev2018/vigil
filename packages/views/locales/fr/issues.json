@@ -686,7 +686,9 @@
     "trigger_blocked_a2a_depth_exceeded": "Cette chaîne entre agents est trop éloignée de la personne qui l'a lancée",
     "trigger_blocked_a2a_budget_exceeded": "Cette issue a atteint son quota de messages entre agents pour le moment",
     "trigger_blocked_short_a2a_depth_exceeded": "Chaîne trop longue",
-    "trigger_blocked_short_a2a_budget_exceeded": "Trop de messages entre agents"
+    "trigger_blocked_short_a2a_budget_exceeded": "Trop de messages entre agents",
+    "via_plugin": "via {{name}}",
+    "via_unknown_plugin": "via un plugin"
   },
   "reply": {
     "placeholder": "Laisser une réponse...",

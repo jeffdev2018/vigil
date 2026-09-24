@@ -34,6 +34,8 @@ export interface TimelineEntry {
    * renders as an ordinary comment.
    */
   a2a_intent?: string | null;
+  /** The plugin installation this comment was posted through, if any. */
+  via_plugin_id?: string | null;
   reactions?: Reaction[];
   attachments?: Attachment[];
   resolved_at?: string | null;
