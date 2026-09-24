@@ -87,7 +87,14 @@
       "result": "選ばれたモデル：{{model}}",
       "pick_another": "別の選び方をする",
       "catalog": "7つの構造",
-      "catalog_close": "質問に戻る"
+      "catalog_close": "質問に戻る",
+      "taskforce_termination_question": "どう終了しますか？",
+      "taskforce_termination_date": "日付で終了",
+      "taskforce_termination_condition": "条件で終了",
+      "taskforce_dissolve_label": "終了日時",
+      "taskforce_dissolve_placeholder": "日時を選択",
+      "taskforce_end_condition_label": "終了条件",
+      "taskforce_termination_hint": "終了日か終了条件のどちらかを選んでください。"
     },
     "model_line": {
       "hierarchy": "明確な指揮系統：どのチームも誰に上げるか分かっています。",
@@ -194,12 +201,12 @@
     "name": "名前",
     "owner": "人間のオーナー",
     "owner_none": "オーナーなし",
-    "dissolve_at": "解散日時",
+    "dissolve_at": "終了日時",
     "end_condition": "終了条件",
     "end_none": "なし",
     "end_all_issues_done": "すべての課題が完了",
     "end_budget_spent": "予算を使い切った",
-    "budget": "予算（USD ticks）",
+    "budget": "予算（USD）",
     "definition": "定義（JSON）",
     "invalid_json": "JSONが無効です: {{error}}",
     "save": "保存",
@@ -220,11 +227,11 @@
   },
   "activate": {
     "title": "構造を有効化",
-    "description": "有効化には人間のオーナーと、30ケースの評価セットが通過したことの証明が必要です。以下の数値はプリフライトの結果です。",
+    "description": "有効化には人間のオーナーと、30ケースの評価セットが通過したことの証明が必要です。以下の数値は有効化前の確認結果です。",
     "attestation": "評価の証明",
     "attestation_placeholder": "{{date}}に30ケースを実行: …",
-    "loading": "プリフライト中…",
-    "pattern": "パターン",
+    "loading": "有効化前の確認中…",
+    "pattern": "動き方",
     "runs": "課題ごとの調整実行数",
     "cost": "課題ごとの調整コスト",
     "review_seconds": "課題ごとの人間のレビュー時間",
@@ -257,12 +264,12 @@
     "routed": "ルーティング済み",
     "unrouted": "未ルーティング",
     "escalations": "エスカレーション",
-    "stacked": "重なったエスカレーション",
+    "stacked": "2回以上エスカレーションされた課題",
     "reassigned_outside": "ユニット外へ再割り当て",
-    "market_short": "マーケットの入札不足",
-    "breakers": "ブレーカー",
+    "market_short": "入札が足りない課題",
+    "breakers": "自動一時停止されたユニット",
     "human_review": "人間のレビュー待ち",
-    "drift": "ドリフト率",
+    "drift": "構造外への再割り当て率",
     "units": "ユニット",
     "unit": "ユニット",
     "vacant_roles": "空席のロール",
@@ -396,7 +403,6 @@
     "verb_placeholder": "動詞（例: merge）",
     "add": "追加",
     "remove": "{{item}} を外す",
-    "locked_reason": "Multica はこれをどこでも拒否します。構造から与えることはできません。",
     "properties": "扱うもの",
     "property": {
       "untrusted_input": "信頼できない入力",
@@ -411,10 +417,32 @@
       "external_message": "外部へのメッセージ"
     },
     "decider_none": "まだ未定",
-    "budget": "予算（USD ticks）",
     "members": "メンバー",
     "no_members": "メンバーがまだいません。",
-    "move_to": "{{name}} を別のユニットへ移す"
+    "move_to": "{{name}} を別のユニットへ移す",
+    "trust_level_hint": {
+      "read_only": "読むこととコメントのみ。何も変更しません。",
+      "draft": "下書きを用意し、人間が仕上げて送信します。",
+      "approve_payload": "内容を用意し、送信前に人間が承認します。",
+      "auto": "与えられた範囲内で、単独で行動します。"
+    },
+    "capability": {
+      "read": "読む",
+      "comment": "コメントする",
+      "propose_plan": "計画を提案する",
+      "delete": "削除する",
+      "bill": "請求する",
+      "refund": "返金する",
+      "send_external_without_approval": "承認なしに外部へ送信する",
+      "touch_secrets": "秘密情報に触れる",
+      "commit_money": "資金を動かす",
+      "publish": "公開する",
+      "sign": "署名する"
+    },
+    "capability_enforcement": {
+      "tool": "ツールでブロックされます",
+      "instruction": "エージェントへの指示のみで、技術的な強制はありません"
+    }
   },
   "people": {
     "view_people": "メンバー",
@@ -720,5 +748,104 @@
     "choose_person": "人またはエージェントを選択",
     "source_team": "移動元のチーム",
     "return_to_view": "{{view}} に戻る"
+  },
+  "unit_kind": {
+    "unit": "チーム",
+    "pool": "プール",
+    "circle": "サークル",
+    "taskforce": "タスクフォース",
+    "market": "マーケット"
+  },
+  "approval_risk": {
+    "low": "低い",
+    "normal": "通常",
+    "high": "高い"
+  },
+  "edge_kind": {
+    "reports_to": "報告する先",
+    "escalates_to": "エスカレーション先",
+    "backs_up": "支援する",
+    "consults": "相談する"
+  },
+  "edge_kind_effect": {
+    "live": "ルーティングに影響します",
+    "informational": "参考情報のみで、ルーティングには影響しません"
+  },
+  "member_role": {
+    "owner": "オーナー",
+    "member": "メンバー",
+    "lead": "最初に受け取る"
+  },
+  "simulate_note": {
+    "no_rule_matched": "一致するルールがなく、このモデルには代替ユニットもありません。",
+    "unit_no_owner": "「{{unit}}」には人間のオーナーがいないため、作業を受け取れません。",
+    "market_not_staged": "このユニットは内部マーケットで動きます。価格上限内の最良の入札に割り当てられますが、シミュレーションではその過程を再現しません。",
+    "approval_risk": "契約リスクが{{risk}}の場合、ユニットの上位責任者が先に承認します。",
+    "no_spend_observed": "過去{{days}}日間、このユニットでの支出は観測されていません。"
+  },
+  "proposal": {
+    "escalations": {
+      "title": "「{{unit}}」のエスカレーションが多すぎます",
+      "body": "代替メンバーを追加する、ユニットを分割する、または許可リストを広げてエスカレーションを減らしてください。",
+      "measure": "{{window_days}}日間で{{count}}件のエスカレーション（上限 {{quota}}/日）"
+    },
+    "vacant_roles": {
+      "title": "「{{unit}}」に空席のロールがあります",
+      "body": "ロールを埋めるか削除してください：{{roles}}",
+      "measure": "{{total}}件中{{vacant}}件のロールが空席"
+    },
+    "saturated_agents": {
+      "title": "「{{unit}}」でエージェントが飽和しています",
+      "body": "ユニットの処理能力を増やすか、割り当てる量を減らしてください。",
+      "measure": "実行中のrunが{{threshold}}件以上のエージェントが{{count}}件"
+    },
+    "budget_spent": {
+      "title": "「{{unit}}」の予算を使い切りました",
+      "body": "予算を増やすか、来月までユニットを一時停止してください。",
+      "measure": "今月は{{budget}}のうち{{spend}}を使用"
+    },
+    "unrouted": {
+      "title": "担当を特定できない課題があります",
+      "body": "ルーティングルール（ラベル、パス、キーワード）または代替ユニットを追加してください。",
+      "measure": "{{total}}件中{{unrouted}}件が未ルーティング"
+    },
+    "drift": {
+      "title": "実際の流れが宣言された構造からずれています",
+      "body": "構造を見直してください。人間が指定されたユニット外へ再割り当てしています。",
+      "measure": "ルーティングされた課題の{{percent}}%が構造外へ再割り当て"
+    }
+  },
+  "activation_requirement": {
+    "owner": "人間のオーナー",
+    "eval_attestation": "評価の証明（30ケースのセット）",
+    "termination": "タスクフォース・委員会・マーケットの終了条件の宣言"
+  },
+  "agent_trust": {
+    "observer": "オブザーバー",
+    "propose": "提案",
+    "approval": "承認付きで実行",
+    "autonomous": "自律"
+  },
+  "unknown_value": "不明な値",
+  "plan": {
+    "legend_reports": "報告先（エスカレーションも同じ）",
+    "legend_escalates": "別の先へエスカレーション",
+    "legend_trace": "テストした依頼の経路",
+    "zoom_out": "縮小",
+    "zoom_in": "拡大",
+    "zoom_reset": "100% に戻す",
+    "zoom_fit": "組織図をウィンドウに合わせる",
+    "team_label": "チーム {{name}}",
+    "members_other": "{{count}}名のメンバー",
+    "paused": "一時停止中",
+    "no_lead": "責任者がまだいません。このチームのエスカレーションには届け先がありません。",
+    "more_people_other": "ほか{{count}}名",
+    "fewer_people": "表示を減らす",
+    "add_people": "追加",
+    "lead": "オーナー",
+    "lead_subtitle": "チームの責任を負う",
+    "receives_first": "最初に受け取る",
+    "agent": "エージェント",
+    "human": "人間"
   }
 }

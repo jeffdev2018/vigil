@@ -51,8 +51,8 @@
     "description": "Choisissez où elle s'applique, puis le modèle qu'elle suit. La définition reste modifiable ensuite.",
     "project": "S'applique à",
     "workspace_default": "Défaut de l'espace de travail (tout projet sans structure propre)",
-    "runs_per_issue_one": "{{count}} run de coordination par tâche",
-    "runs_per_issue_other": "{{count}} runs de coordination par tâche",
+    "runs_per_issue_one": "{{count}} étape de coordination par tâche",
+    "runs_per_issue_other": "{{count}} étapes de coordination par tâche",
     "loading": "Chargement des modèles…",
     "cancel": "Annuler",
     "error": "Impossible de créer la structure",
@@ -90,7 +90,14 @@
       "result": "Votre modèle : {{model}}",
       "pick_another": "Choisir autrement",
       "catalog": "Les sept structures",
-      "catalog_close": "Revenir aux questions"
+      "catalog_close": "Revenir aux questions",
+      "taskforce_termination_question": "Comment se termine-t-elle ?",
+      "taskforce_termination_date": "À une date",
+      "taskforce_termination_condition": "À une condition",
+      "taskforce_dissolve_label": "Date de fin",
+      "taskforce_dissolve_placeholder": "Choisir une date et une heure",
+      "taskforce_end_condition_label": "Condition de fin",
+      "taskforce_termination_hint": "Choisissez une date de fin ou une condition de fin."
     },
     "model_line": {
       "hierarchy": "Une chaîne claire : chaque équipe sait à qui remonter.",
@@ -198,7 +205,7 @@
     "name": "Nom",
     "owner": "Responsable humain",
     "owner_none": "Sans responsable",
-    "dissolve_at": "Dissolution le",
+    "dissolve_at": "Date de fin",
     "end_condition": "Condition de fin",
     "end_none": "Aucune",
     "end_all_issues_done": "Toutes les tâches terminées",
@@ -227,9 +234,9 @@
     "description": "Vérifiez le fonctionnement et les estimations avant d’activer le routage. L’attestation ci-dessous est une déclaration manuelle de vos essais.",
     "attestation": "Attestation d'évaluation",
     "attestation_placeholder": "Jeu de 30 cas passé le {{date}} : …",
-    "loading": "Preflight en cours…",
-    "pattern": "Patron",
-    "runs": "Runs de coordination par tâche",
+    "loading": "Vérification en cours…",
+    "pattern": "Fonctionnement",
+    "runs": "Étapes de coordination par tâche",
     "cost": "Coût de coordination par tâche",
     "review_seconds": "Revue humaine par tâche",
     "seconds": "{{count}} s",
@@ -261,12 +268,12 @@
     "routed": "Routées",
     "unrouted": "Non routées",
     "escalations": "Escalades",
-    "stacked": "Escalades empilées",
+    "stacked": "Tâches escaladées deux fois",
     "reassigned_outside": "Réassignées hors unité",
-    "market_short": "Marché à court d'offres",
-    "breakers": "Disjoncteurs",
-    "human_review": "Éléments en revue humaine",
-    "drift": "Taux de dérive",
+    "market_short": "Tâches sans assez d'offres",
+    "breakers": "Unités mises en pause automatiquement",
+    "human_review": "À relire par un humain",
+    "drift": "Part réassignée hors structure",
     "units": "Unités",
     "unit": "Unité",
     "vacant_roles": "Rôles vacants",
@@ -401,7 +408,6 @@
     "verb_placeholder": "Un verbe, par ex. merge",
     "add": "Ajouter",
     "remove": "Retirer {{item}}",
-    "locked_reason": "Multica le refuse partout ; une structure ne peut pas l'accorder.",
     "properties": "Ce qu'elle manipule",
     "property": {
       "untrusted_input": "Entrée non fiable",
@@ -416,10 +422,32 @@
       "external_message": "Message externe"
     },
     "decider_none": "Personne pour l'instant",
-    "budget": "Budget (ticks USD)",
     "members": "Membres",
     "no_members": "Aucun membre pour l'instant.",
-    "move_to": "Déplacer {{name}} vers une autre unité"
+    "move_to": "Déplacer {{name}} vers une autre unité",
+    "trust_level_hint": {
+      "read_only": "Elle lit et commente, sans jamais rien modifier.",
+      "draft": "Elle prépare un brouillon qu'un humain complète et envoie.",
+      "approve_payload": "Elle prépare le contenu ; un humain valide avant l'envoi.",
+      "auto": "Elle agit seule, dans les limites qu'on lui a fixées."
+    },
+    "capability": {
+      "read": "Lire",
+      "comment": "Commenter",
+      "propose_plan": "Proposer un plan",
+      "delete": "Supprimer",
+      "bill": "Facturer",
+      "refund": "Rembourser",
+      "send_external_without_approval": "Écrire à l'extérieur sans validation",
+      "touch_secrets": "Toucher aux secrets",
+      "commit_money": "Engager de l'argent",
+      "publish": "Publier",
+      "sign": "Signer"
+    },
+    "capability_enforcement": {
+      "tool": "Bloqué par les outils",
+      "instruction": "Consigne donnée à l'agent, pas bloquée techniquement"
+    }
   },
   "people": {
     "view_people": "Personnes",
@@ -726,5 +754,106 @@
     "choose_person": "Choisir une personne ou un agent",
     "source_team": "Équipe de départ",
     "return_to_view": "Revenir à {{view}}"
+  },
+  "unit_kind": {
+    "unit": "Équipe",
+    "pool": "Réserve",
+    "circle": "Cercle",
+    "taskforce": "Task force",
+    "market": "Marché"
+  },
+  "approval_risk": {
+    "low": "Faible",
+    "normal": "Normal",
+    "high": "Élevé"
+  },
+  "edge_kind": {
+    "reports_to": "rend compte à",
+    "escalates_to": "escalade vers",
+    "backs_up": "soutient",
+    "consults": "consulte"
+  },
+  "edge_kind_effect": {
+    "live": "Effet sur le routage",
+    "informational": "Informatif, sans effet sur le routage"
+  },
+  "member_role": {
+    "owner": "Responsable",
+    "member": "Membre",
+    "lead": "Reçoit en premier"
+  },
+  "simulate_note": {
+    "no_rule_matched": "Aucune règle ne correspond et le modèle n'a pas d'unité de repli.",
+    "unit_no_owner": "« {{unit}} » n'a pas de responsable humain : elle ne peut pas recevoir de travail.",
+    "market_not_staged": "Cette unité fonctionne en marché : le travail va à la meilleure offre sous le plafond de prix ; une simulation ne le met pas en scène.",
+    "approval_risk": "Le responsable de l'unité valide d'abord quand le risque du contrat est {{risk}}.",
+    "no_spend_observed": "Aucune dépense observée pour cette unité sur les {{days}} derniers jours."
+  },
+  "proposal": {
+    "escalations": {
+      "title": "« {{unit}} » escalade trop",
+      "body": "Ajoutez un membre suppléant, scindez l'unité, ou élargissez sa liste d'actions autorisées pour réduire les remontées.",
+      "measure": "{{count}} escalades en {{window_days}} jours (quota {{quota}}/jour)"
+    },
+    "vacant_roles": {
+      "title": "Rôles vacants dans « {{unit}} »",
+      "body": "Pourvoyez les rôles ou retirez-les : {{roles}}",
+      "measure": "{{vacant}} rôle(s) sur {{total}} vacant(s)"
+    },
+    "saturated_agents": {
+      "title": "Agents saturés dans « {{unit}} »",
+      "body": "Ajoutez de la capacité à l'unité ou réduisez ce qui lui est routé.",
+      "measure": "{{count}} agent(s) avec {{threshold}}+ runs ouverts"
+    },
+    "budget_spent": {
+      "title": "Budget épuisé pour « {{unit}} »",
+      "body": "Augmentez le budget ou mettez l'unité en pause jusqu'au mois prochain.",
+      "measure": "{{spend}} sur {{budget}} ce mois-ci"
+    },
+    "unrouted": {
+      "title": "Tâches sans responsable identifiable",
+      "body": "Ajoutez des règles de routage (étiquettes, chemins, mots-clés) ou une unité de repli.",
+      "measure": "{{unrouted}} tâche(s) non routée(s) sur {{total}}"
+    },
+    "drift": {
+      "title": "Les flux mesurés s'écartent de la structure déclarée",
+      "body": "Réexaminez la structure : des humains réassignent en dehors des unités qu'elle désigne.",
+      "measure": "{{percent}}% des tâches routées réassignées hors structure"
+    }
+  },
+  "activation_requirement": {
+    "owner": "Un responsable humain",
+    "eval_attestation": "L'attestation d'évaluation (jeu de 30 cas)",
+    "termination": "Une fin déclarée pour la task force, le comité et le marché"
+  },
+  "agent_trust": {
+    "observer": "Observateur",
+    "propose": "Proposer",
+    "approval": "Agit sur approbation",
+    "autonomous": "Autonome"
+  },
+  "unknown_value": "Valeur inconnue",
+  "plan": {
+    "legend_reports": "rend compte à, et y escalade",
+    "legend_escalates": "escalade ailleurs",
+    "legend_trace": "chemin de la demande testée",
+    "zoom_out": "Dézoomer",
+    "zoom_in": "Zoomer",
+    "zoom_reset": "Revenir à 100 %",
+    "zoom_fit": "Ajuster l'organigramme à la fenêtre",
+    "team_label": "Équipe {{name}}",
+    "members_one": "{{count}} membre",
+    "members_other": "{{count}} membres",
+    "paused": "En pause",
+    "no_lead": "Pas encore de responsable : les escalades de cette équipe n'ont personne à qui s'adresser.",
+    "more_people_one": "+ {{count}} autre",
+    "more_people_other": "+ {{count}} autres",
+    "fewer_people": "Afficher moins",
+    "add_people": "Ajouter",
+    "lead": "Responsable",
+    "lead_subtitle": "Répond de l'équipe",
+    "receives_first": "Reçoit en premier",
+    "agent": "Agent",
+    "human": "Humain"
   }
 }

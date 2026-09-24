@@ -51,8 +51,8 @@
     "description": "Choose where it applies, then the model it follows. You can edit the definition afterwards.",
     "project": "Applies to",
     "workspace_default": "Workspace default (every project without its own)",
-    "runs_per_issue_one": "{{count}} coordination run per issue",
-    "runs_per_issue_other": "{{count}} coordination runs per issue",
+    "runs_per_issue_one": "{{count}} coordination step per issue",
+    "runs_per_issue_other": "{{count}} coordination steps per issue",
     "loading": "Loading templates...",
     "cancel": "Cancel",
     "error": "Could not create the structure",
@@ -90,7 +90,14 @@
       "result": "Your model: {{model}}",
       "pick_another": "Choose otherwise",
       "catalog": "The seven structures",
-      "catalog_close": "Back to the questions"
+      "catalog_close": "Back to the questions",
+      "taskforce_termination_question": "How does it end?",
+      "taskforce_termination_date": "On a date",
+      "taskforce_termination_condition": "On a condition",
+      "taskforce_dissolve_label": "End date",
+      "taskforce_dissolve_placeholder": "Choose a date and time",
+      "taskforce_end_condition_label": "End condition",
+      "taskforce_termination_hint": "Choose an end date or an end condition."
     },
     "model_line": {
       "hierarchy": "A clear chain: every team knows who to escalate to.",
@@ -198,7 +205,7 @@
     "name": "Name",
     "owner": "Human owner",
     "owner_none": "No owner",
-    "dissolve_at": "Dissolve at",
+    "dissolve_at": "End date",
     "end_condition": "End condition",
     "end_none": "None",
     "end_all_issues_done": "All issues done",
@@ -227,9 +234,9 @@
     "description": "Review the operating model and estimates before activating routing. The attestation below is your manual declaration of testing.",
     "attestation": "Eval attestation",
     "attestation_placeholder": "Ran the 30-case set on {{date}}: ...",
-    "loading": "Running preflight...",
-    "pattern": "Pattern",
-    "runs": "Coordination runs per issue",
+    "loading": "Checking before activation...",
+    "pattern": "How it operates",
+    "runs": "Coordination steps per issue",
     "cost": "Coordination cost per issue",
     "review_seconds": "Human review per issue",
     "seconds": "{{count}} s",
@@ -261,12 +268,12 @@
     "routed": "Routed",
     "unrouted": "Unrouted",
     "escalations": "Escalations",
-    "stacked": "Stacked escalations",
+    "stacked": "Issues escalated twice",
     "reassigned_outside": "Reassigned outside",
-    "market_short": "Market short",
-    "breakers": "Breakers",
-    "human_review": "Human review items",
-    "drift": "Drift rate",
+    "market_short": "Not enough market offers",
+    "breakers": "Auto-paused units",
+    "human_review": "Waiting on human review",
+    "drift": "Share reassigned outside the structure",
     "units": "Units",
     "unit": "Unit",
     "vacant_roles": "Vacant roles",
@@ -401,7 +408,6 @@
     "verb_placeholder": "A verb, e.g. merge",
     "add": "Add",
     "remove": "Remove {{item}}",
-    "locked_reason": "Multica refuses this everywhere; a structure cannot grant it.",
     "properties": "What it handles",
     "property": {
       "untrusted_input": "Untrusted input",
@@ -416,10 +422,32 @@
       "external_message": "External message"
     },
     "decider_none": "Nobody yet",
-    "budget": "Budget (USD ticks)",
     "members": "Members",
     "no_members": "No member yet.",
-    "move_to": "Move {{name}} to another unit"
+    "move_to": "Move {{name}} to another unit",
+    "trust_level_hint": {
+      "read_only": "It reads and comments, never changing anything.",
+      "draft": "It prepares a draft that a human finishes and sends.",
+      "approve_payload": "It prepares the content; a human approves before it goes out.",
+      "auto": "It acts alone, within the limits it was given."
+    },
+    "capability": {
+      "read": "Read",
+      "comment": "Comment",
+      "propose_plan": "Propose a plan",
+      "delete": "Delete",
+      "bill": "Bill",
+      "refund": "Refund",
+      "send_external_without_approval": "Message outside without approval",
+      "touch_secrets": "Touch secrets",
+      "commit_money": "Commit money",
+      "publish": "Publish",
+      "sign": "Sign"
+    },
+    "capability_enforcement": {
+      "tool": "Blocked by the tools",
+      "instruction": "Told to the agent, not technically enforced"
+    }
   },
   "people": {
     "view_people": "People",
@@ -726,5 +754,106 @@
     "choose_person": "Choose a person or agent",
     "source_team": "From team",
     "return_to_view": "Back to {{view}}"
+  },
+  "unit_kind": {
+    "unit": "Team",
+    "pool": "Pool",
+    "circle": "Circle",
+    "taskforce": "Task force",
+    "market": "Market"
+  },
+  "approval_risk": {
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High"
+  },
+  "edge_kind": {
+    "reports_to": "reports to",
+    "escalates_to": "escalates to",
+    "backs_up": "backs up",
+    "consults": "consults"
+  },
+  "edge_kind_effect": {
+    "live": "Affects routing",
+    "informational": "Informational only, no effect on routing"
+  },
+  "member_role": {
+    "owner": "Owner",
+    "member": "Member",
+    "lead": "First to receive"
+  },
+  "simulate_note": {
+    "no_rule_matched": "No rule matched and the model has no fallback unit.",
+    "unit_no_owner": "“{{unit}}” has no human owner, so it never receives work.",
+    "market_not_staged": "This unit runs an internal market: the run goes to the best offer under the price cap, which a simulation does not stage.",
+    "approval_risk": "The unit's superior approves first when the request's contract risk is {{risk}}.",
+    "no_spend_observed": "No spend observed for this unit over the last {{days}} days."
+  },
+  "proposal": {
+    "escalations": {
+      "title": "Unit {{unit}} escalates too much",
+      "body": "Add a backup member, split the unit, or widen its allow list so fewer issues go up.",
+      "measure": "{{count}} escalations in {{window_days}} days (quota {{quota}}/day)"
+    },
+    "vacant_roles": {
+      "title": "Roles vacant in {{unit}}",
+      "body": "Fill the roles or remove them: {{roles}}",
+      "measure": "{{vacant}} of {{total}} roles vacant"
+    },
+    "saturated_agents": {
+      "title": "Agents saturated in {{unit}}",
+      "body": "Add capacity to the unit or route less to it.",
+      "measure": "{{count}} agent(s) with {{threshold}}+ open runs"
+    },
+    "budget_spent": {
+      "title": "Budget spent by {{unit}}",
+      "body": "Raise the budget or pause the unit until next month.",
+      "measure": "{{spend}} of {{budget}} this month"
+    },
+    "unrouted": {
+      "title": "Issues without a resolvable owner",
+      "body": "Add routing rules (labels, paths, keywords) or a fallback unit.",
+      "measure": "{{unrouted}} of {{total}} issues unrouted"
+    },
+    "drift": {
+      "title": "Measured flows drift from the declared structure",
+      "body": "Re-review the structure: humans reassign outside the units it routes to.",
+      "measure": "{{percent}}% of routed issues reassigned outside"
+    }
+  },
+  "activation_requirement": {
+    "owner": "A human owner",
+    "eval_attestation": "The eval attestation (30-case set)",
+    "termination": "A declared termination for the task force, committee and market"
+  },
+  "agent_trust": {
+    "observer": "Observer",
+    "propose": "Propose",
+    "approval": "Acts with approval",
+    "autonomous": "Autonomous"
+  },
+  "unknown_value": "Unknown value",
+  "plan": {
+    "legend_reports": "reports to, and escalates there",
+    "legend_escalates": "escalates elsewhere",
+    "legend_trace": "path of the tested request",
+    "zoom_out": "Zoom out",
+    "zoom_in": "Zoom in",
+    "zoom_reset": "Reset zoom to 100%",
+    "zoom_fit": "Fit the chart to the window",
+    "team_label": "Team {{name}}",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "paused": "Paused",
+    "no_lead": "No lead yet: escalations from this team have no one to reach.",
+    "more_people_one": "+ {{count}} other",
+    "more_people_other": "+ {{count}} others",
+    "fewer_people": "Show fewer",
+    "add_people": "Add",
+    "lead": "Lead",
+    "lead_subtitle": "Answers for the team",
+    "receives_first": "Receives first",
+    "agent": "Agent",
+    "human": "Human"
   }
 }

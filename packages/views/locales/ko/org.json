@@ -87,7 +87,14 @@
       "result": "선택된 모델: {{model}}",
       "pick_another": "다르게 고르기",
       "catalog": "일곱 가지 구조",
-      "catalog_close": "질문으로 돌아가기"
+      "catalog_close": "질문으로 돌아가기",
+      "taskforce_termination_question": "어떻게 종료되나요?",
+      "taskforce_termination_date": "날짜로 종료",
+      "taskforce_termination_condition": "조건으로 종료",
+      "taskforce_dissolve_label": "종료 일시",
+      "taskforce_dissolve_placeholder": "날짜와 시간 선택",
+      "taskforce_end_condition_label": "종료 조건",
+      "taskforce_termination_hint": "종료 날짜 또는 종료 조건 중 하나를 선택하세요."
     },
     "model_line": {
       "hierarchy": "명확한 사슬: 모든 팀이 누구에게 올릴지 압니다.",
@@ -194,12 +201,12 @@
     "name": "이름",
     "owner": "사람 담당자",
     "owner_none": "담당자 없음",
-    "dissolve_at": "해산 시각",
+    "dissolve_at": "종료 일시",
     "end_condition": "종료 조건",
     "end_none": "없음",
     "end_all_issues_done": "모든 이슈 완료",
     "end_budget_spent": "예산 소진",
-    "budget": "예산(USD ticks)",
+    "budget": "예산(USD)",
     "definition": "정의(JSON)",
     "invalid_json": "잘못된 JSON: {{error}}",
     "save": "저장",
@@ -224,7 +231,7 @@
     "attestation": "평가 확인",
     "attestation_placeholder": "{{date}}에 30개 사례 실행: …",
     "loading": "사전 점검 중…",
-    "pattern": "패턴",
+    "pattern": "운영 방식",
     "runs": "이슈당 조정 실행 수",
     "cost": "이슈당 조정 비용",
     "review_seconds": "이슈당 사람 검토 시간",
@@ -257,12 +264,12 @@
     "routed": "라우팅됨",
     "unrouted": "미라우팅",
     "escalations": "에스컬레이션",
-    "stacked": "중첩 에스컬레이션",
+    "stacked": "두 번 이상 에스컬레이션된 이슈",
     "reassigned_outside": "유닛 밖으로 재배정",
-    "market_short": "마켓 입찰 부족",
-    "breakers": "차단기",
+    "market_short": "입찰이 부족한 이슈",
+    "breakers": "자동으로 일시정지된 유닛",
     "human_review": "사람 검토 대기",
-    "drift": "이탈률",
+    "drift": "구조 밖 재배정 비율",
     "units": "유닛",
     "unit": "유닛",
     "vacant_roles": "공석 역할",
@@ -396,7 +403,6 @@
     "verb_placeholder": "동사, 예: merge",
     "add": "추가",
     "remove": "{{item}} 제거",
-    "locked_reason": "Multica가 어디서나 거부합니다. 구조가 허용할 수 없습니다.",
     "properties": "다루는 것",
     "property": {
       "untrusted_input": "신뢰할 수 없는 입력",
@@ -411,10 +417,32 @@
       "external_message": "외부 메시지"
     },
     "decider_none": "아직 없음",
-    "budget": "예산 (USD ticks)",
     "members": "구성원",
     "no_members": "아직 구성원이 없습니다.",
-    "move_to": "{{name}}을(를) 다른 유닛으로 옮기기"
+    "move_to": "{{name}}을(를) 다른 유닛으로 옮기기",
+    "trust_level_hint": {
+      "read_only": "읽고 댓글만 답니다. 아무것도 변경하지 않습니다.",
+      "draft": "초안을 준비하면 사람이 마무리해서 보냅니다.",
+      "approve_payload": "내용을 준비하면 보내기 전에 사람이 승인합니다.",
+      "auto": "정해진 한계 안에서 혼자 행동합니다."
+    },
+    "capability": {
+      "read": "읽기",
+      "comment": "댓글 달기",
+      "propose_plan": "계획 제안하기",
+      "delete": "삭제하기",
+      "bill": "청구하기",
+      "refund": "환불하기",
+      "send_external_without_approval": "승인 없이 외부로 보내기",
+      "touch_secrets": "비밀 정보 다루기",
+      "commit_money": "자금 집행하기",
+      "publish": "게시하기",
+      "sign": "서명하기"
+    },
+    "capability_enforcement": {
+      "tool": "도구에서 차단됩니다",
+      "instruction": "에이전트에게 지시할 뿐 기술적으로 강제되지는 않습니다"
+    }
   },
   "people": {
     "view_people": "구성원",
@@ -720,5 +748,104 @@
     "choose_person": "사람 또는 에이전트 선택",
     "source_team": "출발 팀",
     "return_to_view": "{{view}}(으)로 돌아가기"
+  },
+  "unit_kind": {
+    "unit": "팀",
+    "pool": "풀",
+    "circle": "서클",
+    "taskforce": "태스크포스",
+    "market": "마켓"
+  },
+  "approval_risk": {
+    "low": "낮음",
+    "normal": "보통",
+    "high": "높음"
+  },
+  "edge_kind": {
+    "reports_to": "보고하는 대상",
+    "escalates_to": "에스컬레이션 대상",
+    "backs_up": "지원하는",
+    "consults": "자문하는"
+  },
+  "edge_kind_effect": {
+    "live": "라우팅에 영향을 줍니다",
+    "informational": "참고 정보일 뿐 라우팅에는 영향이 없습니다"
+  },
+  "member_role": {
+    "owner": "담당자",
+    "member": "멤버",
+    "lead": "가장 먼저 받는 사람"
+  },
+  "simulate_note": {
+    "no_rule_matched": "일치하는 규칙이 없고, 이 모델에는 대체 유닛도 없습니다.",
+    "unit_no_owner": "“{{unit}}”에는 사람 담당자가 없어 작업을 받을 수 없습니다.",
+    "market_not_staged": "이 유닛은 내부 마켓으로 동작합니다. 가격 상한 내 최고 입찰에 배정되며, 시뮬레이션은 이 과정을 재현하지 않습니다.",
+    "approval_risk": "계약 위험도가 {{risk}}이면 유닛의 상위 책임자가 먼저 승인합니다.",
+    "no_spend_observed": "지난 {{days}}일 동안 이 유닛에서 지출이 관측되지 않았습니다."
+  },
+  "proposal": {
+    "escalations": {
+      "title": "“{{unit}}”의 에스컬레이션이 너무 많습니다",
+      "body": "대체 멤버를 추가하거나, 유닛을 분할하거나, 허용 목록을 넓혀 에스컬레이션을 줄이세요.",
+      "measure": "{{window_days}}일 동안 에스컬레이션 {{count}}건（할당량 일 {{quota}}건）"
+    },
+    "vacant_roles": {
+      "title": "“{{unit}}”에 공석인 역할이 있습니다",
+      "body": "역할을 채우거나 삭제하세요: {{roles}}",
+      "measure": "전체 {{total}}개 역할 중 {{vacant}}개 공석"
+    },
+    "saturated_agents": {
+      "title": "“{{unit}}”에서 에이전트가 포화 상태입니다",
+      "body": "유닛의 처리 용량을 늘리거나 배정을 줄이세요.",
+      "measure": "실행 중인 run이 {{threshold}}건 이상인 에이전트 {{count}}명"
+    },
+    "budget_spent": {
+      "title": "“{{unit}}”의 예산을 모두 사용했습니다",
+      "body": "예산을 늘리거나 다음 달까지 유닛을 일시정지하세요.",
+      "measure": "이번 달 {{budget}} 중 {{spend}} 사용"
+    },
+    "unrouted": {
+      "title": "담당을 특정할 수 없는 이슈가 있습니다",
+      "body": "라우팅 규칙(레이블, 경로, 키워드) 또는 대체 유닛을 추가하세요.",
+      "measure": "전체 {{total}}건 중 {{unrouted}}건 미라우팅"
+    },
+    "drift": {
+      "title": "실제 흐름이 선언된 구조에서 벗어나고 있습니다",
+      "body": "구조를 다시 검토하세요. 사람들이 지정된 유닛 밖으로 재배정하고 있습니다.",
+      "measure": "라우팅된 이슈의 {{percent}}%가 구조 밖으로 재배정됨"
+    }
+  },
+  "activation_requirement": {
+    "owner": "사람 담당자",
+    "eval_attestation": "평가 확인（30개 사례 세트）",
+    "termination": "태스크포스, 위원회, 마켓에 대한 명시된 종료 조건"
+  },
+  "agent_trust": {
+    "observer": "관찰자",
+    "propose": "제안",
+    "approval": "승인 하에 실행",
+    "autonomous": "자율"
+  },
+  "unknown_value": "알 수 없는 값",
+  "plan": {
+    "legend_reports": "보고 대상(에스컬레이션도 동일)",
+    "legend_escalates": "다른 곳으로 에스컬레이션",
+    "legend_trace": "테스트한 요청의 경로",
+    "zoom_out": "축소",
+    "zoom_in": "확대",
+    "zoom_reset": "100%로 되돌리기",
+    "zoom_fit": "조직도를 창에 맞추기",
+    "team_label": "{{name}} 팀",
+    "members_other": "멤버 {{count}}명",
+    "paused": "일시 중지됨",
+    "no_lead": "아직 담당자가 없습니다. 이 팀의 에스컬레이션을 받을 사람이 없습니다.",
+    "more_people_other": "외 {{count}}명",
+    "fewer_people": "줄여서 보기",
+    "add_people": "추가",
+    "lead": "담당자",
+    "lead_subtitle": "팀을 책임집니다",
+    "receives_first": "가장 먼저 받는 사람",
+    "agent": "에이전트",
+    "human": "사람"
   }
 }

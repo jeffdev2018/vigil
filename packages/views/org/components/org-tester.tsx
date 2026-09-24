@@ -6,14 +6,13 @@ import { ApiError } from "@multica/core/api";
 import { useSimulateOrg } from "@multica/core/org";
 import { orgEscalationLabel, orgFormFromIssue, orgRequestFromText } from "@multica/core/org/tester";
 import { contestCostUsd } from "@multica/core/issues/contest";
-import type { Goal, Issue, OrgAutonomy, OrgDefinition, OrgModel, OrgSimulationActor, OrgStatus } from "@multica/core/types";
+import type { Goal, Issue, OrgDefinition, OrgModel, OrgSimulationActor, OrgStatus } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { IssuePickerModal } from "../../modals/issue-picker-modal";
 import { useT } from "../../i18n";
-
-const AUTONOMY_LEVELS: OrgAutonomy[] = ["read_only", "draft", "approve_payload", "auto"];
+import { orgAutonomyLabel, orgSimulateNoteText } from "../labels";
 
 export interface OrgTesterProps {
   structureId: string;
@@ -68,10 +67,14 @@ export function OrgTester({ structureId, definition, model, status, revision, di
     return `${actor.name || actor.id || t(($) => $.tester.nobody)} · ${kind}`;
   };
 
-  // The autonomy comes back as a free string: an unknown level must not be
-  // rendered as a missing translation key.
-  const autonomy = sim?.unit?.autonomy ?? "";
-  const trust = AUTONOMY_LEVELS.includes(autonomy as OrgAutonomy) ? t(($) => $.unit.trust_level[autonomy as OrgAutonomy]) : "";
+  // The autonomy comes back as a free string: an unknown level falls back to
+  // a generic label (orgAutonomyLabel), never to a missing translation key.
+  const trust = sim?.unit ? orgAutonomyLabel(t, sim.unit.autonomy) : "";
+
+  // Each note pairs with a code at the same index (note_codes); a code the
+  // client recognizes is translated, one it does not falls back to the
+  // server's own English sentence.
+  const notes = sim?.notes.map((text, i) => orgSimulateNoteText(t, text, sim.note_codes[i]?.code, sim.note_codes[i]?.params)) ?? [];
 
   const receivingUnit = sim?.receives ? definition.units.find((u) => u.id === sim.receives?.unit_id) : undefined;
   const mission = goals.find((g) => g.id === receivingUnit?.mission_goal_id)?.title ?? t(($) => $.unit.mission_none);
@@ -144,7 +147,7 @@ export function OrgTester({ structureId, definition, model, status, revision, di
         ) : sim.receives === null ? (
           <div className="flex flex-col gap-1.5 text-caption">
             <p data-testid="org-tester-no-unit" className="text-warning">{t(($) => $.tester.no_unit)}</p>
-            <TesterNotes notes={sim.notes} label={t(($) => $.tester.notes)} />
+            <TesterNotes notes={notes} label={t(($) => $.tester.notes)} />
           </div>
         ) : (
           <dl data-testid="org-tester-result" className="flex flex-col text-caption">
@@ -193,7 +196,7 @@ export function OrgTester({ structureId, definition, model, status, revision, di
               ),
             )}
             {row(t(($) => $.tester.cost), "org-tester-cost", <span className="tabular-nums">{`$${contestCostUsd(sim.cost_estimate_usd_ticks)}`}</span>)}
-            {sim.notes.length > 0 && row(t(($) => $.tester.notes), "org-tester-notes", <TesterNotes notes={sim.notes} label="" />)}
+            {notes.length > 0 && row(t(($) => $.tester.notes), "org-tester-notes", <TesterNotes notes={notes} label="" />)}
           </dl>
         )}
       </div>

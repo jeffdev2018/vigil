@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -59,18 +60,38 @@ type OrgSimulationActor struct {
 	Name string `json:"name"`
 }
 
+// OrgSimulationNote is a structured code (+ params) for one entry of
+// OrgSimulation.Notes, at the same index. It rides alongside the server's
+// English sentence rather than replacing it — installed desktop clients read
+// Notes and know nothing of NoteCodes (see CLAUDE.md "API Compatibility") —
+// so the client can translate a known code and fall back to the English text
+// for a code it does not recognise yet.
+type OrgSimulationNote struct {
+	Code   string         `json:"code"`
+	Params map[string]any `json:"params"`
+}
+
 type OrgSimulation struct {
-	Basis                string             `json:"basis"`
-	StructureID          string             `json:"structure_id"`
-	Revision             int32              `json:"revision"`
-	Unit                 *OrgSimulationUnit `json:"unit"`
-	Receives             *OrgSimulationRef  `json:"receives"`
-	Prepares             OrgSimulationActor `json:"prepares"`
-	Decides              OrgSimulationActor `json:"decides"`
-	EscalationPath       []OrgSimulationRef `json:"escalation_path"`
-	BlockingDenies       []string           `json:"blocking_denies"`
-	CostEstimateUsdTicks int64              `json:"cost_estimate_usd_ticks"`
-	Notes                []string           `json:"notes"`
+	Basis                string              `json:"basis"`
+	StructureID          string              `json:"structure_id"`
+	Revision             int32               `json:"revision"`
+	Unit                 *OrgSimulationUnit  `json:"unit"`
+	Receives             *OrgSimulationRef   `json:"receives"`
+	Prepares             OrgSimulationActor  `json:"prepares"`
+	Decides              OrgSimulationActor  `json:"decides"`
+	EscalationPath       []OrgSimulationRef  `json:"escalation_path"`
+	BlockingDenies       []string            `json:"blocking_denies"`
+	CostEstimateUsdTicks int64               `json:"cost_estimate_usd_ticks"`
+	Notes                []string            `json:"notes"`
+	NoteCodes            []OrgSimulationNote `json:"note_codes"`
+}
+
+// note appends both the English sentence (Notes, unchanged) and its
+// structured code (NoteCodes, at the same index) in one call, so the two
+// slices can never drift out of alignment.
+func (o *OrgSimulation) note(text, code string, params map[string]any) {
+	o.Notes = append(o.Notes, text)
+	o.NoteCodes = append(o.NoteCodes, OrgSimulationNote{Code: code, Params: params})
 }
 
 // POST /api/org/simulate
@@ -108,7 +129,7 @@ func (h *Handler) SimulateOrgRequest(w http.ResponseWriter, r *http.Request) {
 		structure, haveStructure = s, true
 	}
 
-	out := OrgSimulation{Basis: "revision", EscalationPath: []OrgSimulationRef{}, BlockingDenies: []string{}, Notes: []string{}}
+	out := OrgSimulation{Basis: "revision", EscalationPath: []OrgSimulationRef{}, BlockingDenies: []string{}, Notes: []string{}, NoteCodes: []OrgSimulationNote{}}
 	var def OrgDefinition
 	model := req.Model
 	switch {
@@ -157,10 +178,10 @@ func (h *Handler) SimulateOrgRequest(w http.ResponseWriter, r *http.Request) {
 	unit := h.orgMatchUnitWith(r.Context(), sim, def, issue, labels)
 	if unit == nil {
 		out.Prepares, out.Decides = OrgSimulationActor{Kind: "none"}, OrgSimulationActor{Kind: "none"}
-		out.Notes = append(out.Notes, "no rule matched and the model has no fallback unit")
+		out.note("no rule matched and the model has no fallback unit", "no_rule_matched", map[string]any{})
 		for _, u := range def.Units {
 			if u.OwnerID == "" {
-				out.Notes = append(out.Notes, "unit "+u.Name+" has no human owner, so it never receives work")
+				out.note("unit "+u.Name+" has no human owner, so it never receives work", "unit_no_owner", map[string]any{"unit": u.Name})
 			}
 		}
 		writeJSON(w, http.StatusOK, out)
@@ -174,10 +195,10 @@ func (h *Handler) SimulateOrgRequest(w http.ResponseWriter, r *http.Request) {
 	targetType, targetID := h.orgTargetForUnitWith(r.Context(), unitModel, unit, issue, labels)
 	out.Prepares = h.orgSimulationActor(r.Context(), targetType, targetID)
 	if unitModel == OrgModelMarket {
-		out.Notes = append(out.Notes, "this unit runs an internal market: the run goes to the best offer under the price cap, which a simulation does not stage")
+		out.note("this unit runs an internal market: the run goes to the best offer under the price cap, which a simulation does not stage", "market_not_staged", map[string]any{})
 	}
 	if unit.ApprovalRisk != "" {
-		out.Notes = append(out.Notes, "the unit's superior approves first when the request's contract risk is "+unit.ApprovalRisk)
+		out.note("the unit's superior approves first when the request's contract risk is "+unit.ApprovalRisk, "approval_risk", map[string]any{"risk": unit.ApprovalRisk})
 	}
 
 	for _, up := range orgEscalationChain(&def, unit) {
@@ -198,7 +219,8 @@ func (h *Handler) SimulateOrgRequest(w http.ResponseWriter, r *http.Request) {
 		out.CostEstimateUsdTicks = h.orgUnitCostPerRun(r.Context(), structure, unit.ID)
 	}
 	if out.CostEstimateUsdTicks == 0 {
-		out.Notes = append(out.Notes, "no spend observed for this unit over the last 30 days")
+		days := int(orgSimulationWindow.Hours() / 24)
+		out.note(fmt.Sprintf("no spend observed for this unit over the last %d days", days), "no_spend_observed", map[string]any{"days": days})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

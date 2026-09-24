@@ -208,6 +208,12 @@ type OrgProposal struct {
 	Title   string `json:"title"`
 	Body    string `json:"body"`
 	Measure string `json:"measure"`
+	// Code names the proposal family ("escalations", "vacant_roles", …) for
+	// translation; Params carries what Title/Body/Measure interpolated. Both
+	// ride alongside the server's English text rather than replacing it — see
+	// OrgSimulationNote in org_simulate.go for why.
+	Code   string         `json:"code,omitempty"`
+	Params map[string]any `json:"params,omitempty"`
 }
 
 type OrgHealth struct {
@@ -299,23 +305,55 @@ func (h *Handler) orgHealth(ctx context.Context, s db.OrgStructure) OrgHealth {
 		uh := byUnit[u.ID]
 		out.Units = append(out.Units, *uh)
 		if uh.Escalations >= 2*u.EscalationQuotaPerDay {
-			out.Proposals = append(out.Proposals, OrgProposal{Key: "escalations:" + u.ID, UnitID: u.ID, Title: "Unit " + u.Name + " escalates too much", Body: "Add a backup member, split the unit, or widen its allow list so fewer issues go up.", Measure: fmt.Sprintf("%d escalations in %d days (quota %d/day)", uh.Escalations, out.WindowDays, u.EscalationQuotaPerDay)})
+			out.Proposals = append(out.Proposals, OrgProposal{
+				Key: "escalations:" + u.ID, UnitID: u.ID, Code: "escalations",
+				Title: "Unit " + u.Name + " escalates too much", Body: "Add a backup member, split the unit, or widen its allow list so fewer issues go up.",
+				Measure: fmt.Sprintf("%d escalations in %d days (quota %d/day)", uh.Escalations, out.WindowDays, u.EscalationQuotaPerDay),
+				Params:  map[string]any{"unit": u.Name, "count": uh.Escalations, "window_days": out.WindowDays, "quota": u.EscalationQuotaPerDay},
+			})
 		}
 		if len(u.Roles) > 0 && float64(len(uh.VacantRoles)) > orgVacantRolesRate*float64(len(u.Roles)) {
-			out.Proposals = append(out.Proposals, OrgProposal{Key: "vacant:" + u.ID, UnitID: u.ID, Title: "Roles vacant in " + u.Name, Body: "Fill the roles or remove them: " + strings.Join(uh.VacantRoles, ", "), Measure: fmt.Sprintf("%d of %d roles vacant", len(uh.VacantRoles), len(u.Roles))})
+			out.Proposals = append(out.Proposals, OrgProposal{
+				Key: "vacant:" + u.ID, UnitID: u.ID, Code: "vacant_roles",
+				Title: "Roles vacant in " + u.Name, Body: "Fill the roles or remove them: " + strings.Join(uh.VacantRoles, ", "),
+				Measure: fmt.Sprintf("%d of %d roles vacant", len(uh.VacantRoles), len(u.Roles)),
+				Params:  map[string]any{"unit": u.Name, "roles": strings.Join(uh.VacantRoles, ", "), "vacant": len(uh.VacantRoles), "total": len(u.Roles)},
+			})
 		}
 		if len(uh.SaturatedAgents) > 0 {
-			out.Proposals = append(out.Proposals, OrgProposal{Key: "saturated:" + u.ID, UnitID: u.ID, Title: "Agents saturated in " + u.Name, Body: "Add capacity to the unit or route less to it.", Measure: fmt.Sprintf("%d agent(s) with %d+ open runs", len(uh.SaturatedAgents), orgSaturatedOpenTasks)})
+			out.Proposals = append(out.Proposals, OrgProposal{
+				Key: "saturated:" + u.ID, UnitID: u.ID, Code: "saturated_agents",
+				Title: "Agents saturated in " + u.Name, Body: "Add capacity to the unit or route less to it.",
+				Measure: fmt.Sprintf("%d agent(s) with %d+ open runs", len(uh.SaturatedAgents), orgSaturatedOpenTasks),
+				Params:  map[string]any{"unit": u.Name, "count": len(uh.SaturatedAgents), "threshold": orgSaturatedOpenTasks},
+			})
 		}
 		if u.BudgetUsdTicks > 0 && uh.SpendUsdTicks >= u.BudgetUsdTicks {
-			out.Proposals = append(out.Proposals, OrgProposal{Key: "budget:" + u.ID, UnitID: u.ID, Title: "Budget spent by " + u.Name, Body: "Raise the budget or pause the unit until next month.", Measure: fmt.Sprintf("%d of %d ticks this month", uh.SpendUsdTicks, u.BudgetUsdTicks)})
+			out.Proposals = append(out.Proposals, OrgProposal{
+				Key: "budget:" + u.ID, UnitID: u.ID, Code: "budget_spent",
+				Title: "Budget spent by " + u.Name, Body: "Raise the budget or pause the unit until next month.",
+				Measure: fmt.Sprintf("%d of %d ticks this month", uh.SpendUsdTicks, u.BudgetUsdTicks),
+				// spend/budget stay in ticks: the client formats them to USD
+				// (see orgFormatUsd in packages/views/org/labels.ts) before display.
+				Params: map[string]any{"unit": u.Name, "spend": uh.SpendUsdTicks, "budget": u.BudgetUsdTicks},
+			})
 		}
 	}
 	if out.Routed+out.Unrouted > 0 && float64(out.Unrouted) > orgUnroutedRate*float64(out.Routed+out.Unrouted) {
-		out.Proposals = append(out.Proposals, OrgProposal{Key: "unrouted", Title: "Issues without a resolvable owner", Body: "Add routing rules (labels, paths, keywords) or a fallback unit.", Measure: fmt.Sprintf("%d of %d issues unrouted", out.Unrouted, out.Routed+out.Unrouted)})
+		out.Proposals = append(out.Proposals, OrgProposal{
+			Key: "unrouted", Code: "unrouted",
+			Title: "Issues without a resolvable owner", Body: "Add routing rules (labels, paths, keywords) or a fallback unit.",
+			Measure: fmt.Sprintf("%d of %d issues unrouted", out.Unrouted, out.Routed+out.Unrouted),
+			Params:  map[string]any{"unrouted": out.Unrouted, "total": out.Routed + out.Unrouted},
+		})
 	}
 	if out.Routed >= 5 && out.DriftRate > orgDriftReassignedRate {
-		out.Proposals = append(out.Proposals, OrgProposal{Key: "drift", Title: "Measured flows drift from the declared structure", Body: "Re-review the structure: humans reassign outside the units it routes to.", Measure: fmt.Sprintf("%.0f%% of routed issues reassigned outside", out.DriftRate*100)})
+		out.Proposals = append(out.Proposals, OrgProposal{
+			Key: "drift", Code: "drift",
+			Title: "Measured flows drift from the declared structure", Body: "Re-review the structure: humans reassign outside the units it routes to.",
+			Measure: fmt.Sprintf("%.0f%% of routed issues reassigned outside", out.DriftRate*100),
+			Params:  map[string]any{"percent": int(out.DriftRate * 100)},
+		})
 	}
 	return out
 }

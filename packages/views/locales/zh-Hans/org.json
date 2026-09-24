@@ -87,7 +87,14 @@
       "result": "你的模型：{{model}}",
       "pick_another": "换一种选择",
       "catalog": "七种结构",
-      "catalog_close": "返回问题"
+      "catalog_close": "返回问题",
+      "taskforce_termination_question": "如何结束？",
+      "taskforce_termination_date": "按日期结束",
+      "taskforce_termination_condition": "按条件结束",
+      "taskforce_dissolve_label": "结束时间",
+      "taskforce_dissolve_placeholder": "选择日期和时间",
+      "taskforce_end_condition_label": "结束条件",
+      "taskforce_termination_hint": "请选择结束日期或结束条件。"
     },
     "model_line": {
       "hierarchy": "一条清晰的链条：每个团队都知道向谁上报。",
@@ -194,12 +201,12 @@
     "name": "名称",
     "owner": "人类负责人",
     "owner_none": "无负责人",
-    "dissolve_at": "解散时间",
+    "dissolve_at": "结束时间",
     "end_condition": "结束条件",
     "end_none": "无",
     "end_all_issues_done": "所有任务完成",
     "end_budget_spent": "预算用尽",
-    "budget": "预算（USD ticks）",
+    "budget": "预算（USD）",
     "definition": "定义（JSON）",
     "invalid_json": "JSON 无效：{{error}}",
     "save": "保存",
@@ -224,7 +231,7 @@
     "attestation": "评估声明",
     "attestation_placeholder": "已于 {{date}} 跑完 30 个用例：…",
     "loading": "预检中…",
-    "pattern": "模式",
+    "pattern": "运作方式",
     "runs": "每个任务的协调运行次数",
     "cost": "每个任务的协调成本",
     "review_seconds": "每个任务的人工审核时长",
@@ -257,12 +264,12 @@
     "routed": "已路由",
     "unrouted": "未路由",
     "escalations": "升级",
-    "stacked": "叠加升级",
+    "stacked": "被升级两次以上的任务",
     "reassigned_outside": "改派到单元之外",
-    "market_short": "市场报价不足",
-    "breakers": "熔断",
+    "market_short": "报价不足的任务",
+    "breakers": "自动暂停的单元",
     "human_review": "待人工审核",
-    "drift": "偏离率",
+    "drift": "改派到结构之外的比例",
     "units": "单元",
     "unit": "单元",
     "vacant_roles": "空缺角色",
@@ -396,7 +403,6 @@
     "verb_placeholder": "一个动词，例如 merge",
     "add": "添加",
     "remove": "移除 {{item}}",
-    "locked_reason": "Multica 在任何地方都拒绝它，结构无法授予。",
     "properties": "它处理什么",
     "property": {
       "untrusted_input": "不可信输入",
@@ -411,10 +417,32 @@
       "external_message": "外部消息"
     },
     "decider_none": "暂无",
-    "budget": "预算（USD ticks）",
     "members": "成员",
     "no_members": "还没有成员。",
-    "move_to": "把 {{name}} 移到其他单元"
+    "move_to": "把 {{name}} 移到其他单元",
+    "trust_level_hint": {
+      "read_only": "只读取和评论，从不修改任何内容。",
+      "draft": "准备草稿，由人来完成并发送。",
+      "approve_payload": "准备内容；发送前由人审批。",
+      "auto": "在给定的范围内自行行动。"
+    },
+    "capability": {
+      "read": "读取",
+      "comment": "评论",
+      "propose_plan": "提出计划",
+      "delete": "删除",
+      "bill": "开具账单",
+      "refund": "退款",
+      "send_external_without_approval": "未经批准向外部发送",
+      "touch_secrets": "接触密钥信息",
+      "commit_money": "动用资金",
+      "publish": "发布",
+      "sign": "签署"
+    },
+    "capability_enforcement": {
+      "tool": "由工具强制阻止",
+      "instruction": "只是告知智能体，技术上并未强制"
+    }
   },
   "people": {
     "view_people": "成员",
@@ -720,5 +748,104 @@
     "choose_person": "选择人员或智能体",
     "source_team": "来源团队",
     "return_to_view": "返回 {{view}}"
+  },
+  "unit_kind": {
+    "unit": "团队",
+    "pool": "资源池",
+    "circle": "圈子",
+    "taskforce": "专项组",
+    "market": "市场"
+  },
+  "approval_risk": {
+    "low": "低",
+    "normal": "正常",
+    "high": "高"
+  },
+  "edge_kind": {
+    "reports_to": "汇报给",
+    "escalates_to": "升级给",
+    "backs_up": "支援",
+    "consults": "咨询"
+  },
+  "edge_kind_effect": {
+    "live": "会影响路由",
+    "informational": "仅作参考，不影响路由"
+  },
+  "member_role": {
+    "owner": "负责人",
+    "member": "成员",
+    "lead": "第一接收人"
+  },
+  "simulate_note": {
+    "no_rule_matched": "没有匹配的规则，且该模式没有兜底单元。",
+    "unit_no_owner": "“{{unit}}”没有人类负责人，因此无法接收工作。",
+    "market_not_staged": "该单元以内部市场方式运作：工作会分配给价格上限内的最佳报价，模拟不会演示这个过程。",
+    "approval_risk": "当合同风险为 {{risk}} 时，该单元的上级会先行审批。",
+    "no_spend_observed": "过去 {{days}} 天内未观察到该单元有任何支出。"
+  },
+  "proposal": {
+    "escalations": {
+      "title": "“{{unit}}”升级过多",
+      "body": "增加候补成员、拆分该单元，或扩大其允许操作列表以减少上报。",
+      "measure": "{{window_days}} 天内 {{count}} 次升级（配额 每天 {{quota}} 次）"
+    },
+    "vacant_roles": {
+      "title": "“{{unit}}”中有角色空缺",
+      "body": "请填补或移除这些角色：{{roles}}",
+      "measure": "共 {{total}} 个角色中有 {{vacant}} 个空缺"
+    },
+    "saturated_agents": {
+      "title": "“{{unit}}”中智能体已饱和",
+      "body": "为该单元增加处理能力，或减少分配给它的工作。",
+      "measure": "有 {{count}} 个智能体的进行中运行数达到 {{threshold}} 次以上"
+    },
+    "budget_spent": {
+      "title": "“{{unit}}”的预算已用尽",
+      "body": "请提高预算，或将该单元暂停至下月。",
+      "measure": "本月已用 {{budget}} 中的 {{spend}}"
+    },
+    "unrouted": {
+      "title": "存在无法确定负责单元的任务",
+      "body": "请添加路由规则（标签、路径、关键词）或兜底单元。",
+      "measure": "共 {{total}} 个任务中有 {{unrouted}} 个未路由"
+    },
+    "drift": {
+      "title": "实际流转正在偏离已声明的结构",
+      "body": "请重新检视结构：有人将任务改派到其指定单元之外。",
+      "measure": "已路由任务中有 {{percent}}% 被改派到结构之外"
+    }
+  },
+  "activation_requirement": {
+    "owner": "一位人类负责人",
+    "eval_attestation": "评估声明（30 个用例集）",
+    "termination": "为专项组、委员会和市场声明的结束条件"
+  },
+  "agent_trust": {
+    "observer": "观察者",
+    "propose": "提议",
+    "approval": "经批准执行",
+    "autonomous": "自主"
+  },
+  "unknown_value": "未知值",
+  "plan": {
+    "legend_reports": "汇报对象（也向其升级）",
+    "legend_escalates": "升级到别处",
+    "legend_trace": "所测试请求的路径",
+    "zoom_out": "缩小",
+    "zoom_in": "放大",
+    "zoom_reset": "恢复到 100%",
+    "zoom_fit": "让组织图适应窗口",
+    "team_label": "团队 {{name}}",
+    "members_other": "{{count}} 名成员",
+    "paused": "已暂停",
+    "no_lead": "还没有负责人：这个团队的升级没有可以找的人。",
+    "more_people_other": "另外 {{count}} 人",
+    "fewer_people": "收起",
+    "add_people": "添加",
+    "lead": "负责人",
+    "lead_subtitle": "对团队负责",
+    "receives_first": "第一接收人",
+    "agent": "智能体",
+    "human": "人类"
   }
 }

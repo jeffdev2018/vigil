@@ -287,7 +287,7 @@ describe("OrgPage", () => {
     renderWithI18n(<OrgPage />);
     fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
     const health = screen.getByTestId("org-health").textContent;
-    expect(health).toContain("Drift rate25%");
+    expect(health).toContain("Share reassigned outside the structure25%");
     expect(screen.getByTestId("org-health-unit").textContent).toContain("reviewer");
     expect(screen.getByTestId("org-health-unit").textContent).toContain("$2.00 / $5.00");
     expect(screen.getByTestId("org-proposal").textContent).toContain("Fill the reviewer role");

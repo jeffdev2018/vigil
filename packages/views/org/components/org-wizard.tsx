@@ -28,13 +28,19 @@ import { OrgProblemList } from "./org-problem-list";
 import { useOrgWizardDraftStore } from "@multica/core/org/draft-store";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { OrgTemplateCards } from "./org-template-cards";
+import { RadioGroup, RadioGroupItem } from "@multica/ui/components/ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
+import { Calendar } from "@multica/ui/components/ui/calendar";
+import { TimeInput } from "@multica/ui/components/ui/time-input";
+import { CalendarClock } from "lucide-react";
+import { orgAutonomyLabel, orgEndConditionLabel } from "../labels";
 
 const STEPS = 4;
 
 const errorMessage = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback);
 
-/** One question with its exclusive answers. Native radios: the whole wizard is
- *  reachable with Tab and the arrow keys without a control of our own. */
+/** One question with its exclusive answers. A RadioGroup keeps the whole
+ *  wizard reachable with Tab and the arrow keys without a control of our own. */
 function Choice<T extends string>({
   legend,
   name,
@@ -51,13 +57,53 @@ function Choice<T extends string>({
   return (
     <fieldset className="flex flex-col gap-1">
       <legend className="text-caption text-muted-foreground">{legend}</legend>
-      {options.map((o) => (
-        <label key={o.value} className="flex items-center gap-2 text-body">
-          <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onPick(o.value)} />
-          {o.label}
-        </label>
-      ))}
+      <RadioGroup name={name} value={value ?? undefined} onValueChange={(v) => onPick(v as T)}>
+        {options.map((o) => (
+          <label key={o.value} className="flex items-center gap-2 text-body">
+            <RadioGroupItem value={o.value} />
+            {o.label}
+          </label>
+        ))}
+      </RadioGroup>
     </fieldset>
+  );
+}
+
+/** A date + time combined into an ISO instant, from `packages/ui`'s Calendar
+ *  (date) and TimeInput (time) — no native `<input type="datetime-local">`. */
+function TaskforceDissolvePicker({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string | null;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = value ? new Date(value) : undefined;
+  const time = current ? `${String(current.getHours()).padStart(2, "0")}:${String(current.getMinutes()).padStart(2, "0")}` : "18:00";
+
+  const combine = (day: Date, hhmm: string) => {
+    const [h, m] = hhmm.split(":").map((n) => Number(n));
+    const next = new Date(day);
+    next.setHours(h ?? 18, m ?? 0, 0, 0);
+    return next.toISOString();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={<Button type="button" variant="outline" size="sm" className="w-fit justify-start gap-2" />}>
+        <CalendarClock className="size-3.5" />
+        {current ? current.toLocaleString() : placeholder}
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={current} onSelect={(d) => { if (d) onChange(combine(d, time)); }} />
+        <div className="flex items-center justify-end border-t p-2">
+          <TimeInput value={time} onChange={(v) => onChange(combine(current ?? new Date(), v))} disabled={!current} />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -88,7 +134,7 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   const setDraft = useOrgWizardDraftStore(s => s.setDraft);
 
 
-  const { step, projectId, purpose, decider, teamShape, hasEnd, compete, chosenModel, placement } = draft;
+  const { step, projectId, purpose, decider, teamShape, hasEnd, compete, chosenModel, placement, taskforceTermination, taskforceDissolveAt, taskforceEndCondition } = draft;
   const setStep = (step: number) => setDraft({ step });
   const setProjectId = (projectId: string) => setDraft({ projectId });
   const setPurpose = (purpose: string) => setDraft({ purpose });
@@ -146,14 +192,30 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   // Creating must never overwrite an existing scope.
   const existing = structures.find((s) => s.status !== "dissolved" && s.project_id === (projectId || null));
 
+  // The decision table alone, before the task-force termination requirement
+  // is layered on top — this is what shows the "your model" result box.
+  const decisionTableAnswered = chosenModel !== null || (decider !== null && (decider !== "each_team" || teamShape !== null) && hasEnd !== null && compete !== null);
+  // A task force cannot activate without a dissolution date or an end
+  // condition (server/internal/handler/org.go `orgActivationCheck`, ~line
+  // 709), so the wizard collects one before it will create the draft.
+  const isTaskforce = shape.model === "taskforce";
+  const taskforceReady = !isTaskforce
+    || (taskforceTermination === "date" && taskforceDissolveAt !== null)
+    || (taskforceTermination === "condition" && taskforceEndCondition !== "");
+
   const stepValid =
     step === 1 ? purposeText !== "" && purposeText.length <= ORG_PURPOSE_MAX
-      : step === 2 ? chosenModel !== null || (decider !== null && (decider !== "each_team" || teamShape !== null) && hasEnd !== null && compete !== null)
+      : step === 2 ? decisionTableAnswered && taskforceReady
         : step === 3 ? problems.length === 0 : true;
 
   const submit = () => {
     if (existing || problems.length) return;
-    const body = { owner_id: ownerId, project_id: projectId || null, model: shape.model, name: orgStructureName(purposeText), definition };
+    const termination = isTaskforce
+      ? taskforceTermination === "date"
+        ? { dissolve_at: taskforceDissolveAt ?? undefined }
+        : { end_condition: taskforceEndCondition }
+      : {};
+    const body = { owner_id: ownerId, project_id: projectId || null, model: shape.model, name: orgStructureName(purposeText), definition, ...termination };
     const onError = (e: unknown) => toast.error(errorMessage(e, t(($) => $.wizard.review.error)));
     create.mutate(body, {
       onSuccess: (s: unknown) => {
@@ -248,10 +310,51 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                   { value: "no", label: t(($) => $.wizard.flow.no) },
                 ]}
               />
-              {stepValid && (
+              {decisionTableAnswered && (
                 <div data-testid="org-wizard-model" className="flex flex-col gap-0.5 rounded-md border p-3">
                   <span className="text-body font-medium">{t(($) => $.wizard.flow.result, { model: t(($) => $.model[shape.model]) })}</span>
                   <span className="text-caption text-muted-foreground">{t(($) => $.wizard.model_line[shape.model])}</span>
+                </div>
+              )}
+              {decisionTableAnswered && isTaskforce && (
+                <div data-testid="org-wizard-taskforce-termination" className="flex flex-col gap-2 rounded-md border p-3">
+                  <Choice
+                    legend={t(($) => $.wizard.flow.taskforce_termination_question)}
+                    name="org-taskforce-termination"
+                    value={taskforceTermination}
+                    onPick={(v) => setDraft({ taskforceTermination: v })}
+                    options={[
+                      { value: "date" as const, label: t(($) => $.wizard.flow.taskforce_termination_date) },
+                      { value: "condition" as const, label: t(($) => $.wizard.flow.taskforce_termination_condition) },
+                    ]}
+                  />
+                  {taskforceTermination === "date" && (
+                    <label className="flex flex-col gap-1 text-caption text-muted-foreground">
+                      {t(($) => $.wizard.flow.taskforce_dissolve_label)}
+                      <TaskforceDissolvePicker
+                        value={taskforceDissolveAt}
+                        onChange={(v) => setDraft({ taskforceDissolveAt: v })}
+                        placeholder={t(($) => $.wizard.flow.taskforce_dissolve_placeholder)}
+                      />
+                    </label>
+                  )}
+                  {taskforceTermination === "condition" && (
+                    <label className="flex flex-col gap-1 text-caption text-muted-foreground">
+                      {t(($) => $.wizard.flow.taskforce_end_condition_label)}
+                      <OrgSelect
+                        className="w-full"
+                        value={taskforceEndCondition}
+                        onValueChange={(v) => setDraft({ taskforceEndCondition: v })}
+                        items={[
+                          { value: "all_issues_done", label: orgEndConditionLabel(t, "all_issues_done") },
+                          { value: "budget_spent", label: orgEndConditionLabel(t, "budget_spent") },
+                        ]}
+                      />
+                    </label>
+                  )}
+                  {taskforceTermination === null && (
+                    <p className="text-caption text-muted-foreground">{t(($) => $.wizard.flow.taskforce_termination_hint)}</p>
+                  )}
                 </div>
               )}
               <Button type="button" variant="link" size="sm" className="self-start px-0" onClick={() => setCatalogOpen(true)}>
@@ -316,7 +419,7 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                     <span className="text-body font-medium">{u.name}</span>
                     <span className="text-caption text-muted-foreground">{u.mission}</span>
                     <span className="text-caption text-muted-foreground">
-                      {t(($) => $.wizard.review.members, { count: u.members.length })} · {t(($) => $.autonomy[u.autonomy])}
+                      {t(($) => $.wizard.review.members, { count: u.members.length })} · {orgAutonomyLabel(t, u.autonomy)}
                     </span>
                   </li>
                 ))}

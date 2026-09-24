@@ -190,4 +190,30 @@ describe("OrgWizard", () => {
     const def = state.created[0]?.definition as OrgDefinition;
     expect(def.units.flatMap(u => u.members).some(m => m.id === "a-1")).toBe(false);
   });
+
+  it("a task force cannot move on without a declared termination, and sends it to the server", async () => {
+    const user = userEvent.setup();
+    render();
+    fireEvent.change(screen.getByLabelText("In one sentence"), { target: { value: "Enquêter sur les incidents avant vendredi" } });
+    await user.click(next());
+
+    // A mission with an end picks the task force model — the server refuses
+    // to activate one without a dissolution date or an end condition.
+    await answerFlow(user, { end: "Yes" });
+    expect(screen.getByTestId("org-wizard-model").textContent).toContain("Temporary task force");
+    expect(next()).toBeDisabled();
+
+    await user.click(screen.getByRole("radio", { name: "On a condition" }));
+    expect(next()).toBeDisabled();
+    await user.click(screen.getByLabelText("End condition"));
+    await user.click(await screen.findByRole("option", { name: "Budget spent" }));
+    expect(next()).not.toBeDisabled();
+
+    await user.click(next());
+    await user.click(next());
+    await user.click(screen.getByRole("button", { name: "Open my draft" }));
+
+    expect(state.created).toHaveLength(1);
+    expect(state.created[0]).toMatchObject({ model: "taskforce", end_condition: "budget_spent" });
+  });
 });

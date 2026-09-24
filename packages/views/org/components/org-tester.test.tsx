@@ -68,6 +68,7 @@ const simulation = (over: Partial<OrgSimulation> = {}): OrgSimulation => ({
   blocking_denies: [],
   cost_estimate_usd_ticks: 15_000_000_000,
   notes: [],
+  note_codes: [],
   ...over,
 });
 

@@ -5892,7 +5892,7 @@ export class ApiClient {
 
   async preflightOrgStructure(id: string): Promise<import("../types").OrgPreflight> {
     const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/preflight`);
-    return parseWithFallback(raw, OrgPreflightSchema, { model: "", pattern: "", coordination_runs_per_issue: 0, coordination_cost_usd_ticks_per_issue: 0, human_review_items_per_issue: 0, human_review_seconds_per_issue: 0, units: 0, units_without_owner: 0, agents: 0, activation_requirements: [] }, { endpoint: "GET /api/org/:id/preflight" });
+    return parseWithFallback(raw, OrgPreflightSchema, { model: "", pattern: "", coordination_runs_per_issue: 0, coordination_cost_usd_ticks_per_issue: 0, human_review_items_per_issue: 0, human_review_seconds_per_issue: 0, units: 0, units_without_owner: 0, agents: 0, activation_requirements: [], activation_requirement_codes: [] }, { endpoint: "GET /api/org/:id/preflight" });
   }
 
   async listIssueOrgOffers(issueId: string): Promise<import("../types").OrgOffer[]> {

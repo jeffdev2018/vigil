@@ -164,6 +164,11 @@ export interface OrgProposal {
   title: string;
   body: string;
   measure: string;
+  /** Structured code (+ interpolation params) for `title`/`body`/`measure`,
+   *  alongside the server's English text — see `orgProposalTitle` /
+   *  `orgProposalBody` / `orgProposalMeasure` in packages/views/org/labels.ts. */
+  code?: string;
+  params?: Record<string, string | number>;
 }
 
 export interface OrgHealth {
@@ -193,6 +198,9 @@ export interface OrgPreflight {
   units_without_owner: number;
   agents: number;
   activation_requirements: string[];
+  /** Codes for `activation_requirements`, same order — see
+   *  `orgActivationRequirementText` in packages/views/org/labels.ts. */
+  activation_requirement_codes: string[];
 }
 
 export interface OrgOffer {
@@ -233,6 +241,13 @@ export interface OrgSimulationRequest {
   request: { title: string; description?: string; keywords?: string[]; labels?: string[] };
 }
 
+/** A structured code (+ params) for one entry of `OrgSimulation.notes`, at
+ *  the same index — see `orgSimulateNoteText` in packages/views/org/labels.ts. */
+export interface OrgSimulationNote {
+  code: string;
+  params: Record<string, string | number>;
+}
+
 export interface OrgSimulation {
   basis: "draft" | "revision";
   structure_id: string;
@@ -245,4 +260,5 @@ export interface OrgSimulation {
   blocking_denies: string[];
   cost_estimate_usd_ticks: number;
   notes: string[];
+  note_codes: OrgSimulationNote[];
 }
