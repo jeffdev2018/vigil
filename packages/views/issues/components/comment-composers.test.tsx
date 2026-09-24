@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -131,6 +131,7 @@ vi.mock("../../editor", async () => ({
   ContentEditor: forwardRef(function MockContentEditor(
     {
       defaultValue,
+      value,
       onUpdate,
       placeholder,
       onUploadFile,
@@ -140,6 +141,7 @@ vi.mock("../../editor", async () => ({
       quickActionMenu,
     }: {
       defaultValue?: string;
+      value?: string;
       onUpdate?: (markdown: string) => void;
       placeholder?: string;
       onUploadFile?: (file: File, uploadId: string) => Promise<UploadResult | null>;
@@ -153,7 +155,9 @@ vi.mock("../../editor", async () => ({
     editorDefaultValues.values.push(defaultValue);
     editorQuickActionMenu.last = quickActionMenu;
     editorUploadSignal.notify = onUploadingChange;
-    const valueRef = useRef(defaultValue ?? "");
+    const initialValue = value ?? defaultValue ?? "";
+    const valueRef = useRef(initialValue);
+    const [editorValue, setEditorValue] = useState(initialValue);
     // Mirrors the real editor's `uploading` node attrs: the placeholder exists
     // from before the await until the upload settles, `hasActiveUploads` reads
     // it synchronously, and the host is told through onUploadingChange.
@@ -170,11 +174,17 @@ vi.mock("../../editor", async () => ({
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    useEffect(() => {
+      if (value === undefined || value === valueRef.current) return;
+      valueRef.current = value;
+      setEditorValue(value);
+    }, [value]);
 
     useImperativeHandle(ref, () => ({
       getMarkdown: () => valueRef.current,
       clearContent: () => {
         valueRef.current = "";
+        setEditorValue("");
       },
       focus: () => { focusCalls.focused += 1; },
       focusAtCoords: () => {},
@@ -186,6 +196,7 @@ vi.mock("../../editor", async () => ({
           const result = await onUploadFile?.(file, `mock-upload-${++mockUploadIdSeq}`);
           if (!result || destroyedRef.current) return;
           valueRef.current = `${valueRef.current}\n${result.url}`.trim();
+          setEditorValue(valueRef.current);
           onUpdate?.(valueRef.current);
         } finally {
           inFlightRef.current -= 1;
@@ -205,6 +216,7 @@ vi.mock("../../editor", async () => ({
         insertMarkdownSpy(md);
         if (destroyedRef.current || !insertMarkdownBehavior.succeed) return false;
         valueRef.current = `${valueRef.current}\n\n${md}`.trim();
+        setEditorValue(valueRef.current);
         onUpdate?.(valueRef.current);
         return true;
       },
@@ -213,10 +225,11 @@ vi.mock("../../editor", async () => ({
     return (
       <textarea
         data-testid="editor"
-        defaultValue={defaultValue}
+        value={editorValue}
         placeholder={placeholder}
         onChange={(event) => {
           valueRef.current = event.target.value;
+          setEditorValue(event.target.value);
           onUpdate?.(event.target.value);
         }}
         onKeyDown={(event) => {

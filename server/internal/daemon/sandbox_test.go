@@ -205,13 +205,13 @@ func TestStartTaskReportsSandboxDecision(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 	}))
 	defer srv.Close()
-	if err := NewClient(srv.URL).StartTask(context.Background(), "t-1", "container", "sandbox", "docker is not available on this machine; using bubblewrap sandbox"); err != nil {
+	if _, err := NewClient(srv.URL).StartTask(context.Background(), Task{ID: "t-1"}, "container", "sandbox", "docker is not available on this machine; using bubblewrap sandbox"); err != nil {
 		t.Fatal(err)
 	}
 	if body["sandbox_requested"] != "container" || body["sandbox_mode"] != "sandbox" || body["sandbox_reason"] != "docker is not available on this machine; using bubblewrap sandbox" {
 		t.Fatalf("body = %v", body)
 	}
-	if err := NewClient(srv.URL).StartTask(context.Background(), "t-1", "", "", ""); err != nil {
+	if _, err := NewClient(srv.URL).StartTask(context.Background(), Task{ID: "t-1"}, "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if body["sandbox_requested"] != "none" || body["sandbox_mode"] != "none" || body["sandbox_reason"] != "" {

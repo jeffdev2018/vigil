@@ -106,6 +106,10 @@ export interface Comment {
   anchor?: CommentAnchor | null;
   /** The anchored head is no longer the pull request's head: code has moved. */
   anchor_stale?: boolean;
+  supplement_task_id?: string;
+  supplement_status?: "pending" | "delivering" | "delivered" | "failed";
+  supplement_failure_reason?: string;
+  supplement_delivered_at?: string;
 }
 
 // The domain result of one explicitly-mentioned trigger target. Success-shaped

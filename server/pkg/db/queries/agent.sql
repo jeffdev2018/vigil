@@ -44,12 +44,6 @@ ORDER BY created_at ASC;
 SELECT * FROM agent
 WHERE id = $1;
 
--- name: GetAgentsByIDs :many
--- Batch lookup, mirroring GetUsersByIDs. Used to render a roster of several
--- agents (e.g. a squad briefing) without one GetAgent round trip per member.
-SELECT * FROM agent
-WHERE id = ANY(@ids::uuid[]);
-
 -- name: GetAgentForUpdate :one
 -- Serializes read-modify-write updates to disabled_runtime_skills so two
 -- concurrent per-skill toggles cannot overwrite each other.
@@ -498,45 +492,6 @@ RETURNING *;
 -- written for (multica-ai#8174). It survives here because this fork grew a
 -- second, unrelated caller: nativeScheduleFollowup, the native runtime's
 -- "remind me in N days" tool. The escalation caller is gone; the query is not.
--- name: CreateDeferredAgentTask :one
--- Fenced against workspace teardown: lock_task_owner_rows (migration 284)
--- locks the owners' workspace rows in the writer's own transaction and returns
--- false once they are gone, so this statement writes no row instead of stranding
--- a task in a workspace that has just been deleted (MUL-5999).
--- Deferred tasks are inert until PromoteDueDeferredTasksForRuntime flips them
--- to queued. Used for comment-routing escalation: a thread-owner primary task
--- gets a delayed assignee fallback without waking both agents at t=0.
--- Attribution is resolved and stamped at creation (not at promotion), from the
--- same trigger comment as the primary task, so the fallback assignee's run
--- carries a non-NULL source and evidence rather than bypassing attribution
--- (MUL-4302 §2).
-INSERT INTO agent_task_queue (
-    agent_id, runtime_id, issue_id, status, priority, trigger_comment_id,
-    trigger_summary, is_leader_task, squad_id, escalation_for_task_id, fire_at,
-    originator_user_id, accountable_user_id, originator_source,
-    delegated_from_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
-    task_class, routing,
-    id
-)
-SELECT
-    @agent_id, @runtime_id, @issue_id, 'deferred', @priority,
-    sqlc.narg(trigger_comment_id),
-    sqlc.narg(trigger_summary),
-    COALESCE(sqlc.narg('is_leader_task')::boolean, FALSE),
-    sqlc.narg(squad_id),
-    @escalation_for_task_id,
-    @fire_at,
-    sqlc.narg(originator_user_id),
-    sqlc.narg(accountable_user_id),
-    sqlc.narg(originator_source),
-    sqlc.narg(delegated_from_task_id),
-    sqlc.narg(trigger_evidence_kind),
-    sqlc.narg(trigger_evidence_ref_id),
-    COALESCE(sqlc.narg('task_class')::text, 'general'),
-    sqlc.narg('routing')::jsonb,
-    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
-WHERE lock_task_owner_rows($1, $3, $2)
-RETURNING *;
 
 -- name: LinkTaskToIssue :exec
 -- Fenced against workspace teardown: lock_task_owner_rows (migration 284)
@@ -906,6 +861,16 @@ WHERE id = (
     WHERE atq.agent_id = @agent_id
       AND atq.runtime_id = @runtime_id
       AND atq.status = 'queued'
+      -- A wakeup's task is only claimable while the wakeup that scheduled it
+      -- is still live and unchanged. Without this, a disabled or edited
+      -- wakeup's stale row is claimed, then rejected downstream by CheckClaim:
+      -- one poll cycle lost and one spurious failed run per stale row.
+      AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+          SELECT 1 FROM issue_wakeup w
+          WHERE w.id = (atq.context->>'wakeup_id')::uuid
+            AND w.disabled_at IS NULL
+            AND w.revision = (atq.context->>'wakeup_revision')::bigint
+      ))
 	  AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
       AND EXISTS (
           SELECT 1
@@ -936,21 +901,17 @@ WHERE id = (
                      WHERE p.id = a.runtime_pool_id
                        AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
                  ))
-            -- Private runtimes only execute their owner's agents. Ownerless
-            -- runtime/agent rows remain claimable only so the handler can
-            -- settle them explicitly before daemon delivery; filtering them
-            -- here would leave every task silently queued until the TTL.
-            -- Public runtimes remain shareable across agent owners.
+            -- A queued private-runtime row stays claimable even when the
+            -- runtime and the agent have different owners, so the handler can
+            -- settle the mismatch through the existing FailTask path and the
+            -- user reads the explicit "different owners" message. Filtering
+            -- the mismatch out here would leave the task silently queued until
+            -- the TTL with nothing to read. Public runtimes remain shareable
+            -- across agent owners; the dispatched reclaim keeps the strict
+            -- owner fence, which is where that barrier belongs.
             AND (
                 r.visibility = 'public'
-                OR (
-                    r.visibility = 'private'
-                    AND (
-                        r.owner_id IS NULL
-                        OR a.owner_id IS NULL
-                        OR r.owner_id = a.owner_id
-                    )
-                )
+                OR r.visibility = 'private'
             )
             AND r.status = 'online'
             AND COALESCE(r.last_seen_at, r.updated_at) >=
@@ -999,22 +960,6 @@ WHERE id = (
     FOR UPDATE SKIP LOCKED
 )
 RETURNING *;
-
--- name: SetTaskMemoryContext :execrows
--- Latest finalized claim only, matching the comment receipt semantics. An
--- earlier payload must never replace the context of a newer claim or a run
--- which already started. NULL means unrecorded, never an empty memory set.
--- Stamp privacy from the locked task, never from caller-supplied JSON. The chat
--- FK is SET NULL on deletion, so this marker must survive with the receipt.
-UPDATE agent_task_queue SET memory_context = CASE
-    WHEN sqlc.narg(memory_context)::jsonb IS NULL THEN NULL
-    ELSE sqlc.narg(memory_context)::jsonb || jsonb_build_object(
-        'is_chat', chat_session_id IS NOT NULL OR COALESCE(trigger_evidence_kind = 'chat', false)
-    )
-END
-WHERE id = @task_id AND runtime_id = @runtime_id
-  AND status = 'dispatched' AND started_at IS NULL
-  AND dispatched_at = @dispatched_at;
 
 -- name: SetTaskDeliveredCommentIDs :one
 -- Replace (rather than append to) the delivery receipt for this claim. A stale
@@ -1234,13 +1179,13 @@ SET status = 'running',
 WHERE id = $1 AND status IN ('dispatched', 'waiting_local_directory')
 RETURNING *;
 
--- name: TouchAgentTaskActivity :exec
--- Run-level heartbeat (F02). Called from the daemon's messages and progress
--- callbacks; the status guard keeps a late callback from a settled run from
--- reviving its liveness.
-UPDATE agent_task_queue
-SET last_activity_at = now()
-WHERE id = $1 AND status IN ('dispatched', 'running', 'waiting_local_directory');
+-- name: LockAgentTaskStartClaim :one
+-- Serialize start/replay with reclaim and cancellation. A stale delivery must
+-- never start or acknowledge a newer claim, even on the same runtime.
+SELECT * FROM agent_task_queue
+WHERE id = $1 AND runtime_id = $2 AND dispatched_at = $3
+  AND status IN ('dispatched', 'waiting_local_directory', 'running')
+FOR UPDATE;
 
 -- name: MarkAgentTaskWaitingLocalDirectory :one
 -- Transitions a freshly-dispatched task into 'waiting_local_directory' while
@@ -1720,7 +1665,7 @@ RETURNING *;
 -- subsequent ticks.
 WITH victims AS (
     SELECT id FROM agent_task_queue
-    WHERE status = 'queued'
+    WHERE status = 'queued' AND context->>'wakeup_id' IS NULL
       AND created_at < now() - make_interval(secs => @reconnect_grace_secs::double precision)
       AND (
           runtime_id IS NULL
@@ -2047,26 +1992,7 @@ WHERE issue_id = $1 AND status IN ('queued', 'dispatched', 'running', 'waiting_l
 -- the agent picks up new comments on the next cycle) but skip if a pending
 -- task already exists (natural dedup).
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND status IN ('queued', 'dispatched');
-
--- name: CountA2ARunsForIssueSince :one
--- Per-issue agent-to-agent budget (F19 / JEF-32): how many A2A-triggered runs
--- this issue has accumulated since `since`.
---
--- A COUNTER, not a reservation. The autopilot quota machinery
--- (autopilot_quota_period / autopilot_quota_reservation) was considered and
--- rejected: its limits come from Cloud through entitlement.GateAutopilotRuns,
--- its tables are keyed by (workspace_id, period_start, period_end) with no
--- issue dimension, and there is nothing here to bill. A racing pair can both
--- read 20 and both enqueue; the breaker is a circuit breaker on a runaway
--- fan-out, and being off by one on the boundary costs nothing worth a lock.
---
--- a2a_depth > 0 is exactly the A2A subset and matches the partial index
--- idx_agent_task_issue_a2a_created (migration 830).
-SELECT count(*) FROM agent_task_queue
-WHERE issue_id = $1
-  AND a2a_depth > 0
-  AND created_at >= sqlc.arg(since);
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND status IN ('queued', 'dispatched');
 
 -- name: HasPendingTaskForIssueAndAgent :one
 -- Returns true if a specific agent already has a queued or dispatched task
@@ -2081,7 +2007,7 @@ WHERE issue_id = $1
 -- When head_sha is empty/NULL (issue has no linked PR) the check falls back to
 -- the pre-TEN-356 (issue_id, agent_id) key so non-PR issues keep coalescing.
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
     OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
@@ -2095,7 +2021,7 @@ WHERE issue_id = $1 AND agent_id = $2
 -- Same pending/head rules as HasPendingTaskForIssueAndAgent, scoped to one
 -- root comment and all descendants. NULL selects assignment-level work.
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
     OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
@@ -2112,7 +2038,7 @@ WHERE issue_id = $1 AND agent_id = $2
 -- that comment's old queued/dispatched tasks before re-computing triggers.
 -- Carries the same head_sha dedup key as HasPendingTaskForIssueAndAgent (TEN-356).
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = @issue_id
+WHERE context->>'wakeup_id' IS NULL AND issue_id = @issue_id
   AND agent_id = @agent_id
   AND (
     status IN ('queued', 'dispatched')
@@ -2127,7 +2053,7 @@ WHERE issue_id = @issue_id
 -- name: HasPendingTaskForIssueAndAgentExcludingTriggerCommentInThread :one
 -- Thread-scoped edit preview: ignore the comment whose old run save replaces.
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = @issue_id
+WHERE context->>'wakeup_id' IS NULL AND issue_id = @issue_id
   AND agent_id = @agent_id
   AND (
     status IN ('queued', 'dispatched')
@@ -2209,7 +2135,7 @@ SET coalesced_comment_ids = (
     runtime_connected_apps = sqlc.narg('new_runtime_connected_apps')
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = @issue_id
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = @issue_id
       AND t.agent_id = @agent_id
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@new_trigger_comment_id::uuid)
       AND (
@@ -2265,7 +2191,7 @@ SET coalesced_comment_ids = (
     )
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = @issue_id
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = @issue_id
       AND t.agent_id = @agent_id
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@comment_id::uuid)
       AND t.status IN ('dispatched', 'running', 'waiting_local_directory')
@@ -2296,7 +2222,7 @@ SET coalesced_comment_ids = (
     trigger_summary = sqlc.narg('trigger_summary')
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = @issue_id
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = @issue_id
       AND t.agent_id = @agent_id
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id(@comment_id::uuid)
       AND (
@@ -2559,6 +2485,13 @@ ORDER BY priority DESC, created_at ASC;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = $1
   AND atq.status = 'queued'
+  -- Keep in sync with ClaimAgentTask's wakeup freshness guard.
+  AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+      SELECT 1 FROM issue_wakeup w
+      WHERE w.id = (atq.context->>'wakeup_id')::uuid
+        AND w.disabled_at IS NULL
+        AND w.revision = (atq.context->>'wakeup_revision')::bigint
+  ))
 	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
@@ -2584,16 +2517,11 @@ WHERE atq.runtime_id = $1
                  WHERE p.id = a.runtime_pool_id
                    AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
              ))
+        -- Same owner carve-out as ClaimAgentTask: an owner mismatch is
+        -- settled by the handler, not hidden by the fence.
         AND (
             r.visibility = 'public'
-            OR (
-                r.visibility = 'private'
-                AND (
-                    r.owner_id IS NULL
-                    OR a.owner_id IS NULL
-                    OR r.owner_id = a.owner_id
-                )
-            )
+            OR r.visibility = 'private'
         )
   )
 -- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
@@ -2706,6 +2634,13 @@ RETURNING *;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
   AND atq.status = 'queued'
+  -- Keep in sync with ClaimAgentTask's wakeup freshness guard.
+  AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+      SELECT 1 FROM issue_wakeup w
+      WHERE w.id = (atq.context->>'wakeup_id')::uuid
+        AND w.disabled_at IS NULL
+        AND w.revision = (atq.context->>'wakeup_revision')::bigint
+  ))
 	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
@@ -2731,16 +2666,11 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
                  WHERE p.id = a.runtime_pool_id
                    AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
              ))
+        -- Same owner carve-out as ClaimAgentTask: an owner mismatch is
+        -- settled by the handler, not hidden by the fence.
         AND (
             r.visibility = 'public'
-            OR (
-                r.visibility = 'private'
-                AND (
-                    r.owner_id IS NULL
-                    OR a.owner_id IS NULL
-                    OR r.owner_id = a.owner_id
-                )
-            )
+            OR r.visibility = 'private'
         )
   )
 -- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
@@ -2952,13 +2882,14 @@ ORDER BY atq.agent_id, bucket;
 -- grows with how much terminal history the workspace has accumulated. The
 -- (created_at, id) tie-break makes the pick deterministic when completed_at
 -- ties or is NULL — plain completed_at DESC returned an arbitrary row there.
--- Row shape and row set are unchanged.
+-- Deferred wakeup retries also remain visible as queued work.
 --
 -- Both halves JOIN / scan agent because agent_task_queue has no workspace_id.
 SELECT atq.* FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
 WHERE a.workspace_id = $1
-  AND atq.status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
+  AND (atq.status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
+    OR (atq.status='deferred' AND atq.context->>'wakeup_id' IS NOT NULL))
 
 UNION ALL
 
@@ -3162,6 +3093,98 @@ INSERT INTO agent (
 )
 RETURNING *;
 
+-- name: GetCommentThreadRootID :one
+SELECT comment_thread_root_id(@comment_id::uuid)::uuid AS id;
+
+-- name: GetAgentsByIDs :many
+-- Batch lookup, mirroring GetUsersByIDs. Used to render a roster of several
+-- agents (e.g. a squad briefing) without one GetAgent round trip per member.
+SELECT * FROM agent
+WHERE id = ANY(@ids::uuid[]);
+
+-- name: CreateDeferredAgentTask :one
+-- Fenced against workspace teardown: lock_task_owner_rows (migration 284)
+-- locks the owners' workspace rows in the writer's own transaction and returns
+-- false once they are gone, so this statement writes no row instead of stranding
+-- a task in a workspace that has just been deleted (MUL-5999).
+-- Deferred tasks are inert until PromoteDueDeferredTasksForRuntime flips them
+-- to queued. Used for comment-routing escalation: a thread-owner primary task
+-- gets a delayed assignee fallback without waking both agents at t=0.
+-- Attribution is resolved and stamped at creation (not at promotion), from the
+-- same trigger comment as the primary task, so the fallback assignee's run
+-- carries a non-NULL source and evidence rather than bypassing attribution
+-- (MUL-4302 §2).
+INSERT INTO agent_task_queue (
+    agent_id, runtime_id, issue_id, status, priority, trigger_comment_id,
+    trigger_summary, is_leader_task, squad_id, escalation_for_task_id, fire_at,
+    originator_user_id, accountable_user_id, originator_source,
+    delegated_from_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
+    id
+)
+SELECT
+    @agent_id, @runtime_id, @issue_id, 'deferred', @priority,
+    sqlc.narg(trigger_comment_id),
+    sqlc.narg(trigger_summary),
+    COALESCE(sqlc.narg('is_leader_task')::boolean, FALSE),
+    sqlc.narg(squad_id),
+    @escalation_for_task_id,
+    @fire_at,
+    sqlc.narg(originator_user_id),
+    sqlc.narg(accountable_user_id),
+    sqlc.narg(originator_source),
+    sqlc.narg(delegated_from_task_id),
+    sqlc.narg(trigger_evidence_kind),
+    sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+WHERE lock_task_owner_rows($1, $3, $2)
+RETURNING *;
+
+-- name: SetTaskMemoryContext :execrows
+-- Latest finalized claim only, matching the comment receipt semantics. An
+-- earlier payload must never replace the context of a newer claim or a run
+-- which already started. NULL means unrecorded, never an empty memory set.
+-- Stamp privacy from the locked task, never from caller-supplied JSON. The chat
+-- FK is SET NULL on deletion, so this marker must survive with the receipt.
+UPDATE agent_task_queue SET memory_context = CASE
+    WHEN sqlc.narg(memory_context)::jsonb IS NULL THEN NULL
+    ELSE sqlc.narg(memory_context)::jsonb || jsonb_build_object(
+        'is_chat', chat_session_id IS NOT NULL OR COALESCE(trigger_evidence_kind = 'chat', false)
+    )
+END
+WHERE id = @task_id AND runtime_id = @runtime_id
+  AND status = 'dispatched' AND started_at IS NULL
+  AND dispatched_at = @dispatched_at;
+
+-- name: TouchAgentTaskActivity :exec
+-- Run-level heartbeat (F02). Called from the daemon's messages and progress
+-- callbacks; the status guard keeps a late callback from a settled run from
+-- reviving its liveness.
+UPDATE agent_task_queue
+SET last_activity_at = now()
+WHERE id = $1 AND status IN ('dispatched', 'running', 'waiting_local_directory');
+
+-- name: CountA2ARunsForIssueSince :one
+-- Per-issue agent-to-agent budget (F19 / JEF-32): how many A2A-triggered runs
+-- this issue has accumulated since `since`.
+--
+-- A COUNTER, not a reservation. The autopilot quota machinery
+-- (autopilot_quota_period / autopilot_quota_reservation) was considered and
+-- rejected: its limits come from Cloud through entitlement.GateAutopilotRuns,
+-- its tables are keyed by (workspace_id, period_start, period_end) with no
+-- issue dimension, and there is nothing here to bill. A racing pair can both
+-- read 20 and both enqueue; the breaker is a circuit breaker on a runaway
+-- fan-out, and being off by one on the boundary costs nothing worth a lock.
+--
+-- a2a_depth > 0 is exactly the A2A subset and matches the partial index
+-- idx_agent_task_issue_a2a_created (migration 830).
+SELECT count(*) FROM agent_task_queue
+WHERE issue_id = $1
+  AND a2a_depth > 0
+  AND created_at >= sqlc.arg(since);
+
 -- name: AppendHandoffNoteToPendingTask :one
 -- Handoff coalescing (JEF-241): when an interview answer / review rework /
 -- resume arrives while a run is already queued, its note merges into that task
@@ -3255,5 +3278,3 @@ ORDER BY turn_seq DESC;
 -- F09: drop the runs a revert removed. Their task_message rows follow through
 -- the FK inherited from migration 026; nothing new is added here.
 DELETE FROM agent_task_queue WHERE id = ANY(sqlc.arg('ids')::uuid[]);
--- name: GetCommentThreadRootID :one
-SELECT comment_thread_root_id(@comment_id::uuid)::uuid AS id;

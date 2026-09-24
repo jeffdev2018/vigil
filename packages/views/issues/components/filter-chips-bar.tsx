@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CalendarRange,
   Shapes,
+  CircleDashed,
   CircleDot,
   FolderKanban,
   Target,
@@ -25,6 +26,7 @@ import { memberListOptions, agentListOptions, squadListOptions } from "@multica/
 import { projectListOptions } from "@multica/core/projects/queries";
 import { goalListOptions } from "@multica/core/goals";
 import { cycleListOptions } from "@multica/core/cycles";
+import { PROJECT_STATUS_CONFIG } from "@multica/core/projects/config";
 import { labelListOptions } from "@multica/core/labels/queries";
 import { propertyListOptions } from "@multica/core/properties";
 import { isActorPropertyType, isScalarPropertyType, parseActorRef, propertyFilterValueKey, PROPERTY_FILTER_OP_SYMBOLS, type PropertyFilterValue } from "@multica/core/types";
@@ -42,6 +44,7 @@ import { useViewStore, useViewStoreApi } from "@multica/core/issues/stores/view-
 import { StatusIcon } from "./status-icon";
 import { PriorityIcon } from "./priority-icon";
 import { ActorAvatar } from "../../common/actor-avatar";
+import { useProjectStatusLabels } from "../../projects/components/labels";
 import { useT } from "../../i18n";
 
 /** One rendered chip: a dimension with its selected values summarised. */
@@ -186,6 +189,7 @@ function useFilterChips(
   baseline?: IssueViewBaseline,
 ) {
   const { t } = useT("issues");
+  const projectStatusLabels = useProjectStatusLabels();
   const wsId = useWorkspaceId();
   const resolveStatusLabel = useStatusLabel(wsId);
   const { categoryOf, colorOf, iconOf } = useIssueStatuses(wsId);
@@ -201,6 +205,7 @@ function useFilterChips(
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
   const typeFilters = useViewStore((s) => s.typeFilters);
+  const projectStatusFilters = useViewStore((s) => s.projectStatusFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const store = useViewStoreApi();
@@ -216,6 +221,7 @@ function useFilterChips(
     goalFilters.length > 0 ||
     cycleFilters.length > 0 ||
     typeFilters.length > 0 ||
+    projectStatusFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.values(propertyFilters).some((selected) => selected.length > 0);
   const showDateChip = !!onDateFilterChange && !!dateFilter;
@@ -288,6 +294,7 @@ function useFilterChips(
       goalFilters: s.goalFilters,
       cycleFilters: s.cycleFilters,
       typeFilters: s.typeFilters,
+      projectStatusFilters: s.projectStatusFilters,
       labelFilters: s.labelFilters,
       propertyFilters: s.propertyFilters,
     };
@@ -313,6 +320,12 @@ function useFilterChips(
           ...current,
           projectFilters: raw.projectFilters,
           includeNoProject: raw.includeNoProject,
+        });
+        break;
+      case "projectStatus":
+        s.resetFiltersTo({
+          ...current,
+          projectStatusFilters: raw.projectStatusFilters,
         });
         break;
       case "label":
@@ -360,6 +373,13 @@ function useFilterChips(
   const deltaNoProject = baseline
     ? includeNoProject && !baseline.includeNoProject
     : includeNoProject;
+  const deltaProjectStatuses = (
+    baseline
+      ? projectStatusFilters.filter((s) => !baseline.projectStatus.has(s))
+      : projectStatusFilters
+    // The store sanitizes on rehydrate; this keeps a member the config does
+    // not know from throwing on `.dotColor` if one ever gets past that.
+  ).filter((status) => PROJECT_STATUS_CONFIG[status] !== undefined);
   const deltaLabels = baseline
     ? labelFilters.filter((id) => !baseline.label.has(id))
     : labelFilters;
@@ -507,6 +527,29 @@ function useFilterChips(
       label: t(($) => $.filters.section_goal),
       value: summarize(deltaGoals.map((id) => goalById.get(id)?.title)),
       onRemove: () => clearDimension("goal"),
+    });
+  }
+  if (deltaProjectStatuses.length > 0) {
+    chips.push({
+      key: "projectStatus",
+      icon: <CircleDashed className={CHIP_ICON_CLASS} />,
+      label: t(($) => $.filters.section_project_status),
+      valueIcons: (
+        // PROJECT_STATUS_CONFIG carries Tailwind classes, not CSS colors, so
+        // DotStack (inline styles) does not apply here.
+        <IconStack>
+          {deltaProjectStatuses.slice(0, 3).map((status) => (
+            <span
+              key={status}
+              className={`size-2.5 rounded-full ${PROJECT_STATUS_CONFIG[status].dotColor}`}
+            />
+          ))}
+        </IconStack>
+      ),
+      value: summarize(
+        deltaProjectStatuses.map((status) => projectStatusLabels[status]),
+      ),
+      onRemove: () => clearDimension("projectStatus"),
     });
   }
   if (deltaLabels.length > 0) {

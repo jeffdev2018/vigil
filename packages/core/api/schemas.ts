@@ -49,7 +49,7 @@ import type {
   RedeemTelegramBindingTokenResponse,
   GroupedIssuesResponse,
   GitHubConnectResponse,
-  GitHubPullRequest,
+  IssuePullRequestsResponse,
   InboxItem,
   InboxWorkspaceUnread,
   TriageStats,
@@ -495,6 +495,7 @@ export const GitHubPullRequestSchema = z.object({
   closed_at: z.string().nullable(),
   pr_created_at: z.string(),
   pr_updated_at: z.string(),
+  link_source: z.enum(["manual", "title", "branch", "auto"]).optional().catch(undefined),
   mergeable: z.string().nullable().optional(),
   merge_state_status: z.string().nullable().optional(),
   snapshot_available: z.boolean().optional(),
@@ -514,12 +515,23 @@ export const GitHubPullRequestSchema = z.object({
   changed_files: z.number().optional().default(0),
 }).loose();
 
-export const IssuePullRequestsResponseSchema = z.object({
-  pull_requests: z.array(GitHubPullRequestSchema).default([]),
+// A malformed auto_complete block degrades to null (the issue page shows no
+// automation line) instead of discarding the PR list with it.
+export const PRAutoCompleteSchema = z.object({
+  state: z.string(),
+  pull_request_ids: z.array(z.string()).default([]),
+  issue_disabled: z.boolean().default(false),
+  workspace_enabled: z.boolean().default(true),
 }).loose();
 
-export const EMPTY_ISSUE_PULL_REQUESTS_RESPONSE: { pull_requests: GitHubPullRequest[] } = {
+export const IssuePullRequestsResponseSchema = z.object({
+  pull_requests: z.array(GitHubPullRequestSchema).default([]),
+  auto_complete: PRAutoCompleteSchema.nullable().optional().default(null).catch(null),
+}).loose();
+
+export const EMPTY_ISSUE_PULL_REQUESTS_RESPONSE: IssuePullRequestsResponse = {
   pull_requests: [],
+  auto_complete: null,
 };
 
 // Merge readiness (F10). `ready` never defaults to true: a malformed or
@@ -990,6 +1002,9 @@ export interface AppConfigResponse {
    * MULTICA_LLM_API_KEY set — the onboarding native-runtime card stays
    * disabled and no native RuntimeDevice row exists for new workspaces. */
   native_runtime_available?: boolean;
+  /** Whether issue create atomically validates and persists `properties`.
+   * Older servers silently ignore the field, so absent means unsupported. */
+  issue_create_properties_supported?: boolean;
   /** Whether deleting a comment keeps its replies and the server routes
    * DELETE /api/comments/{id}/keep-replies. Older servers deleted the replies
    * too, so absent must be treated as false (#8296). */
@@ -1193,6 +1208,10 @@ const TimelineEntrySchema = z.object({
   reactions: z.array(ReactionSchema).optional(),
   attachments: z.array(AttachmentSchema).optional(),
   source_task_id: z.string().nullable().optional(),
+  supplement_task_id: z.string().optional().catch(undefined),
+  supplement_status: z.enum(["pending", "delivering", "delivered", "failed"]).optional().catch(undefined),
+  supplement_failure_reason: z.string().optional().catch(undefined),
+  supplement_delivered_at: z.string().optional().catch(undefined),
   // Tombstone marker (#8296). Lenient: a malformed value reads as a live
   // comment instead of failing the whole timeline.
   deleted_at: z.string().nullable().optional().catch(undefined),
@@ -1284,6 +1303,7 @@ export const AppConfigSchema = z.object({
   meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
   meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
   tts_available: BooleanWithDefaultSchema(false).optional(),
+  issue_create_properties_supported: BooleanWithDefaultSchema(false),
   comment_delete_keep_replies_supported: BooleanWithDefaultSchema(false),
   server_version: OptionalStringSchema,
   run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
@@ -1306,6 +1326,8 @@ export const EMPTY_APP_CONFIG: AppConfigResponse = {
   // Fail closed: no declared model means the native runtime card must stay
   // disabled rather than default to "try it".
   native_runtime_available: false,
+  // Fail closed: old servers returned success while dropping create properties.
+  issue_create_properties_supported: false,
   // Fail closed: old servers delete a comment's replies with it.
   comment_delete_keep_replies_supported: false,
   feature_flags: {},
@@ -1347,6 +1369,10 @@ export const CommentSchema = z.object({
   updated_at: z.string(),
   revision: z.number().int().positive().optional(),
   source_task_id: z.string().nullable().optional(),
+  supplement_task_id: z.string().optional().catch(undefined),
+  supplement_status: z.enum(["pending", "delivering", "delivered", "failed"]).optional().catch(undefined),
+  supplement_failure_reason: z.string().optional().catch(undefined),
+  supplement_delivered_at: z.string().optional().catch(undefined),
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
   // Agent-to-agent message intent (F19): question | review | handoff. Server-only
@@ -1602,6 +1628,13 @@ export const IssueSchema = z.object({
   creator_type: z.string(),
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
+  // Additive pointer (MUL-7349); same disproportionate-failure reasoning as
+  // status_name above, and older backends do not send it at all.
+  duplicate_of: z
+    .object({ id: z.string(), identifier: z.string(), title: z.string(), status: z.string() })
+    .nullable()
+    .optional()
+    .catch(undefined),
   project_id: z.string().nullable(),
   // Goals (K74) predate older backends; absent parses to null.
   goal_id: z.string().nullable().optional().default(null),
@@ -2496,6 +2529,11 @@ export const ChildIssuesResponseSchema = z.object({
   issues: z.array(IssueSchema).default([]),
 }).loose();
 
+export const IssueDuplicatesResponseSchema = z.object({
+  duplicate_of: IssueSchema.nullable().default(null),
+  duplicates: z.array(IssueSchema).default([]),
+}).loose();
+
 export const ChildIssueProgressResponseSchema = z.object({
   progress: z
     .array(
@@ -2942,6 +2980,7 @@ const TaskMemoryContextSchema = z.object({
 export const AgentTaskSchema = z.object({
   // Invalid optional audit data is unknown, never a fabricated empty set.
   memory_context: TaskMemoryContextSchema.optional().catch(undefined),
+  wakeup_id: z.string().optional().catch(undefined),
   cancelled_by_comment_change: z.boolean().optional().catch(undefined),
   cancelled_by: TaskCancellationActorSchema.optional().catch(undefined),
   id: z.string(),
@@ -2968,6 +3007,9 @@ export const AgentTaskSchema = z.object({
   // entire execution log, so degrade that field to "absent" independently.
   coalesced_comment_ids: OptionalStringArraySchema,
   delivered_comment_ids: OptionalStringArraySchema,
+  supplement_capability: z.string().optional().catch(undefined),
+  supplement_comment_ids: OptionalStringArraySchema,
+  can_supplement: z.boolean().optional().catch(undefined),
   trigger_summary: z.string().optional(),
   kind: z.string().optional(),
   work_dir: z.string().optional().catch(undefined),
@@ -3157,6 +3199,7 @@ export type DeadBranchDiscardSkipped = z.infer<typeof DeadBranchDiscardSkippedSc
 // field to "unknown" is the correct loss; deleting the run is not. Every other
 // field keeps a default for the same reason.
 export const TaskMessagePayloadSchema = z.object({
+  call_id: z.string().optional().catch(undefined),
   task_id: z.string().default(""),
   issue_id: z.string().default(""),
   chat_session_id: z.string().optional(),
@@ -7102,11 +7145,14 @@ export const EMPTY_TASK_ACTIVITY: TaskActivityResponse = { messages: [], actions
 // Custom runtime profiles (MUL-3284). `protocol_family` is left as a bare
 // string (not the closed union) so an unrecognized family from a newer
 // server still parses instead of falling back to EMPTY_RUNTIME_PROFILE.
+// `runtime_type` is the newer compatibility target; older servers omit it,
+// so it falls back to `protocol_family`.
 export const RuntimeProfileSchema = z.object({
   id: z.string(),
   workspace_id: z.string().catch(""),
   display_name: z.string().catch(""),
   protocol_family: z.string().catch(""),
+  runtime_type: z.string().nullish().catch(undefined),
   command_name: z.string().catch(""),
   description: z.string().nullable().catch(null),
   fixed_args: z.array(z.string()).catch([]).default([]),
@@ -7115,7 +7161,11 @@ export const RuntimeProfileSchema = z.object({
   enabled: z.boolean().catch(false),
   created_at: z.string().catch(""),
   updated_at: z.string().catch(""),
-}).loose();
+}).loose()
+  .transform((profile) => ({
+    ...profile,
+    runtime_type: profile.runtime_type || profile.protocol_family,
+  }));
 
 export const EMPTY_RUNTIME_PROFILE: RuntimeProfile = {
   id: "",
@@ -7135,6 +7185,44 @@ export const EMPTY_RUNTIME_PROFILE: RuntimeProfile = {
 export const RuntimeProfileListSchema = z.object({
   runtime_profiles: z.array(RuntimeProfileSchema).catch([]).default([]),
 }).loose();
+
+// Wakeups (a scheduled/event-triggered re-invocation of an agent on an
+// issue). Server-owned enums are left open where a hand-edited or
+// newer-server value should not fail the whole row.
+export const IssueWakeupSchema = z.object({
+  id: z.string(), issue_id: z.string(), agent_id: z.string(), agent_name: z.string().default(""),
+  instruction: z.string(), kind: z.enum(["event", "at", "every", "cron"]), mode: z.enum(["once", "continuous"]),
+  event_types: z.array(z.string()), filter_agent_id: z.string().nullable(), filter_task_id: z.string().nullable(),
+  interval_seconds: z.number().nullable(), cron_expression: z.string().nullable(), timezone: z.string(),
+  next_fire_at: z.string().nullable(), enabled: z.boolean(), disabled_at: z.string().nullable(),
+  last_task_id: z.string().nullable(), last_error: z.string().nullable(),
+  filter_actor_type: z.enum(["member", "agent"]).nullable().optional(),
+  filter_actor_id: z.string().nullable().optional(),
+  filter_actor_name: z.string().nullable().optional(),
+  revision: z.number().int().positive().optional(),
+  filter_agent_name: z.string().nullable().optional(), last_task_status: z.string().nullable().optional(),
+});
+
+export const IssueWakeupSummaryRowSchema = IssueWakeupSchema.pick({
+  id: true, issue_id: true, agent_id: true, agent_name: true, kind: true, mode: true,
+  event_types: true, filter_task_id: true, filter_agent_name: true, interval_seconds: true,
+  filter_actor_type: true, filter_actor_id: true, filter_actor_name: true,
+  cron_expression: true, timezone: true, next_fire_at: true,
+}).extend({ active_count: z.number().int().positive(), event_count: z.number().int().nonnegative() });
+
+export const WorkspaceWakeupPageSchema = z.object({
+  items: z.array(IssueWakeupSchema.omit({ instruction: true }).extend({
+    issue_title: z.string(), issue_identifier: z.string(), issue_closed: z.boolean(),
+    can_manage: z.boolean(), active_runs: z.number().int().nonnegative(),
+    task: AgentTaskSchema.nullable(),
+  })),
+  total: z.number().int().nonnegative(),
+  counts: z.object({
+    active: z.number().int().nonnegative(), all: z.number().int().nonnegative(),
+    disabled: z.number().int().nonnegative(), ended: z.number().int().nonnegative(),
+  }),
+  agents: z.array(z.object({ id: z.string(), name: z.string() })),
+});
 
 // ---------------------------------------------------------------------------
 // JEF-321 batch A — auth, issue writes, comments/reactions, agents, runtimes

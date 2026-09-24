@@ -242,7 +242,7 @@ func (q *Queries) GetLatestCrossReviewForTask(ctx context.Context, reviewOfTaskI
 }
 
 const getLatestReviewReportMessage = `-- name: GetLatestReviewReportMessage :one
-SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM task_message WHERE task_id = $1 AND type = 'review_report' ORDER BY seq DESC LIMIT 1
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, call_id, output_truncated FROM task_message WHERE task_id = $1 AND type = 'review_report' ORDER BY seq DESC LIMIT 1
 `
 
 func (q *Queries) GetLatestReviewReportMessage(ctx context.Context, taskID pgtype.UUID) (TaskMessage, error) {
@@ -258,6 +258,7 @@ func (q *Queries) GetLatestReviewReportMessage(ctx context.Context, taskID pgtyp
 		&i.Input,
 		&i.Output,
 		&i.CreatedAt,
+		&i.CallID,
 		&i.OutputTruncated,
 	)
 	return i, err

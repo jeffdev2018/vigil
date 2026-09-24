@@ -597,6 +597,7 @@ export function SaveViewDialog({
         // Work item types (F30). A view saved before this key parses to [] —
         // `baselineFromQuery` is tolerant of an absent dimension by design.
         typeFilters: state.typeFilters,
+        projectStatusFilters: state.projectStatusFilters,
         labelFilters: state.labelFilters,
         propertyFilters: state.propertyFilters,
       },

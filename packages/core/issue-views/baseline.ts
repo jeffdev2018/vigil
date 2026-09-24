@@ -1,7 +1,8 @@
 import type { ActorFilterValue, FilterSnapshot } from "../issues/stores/view-store";
-import type { IssuePriority, IssueStatus, PropertyFilterValue } from "../types";
+import type { IssuePriority, IssueStatus, ProjectStatus, PropertyFilterValue } from "../types";
 import { isKnownPropertyFilterOp, isPropertyOperatorFilter, propertyFilterValueKey } from "../types";
 import { PRIORITY_DISPLAY_ORDER } from "../issues/config";
+import { PROJECT_STATUS_ORDER } from "../projects/config";
 
 /**
  * The open saved view's query, normalized for two jobs:
@@ -26,6 +27,7 @@ export interface IssueViewBaseline {
   cycle: Set<string>;
   /** Work item type keys (F30). */
   type: Set<string>;
+  projectStatus: Set<string>;
   label: Set<string>;
   /** Property definition id → fixed member keys (`propertyFilterValueKey`). */
   property: Map<string, Set<string>>;
@@ -96,6 +98,11 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
   // filtering against one here would silently delete every custom-type filter
   // the moment a saved view was reopened (the bug MUL-6243 fixed for statuses).
   const typeFilters = stringArray(query.typeFilters).filter((k) => k.length > 0);
+  // A saved view predating this dimension has no key at all, and an unknown
+  // member cannot be represented in the store — both collapse to "no filter".
+  const projectStatusFilters = stringArray(query.projectStatusFilters).filter(
+    (s): s is ProjectStatus => (PROJECT_STATUS_ORDER as readonly string[]).includes(s),
+  );
   const labelFilters = stringArray(query.labelFilters);
   const includeNoAssignee = query.includeNoAssignee === true;
   const includeNoProject = query.includeNoProject === true;
@@ -125,6 +132,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
     goal: new Set(goalFilters),
     cycle: new Set(cycleFilters),
     type: new Set(typeFilters),
+    projectStatus: new Set(projectStatusFilters),
     label: new Set(labelFilters),
     property,
     raw: {
@@ -138,6 +146,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
       goalFilters,
       cycleFilters,
       typeFilters,
+      projectStatusFilters,
       labelFilters,
       propertyFilters,
     },

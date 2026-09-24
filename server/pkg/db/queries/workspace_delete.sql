@@ -212,6 +212,12 @@ deleted_task_messages AS (
 deleted_task_tokens AS (
     DELETE FROM task_token WHERE task_id IN (SELECT id FROM batch)
 ),
+deleted_task_supplements AS (
+    DELETE FROM task_supplement WHERE task_id IN (SELECT id FROM batch)
+),
+deleted_task_supplement_capabilities AS (
+    DELETE FROM task_supplement_capability WHERE task_id IN (SELECT id FROM batch)
+),
 deleted_channel_outbound_cards AS (
     DELETE FROM channel_outbound_card_message WHERE task_id IN (SELECT id FROM batch)
 ),
@@ -314,6 +320,14 @@ deleted_task_tokens AS (
 deleted_hourly_dirty AS (
     DELETE FROM task_usage_hourly_dirty WHERE workspace_id = $1
 ),
+-- No foreign keys: both tables are swept by workspace_id here and by task id
+-- in DeleteTaskBatch, so a workspace teardown leaves neither behind.
+deleted_orphan_task_supplements AS (
+    DELETE FROM task_supplement WHERE workspace_id = $1
+),
+deleted_orphan_task_supplement_capabilities AS (
+    DELETE FROM task_supplement_capability WHERE workspace_id = $1
+),
 deleted_hourly AS (
     DELETE FROM task_usage_hourly WHERE workspace_id = $1
 ),
@@ -390,6 +404,12 @@ deleted_issue_vcs_links AS (
     WHERE issue_id IN (SELECT id FROM ws_issues)
        OR pull_request_id IN (SELECT id FROM ws_vcs_prs)
 ),
+deleted_issue_pr_automation AS (
+    DELETE FROM issue_pr_automation WHERE workspace_id = $1
+),
+deleted_issue_pr_exclusions AS (
+    DELETE FROM issue_pull_request_exclusion WHERE workspace_id = $1
+),
 deleted_agent_invocation_targets AS (
     DELETE FROM agent_invocation_target
     WHERE agent_id IN (SELECT id FROM ws_agents)
@@ -451,6 +471,13 @@ deleted_channel_task_deliveries AS (
 ),
 deleted_channel_outbound_messages AS (
     DELETE FROM channel_outbound_message
+    WHERE installation_id IN (SELECT id FROM ws_channel_installations)
+),
+-- channel_reply_delivery has no workspace_id: its only route back to a
+-- workspace is installation_id. It must be deleted while the installation rows
+-- still exist, or the leftovers become unreachable by any query.
+deleted_channel_reply_deliveries AS (
+    DELETE FROM channel_reply_delivery
     WHERE installation_id IN (SELECT id FROM ws_channel_installations)
 ),
 deleted_channel_chat_contexts AS (
@@ -545,6 +572,13 @@ DELETE FROM comment WHERE comment.workspace_id = $1;
 
 -- name: DeleteWorkspaceIssueRoots :exec
 WITH
+deleted_wakeup_receipts AS (
+    DELETE FROM issue_wakeup_receipt
+    WHERE wakeup_id IN (SELECT id FROM issue_wakeup WHERE workspace_id = $1)
+),
+deleted_wakeups AS (
+    DELETE FROM issue_wakeup WHERE workspace_id = $1
+),
 deleted_delivery_reviews AS (
     DELETE FROM issue_delivery_review WHERE workspace_id = $1
 ),
@@ -595,26 +629,6 @@ WHERE autopilot_quota_reservation.workspace_id = $1;
 DELETE FROM autopilot_quota_period
 WHERE autopilot_quota_period.workspace_id = $1;
 
--- name: DeleteWorkspaceBudgetOverrides :exec
-DELETE FROM budget_override
-WHERE budget_override.workspace_id = $1;
-
--- name: DeleteWorkspaceBudgetReservations :exec
-DELETE FROM budget_reservation
-WHERE budget_reservation.policy_id IN (
-    SELECT id FROM budget_policy WHERE workspace_id = $1
-);
-
--- name: DeleteWorkspaceBudgetPeriods :exec
-DELETE FROM budget_period
-WHERE budget_period.policy_id IN (
-    SELECT id FROM budget_policy WHERE workspace_id = $1
-);
-
--- name: DeleteWorkspaceBudgetPolicies :exec
-DELETE FROM budget_policy
-WHERE budget_policy.workspace_id = $1;
-
 -- name: DeleteWorkspaceAutopilotChildren :exec
 WITH
 deleted_triggers AS (
@@ -631,16 +645,6 @@ deleted_autopilot_memories AS (
 )
 DELETE FROM autopilot_rule_version
 WHERE autopilot_rule_version.workspace_id = $1;
-
--- name: DeleteWorkspaceInsights :exec
--- F27: pinned insight widgets and the translation-quality log. Both carry
--- workspace_id directly and neither has a FK, so they purge in one statement.
-WITH deleted_widgets AS (
-    DELETE FROM insight_widget
-    WHERE insight_widget.workspace_id = $1
-)
-DELETE FROM insight_query_log
-WHERE insight_query_log.workspace_id = $1;
 
 -- name: DeleteWorkspaceAutopilots :exec
 DELETE FROM autopilot WHERE autopilot.workspace_id = $1;
@@ -664,36 +668,6 @@ WITH deleted_squads AS (
     DELETE FROM squad WHERE squad.workspace_id = $1
 )
 DELETE FROM skill WHERE skill.workspace_id = $1;
-
--- name: DeleteWorkspaceAgentMemories :exec
-WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
-cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
--- agent_memory carries no FK by repo rule; sweep it before the agent rows it
--- logically hangs off.
-DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
-
--- name: DeleteWorkspaceAgentConsults :exec
--- agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
--- before the agent rows it logically hangs off.
-DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1;
-
--- name: DeleteWorkspacePostmortems :exec
--- postmortem carries no FK by repo rule; sweep it by workspace.
-DELETE FROM postmortem WHERE postmortem.workspace_id = $1;
-
--- name: DeleteWorkspaceAgentEffects :exec
--- agent_effect carries no FK by repo rule; sweep it by workspace.
-DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1;
-
--- name: DeleteWorkspaceNotes :exec
--- workspace_note carries no FK by repo rule; sweep the Brain by workspace,
--- with its search passages and usage rows in the same statement.
-WITH passages AS (
-    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
-), usage AS (
-    DELETE FROM workspace_note_usage WHERE workspace_note_usage.workspace_id = $1
-)
-DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1;
 
 -- name: DeleteWorkspacePluginData :exec
 -- Plugin relationships have no foreign keys or cascades. Storage and secrets
@@ -814,6 +788,66 @@ deleted_share_links AS (
 )
 DELETE FROM workspace_invitation
 WHERE workspace_invitation.workspace_id = $1;
+
+-- name: DeleteWorkspaceBudgetOverrides :exec
+DELETE FROM budget_override
+WHERE budget_override.workspace_id = $1;
+
+-- name: DeleteWorkspaceBudgetReservations :exec
+DELETE FROM budget_reservation
+WHERE budget_reservation.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPeriods :exec
+DELETE FROM budget_period
+WHERE budget_period.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPolicies :exec
+DELETE FROM budget_policy
+WHERE budget_policy.workspace_id = $1;
+
+-- name: DeleteWorkspaceInsights :exec
+-- F27: pinned insight widgets and the translation-quality log. Both carry
+-- workspace_id directly and neither has a FK, so they purge in one statement.
+WITH deleted_widgets AS (
+    DELETE FROM insight_widget
+    WHERE insight_widget.workspace_id = $1
+)
+DELETE FROM insight_query_log
+WHERE insight_query_log.workspace_id = $1;
+
+-- name: DeleteWorkspaceAgentMemories :exec
+WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
+cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
+-- agent_memory carries no FK by repo rule; sweep it before the agent rows it
+-- logically hangs off.
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
+
+-- name: DeleteWorkspaceAgentConsults :exec
+-- agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
+-- before the agent rows it logically hangs off.
+DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1;
+
+-- name: DeleteWorkspacePostmortems :exec
+-- postmortem carries no FK by repo rule; sweep it by workspace.
+DELETE FROM postmortem WHERE postmortem.workspace_id = $1;
+
+-- name: DeleteWorkspaceAgentEffects :exec
+-- agent_effect carries no FK by repo rule; sweep it by workspace.
+DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1;
+
+-- name: DeleteWorkspaceNotes :exec
+-- workspace_note carries no FK by repo rule; sweep the Brain by workspace,
+-- with its search passages and usage rows in the same statement.
+WITH passages AS (
+    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
+), usage AS (
+    DELETE FROM workspace_note_usage WHERE workspace_note_usage.workspace_id = $1
+)
+DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1;
 
 -- name: DeleteWorkspacePlanVerifications :exec
 DELETE FROM plan_verification

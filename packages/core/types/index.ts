@@ -1,4 +1,4 @@
-export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, BuiltInIssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState } from "./issue";
+export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, BuiltInIssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState, IssueDuplicateOf } from "./issue";
 export type {
   IssueStatusCategory,
   IssueStatusEntry,
@@ -41,6 +41,7 @@ export type {
   RuntimeDevice,
   RuntimeProfile,
   RuntimeProtocolFamily,
+  RuntimeProfileType,
   RuntimeProfileVisibility,
   CreateRuntimeProfileRequest,
   UpdateRuntimeProfileRequest,
@@ -120,7 +121,7 @@ export type {
   SandboxMode,
   SandboxCapabilities,
 } from "./agent";
-export { RUNTIME_PROFILE_PROTOCOL_FAMILIES } from "./agent";
+export { RUNTIME_PROFILE_PROTOCOL_FAMILIES, RUNTIME_PROFILE_RUNTIME_TYPES } from "./agent";
 export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo, McpToolRisk, McpToolClass, McpCatalogTool, McpToolPolicy, McpServerToolCatalog } from "./workspace";
 export type {
   PluginInstallation,
@@ -369,6 +370,10 @@ export type {
   GitHubPullRequestMergeable,
   GitHubPullRequestMergeStateStatus,
   GitHubPullRequestState,
+  IssuePullRequestsResponse,
+  PRAutoComplete,
+  PRAutoCompleteState,
+  PullRequestLinkSource,
   ListGitHubInstallationsResponse,
   GitHubRepository,
   ListGitHubRepositoriesResponse,
@@ -557,3 +562,6 @@ export type {
   TransferExportOptions,
   TransferSecretValues,
 } from "./transfer";
+export type { IssueWakeup, WakeupPreview, IssueWakeupSummaryRow } from "./issue-wakeup";
+
+export type { WorkspaceWakeup, WorkspaceWakeupPage, WorkspaceWakeupFilters, WakeupScope } from "./issue-wakeup";

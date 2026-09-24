@@ -16,6 +16,13 @@ itself should come back as a fresh issue each time, that is a recurrence. If
 the repeating thing is an *instruction* rather than an issue — a digest, a
 sweep — propose an autopilot.
 
+If what you are waiting for is an **event** rather than an instant — a run
+finishing, a comment landing — none of the three can express it. Use
+`multica issue wakeup --kind event` instead (`references/issues.md`). That
+command also covers the time-only shapes, so a follow-up is the right tool
+only when you want the deferred run to sit in the runs list and the agenda as
+`deferred` work.
+
 ## Follow-ups
 
 A follow-up is a row of the agent task queue with status `deferred`. It shows

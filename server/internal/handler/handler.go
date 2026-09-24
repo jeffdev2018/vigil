@@ -239,6 +239,12 @@ type DaemonPendingWorkNotifier interface {
 	NotifyPendingWork(runtimeID, kind string)
 }
 
+// DaemonTaskSupplementNotifier sends a content-free wakeup for one exact run.
+// The daemon still pulls and authenticates the durable supplement over HTTP.
+type DaemonTaskSupplementNotifier interface {
+	NotifyTaskSupplementAvailable(runtimeID, taskID string)
+}
+
 // RuntimeGoneNotifier invalidates a runtime that was deleted while its daemon
 // still has an authenticated WebSocket connection.
 type RuntimeGoneNotifier interface {
@@ -310,7 +316,8 @@ type Handler struct {
 	// heartbeat-carried requests (MUL-5444). Optional: when nil,
 	// requestDaemonPendingWork falls back to the local DaemonHub, which is the
 	// correct delivery scope for a single-node deployment.
-	DaemonPendingWork DaemonPendingWorkNotifier
+	DaemonPendingWork    DaemonPendingWorkNotifier
+	DaemonTaskSupplement DaemonTaskSupplementNotifier
 	// ModelCatalogCache serves the last known good model list for a runtime so
 	// the picker can render without waiting for a daemon round trip
 	// (stale-while-revalidate, MUL-5444). Nil-safe: every call site treats a nil
@@ -1377,8 +1384,8 @@ func splitIdentifier(id string) *identifierParts {
 // the configured value, or one generated from the workspace name when the
 // stored prefix is empty (e.g. workspaces created before the prefix was
 // introduced). Split out from getIssuePrefix so callers that already hold the
-// row — such as the GitHub close-intent scan, which must not re-read it — can
-// reuse the rule.
+// row — such as the GitHub auto-link reconciliation, which must not re-read
+// it — can reuse the rule.
 //
 // The empty-prefix fallback stays on the FROZEN name-based derivation, not the
 // slug-based one new workspaces get (MUL-6050): identifiers are computed at

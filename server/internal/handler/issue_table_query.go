@@ -102,7 +102,10 @@ type issueTableFiltersRequest struct {
 	// is what keeps a saved view holding a since-archived type from failing the
 	// whole request.
 	IssueTypes []string `json:"issue_types,omitempty"`
-	LabelIDs   []string `json:"label_ids,omitempty"`
+	// ProjectStatuses filters on the parent project's lifecycle status
+	// (`validProjectStatuses`), independently of ProjectIDs.
+	ProjectStatuses []string `json:"project_statuses,omitempty"`
+	LabelIDs        []string `json:"label_ids,omitempty"`
 	// Members are raw JSON so operator objects ({op, value}) and plain
 	// strings both survive the round-trip into parsePropertiesFilterParam.
 	Properties       map[string][]json.RawMessage `json:"properties,omitempty"`
@@ -273,6 +276,7 @@ func canonicalIssueTableFingerprint(workspaceID string, spec issueTableQuerySpec
 	normalized.Filters.Priorities = sortedUniqueStrings(normalized.Filters.Priorities)
 	normalized.Filters.ProjectIDs = sortedUniqueStrings(normalized.Filters.ProjectIDs)
 	normalized.Filters.CycleIDs = sortedUniqueStrings(normalized.Filters.CycleIDs)
+	normalized.Filters.ProjectStatuses = sortedUniqueStrings(normalized.Filters.ProjectStatuses)
 	normalized.Filters.LabelIDs = sortedUniqueStrings(normalized.Filters.LabelIDs)
 	normalized.Filters.Assignees = sortedUniqueActors(normalized.Filters.Assignees)
 	normalized.Filters.WorkingIssueIDs = sortedUniqueStrings(normalized.Filters.WorkingIssueIDs)
@@ -636,6 +640,24 @@ func (h *Handler) compileIssueTableQuery(w http.ResponseWriter, r *http.Request,
 
 	if len(spec.Filters.IssueTypes) > 0 {
 		where = append(where, fmt.Sprintf("i.issue_type = ANY(%s::text[])", addArg(spec.Filters.IssueTypes)))
+	}
+
+	if len(spec.Filters.ProjectStatuses) > 0 {
+		for _, status := range spec.Filters.ProjectStatuses {
+			if !validateProjectEnum(w, "filters.project_statuses", status, validProjectStatuses) {
+				return issueTableSQL{}, false
+			}
+		}
+		// A projectless issue has no row to match, so EXISTS is false and the
+		// issue drops out — "no project" is deliberately not a project status.
+		// `p.workspace_id = i.workspace_id` is not redundant: the schema has no
+		// foreign keys by design, so a stale or corrupt `issue.project_id` can
+		// name a project in another workspace. Without the bound, that
+		// tenant's project status would decide this row's membership.
+		where = append(where, fmt.Sprintf(
+			"EXISTS (SELECT 1 FROM project p WHERE p.id = i.project_id AND p.workspace_id = i.workspace_id AND p.status = ANY(%s::text[]))",
+			addArg(spec.Filters.ProjectStatuses),
+		))
 	}
 
 	labelIDs, ok := parseIssueTableUUIDList(w, spec.Filters.LabelIDs, "filters.label_ids")

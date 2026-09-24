@@ -4,8 +4,6 @@
     "new_autopilot": "Nouvelle automatisation",
     "start_blank": "Partir de zéro",
     "table": {
-      "select_all": "Sélectionner toutes les automatisations",
-      "select_autopilot": "Sélectionner {{name}}",
       "name": "Nom",
       "agent": "Agent",
       "created_by": "Créé par",
@@ -15,7 +13,9 @@
       "assignee": "Assigné à",
       "trigger": "Déclencheur",
       "next_run": "Prochaine exécution",
-      "created": "Création"
+      "created": "Création",
+      "select_all": "Sélectionner toutes les automatisations",
+      "select_autopilot": "Sélectionner {{name}}"
     },
     "last_run_empty": "--",
     "empty": {
@@ -30,8 +30,8 @@
     "active": "Active",
     "paused": "En pause",
     "paused_runtime_required": "En pause — l'assigné a besoin d'un runtime",
-    "paused_failure_rate": "En pause — trop d'exécutions ont échoué",
-    "archived": "Archivée"
+    "archived": "Archivée",
+    "paused_failure_rate": "En pause — trop d'exécutions ont échoué"
   },
   "execution_mode": {
     "create_issue": "Créer une tâche",
@@ -74,7 +74,6 @@
     "pause_aria": "Mettre l'automatisation en pause",
     "activate_aria": "Activer l'automatisation",
     "paused_runtime_required": "En pause car l'assigné a perdu son runtime. Associez un runtime, puis réactivez cette automatisation.",
-    "paused_failure_rate": "Mise en pause automatique car trop d'exécutions récentes ont échoué. Analysez les échecs, corrigez la cause racine, puis réactivez cet autopilot.",
     "bind_runtime": "Associer un runtime",
     "edit": "Modifier",
     "run_now": "Exécuter maintenant",
@@ -84,6 +83,7 @@
     "run_blocked_invocation_not_allowed": "Non déclenchée — vous n'avez pas la permission d'utiliser l'agent de cette automatisation",
     "run_blocked_runtime_offline": "Non déclenchée — le runtime de l'agent est hors ligne",
     "run_blocked_agent_runtime_required": "Non déclenchée — l'agent n'a pas de runtime ; associez-en un pour l'exécuter",
+    "run_blocked_runtime_access_denied": "Non déclenchée — l'agent ne peut pas s'exécuter sur son runtime privé ; passez-le en public ou réassociez/copiez l'agent",
     "run_blocked_target_unavailable": "Non déclenchée — l'agent est indisponible",
     "run_blocked_attribution": "Non déclenchée — l'exécution n'a pas pu être attribuée à un membre responsable",
     "run_blocked_already_active": "Non déclenchée — une exécution récente couvre déjà ce cas",
@@ -116,6 +116,7 @@
       "confirm": "Supprimer",
       "deleting": "Suppression..."
     },
+    "paused_failure_rate": "Mise en pause automatique car trop d'exécutions récentes ont échoué. Analysez les échecs, corrigez la cause racine, puis réactivez cet autopilot.",
     "load_more": "Charger plus",
     "loading_more": "Chargement…",
     "showing_count": "{{shown}} sur {{total}}"
@@ -175,8 +176,6 @@
   },
   "trigger_row": {
     "disabled_badge": "Désactivé",
-    "enable_aria": "Activer le trigger",
-    "edit_trigger": "Modifier le trigger",
     "deprecated_badge": "Obsolète",
     "next_label": "Prochaine : {{date}}",
     "webhook_url_label": "URL du webhook",
@@ -186,6 +185,7 @@
     "copy_url": "Copier l'URL",
     "url_copied": "URL du webhook copiée",
     "url_copy_failed": "Échec de la copie",
+    "edit_schedule": "Modifier la planification",
     "rotate_url": "Renouveler l'URL",
     "rotate_confirm_title": "Renouveler l'URL du webhook",
     "rotate_confirm_description": "L'URL actuelle cessera de fonctionner immédiatement. Tous les systèmes externes qui l'appellent devront être mis à jour avec la nouvelle. Continuer ?",
@@ -196,16 +196,18 @@
     "toast_rotate_failed": "Échec du renouvellement de l'URL",
     "toast_deleted": "Déclencheur supprimé",
     "toast_delete_failed": "Échec de la suppression du déclencheur",
-    "toast_enabled": "Trigger activé",
-    "toast_disabled": "Trigger désactivé",
-    "toast_toggle_failed": "Échec de la mise à jour du trigger",
     "delete_dialog": {
       "title": "Supprimer le déclencheur",
       "description": "Ce déclencheur sera retiré et l'automatisation cessera de se déclencher selon cette planification. Cette action est irréversible.",
       "cancel": "Annuler",
       "confirm": "Supprimer",
       "deleting": "Suppression..."
-    }
+    },
+    "enable_aria": "Activer le trigger",
+    "edit_trigger": "Modifier le trigger",
+    "toast_enabled": "Trigger activé",
+    "toast_disabled": "Trigger désactivé",
+    "toast_toggle_failed": "Échec de la mise à jour du trigger"
   },
   "deliveries": {
     "section_title": "Livraisons de webhooks",
@@ -220,16 +222,6 @@
       "rejected": "Rejetée",
       "ignored": "Ignorée",
       "failed": "En échec"
-    },
-    "reason": {
-      "trigger_disabled": "Trigger désactivé",
-      "autopilot_paused": "Autopilot en pause",
-      "autopilot_archived": "Autopilot archivé",
-      "event_filtered": "Événement filtré",
-      "criteria_not_matched": "Critères non correspondants",
-      "quota_exceeded": "Limite d'exécutions atteinte",
-      "invalid_signature": "Signature invalide",
-      "missing_signature": "Signature manquante"
     },
     "signature": {
       "not_required": "Aucune signature",
@@ -250,10 +242,10 @@
       "content_type": "Content-Type",
       "replayed_from": "Rejouée depuis",
       "error_label": "Erreur",
-      "reason_label": "Raison",
       "raw_body": "Corps brut",
       "selected_headers": "En-têtes",
-      "response_body": "Corps de la réponse"
+      "response_body": "Corps de la réponse",
+      "reason_label": "Raison"
     },
     "replay": {
       "action": "Rejouer",
@@ -263,49 +255,17 @@
       "disabled_invalid_signature": "Rejeu impossible — la signature était invalide",
       "disabled_rejected": "Impossible de rejouer une livraison rejetée",
       "disabled_queued": "Encore en file d'attente — rejouez une fois qu'elle sera traitée"
+    },
+    "reason": {
+      "trigger_disabled": "Trigger désactivé",
+      "autopilot_paused": "Autopilot en pause",
+      "autopilot_archived": "Autopilot archivé",
+      "event_filtered": "Événement filtré",
+      "criteria_not_matched": "Critères non correspondants",
+      "quota_exceeded": "Limite d'exécutions atteinte",
+      "invalid_signature": "Signature invalide",
+      "missing_signature": "Signature manquante"
     }
-  },
-  "dry_run": {
-    "open": "Tester avec un événement d'exemple",
-    "title": "Tester avec un événement d'exemple",
-    "description": "Rejoue ce payload à travers toute la décision de livraison : filtres, critères de routage, état de pause et limite de runs. Rien n'est enregistré : ni livraison, ni run.",
-    "sample_label": "Exemple",
-    "payload_label": "Payload de l'événement (JSON)",
-    "run": "Lancer le test",
-    "running": "En cours…",
-    "replay_action": "Rejouer en test",
-    "invalid_json": "JSON invalide : {{message}}",
-    "invalid_shape": "Le payload doit être un objet ou un tableau JSON.",
-    "verdict_would_run": "Cet événement déclencherait l'autopilote",
-    "verdict_blocked": "Cet événement ne déclencherait pas l'autopilote",
-    "verdict_unreadable": "Le verdict n'a pas pu être lu",
-    "matched_filters": "Filtres satisfaits :",
-    "toast_failed": "Le test a échoué"
-  },
-  "next_runs": {
-    "label": "Prochains runs",
-    "loading": "Chargement…",
-    "unavailable": "Prochains runs indisponibles",
-    "never": "Cette planification ne se déclenchera plus.",
-    "blocked": "Ne se déclencherait pas : {{reason}}",
-    "blocked_unknown": "bloqué",
-    "window_hint": "Se déclenche à une minute aléatoire dans les {{minutes}} minutes suivant l'heure planifiée."
-  },
-  "signing_secret": {
-    "label": "Secret de signature",
-    "hint": "Une fois défini, chaque livraison doit porter X-Hub-Signature-256: sha256=<HMAC-SHA256 hexadécimal du corps brut, signé avec ce secret>. Les livraisons non signées ou mal signées sont refusées avec un 401.",
-    "not_configured": "Aucun secret de signature : l'URL du webhook suffit à authentifier les appelants.",
-    "configured": "Configuré (se termine par {{hint}}).",
-    "shown_once": "Copiez-le maintenant : il n'est affiché qu'une seule fois.",
-    "generate": "Générer un secret de signature",
-    "rotate": "Renouveler le secret de signature",
-    "clear": "Supprimer",
-    "copy": "Copier le secret",
-    "copied": "Secret de signature copié",
-    "copy_failed": "Échec de la copie",
-    "toast_rotated": "Secret de signature mis à jour : les émetteurs doivent être reconfigurés",
-    "toast_cleared": "Secret de signature supprimé",
-    "toast_failed": "Échec de la mise à jour du secret de signature"
   },
   "add_trigger_dialog": {
     "title": "Ajouter un déclencheur",
@@ -323,8 +283,13 @@
   },
   "edit_trigger_dialog": {
     "title": "Modifier le trigger",
+    "label_field": "Libellé (facultatif)",
+    "label_placeholder": "ex. Matin en semaine",
+    "enabled_label": "Activé",
     "submit": "Enregistrer le trigger",
     "submitting": "Enregistrement...",
+    "toast_updated": "Planification mise à jour",
+    "toast_update_failed": "Échec de la mise à jour de la planification",
     "toast_saved": "Trigger mis à jour",
     "toast_save_failed": "Échec de la mise à jour du trigger"
   },
@@ -388,7 +353,7 @@
     "event_filter_add": "Ajouter",
     "event_filter_remove_label": "Retirer le filtre",
     "event_filter_hint": "Ne traiter que les webhooks correspondant à ces événements. Laissez vide pour tous les accepter.",
-    "schedule_disabled_reason": "Cette automatisation a plusieurs planifications — modifiez-les depuis la page de détail.",
+    "schedule_multiple_notice": "Cette automatisation a {{count}} planifications. Fermez cette fenêtre et modifiez chacune dans la liste Déclencheurs ci-dessous.",
     "schedule_empty": "Aucune planification — cette automatisation ne s'exécute que sur déclenchement manuel.",
     "schedule_add": "Ajouter une planification",
     "error_title_required": "Saisissez un nom pour cette automatisation.",
@@ -403,6 +368,7 @@
         "description": "Exécution silencieuse, aucune tâche créée"
       }
     },
+    "schedule_disabled_reason": "Cette automatisation a plusieurs planifications — modifiez-les depuis la page de détail.",
     "event_criteria_label": "S'exécuter uniquement quand…",
     "event_criteria_placeholder": "ex. échecs de déploiement en production, ou PR touchant à la facturation",
     "event_criteria_hint": "Décrivez avec vos propres mots les événements devant déclencher cet autopilot. Chaque livraison est évaluée selon ce critère, de manière souple : en cas de doute, l'autopilot s'exécute. Laissez vide pour vous appuyer uniquement sur les filtres d'événements.",
@@ -537,7 +503,6 @@
     "selected_one": "{{count}} sélectionnée",
     "selected_other": "{{count}} sélectionnées",
     "clear_selection": "Effacer la sélection",
-    "status_partial": "{{succeeded}} mis à jour, {{failed}} échoué(s).",
     "delete_dialog": {
       "title": "Supprimer l'automatisation ?",
       "description_one": "« {{name}} » et son historique d'exécutions seront définitivement supprimés.",
@@ -547,7 +512,98 @@
       "confirm": "Supprimer définitivement",
       "deleting": "Suppression…",
       "partial": "{{succeeded}} supprimé(s), {{failed}} échoué(s)."
-    }
+    },
+    "status_partial": "{{succeeded}} mis à jour, {{failed}} échoué(s)."
+  },
+  "wakeups": {
+    "title": "Réveils de tâches",
+    "scope": "Périmètre",
+    "issue": "Tâche",
+    "trigger": "Déclencheur",
+    "next": "État du réveil",
+    "enabled": "Activé",
+    "all_triggers": "Tous les déclencheurs",
+    "event": "Événement",
+    "at": "Ponctuel",
+    "recurring": "Récurrent",
+    "all_agents": "Tous les agents",
+    "search": "Rechercher des tâches ou agents",
+    "search_action": "Rechercher",
+    "running": "En cours",
+    "active_runs": "{{count}} exécutions actives",
+    "issue_closed": "Tâche fermée",
+    "read_only": "Seuls le créateur ou un administrateur peuvent gérer ce réveil",
+    "select_row": "Sélectionner {{issue}}, {{agent}}",
+    "select_page": "Sélectionner les réveils activés sur cette page",
+    "load_error": "Impossible de charger les réveils",
+    "loading": "Chargement des réveils…",
+    "empty": "Aucune règle de réveil",
+    "selected": "{{count}} sélectionnés",
+    "disable_selected": "Désactiver la sélection",
+    "clear": "Effacer la sélection",
+    "results": "Page {{page}} · {{count}} résultats",
+    "previous": "Précédent",
+    "next_page": "Suivant",
+    "confirm_title": "Désactiver {{count}} réveils ?",
+    "confirm_body": "Les réveils futurs seront arrêtés. Les exécutions en file non confiées à un agent seront retirées. Les exécutions déjà confiées continueront ; arrêtez-les depuis le journal d’exécution.",
+    "cancel": "Annuler",
+    "confirm": "Désactiver",
+    "disabling": "Désactivation…",
+    "batch_result": "Désactivés : {{succeeded}}. Échecs : {{failed}}.",
+    "scopes": {
+      "active": "En attente ou en cours",
+      "all": "Tous",
+      "disabled": "Désactivés",
+      "ended": "Terminés"
+    },
+    "target_agent": "Agent à réveiller",
+    "wakeup_run": "Exécutions du réveil",
+    "empty_filtered": "Aucun réveil correspondant",
+    "clear_filters": "Effacer les filtres",
+    "batch_success": "{{count}} règles désactivées",
+    "batch_partial": "{{succeeded}} désactivées ; {{failed}} échecs. Les éléments en échec restent sélectionnés pour réessayer."
+  },
+  "dry_run": {
+    "open": "Tester avec un événement d'exemple",
+    "title": "Tester avec un événement d'exemple",
+    "description": "Rejoue ce payload à travers toute la décision de livraison : filtres, critères de routage, état de pause et limite de runs. Rien n'est enregistré : ni livraison, ni run.",
+    "sample_label": "Exemple",
+    "payload_label": "Payload de l'événement (JSON)",
+    "run": "Lancer le test",
+    "running": "En cours…",
+    "replay_action": "Rejouer en test",
+    "invalid_json": "JSON invalide : {{message}}",
+    "invalid_shape": "Le payload doit être un objet ou un tableau JSON.",
+    "verdict_would_run": "Cet événement déclencherait l'autopilote",
+    "verdict_blocked": "Cet événement ne déclencherait pas l'autopilote",
+    "verdict_unreadable": "Le verdict n'a pas pu être lu",
+    "matched_filters": "Filtres satisfaits :",
+    "toast_failed": "Le test a échoué"
+  },
+  "next_runs": {
+    "label": "Prochains runs",
+    "loading": "Chargement…",
+    "unavailable": "Prochains runs indisponibles",
+    "never": "Cette planification ne se déclenchera plus.",
+    "blocked": "Ne se déclencherait pas : {{reason}}",
+    "blocked_unknown": "bloqué",
+    "window_hint": "Se déclenche à une minute aléatoire dans les {{minutes}} minutes suivant l'heure planifiée."
+  },
+  "signing_secret": {
+    "label": "Secret de signature",
+    "hint": "Une fois défini, chaque livraison doit porter X-Hub-Signature-256: sha256=<HMAC-SHA256 hexadécimal du corps brut, signé avec ce secret>. Les livraisons non signées ou mal signées sont refusées avec un 401.",
+    "not_configured": "Aucun secret de signature : l'URL du webhook suffit à authentifier les appelants.",
+    "configured": "Configuré (se termine par {{hint}}).",
+    "shown_once": "Copiez-le maintenant : il n'est affiché qu'une seule fois.",
+    "generate": "Générer un secret de signature",
+    "rotate": "Renouveler le secret de signature",
+    "clear": "Supprimer",
+    "copy": "Copier le secret",
+    "copied": "Secret de signature copié",
+    "copy_failed": "Échec de la copie",
+    "toast_rotated": "Secret de signature mis à jour : les émetteurs doivent être reconfigurés",
+    "toast_cleared": "Secret de signature supprimé",
+    "toast_failed": "Échec de la mise à jour du secret de signature"
   },
   "daemon_import": {
     "open": "Importer un DAEMON.md",

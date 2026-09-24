@@ -2020,7 +2020,9 @@ func TestStartTask_AutopilotRunOnlyTask_ResolvesWorkspace(t *testing.T) {
 
 	// Same-workspace daemon token must succeed — this is the bug in #1224.
 	w = httptest.NewRecorder()
-	req = newDaemonTokenRequest("POST", "/api/daemon/tasks/"+taskID+"/start", nil,
+	req = newDaemonTokenRequest("POST", "/api/daemon/tasks/"+taskID+"/start", map[string]any{
+		"capabilities": []string{protocol.DaemonCapabilityTaskSupplementV1},
+	},
 		testWorkspaceID, "legit-daemon")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
@@ -2033,6 +2035,11 @@ func TestStartTask_AutopilotRunOnlyTask_ResolvesWorkspace(t *testing.T) {
 	dbfx.QueryRow(t, `SELECT status FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status)
 	if status != "running" {
 		t.Fatalf("expected task status 'running' after StartTask, got %q", status)
+	}
+	var capabilityRows int
+	dbfx.QueryRow(t, `SELECT count(*) FROM task_supplement_capability WHERE task_id = $1`, taskID).Scan(&capabilityRows)
+	if capabilityRows != 0 {
+		t.Fatalf("run-only autopilot persisted %d supplement capabilities, want 0", capabilityRows)
 	}
 }
 
@@ -4925,4 +4932,26 @@ func TestCancelTask_MalformedTaskID_Returns400(t *testing.T) {
 	req := newRequest("POST", "/api/issues/"+issueID+"/tasks/not-a-uuid/cancel", nil)
 	req = withURLParams(req, "id", issueID, "taskId", "not-a-uuid")
 	testutil.Call(t, testHandler.CancelTask, req).Want(http.StatusBadRequest)
+}
+
+func TestDaemonRegister_ProfileUsesStoredRuntimeIdentity(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	profileID := insertRuntimeProfileFixture(t, ctx, "Custom OMP", "pi", "wrapper")
+	if _, err := testPool.Exec(ctx, `UPDATE runtime_profile SET runtime_type = 'omp' WHERE id = $1`, profileID); err != nil {
+		t.Fatal(err)
+	}
+	req := newDaemonTokenRequest("POST", "/api/daemon/register", map[string]any{
+		"workspace_id": testWorkspaceID, "daemon_id": "test-omp-profile", "device_name": "test-device",
+		"runtimes": []map[string]any{{"name": "Custom OMP", "type": "pi", "profile_id": profileID, "status": "online"}},
+	}, testWorkspaceID, "test-omp-profile")
+	testutil.Call(t, testHandler.DaemonRegister, req).Want(http.StatusOK)
+	t.Cleanup(func() { testPool.Exec(ctx, `DELETE FROM agent_runtime WHERE profile_id = $1`, profileID) })
+	var provider string
+	dbfx.QueryRow(t, `SELECT provider FROM agent_runtime WHERE profile_id = $1`, profileID).Scan(&provider)
+	if provider != "omp" {
+		t.Fatalf("provider = %q, want stored omp identity", provider)
+	}
 }

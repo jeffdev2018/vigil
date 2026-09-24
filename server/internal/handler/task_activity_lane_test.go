@@ -66,6 +66,15 @@ var createActivityCallSites = map[string]createActivityCallSite{
 			"lineage. The row belongs to the issue's timeline, not to a run lane.",
 		wantSource: `ActorType:   pgtype.Text{String: "system", Valid: true},`,
 	},
+	"internal/handler/pr_auto_complete.go": {
+		file:         "internal/handler/pr_auto_complete.go",
+		stampsTaskID: true,
+		why: "SetIssuePRAutoComplete toggle. resolveActor returns an agent actor " +
+			"whenever the request carries a task token, so a run can flip this " +
+			"setting on its own issue; recordPRAutoCompleteActivity stamps task_id " +
+			"from actingTaskID so the change still appears in that run's lane.",
+		wantSource: `detailsMap["task_id"] = util.UUIDToString(taskID)`,
+	},
 	"internal/handler/agent_env.go": {
 		file:         "internal/handler/agent_env.go",
 		stampsTaskID: false,

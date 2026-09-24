@@ -2148,6 +2148,16 @@ WHERE id = (
     WHERE atq.agent_id = $2
       AND atq.runtime_id = $3
       AND atq.status = 'queued'
+      -- A wakeup's task is only claimable while the wakeup that scheduled it
+      -- is still live and unchanged. Without this, a disabled or edited
+      -- wakeup's stale row is claimed, then rejected downstream by CheckClaim:
+      -- one poll cycle lost and one spurious failed run per stale row.
+      AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+          SELECT 1 FROM issue_wakeup w
+          WHERE w.id = (atq.context->>'wakeup_id')::uuid
+            AND w.disabled_at IS NULL
+            AND w.revision = (atq.context->>'wakeup_revision')::bigint
+      ))
 	  AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
       AND EXISTS (
           SELECT 1
@@ -2178,21 +2188,17 @@ WHERE id = (
                      WHERE p.id = a.runtime_pool_id
                        AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
                  ))
-            -- Private runtimes only execute their owner's agents. Ownerless
-            -- runtime/agent rows remain claimable only so the handler can
-            -- settle them explicitly before daemon delivery; filtering them
-            -- here would leave every task silently queued until the TTL.
-            -- Public runtimes remain shareable across agent owners.
+            -- A queued private-runtime row stays claimable even when the
+            -- runtime and the agent have different owners, so the handler can
+            -- settle the mismatch through the existing FailTask path and the
+            -- user reads the explicit "different owners" message. Filtering
+            -- the mismatch out here would leave the task silently queued until
+            -- the TTL with nothing to read. Public runtimes remain shareable
+            -- across agent owners; the dispatched reclaim keeps the strict
+            -- owner fence, which is where that barrier belongs.
             AND (
                 r.visibility = 'public'
-                OR (
-                    r.visibility = 'private'
-                    AND (
-                        r.owner_id IS NULL
-                        OR a.owner_id IS NULL
-                        OR r.owner_id = a.owner_id
-                    )
-                )
+                OR r.visibility = 'private'
             )
             AND r.status = 'online'
             AND COALESCE(r.last_seen_at, r.updated_at) >=
@@ -3391,10 +3397,6 @@ type CreateDeferredAgentTaskParams struct {
 	ID                   pgtype.UUID        `json:"id"`
 }
 
-// Upstream removed this query with the delayed comment-assignee fallback it was
-// written for (multica-ai#8174). It survives here because this fork grew a
-// second, unrelated caller: nativeScheduleFollowup, the native runtime's
-// "remind me in N days" tool. The escalation caller is gone; the query is not.
 // Fenced against workspace teardown: lock_task_owner_rows (migration 284)
 // locks the owners' workspace rows in the writer's own transaction and returns
 // false once they are gone, so this statement writes no row instead of stranding
@@ -4493,7 +4495,7 @@ func (q *Queries) DeleteUnstartedQuickCreateRetryTask(ctx context.Context, taskI
 const expireStaleQueuedTasks = `-- name: ExpireStaleQueuedTasks :many
 WITH victims AS (
     SELECT id FROM agent_task_queue
-    WHERE status = 'queued'
+    WHERE status = 'queued' AND context->>'wakeup_id' IS NULL
       AND created_at < now() - make_interval(secs => $1::double precision)
       AND (
           runtime_id IS NULL
@@ -6597,7 +6599,7 @@ func (q *Queries) HasActiveTaskForIssueAndAgentInThread(ctx context.Context, arg
 
 const hasPendingTaskForIssue = `-- name: HasPendingTaskForIssue :one
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND status IN ('queued', 'dispatched')
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND status IN ('queued', 'dispatched')
 `
 
 // Returns true if there is a queued or dispatched (but not yet running) task for the issue.
@@ -6613,7 +6615,7 @@ func (q *Queries) HasPendingTaskForIssue(ctx context.Context, issueID pgtype.UUI
 
 const hasPendingTaskForIssueAndAgent = `-- name: HasPendingTaskForIssueAndAgent :one
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
     OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
@@ -6650,7 +6652,7 @@ func (q *Queries) HasPendingTaskForIssueAndAgent(ctx context.Context, arg HasPen
 
 const hasPendingTaskForIssueAndAgentExcludingTriggerComment = `-- name: HasPendingTaskForIssueAndAgentExcludingTriggerComment :one
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1
   AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
@@ -6688,7 +6690,7 @@ func (q *Queries) HasPendingTaskForIssueAndAgentExcludingTriggerComment(ctx cont
 
 const hasPendingTaskForIssueAndAgentExcludingTriggerCommentInThread = `-- name: HasPendingTaskForIssueAndAgentExcludingTriggerCommentInThread :one
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1
   AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
@@ -6726,7 +6728,7 @@ func (q *Queries) HasPendingTaskForIssueAndAgentExcludingTriggerCommentInThread(
 
 const hasPendingTaskForIssueAndAgentInThread = `-- name: HasPendingTaskForIssueAndAgentInThread :one
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
-WHERE issue_id = $1 AND agent_id = $2
+WHERE context->>'wakeup_id' IS NULL AND issue_id = $1 AND agent_id = $2
   AND (
     status IN ('queued', 'dispatched')
     OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
@@ -6819,6 +6821,7 @@ func (q *Queries) HasTaskCoveringDelegatedFailureComment(ctx context.Context, ar
 }
 
 const linkTaskToIssue = `-- name: LinkTaskToIssue :exec
+
 UPDATE agent_task_queue
 SET issue_id = $2
 WHERE id = $1 AND issue_id IS NULL
@@ -6830,6 +6833,10 @@ type LinkTaskToIssueParams struct {
 	IssueID pgtype.UUID `json:"issue_id"`
 }
 
+// Upstream removed this query with the delayed comment-assignee fallback it was
+// written for (multica-ai#8174). It survives here because this fork grew a
+// second, unrelated caller: nativeScheduleFollowup, the native runtime's
+// "remind me in N days" tool. The escalation caller is gone; the query is not.
 // Fenced against workspace teardown: lock_task_owner_rows (migration 284)
 // locks the owners' workspace rows in the writer's own transaction and returns
 // false once they are gone, so this statement writes no row instead of stranding
@@ -7940,6 +7947,13 @@ const listQueuedClaimCandidatesByRuntime = `-- name: ListQueuedClaimCandidatesBy
 SELECT atq.id, atq.agent_id, atq.issue_id, atq.status, atq.priority, atq.dispatched_at, atq.started_at, atq.completed_at, atq.result, atq.error, atq.created_at, atq.context, atq.runtime_id, atq.session_id, atq.work_dir, atq.trigger_comment_id, atq.chat_session_id, atq.autopilot_run_id, atq.attempt, atq.max_attempts, atq.parent_task_id, atq.failure_reason, atq.trigger_summary, atq.force_fresh_session, atq.is_leader_task, atq.wait_reason, atq.initiator_user_id, atq.handoff_note, atq.prepare_lease_expires_at, atq.squad_id, atq.runtime_mcp_overlay, atq.escalation_for_task_id, atq.fire_at, atq.originator_user_id, atq.runtime_connected_apps, atq.coalesced_comment_ids, atq.delivered_comment_ids, atq.chat_input_task_id, atq.chat_finalize_deferred_at, atq.originator_source, atq.delegated_from_task_id, atq.retry_of_task_id, atq.rerun_of_task_id, atq.rule_version_id, atq.trigger_evidence_kind, atq.trigger_evidence_ref_id, atq.accountable_user_id, atq.session_rollout_missing, atq.retired_session_id, atq.quick_actions_disabled, atq.regenerate_quick_actions_for, atq.branch_name, atq.durable_work_dir, atq.channel_context_revision, atq.last_activity_at, atq.permission_profile_id, atq.failover_history, atq.routing_decision, atq.pause_requested_at, atq.resumed_by_task_id, atq.last_checkpoint_seq, atq.checkpoint_attempts, atq.checkpointed_at, atq.touched_paths, atq.drift_reason, atq.preempted_at, atq.preempted_by_task_id, atq.review_of_task_id, atq.task_class, atq.routing, atq.safe_mode, atq.model_key_id, atq.confidence, atq.leg_role, atq.workflow_root_task_id, atq.dispatch_lane, atq.checkpoint_sha, atq.turn_seq, atq.a2a_depth, atq.run_group_id, atq.model_override, atq.diff_stat, atq.diff_unified, atq.memory_context, atq.comment_thread_id, atq.runtime_pinned, atq.promoted_at, atq.promote_pr_url, atq.discarded_at, atq.halt_frozen_at, atq.cancelled_by_type, atq.cancelled_by_id, atq.cancelled_by_name, atq.issue_snapshot FROM agent_task_queue atq
 WHERE atq.runtime_id = $1
   AND atq.status = 'queued'
+  -- Keep in sync with ClaimAgentTask's wakeup freshness guard.
+  AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+      SELECT 1 FROM issue_wakeup w
+      WHERE w.id = (atq.context->>'wakeup_id')::uuid
+        AND w.disabled_at IS NULL
+        AND w.revision = (atq.context->>'wakeup_revision')::bigint
+  ))
 	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
@@ -7965,16 +7979,11 @@ WHERE atq.runtime_id = $1
                  WHERE p.id = a.runtime_pool_id
                    AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
              ))
+        -- Same owner carve-out as ClaimAgentTask: an owner mismatch is
+        -- settled by the handler, not hidden by the fence.
         AND (
             r.visibility = 'public'
-            OR (
-                r.visibility = 'private'
-                AND (
-                    r.owner_id IS NULL
-                    OR a.owner_id IS NULL
-                    OR r.owner_id = a.owner_id
-                )
-            )
+            OR r.visibility = 'private'
         )
   )
 ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC
@@ -8109,6 +8118,13 @@ const listQueuedClaimCandidatesByRuntimes = `-- name: ListQueuedClaimCandidatesB
 SELECT atq.id, atq.agent_id, atq.issue_id, atq.status, atq.priority, atq.dispatched_at, atq.started_at, atq.completed_at, atq.result, atq.error, atq.created_at, atq.context, atq.runtime_id, atq.session_id, atq.work_dir, atq.trigger_comment_id, atq.chat_session_id, atq.autopilot_run_id, atq.attempt, atq.max_attempts, atq.parent_task_id, atq.failure_reason, atq.trigger_summary, atq.force_fresh_session, atq.is_leader_task, atq.wait_reason, atq.initiator_user_id, atq.handoff_note, atq.prepare_lease_expires_at, atq.squad_id, atq.runtime_mcp_overlay, atq.escalation_for_task_id, atq.fire_at, atq.originator_user_id, atq.runtime_connected_apps, atq.coalesced_comment_ids, atq.delivered_comment_ids, atq.chat_input_task_id, atq.chat_finalize_deferred_at, atq.originator_source, atq.delegated_from_task_id, atq.retry_of_task_id, atq.rerun_of_task_id, atq.rule_version_id, atq.trigger_evidence_kind, atq.trigger_evidence_ref_id, atq.accountable_user_id, atq.session_rollout_missing, atq.retired_session_id, atq.quick_actions_disabled, atq.regenerate_quick_actions_for, atq.branch_name, atq.durable_work_dir, atq.channel_context_revision, atq.last_activity_at, atq.permission_profile_id, atq.failover_history, atq.routing_decision, atq.pause_requested_at, atq.resumed_by_task_id, atq.last_checkpoint_seq, atq.checkpoint_attempts, atq.checkpointed_at, atq.touched_paths, atq.drift_reason, atq.preempted_at, atq.preempted_by_task_id, atq.review_of_task_id, atq.task_class, atq.routing, atq.safe_mode, atq.model_key_id, atq.confidence, atq.leg_role, atq.workflow_root_task_id, atq.dispatch_lane, atq.checkpoint_sha, atq.turn_seq, atq.a2a_depth, atq.run_group_id, atq.model_override, atq.diff_stat, atq.diff_unified, atq.memory_context, atq.comment_thread_id, atq.runtime_pinned, atq.promoted_at, atq.promote_pr_url, atq.discarded_at, atq.halt_frozen_at, atq.cancelled_by_type, atq.cancelled_by_id, atq.cancelled_by_name, atq.issue_snapshot FROM agent_task_queue atq
 WHERE atq.runtime_id = ANY($1::uuid[])
   AND atq.status = 'queued'
+  -- Keep in sync with ClaimAgentTask's wakeup freshness guard.
+  AND (atq.context->>'wakeup_id' IS NULL OR EXISTS (
+      SELECT 1 FROM issue_wakeup w
+      WHERE w.id = (atq.context->>'wakeup_id')::uuid
+        AND w.disabled_at IS NULL
+        AND w.revision = (atq.context->>'wakeup_revision')::bigint
+  ))
 	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
@@ -8134,16 +8150,11 @@ WHERE atq.runtime_id = ANY($1::uuid[])
                  WHERE p.id = a.runtime_pool_id
                    AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
              ))
+        -- Same owner carve-out as ClaimAgentTask: an owner mismatch is
+        -- settled by the handler, not hidden by the fence.
         AND (
             r.visibility = 'public'
-            OR (
-                r.visibility = 'private'
-                AND (
-                    r.owner_id IS NULL
-                    OR a.owner_id IS NULL
-                    OR r.owner_id = a.owner_id
-                )
-            )
+            OR r.visibility = 'private'
         )
   )
 ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC
@@ -8639,7 +8650,8 @@ const listWorkspaceAgentTaskSnapshot = `-- name: ListWorkspaceAgentTaskSnapshot 
 SELECT atq.id, atq.agent_id, atq.issue_id, atq.status, atq.priority, atq.dispatched_at, atq.started_at, atq.completed_at, atq.result, atq.error, atq.created_at, atq.context, atq.runtime_id, atq.session_id, atq.work_dir, atq.trigger_comment_id, atq.chat_session_id, atq.autopilot_run_id, atq.attempt, atq.max_attempts, atq.parent_task_id, atq.failure_reason, atq.trigger_summary, atq.force_fresh_session, atq.is_leader_task, atq.wait_reason, atq.initiator_user_id, atq.handoff_note, atq.prepare_lease_expires_at, atq.squad_id, atq.runtime_mcp_overlay, atq.escalation_for_task_id, atq.fire_at, atq.originator_user_id, atq.runtime_connected_apps, atq.coalesced_comment_ids, atq.delivered_comment_ids, atq.chat_input_task_id, atq.chat_finalize_deferred_at, atq.originator_source, atq.delegated_from_task_id, atq.retry_of_task_id, atq.rerun_of_task_id, atq.rule_version_id, atq.trigger_evidence_kind, atq.trigger_evidence_ref_id, atq.accountable_user_id, atq.session_rollout_missing, atq.retired_session_id, atq.quick_actions_disabled, atq.regenerate_quick_actions_for, atq.branch_name, atq.durable_work_dir, atq.channel_context_revision, atq.last_activity_at, atq.permission_profile_id, atq.failover_history, atq.routing_decision, atq.pause_requested_at, atq.resumed_by_task_id, atq.last_checkpoint_seq, atq.checkpoint_attempts, atq.checkpointed_at, atq.touched_paths, atq.drift_reason, atq.preempted_at, atq.preempted_by_task_id, atq.review_of_task_id, atq.task_class, atq.routing, atq.safe_mode, atq.model_key_id, atq.confidence, atq.leg_role, atq.workflow_root_task_id, atq.dispatch_lane, atq.checkpoint_sha, atq.turn_seq, atq.a2a_depth, atq.run_group_id, atq.model_override, atq.diff_stat, atq.diff_unified, atq.memory_context, atq.comment_thread_id, atq.runtime_pinned, atq.promoted_at, atq.promote_pr_url, atq.discarded_at, atq.halt_frozen_at, atq.cancelled_by_type, atq.cancelled_by_id, atq.cancelled_by_name, atq.issue_snapshot FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
 WHERE a.workspace_id = $1
-  AND atq.status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
+  AND (atq.status IN ('queued', 'dispatched', 'running', 'waiting_local_directory')
+    OR (atq.status='deferred' AND atq.context->>'wakeup_id' IS NOT NULL))
 
 UNION ALL
 
@@ -8677,7 +8689,7 @@ WHERE a.workspace_id = $1
 // grows with how much terminal history the workspace has accumulated. The
 // (created_at, id) tie-break makes the pick deterministic when completed_at
 // ties or is NULL — plain completed_at DESC returned an arbitrary row there.
-// Row shape and row set are unchanged.
+// Deferred wakeup retries also remain visible as queued work.
 //
 // Both halves JOIN / scan agent because agent_task_queue has no workspace_id.
 func (q *Queries) ListWorkspaceAgentTaskSnapshot(ctx context.Context, workspaceID pgtype.UUID) ([]AgentTaskQueue, error) {
@@ -9034,6 +9046,123 @@ func (q *Queries) LockAgentForAutopilotAssignment(ctx context.Context, arg LockA
 	return i, err
 }
 
+const lockAgentTaskStartClaim = `-- name: LockAgentTaskStartClaim :one
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context, comment_thread_id, runtime_pinned, promoted_at, promote_pr_url, discarded_at, halt_frozen_at, cancelled_by_type, cancelled_by_id, cancelled_by_name, issue_snapshot FROM agent_task_queue
+WHERE id = $1 AND runtime_id = $2 AND dispatched_at = $3
+  AND status IN ('dispatched', 'waiting_local_directory', 'running')
+FOR UPDATE
+`
+
+type LockAgentTaskStartClaimParams struct {
+	ID           pgtype.UUID        `json:"id"`
+	RuntimeID    pgtype.UUID        `json:"runtime_id"`
+	DispatchedAt pgtype.Timestamptz `json:"dispatched_at"`
+}
+
+// Serialize start/replay with reclaim and cancellation. A stale delivery must
+// never start or acknowledge a newer claim, even on the same runtime.
+func (q *Queries) LockAgentTaskStartClaim(ctx context.Context, arg LockAgentTaskStartClaimParams) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, lockAgentTaskStartClaim, arg.ID, arg.RuntimeID, arg.DispatchedAt)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.LastActivityAt,
+		&i.PermissionProfileID,
+		&i.FailoverHistory,
+		&i.RoutingDecision,
+		&i.PauseRequestedAt,
+		&i.ResumedByTaskID,
+		&i.LastCheckpointSeq,
+		&i.CheckpointAttempts,
+		&i.CheckpointedAt,
+		&i.TouchedPaths,
+		&i.DriftReason,
+		&i.PreemptedAt,
+		&i.PreemptedByTaskID,
+		&i.ReviewOfTaskID,
+		&i.TaskClass,
+		&i.Routing,
+		&i.SafeMode,
+		&i.ModelKeyID,
+		&i.Confidence,
+		&i.LegRole,
+		&i.WorkflowRootTaskID,
+		&i.DispatchLane,
+		&i.CheckpointSha,
+		&i.TurnSeq,
+		&i.A2aDepth,
+		&i.RunGroupID,
+		&i.ModelOverride,
+		&i.DiffStat,
+		&i.DiffUnified,
+		&i.MemoryContext,
+		&i.CommentThreadID,
+		&i.RuntimePinned,
+		&i.PromotedAt,
+		&i.PromotePrUrl,
+		&i.DiscardedAt,
+		&i.HaltFrozenAt,
+		&i.CancelledByType,
+		&i.CancelledByID,
+		&i.CancelledByName,
+		&i.IssueSnapshot,
+	)
+	return i, err
+}
+
 const markAgentTaskWaitingLocalDirectory = `-- name: MarkAgentTaskWaitingLocalDirectory :one
 UPDATE agent_task_queue
 SET status = 'waiting_local_directory',
@@ -9298,7 +9427,7 @@ SET coalesced_comment_ids = (
     runtime_connected_apps = $11
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = $12
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = $12
       AND t.agent_id = $13
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id($1::uuid)
       AND (
@@ -9417,7 +9546,7 @@ SET coalesced_comment_ids = (
     trigger_summary = $2
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = $3
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = $3
       AND t.agent_id = $4
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id($1::uuid)
       AND (
@@ -10842,7 +10971,7 @@ SET coalesced_comment_ids = (
     )
 WHERE id = (
     SELECT t.id FROM agent_task_queue t
-    WHERE t.issue_id = $2
+    WHERE t.context->>'wakeup_id' IS NULL AND t.issue_id = $2
       AND t.agent_id = $3
       AND t.comment_thread_id IS NOT DISTINCT FROM comment_thread_root_id($1::uuid)
       AND t.status IN ('dispatched', 'running', 'waiting_local_directory')

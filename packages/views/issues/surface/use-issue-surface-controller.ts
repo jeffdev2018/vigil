@@ -232,6 +232,7 @@ export function useIssueSurfaceController({
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
   const typeFilters = useViewStore((s) => s.typeFilters);
+  const projectStatusFilters = useViewStore((s) => s.projectStatusFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const agentRunningFilter = useViewStore((s) => s.agentRunningFilter);
@@ -414,6 +415,7 @@ export function useIssueSurfaceController({
     goalFilters.length > 0 ||
     cycleFilters.length > 0 ||
     typeFilters.length > 0 ||
+    projectStatusFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.keys(effectivePropertyFilters).length > 0 ||
     dateFilter != null ||
@@ -503,6 +505,9 @@ export function useIssueSurfaceController({
         ...(viewIncludeNoProject ? { include_no_project: true } : {}),
         ...(cycleFilters.length > 0 ? { cycle_ids: cycleFilters } : {}),
         ...(typeFilters.length > 0 ? { issue_types: typeFilters } : {}),
+        ...(projectStatusFilters.length > 0
+          ? { project_statuses: projectStatusFilters }
+          : {}),
         ...(labelFilters.length > 0 ? { label_ids: labelFilters } : {}),
         ...(Object.keys(effectivePropertyFilters).length > 0
           ? { properties: effectivePropertyFilters }
@@ -531,6 +536,7 @@ export function useIssueSurfaceController({
     includeNoAssignee,
     labelFilters,
     priorityFilters,
+    projectStatusFilters,
     scope,
     showSubIssues,
     sort.sort_by,
@@ -708,6 +714,7 @@ export function useIssueSurfaceController({
         creatorFilters,
         viewProjectFilters,
         viewIncludeNoProject,
+        projectStatusFilters,
         labelFilters,
         effectivePropertyFilters,
         agentRunningFilter,
@@ -725,6 +732,7 @@ export function useIssueSurfaceController({
       includeNoAssignee,
       labelFilters,
       priorityFilters,
+      projectStatusFilters,
       showSubIssues,
       statusFilters,
       viewIncludeNoProject,
@@ -760,12 +768,17 @@ export function useIssueSurfaceController({
     projectFilters: viewProjectFilters,
     includeNoProject: viewIncludeNoProject,
     goalFilters,
+    projectStatusFilters,
     labelFilters,
     typeFilters,
     propertyFilters: effectivePropertyFilters,
     workingIssueIDs,
     showSubIssues,
     loadProjects:
+      // The client-side project-status predicate (Gantt / swimlane extras)
+      // cannot be evaluated without the catalog, so the filter itself has to
+      // pull it in.
+      projectStatusFilters.length > 0 ||
       cardProperties.project ||
       (usesTable && tableColumns.some((column) => column.key === "project")) ||
       // Project group headers resolve their title through the projects query,
@@ -877,7 +890,12 @@ export function useIssueSurfaceController({
       !data.isRefreshing &&
       !(usesTable && (tableSearch.trim() || debouncedActiveSearch)),
     isStatusCatalogError: data.isStatusCatalogError,
-    retryStatusCatalog: catalog.retry,
+    // Either catalog can be the one that failed, and the error state offers a
+    // single retry — refresh both rather than guess which.
+    retryStatusCatalog: () => {
+      catalog.retry();
+      data.retryProjectCatalog();
+    },
     sort,
     actions,
     selection,

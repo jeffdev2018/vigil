@@ -1420,11 +1420,10 @@ func TestInjectRuntimeConfigAvailableCommandsCoreOnly(t *testing.T) {
 		"multica issue create --title",
 		"multica issue update <id>",
 		"multica issue assign <id>",
-		"--no-start",
 		"--description-file <path>",
 		"--parent \"\"",
 		"multica repo checkout <url>",
-		"multica issue status <id> <status> [--no-start]",
+		"multica issue status <id> <status>",
 		"multica issue comment add <issue-id>",
 		"multica issue comment add --help",
 		"### Fleet & consult",
@@ -1459,6 +1458,7 @@ func TestInjectRuntimeConfigAvailableCommandsCoreOnly(t *testing.T) {
 	}
 
 	for _, banned := range []string{
+		"--no-start",
 		"multica issue list [--status",
 		"multica issue label list",
 		"multica issue subscriber list",

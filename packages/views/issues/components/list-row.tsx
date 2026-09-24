@@ -25,6 +25,7 @@ import { IssueActionsContextMenu } from "../actions";
 import { LabelChip } from "../../labels/label-chip";
 import { RecurringBadge } from "./recurring-badge";
 import { CustomStatusChip } from "./custom-status-chip";
+import { IssueDuplicateOfMarker } from "./issue-duplicates";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { useIssueSurfaceSelection } from "../surface/selection-context";
 import { useLocale } from "../../i18n";
@@ -131,6 +132,7 @@ function ListRowContent({
             {/* Keep custom names visible when this row appears outside a status section. */}
             <CustomStatusChip status={issue.status} className="shrink-0" />
             {issue.recurrence_id ? <RecurringBadge /> : null}
+            <IssueDuplicateOfMarker issue={issue} insideLink />
             {showChildProgress && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5">
                 <ProgressRing done={childProgress!.done} total={childProgress!.total} size={14} />

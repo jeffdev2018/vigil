@@ -81,9 +81,10 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"cmd/server/runtime_sweeper.go": statusWriterSystem,
 	// HandleFailedTasks does the same after a run fails.
 	"internal/service/task.go": statusWriterSystem,
-	// A merged pull request closes its issue. The move is a fact about the
-	// repository, not a request from an actor.
-	"internal/handler/github.go": statusWriterSystem,
+	// A merged pull request closes its issue via CompleteIssueFromPullRequests.
+	// A PR that merges is a fact about the repository, not a request from an
+	// actor — even when a task's token resolves the caller as an agent.
+	"internal/handler/pr_auto_complete.go": statusWriterSystem,
 	// Undo (K69) replays an effect's PREVIOUS value. A rule that blocked the
 	// inverse would make an undone run unrecoverable.
 	"internal/handler/agent_effect.go":         statusWriterSystem,
@@ -119,7 +120,7 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/service/autopilot.go": statusWriterSystem,
 }
 
-var statusWriterPattern = regexp.MustCompile(`\.(UpdateIssueStatus|UpdateIssue|CreateIssueWithOrigin)\(`)
+var statusWriterPattern = regexp.MustCompile(`\.(UpdateIssueStatus|UpdateIssue|CreateIssueWithOrigin|CompleteIssueFromPullRequests)\(`)
 
 func TestIssueTransitionGateCoversEveryStatusWriter(t *testing.T) {
 	root, err := repoServerRoot()

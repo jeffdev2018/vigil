@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -224,5 +224,60 @@ describe("StatusPicker transition rules", () => {
     );
 
     expect(optionRow("In Review")).not.toBeDisabled();
+  });
+});
+
+describe("StatusPicker mark-as-duplicate action", () => {
+  // Create and batch surfaces must never offer it: an issue that does not
+  // exist yet cannot duplicate anything.
+  it("is absent unless the caller opts in", () => {
+    renderWithI18n(
+      withQuery(<StatusPicker status="todo" onUpdate={() => {}} open onOpenChange={() => {}} />),
+    );
+    expect(screen.queryByRole("button", { name: "Mark as duplicate" })).toBeNull();
+  });
+
+  it("is an action beside the options, not another status", () => {
+    const onMarkDuplicate = vi.fn();
+    const onUpdate = vi.fn();
+    const onOpenChange = vi.fn();
+    renderWithI18n(
+      withQuery(
+        <StatusPicker
+          status="todo"
+          onUpdate={onUpdate}
+          open
+          onOpenChange={onOpenChange}
+          onMarkDuplicate={onMarkDuplicate}
+        />,
+      ),
+    );
+
+    const action = screen.getByRole("button", { name: "Mark as duplicate" });
+    // Outside the arrow-key listbox, so keyboard nav and search skip it.
+    expect(action.hasAttribute("data-picker-item")).toBe(false);
+
+    fireEvent.click(action);
+    expect(onMarkDuplicate).toHaveBeenCalledTimes(1);
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("StatusPicker on an issue that already is a duplicate", () => {
+  it("relabels the action to re-point the mark", () => {
+    renderWithI18n(
+      withQuery(
+        <StatusPicker
+          status="cancelled"
+          onUpdate={() => {}}
+          open
+          onOpenChange={() => {}}
+          onMarkDuplicate={() => {}}
+          isDuplicate
+        />,
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Change original" })).toBeTruthy();
   });
 });

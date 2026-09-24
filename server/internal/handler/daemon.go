@@ -30,6 +30,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
+	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 	"github.com/multica-ai/multica/server/pkg/mcpgov"
@@ -585,7 +586,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// The profile must exist in this workspace and be enabled. Trust
-			// the profile's stored protocol_family over the daemon-sent type so
+			// the profile's stored runtime identity over the daemon-sent type so
 			// the provider used for task routing cannot drift from the profile.
 			prow, profile, err := h.upsertRuntimeWithProfile(
 				r.Context(),
@@ -597,7 +598,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 						DaemonID:    strToText(req.DaemonID),
 						Name:        name,
 						RuntimeMode: "local",
-						Provider:    profile.ProtocolFamily,
+						Provider:    agent.ProfileRuntimeType(profile.RuntimeType, profile.ProtocolFamily),
 						Status:      status,
 						DeviceInfo:  deviceInfo,
 						Metadata:    metadata,
@@ -627,7 +628,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "failed to register runtime: "+err.Error())
 				return
 			}
-			provider = profile.ProtocolFamily
+			provider = agent.ProfileRuntimeType(profile.RuntimeType, profile.ProtocolFamily)
 			inserted = prow.Inserted
 			registered = db.AgentRuntime{
 				ID:             prow.ID,
@@ -792,7 +793,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					DaemonID:    strToText(req.DaemonID),
 					Name:        name,
 					RuntimeMode: "local",
-					Provider:    profile.ProtocolFamily,
+					Provider:    agent.ProfileRuntimeType(profile.RuntimeType, profile.ProtocolFamily),
 					Status:      "offline",
 					DeviceInfo:  strings.TrimSpace(req.DeviceName),
 					Metadata:    metadata,
@@ -2091,9 +2092,12 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		// Route through the SAME finalization as the per-runtime endpoint so the
 		// token and the comment-delivery receipt (delivered_comment_ids for
 		// comment/coalesced-comment tasks) are persisted atomically; on failure
-		// the exact claim is requeued and omitted from this batch.
+		// the exact claim is requeued and omitted from this batch. The shared
+		// final delivery gate re-verifies current runtime ownership inside the
+		// same transaction; a rejected task is settled via FailTask and skipped
+		// while valid tasks in the same batch continue.
 		commentBackedTask := task.TriggerCommentID.Valid || len(task.CoalescedCommentIds) > 0
-		receipt, ferr := h.TaskService.FinalizeTaskClaim(r.Context(), task, db.CreateTaskTokenParams{
+		receipt, deliveryFailure, ferr := h.finalizeClaimDelivery(r.Context(), &task, rt, uuidToString(task.RuntimeID), rtWorkspaceID, &resp, db.CreateTaskTokenParams{
 			ID:          dbid.NewV7(),
 			TokenHash:   auth.HashToken(tokenStr),
 			TaskID:      task.ID,
@@ -2108,6 +2112,14 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 			if _, rerr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), task); rerr != nil {
 				slog.Error("batch claim: requeue after finalize failure failed",
 					"task_id", uuidToString(task.ID), "error", rerr)
+			}
+			continue
+		}
+		if deliveryFailure != nil {
+			if !deliveryFailure.settled {
+				slog.Error("batch claim: delivery rejection settlement failed",
+					"task_id", uuidToString(task.ID), "outcome", deliveryFailure.outcome,
+					"error", deliveryFailure.message)
 			}
 			continue
 		}
@@ -2155,6 +2167,141 @@ func claimPollHintDelay(now, fireAt time.Time) time.Duration {
 	return delay
 }
 
+// finalizeClaimDelivery is the shared final delivery gate for the singular and
+// batch claim paths. It re-verifies the current agent/runtime authorization
+// INSIDE the FinalizeTaskClaim transaction, under a FOR UPDATE row lock on the
+// runtime row, so the decision and the task-token mint commit atomically:
+//
+//   - runtime.owner_id is re-read authoritatively (no stale claim-time
+//     snapshot), and a concurrent re-registration that would change owner_id
+//     blocks until this gate commits — closing the TOCTOU window between the
+//     claim-time runtime read and daemon delivery (PUCK-89 blocker 1);
+//   - the private-runtime owner fence re-runs against the locked row;
+//   - agent.runtime_id still equals the claimed task's runtime (rebind fence);
+//   - agent ownership still satisfies the private-runtime binding.
+//   - response requesting-user identity is refreshed from that same owner;
+//
+// On mismatch the task is settled through the existing
+// failClaimedTaskBeforeLaunch -> TaskService.FailTask path and never returned
+// to the daemon. The delivery failure reports whether settlement succeeded so
+// callers can keep their poll semantics (singular: 200 {"task":null} only
+// after settlement; batch: skip the task, keep returning valid ones).
+func (h *Handler) finalizeClaimDelivery(
+	ctx context.Context,
+	task *db.AgentTaskQueue,
+	runtime db.AgentRuntime,
+	runtimeID, runtimeWorkspaceID string,
+	response *AgentTaskResponse,
+	token db.CreateTaskTokenParams,
+	deliveredCommentIDs []pgtype.UUID,
+	recordCommentReceipt bool,
+	memoryContext *service.TaskMemoryContext,
+	issueSnapshot []byte,
+	daemonTokens ...db.CreateDaemonTokenParams,
+) (receipt []pgtype.UUID, deliveryFailure *claimBuildFailure, err error) {
+	var agentOwnerID pgtype.UUID
+	authorize := func(qtx *db.Queries, tokenParams *db.CreateTaskTokenParams) error {
+		// FOR UPDATE on the runtime row: any concurrent
+		// UpsertAgentRuntime/visibility flip that would change owner_id or
+		// visibility blocks until this transaction commits, so the values read
+		// here are the ones delivery is authorized against.
+		locked, lerr := qtx.LockAgentRuntime(ctx, runtime.ID)
+		if lerr != nil {
+			return fmt.Errorf("lock runtime for delivery authorization: %w", lerr)
+		}
+		if response != nil {
+			// The response was built from the claim-time runtime snapshot. Clear
+			// that identity before resolving the locked owner so a failed lookup
+			// can never leak stale user context to the daemon.
+			response.RequestingUserName = ""
+			response.RequestingUserProfileDescription = ""
+		}
+		agent, aerr := qtx.GetAgentForUpdate(ctx, task.AgentID)
+		if aerr != nil {
+			return fmt.Errorf("re-read agent for delivery authorization: %w", aerr)
+		}
+		// Same exemptions as the outer delivery recheck below: a task whose
+		// runtime was chosen by the router, pinned at enqueue (benchmark
+		// replay, runtime-pinned attempt) or moved by pool failover runs off
+		// the agent's bound runtime by design. Without them this gate settles
+		// every one of those as "the agent moved", which is what it is here to
+		// prevent — not to cause.
+		if agent.RuntimeID != task.RuntimeID &&
+			!routedTaskMatchesClaimedRuntime(agent, task) &&
+			!explicitTaskPinsRuntime(task) &&
+			!h.poolTaskPinsRuntime(ctx, agent, task) {
+			return &service.ClaimDeliveryAuthzError{
+				Reason: "error_agent_runtime_changed",
+				Detail: "agent runtime changed before delivery",
+			}
+		}
+		if locked.Visibility == "private" && locked.OwnerID.Valid &&
+			(!agent.OwnerID.Valid || agent.OwnerID != locked.OwnerID) {
+			agentOwnerID = agent.OwnerID
+			return &service.ClaimDeliveryAuthzError{
+				Reason: "error_runtime_access_denied",
+				Detail: "private runtime does not permit task agent at delivery gate",
+			}
+		}
+		if !locked.OwnerID.Valid {
+			return &service.ClaimDeliveryAuthzError{
+				Reason: "error_runtime_owner_missing",
+				Detail: "runtime owner missing before task delivery",
+			}
+		}
+		if owner, oerr := qtx.GetUser(ctx, locked.OwnerID); oerr != nil {
+			slog.Debug("failed to load locked runtime owner for brief injection",
+				"runtime_id", runtimeID,
+				"owner_id", uuidToString(locked.OwnerID),
+				"error", oerr,
+			)
+		} else if response != nil {
+			response.RequestingUserName = owner.Name
+			response.RequestingUserProfileDescription = owner.ProfileDescription
+		}
+		// The runtime row is locked for the duration of FinalizeTaskClaim. Use
+		// its current owner as the task-token identity rather than the stale
+		// claim-time snapshot captured by the caller.
+		tokenParams.UserID = locked.OwnerID
+		return nil
+	}
+
+	receipt, err = h.TaskService.FinalizeTaskClaim(ctx, *task, token, deliveredCommentIDs, recordCommentReceipt, memoryContext, authorize, issueSnapshot, daemonTokens...)
+	if err == nil {
+		return receipt, nil, nil
+	}
+	var authzErr *service.ClaimDeliveryAuthzError
+	if !errors.As(err, &authzErr) {
+		return nil, nil, err
+	}
+	// Authorization rejected at the delivery boundary: settle through the
+	// existing failure path so the task never reaches the daemon.
+	switch authzErr.Reason {
+	case "error_agent_runtime_changed":
+		failure := h.failClaimedTaskBeforeLaunch(
+			ctx, task,
+			"The agent moved to another runtime before this task could start. Retry the task to run it on the agent's current runtime.",
+			taskfailure.ReasonInvalidTaskIdentity,
+			"error_agent_runtime_changed", http.StatusConflict, "agent runtime changed before task delivery",
+		)
+		return nil, failure, nil
+	default:
+		userMessage := "This private runtime cannot run the assigned agent because the agent and runtime have different owners."
+		if authzErr.Reason == "error_runtime_owner_missing" {
+			userMessage = "This runtime cannot run the assigned agent because the runtime has no owner."
+		} else if !agentOwnerID.Valid {
+			userMessage = "This private runtime cannot run the assigned agent because the agent has no owner."
+		}
+		failure := h.failClaimedTaskBeforeLaunch(
+			ctx, task,
+			userMessage,
+			taskfailure.ReasonRuntimeAccessDenied,
+			"error_runtime_access_denied", http.StatusForbidden, "private runtime does not permit task agent",
+		)
+		return nil, failure, nil
+	}
+}
+
 // claimBuildFailure captures a pre-response failure from
 // buildClaimedTaskResponse (workspace isolation, chat-input load/empty, ...) so
 // the per-runtime handler can render the exact status/message/outcome and the
@@ -2164,6 +2311,7 @@ type claimBuildFailure struct {
 	outcome string
 	status  int
 	message string
+	settled bool
 }
 
 // rejectClaimSourceLoad settles a claim whose SOURCE row — the issue, chat
@@ -2343,7 +2491,7 @@ func (h *Handler) failClaimedTaskBeforeLaunch(
 			message: "failed to settle a task rejected before launch",
 		}
 	}
-	return &claimBuildFailure{outcome: outcome, status: status, message: claimMessage}
+	return &claimBuildFailure{outcome: outcome, status: status, message: claimMessage, settled: true}
 }
 
 func chatSessionResumeFallbackNeeded(priorSessionID, priorWorkDir string) bool {
@@ -2506,6 +2654,12 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	}
 	// Build response with fresh agent data (name + skills + custom_env + custom_args).
 	resp = taskToResponse(*task, runtimeWorkspaceID)
+	if err := (&service.IssueWakeupService{Tasks: h.TaskService}).CheckClaim(r.Context(), *task); err != nil {
+		if !errors.Is(err, service.ErrWakeupForbidden) {
+			return resp, nil, nil, 0, 0, h.rejectClaimSourceLoad(r.Context(), task, err, "wakeup", resp.WakeupID)
+		}
+		return resp, nil, nil, 0, 0, h.failClaimedTaskBeforeLaunch(r.Context(), task, "Wakeup is disabled or its authorization is no longer available.", taskfailure.ReasonInvalidTaskIdentity, "wakeup_unavailable", http.StatusConflict, "wakeup unavailable")
+	}
 	// Handoff packet (K17): the resuming agent reads what the last hand left.
 	resp.HandoffPacket = h.latestHandoffPacket(r.Context(), task.IssueID)
 	// Goal loop: the chain's memory rides with the claim.
@@ -2513,6 +2667,13 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// Checkpoints (K20): a resumed run is told where the interrupted one stopped.
 	if task.CheckpointAttempts > 0 && task.LastCheckpointSeq.Valid {
 		resp.ResumeFromCheckpointSeq = task.LastCheckpointSeq.Int64
+	}
+	// Preserve PostgreSQL's microseconds: second-resolution display timestamps
+	// cannot distinguish stale claims reclaimed within the same second.
+	if task.DispatchedAt.Valid {
+		generation := task.DispatchedAt.Time.UTC().Format(time.RFC3339Nano)
+		resp.DispatchedAt = &generation
+		resp.StartClaimSupported = true
 	}
 	var issueNumber int32
 	// repoIndexQuery (K47) is what the shared repo index is searched with. Set
@@ -2635,7 +2796,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		return resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, h.failClaimedTaskBeforeLaunch(
 			r.Context(), task,
 			userMessage,
-			taskfailure.ReasonInvalidTaskIdentity,
+			taskfailure.ReasonRuntimeAccessDenied,
 			"error_runtime_access_denied", http.StatusForbidden, "private runtime does not permit task agent",
 		)
 	}
@@ -4137,6 +4298,10 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 	resp, deliveredCommentIDs, issueSnapshot, agentSkillCount, builtinSkillCount, failure := h.buildClaimedTaskResponse(r, task, runtime, runtimeID, runtimeWorkspaceID)
 	if failure != nil {
 		outcome = failure.outcome
+		if failure.settled {
+			payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
+			return
+		}
 		writeError(w, failure.status, failure.message)
 		return
 	}
@@ -4193,7 +4358,7 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to mint Remote MCP daemon token")
 		return
 	}
-	receipt, ferr := h.TaskService.FinalizeTaskClaim(r.Context(), *task, db.CreateTaskTokenParams{
+	receipt, deliveryFailure, ferr := h.finalizeClaimDelivery(r.Context(), task, runtime, runtimeID, runtimeWorkspaceID, &resp, db.CreateTaskTokenParams{
 		ID:          dbid.NewV7(),
 		TokenHash:   auth.HashToken(tokenStr),
 		TaskID:      task.ID,
@@ -4212,6 +4377,20 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 		// would invalidate that already-authorized execution.
 		requeueFailedClaim("token_and_delivery_receipt")
 		writeError(w, http.StatusInternalServerError, "failed to finalize task claim")
+		return
+	}
+	if deliveryFailure != nil {
+		if !deliveryFailure.settled {
+			outcome = deliveryFailure.outcome
+			writeError(w, deliveryFailure.status, deliveryFailure.message)
+			return
+		}
+		// The final delivery gate rejected the task (agent rebound, or the
+		// runtime's current ownership no longer permits this agent). The task
+		// is already terminal via the FailTask path — return the same empty
+		// successful poll the queued-mismatch settle path returns.
+		outcome = deliveryFailure.outcome
+		payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
 		return
 	}
 	resp.AuthToken = tokenStr
@@ -4375,7 +4554,6 @@ func (h *Handler) ListPendingTasksByRuntime(w http.ResponseWriter, r *http.Reque
 	for i, t := range tasks {
 		resp[i] = taskToResponse(t, workspaceID)
 	}
-
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -4423,16 +4601,56 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Sandbox (K10): the daemon says what confinement the run got. Older
-	// daemons send an empty body.
-	var startReq StartTaskRequest
-	if r.Body != nil {
-		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&startReq)
+	// daemons send an empty body. Newer daemons also negotiate the task
+	// supplement capability and, for a start-claim generation, identify
+	// which claim they are acknowledging — all in the same request body.
+	var req struct {
+		StartTaskRequest
+		Capabilities []string `json:"capabilities"`
+		RuntimeID    string   `json:"runtime_id"`
+		DispatchedAt string   `json:"dispatched_at"`
 	}
-
-	task, err := h.TaskService.StartTask(r.Context(), parseUUID(taskID))
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+	startReq := req.StartTaskRequest
+	enableTaskSupplement := slices.Contains(req.Capabilities, protocol.DaemonCapabilityTaskSupplementV1)
+	var task *db.AgentTaskQueue
+	var err error
+	legacy := req.RuntimeID == "" && req.DispatchedAt == ""
+	if legacy {
+		// Older daemons send {}. Keep their single-winner behavior; in
+		// particular, they cannot acknowledge an already-running task.
+		task, err = h.TaskService.StartTask(r.Context(), parseUUID(taskID), enableTaskSupplement)
+	} else {
+		runtimeID, ok := parseUUIDOrBadRequest(w, req.RuntimeID, "runtime_id")
+		if !ok {
+			return
+		}
+		generation, parseErr := time.Parse(time.RFC3339Nano, req.DispatchedAt)
+		if parseErr != nil || generation.Nanosecond()%1000 != 0 {
+			writeError(w, http.StatusBadRequest, "dispatched_at must be a PostgreSQL claim timestamp")
+			return
+		}
+		task, err = h.TaskService.StartTaskForClaim(r.Context(), db.LockAgentTaskStartClaimParams{
+			ID: parseUUID(taskID), RuntimeID: runtimeID,
+			DispatchedAt: pgtype.Timestamptz{Time: generation, Valid: true},
+		}, enableTaskSupplement)
+	}
 	if err != nil {
 		slog.Warn("start task failed", "task_id", taskID, "error", err)
-		writeError(w, http.StatusBadRequest, err.Error())
+		if errors.Is(err, pgx.ErrNoRows) {
+			status := http.StatusConflict
+			if legacy {
+				status = http.StatusBadRequest
+			}
+			writeError(w, status, "task claim is stale or task is no longer startable")
+		} else {
+			writeError(w, http.StatusInternalServerError, "failed to start task")
+		}
 		return
 	}
 
@@ -4445,7 +4663,19 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusConflict, "eval_sandbox_required", "eval runs require a container sandbox")
 		return
 	}
-	writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
+	resp := taskToResponse(*task, workspaceID)
+	// Echo the capability the server actually committed for this exact run.
+	// A daemon must use this response rather than its own offer: an old server
+	// ignores the offer and omits the field, which keeps daemon-first rollouts
+	// fail closed without requiring synchronized deployment.
+	if task.IssueID.Valid {
+		if capability, capabilityErr := h.Queries.GetTaskSupplementCapability(r.Context(), task.ID); capabilityErr == nil {
+			resp.SupplementCapability = capability.Capability
+		} else if !errors.Is(capabilityErr, pgx.ErrNoRows) {
+			slog.Warn("start task: failed to load negotiated supplement capability", "task_id", taskID, "error", capabilityErr)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // TaskWaitLocalDirectoryRequest is the body the daemon POSTs when it parks
@@ -4671,7 +4901,7 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// transaction (force session_id NULL + flag the row), so an auto-retry the
 	// same commit creates and wakes can never observe the withheld pointer or a
 	// missing continuity-gap flag.
-	task, err := h.TaskService.CompleteTask(r.Context(), parseUUID(taskID), result, req.SessionID, req.WorkDir, req.BranchName, req.SessionRolloutMissing, req.RetiredSessionID, req.DurableWorkDir)
+	task, transitioned, err := h.TaskService.CompleteTaskWithTransition(r.Context(), parseUUID(taskID), result, req.SessionID, req.WorkDir, req.BranchName, req.SessionRolloutMissing, req.RetiredSessionID, req.DurableWorkDir)
 	if err != nil {
 		// A CompleteTask error is an infrastructure failure (transaction /
 		// assistant-outcome write), not a bad request: an already-finalized
@@ -4680,6 +4910,10 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 		// including the single chat outcome row — lands exactly once (MUL-4351).
 		slog.Warn("complete task failed", "task_id", taskID, "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !transitioned {
+		writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 		return
 	}
 
@@ -4817,8 +5051,8 @@ func (h *Handler) emitIssueExecutedOnFirstCompletion(r *http.Request, task *db.A
 //
 // Scope + loop safety:
 //   - MEMBER comments keep their full routing. AGENT comments qualify through
-//     explicit mentions, or the worker-to-assigned-leader route when the input
-//     was already accepted and recorded in this run's plan. Timestamp-only
+//     explicit mentions, or a worker-to-leader route when the input was already
+//     accepted and recorded in this run's plan. Timestamp-only
 //     implicit agent replies are excluded: completion must not invent a new
 //     conversation. Current invocation permissions and self-trigger guards
 //     still apply to every replay.
@@ -4926,6 +5160,7 @@ func (h *Handler) reconcileCommentsOnCompletion(ctx context.Context, task *db.Ag
 		}
 		triggers, _ := h.computeCommentAgentTriggers(ctx, issue, c.Content, parentComment, actorType, actorID, commentTriggerComputeOptions{
 			ExcludeTriggerCommentID: c.ID,
+			AuthoringTaskID:         c.SourceTaskID,
 			OriginatorUserID:        originatorUserID,
 		})
 		// Agent replies discovered only by timestamp must not start a new
@@ -4993,7 +5228,7 @@ func keepReplayableAgentTriggers(triggers []commentAgentTrigger, planned bool) [
 		switch trigger.Source {
 		case commentTriggerSourceMentionAgent, commentTriggerSourceMentionSquadLeader:
 			filtered = append(filtered, trigger)
-		case commentTriggerSourceIssueAssignee:
+		case commentTriggerSourceIssueAssignee, commentTriggerSourceThreadParent:
 			if planned && trigger.NonLeaderAgentReply {
 				filtered = append(filtered, trigger)
 			}
@@ -5431,7 +5666,7 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// keep a stale mid-flight pin) and flagging the row in the same commit that
 	// creates and wakes the auto-retry, so the retry can never claim the withheld
 	// pointer or miss the continuity gap.
-	task, err := h.TaskService.FailTask(r.Context(), parseUUID(taskID), req.Error, req.SessionID, req.WorkDir, req.BranchName, req.FailureReason, req.SessionRolloutMissing, req.RetiredSessionID, req.DurableWorkDir)
+	task, transitioned, err := h.TaskService.FailTaskWithTransition(r.Context(), parseUUID(taskID), req.Error, req.SessionID, req.WorkDir, req.BranchName, req.FailureReason, req.SessionRolloutMissing, req.RetiredSessionID, req.DurableWorkDir)
 	if err != nil {
 		// A FailTask error is an infrastructure failure (the terminal
 		// transaction that also clears the withheld session, writes the
@@ -5442,6 +5677,10 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		// exactly once (MUL-5305). An invalid request body still returns 400 above.
 		slog.Warn("fail task failed", "task_id", taskID, "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !transitioned {
+		writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 		return
 	}
 	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
@@ -5482,6 +5721,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 // ---------------------------------------------------------------------------
 
 type TaskMessageRequest struct {
+	// CallID is an opaque tool-call identity scoped to one backend execution.
+	CallID  string         `json:"call_id,omitempty"`
 	Seq     int            `json:"seq"`
 	Type    string         `json:"type"`
 	Tool    string         `json:"tool,omitempty"`
@@ -5549,6 +5790,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		Seqs:     make([]int32, 0, n),
 		Types:    make([]string, 0, n),
 		Tools:    make([]string, 0, n),
+		CallIds:  make([]string, 0, n),
 		Contents: make([]string, 0, n),
 		Inputs:   make([]string, 0, n),
 		Outputs:  make([]string, 0, n),
@@ -5588,6 +5830,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		// than a single row, which is inherent to one-statement writes.
 		msg.Type = util.SanitizeTextForPostgres(msg.Type)
 		msg.Tool = util.SanitizeTextForPostgres(msg.Tool)
+		msg.CallID = util.SanitizeTextForPostgres(msg.CallID)
 		msg.Content = util.SanitizeTextForPostgres(msg.Content)
 		msg.Output = util.SanitizeTextForPostgres(msg.Output)
 		if msg.Input != nil {
@@ -5618,6 +5861,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		params.Seqs = append(params.Seqs, int32(msg.Seq))
 		params.Types = append(params.Types, msg.Type)
 		params.Tools = append(params.Tools, msg.Tool)
+		params.CallIds = append(params.CallIds, msg.CallID)
 		params.Contents = append(params.Contents, msg.Content)
 		params.Inputs = append(params.Inputs, inputJSON)
 		params.Outputs = append(params.Outputs, msg.Output)
@@ -5800,6 +6044,7 @@ func taskMessageToPayload(m db.TaskMessage, taskID, issueID string) protocol.Tas
 		Seq:             int(m.Seq),
 		Type:            m.Type,
 		Tool:            m.Tool.String,
+		CallID:          m.CallID.String,
 		Content:         m.Content.String,
 		Input:           input,
 		Output:          m.Output.String,
@@ -6122,6 +6367,7 @@ func (h *Handler) ListTasksByIssue(w http.ResponseWriter, r *http.Request) {
 	for i, t := range tasks {
 		resp[i] = taskToResponse(t, workspaceID)
 	}
+	h.hydrateTaskSupplementMetadata(r.Context(), r, issue.WorkspaceID, tasks, resp)
 	// Execution-log rows render the "on behalf of <member>" badge, so this
 	// issue-facing surface must resolve initiator/originator names (departed-safe,
 	// one batch) — otherwise the badge falls back to "someone" on issue detail.

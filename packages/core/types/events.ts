@@ -194,6 +194,10 @@ export interface IssueUpdatedPayload {
   // delegates server-side, the involved list. Absent on an older backend,
   // which has no delegates to move anything.
   delegate_changed?: boolean;
+  // Both ends of a duplicate-mark change (MUL-7349). The mark is not on Issue,
+  // so these tell the realtime layer whose duplicate relations to refresh.
+  duplicate_of_issue_id?: string | null;
+  prev_duplicate_of_issue_id?: string | null;
 }
 
 export interface IssueDeletedPayload {
@@ -538,6 +542,8 @@ export interface ActivityCreatedPayload {
 }
 
 export interface TaskMessagePayload {
+  /** Opaque tool-call identity, scoped to one backend execution. */
+  call_id?: string;
   task_id: string;
   issue_id: string;
   chat_session_id?: string;

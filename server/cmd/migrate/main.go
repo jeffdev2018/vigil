@@ -140,13 +140,42 @@ var pgBigmOperatorClass = extensionOperatorClass{
 // they are still pending: a fresh self-hosted install, which is exactly where an
 // interrupted build would otherwise leave a permanently unusable index.
 var concurrentIndexCleanups = map[string]string{
-	"980_issue_to_label_label_id_index":                         "issue_to_label_label_idx",
-	"981_chat_session_agent_id_index":                           "idx_chat_session_agent_id",
-	"982_agent_task_queue_delegated_failure_evidence_index":     "idx_agent_task_queue_delegated_failure_evidence",
-	"983_chat_session_runtime_id_index":                         "idx_chat_session_runtime_id",
-	"971_maintenance_job_id_index":                              "idx_maintenance_job_id",
-	"972_maintenance_job_idempotency_index":                     "idx_maintenance_job_idempotency",
-	"973_maintenance_job_active_index":                          "idx_maintenance_job_active",
+	"980_issue_to_label_label_id_index":                     "issue_to_label_label_idx",
+	"981_chat_session_agent_id_index":                       "idx_chat_session_agent_id",
+	"982_agent_task_queue_delegated_failure_evidence_index": "idx_agent_task_queue_delegated_failure_evidence",
+	"983_chat_session_runtime_id_index":                     "idx_chat_session_runtime_id",
+	"971_maintenance_job_id_index":                          "idx_maintenance_job_id",
+	"972_maintenance_job_idempotency_index":                 "idx_maintenance_job_idempotency",
+	"973_maintenance_job_active_index":                      "idx_maintenance_job_active",
+	// upstream/main also listed issue_to_label/chat_session/agent_task_queue/
+	// maintenance_job entries at 495-498 and 486-488; those numbers now hold
+	// unrelated fork migrations (budget/decision/audit) after renumbering
+	// already done outside this pass, and the real migrations building those
+	// seven indexes are the 971-983 entries above. Only upstream's genuinely
+	// distinct migrations are added below.
+	"633_github_pr_address_index":                      "idx_github_pull_request_pr_owner_repo",
+	"704_task_supplement_request_index":                "task_supplement_task_request_uidx",
+	"705_task_supplement_capability_index":             "task_supplement_capability_task_uidx",
+	"706_task_supplement_comment_index":                "task_supplement_comment_uidx",
+	"715_issue_pr_automation_workspace_index":          "idx_issue_pr_automation_workspace",
+	"716_issue_pull_request_exclusion_workspace_index": "idx_issue_pull_request_exclusion_workspace",
+	"600_wakeup_id":                                             "issue_wakeup_id_idx",
+	"601_wakeup_issue":                                          "issue_wakeup_issue_idx",
+	"602_wakeup_due":                                            "issue_wakeup_due_idx",
+	"603_wakeup_receipt_id":                                     "issue_wakeup_receipt_id_idx",
+	"604_wakeup_receipt_key":                                    "issue_wakeup_receipt_key_idx",
+	"605_wakeup_receipt_pending":                                "issue_wakeup_receipt_pending_idx",
+	"607_wakeup_event_issue":                                    "idx_wakeup_event_issue",
+	"609_wakeup_workspace_summary":                              "idx_wakeup_workspace_enabled",
+	"612_wakeup_run_lookup":                                     "agent_task_wakeup_lookup_idx",
+	"614_wakeup_workspace_history":                              "issue_wakeup_workspace_history_idx",
+	"617_wakeup_active_runs":                                    "agent_task_wakeup_active_idx",
+	"618_wakeup_terminal_runs":                                  "agent_task_wakeup_terminal_idx",
+	"619_wakeup_receipt_expiry":                                 "issue_wakeup_receipt_expiry_idx",
+	"621_wakeup_pending_event":                                  "issue_wakeup_pending_event_idx",
+	"595_channel_reply_delivery_turn_index":                     "idx_channel_reply_delivery_turn",
+	"596_channel_reply_delivery_installation_index":             "idx_channel_reply_delivery_installation",
+	"597_channel_reply_delivery_binding_index":                  "idx_channel_reply_delivery_binding",
 	"035_task_queue_issue_id_index":                             "idx_agent_task_queue_issue_id",
 	"067_task_queue_claim_candidate_index":                      "idx_agent_task_queue_claim_candidates",
 	"074_task_usage_updated_at_index":                           "idx_task_usage_updated_at",
@@ -524,6 +553,20 @@ var concurrentIndexCleanups = map[string]string{
 	"965_instance_telemetry_state_singleton_index":              "instance_telemetry_state_singleton_uidx",
 	"967_agent_task_queue_telemetry_started_index":              "idx_agent_task_queue_telemetry_started",
 	"969_issue_triage_state_index":                              "idx_issue_triage_state",
+	// 452/459/460/465/466/472/474/480/482/484 in upstream/main built the same
+	// ten indexes as the entries above under upstream's original migration
+	// numbers; those files were renumbered into the 895/944-969 range during
+	// migration conflict resolution (already done, not part of this pass) to
+	// avoid colliding with this fork's own history at those numbers, so only
+	// the surviving upstream-only migration is added here.
+	"639_issue_duplicate_of_index": "idx_issue_duplicate_of",
+	// The already-resolved migration renumbering (outside this pass) left
+	// literal duplicates on disk: these files build the exact same indexes as
+	// entries already registered above (503-505, 510-529, 535, 539-541,
+	// 546-547) under a second, higher migration number. Registered here too
+	// so an interrupted build of either copy is still cleaned up — several of
+	// these files omit IF NOT EXISTS, so leaving them out would also fail
+	// TestEveryConcurrentUpBuildHasCleanup.
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

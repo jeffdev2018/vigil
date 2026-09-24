@@ -887,6 +887,7 @@ type TimeAgoFn = (dateStr: string) => string;
 export function taskStatusLabel(status: AgentTask["status"] | string, t: AgentsT): string {
   switch (status) {
     case "queued":
+    case "deferred":
       return t(($) => $.tab_body.activity.status.queued);
     case "dispatched":
       return t(($) => $.tab_body.activity.status.dispatched);
