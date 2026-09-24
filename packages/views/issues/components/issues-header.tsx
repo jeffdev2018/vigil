@@ -7,6 +7,7 @@ import {
   Shapes,
   ChartGantt,
   ChevronDown,
+  CircleDashed,
   CircleDot,
   Columns3,
   Filter,
@@ -71,6 +72,7 @@ import { projectListOptions } from "@multica/core/projects/queries";
 import { goalListOptions } from "@multica/core/goals";
 import { cycleListOptions } from "@multica/core/cycles";
 import { flattenGoalTree } from "../../goals/components/goal-tree";
+import { PROJECT_STATUS_CONFIG, PROJECT_STATUS_ORDER } from "@multica/core/projects/config";
 import { labelListOptions } from "@multica/core/labels/queries";
 import { propertyListOptions } from "@multica/core/properties";
 import { propertyIdFromViewKey } from "@multica/core/issues/stores/view-store";
@@ -79,10 +81,12 @@ import type {
   IssueProperty,
   IssueTableFacetSpec,
   IssueTableFacetsResponse,
+  ProjectStatus,
   WorkingAgentSummary,
 } from "@multica/core/types";
 import { formatActorRef, isActorPropertyType, isFilterablePropertyType, isScalarPropertyType, propertyFilterValueKey, PROPERTY_FILTER_OP_SYMBOLS, PROPERTY_FILTER_OPS_BY_TYPE, type PropertyFilterOp, type PropertyFilterValue } from "@multica/core/types";
 import { ProjectIcon } from "../../projects/components/project-icon";
+import { useProjectStatusLabels } from "../../projects/components/labels";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { PropertyIcon } from "../../common/property-icon";
 import { sortDirectionLabelKey } from "../utils/sort-direction";
@@ -153,6 +157,7 @@ function getActiveFilterCount(
     goalFilters?: string[];
     cycleFilters?: string[];
     typeFilters?: string[];
+    projectStatusFilters: ProjectStatus[];
     labelFilters: string[];
     propertyFilters?: Record<string, PropertyFilterValue[]>;
     dateFilter?: IssueDateFilter | null;
@@ -178,6 +183,7 @@ function getActiveFilterCount(
   if (delta(state.goalFilters ?? [], baseline?.goal) > 0) count++;
   if (delta(state.cycleFilters ?? [], baseline?.cycle) > 0) count++;
   if (delta(state.typeFilters ?? [], baseline?.type) > 0) count++;
+  if (delta(state.projectStatusFilters, baseline?.projectStatus) > 0) count++;
   if (delta(state.labelFilters, baseline?.label) > 0) count++;
   for (const [id, selected] of Object.entries(state.propertyFilters ?? {})) {
     // Property members can be operator objects — compare through their
@@ -738,6 +744,48 @@ function ProjectSubContent({
         )}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Project status sub-menu content
+// ---------------------------------------------------------------------------
+
+function ProjectStatusSubContent({
+  selected,
+  onToggle,
+  fixedStatuses,
+  fixedTitle,
+}: {
+  selected: ProjectStatus[];
+  onToggle: (status: ProjectStatus) => void;
+  fixedStatuses?: Set<string>;
+  fixedTitle?: string;
+}) {
+  const statusLabels = useProjectStatusLabels();
+  return (
+    <div className="p-1">
+      {PROJECT_STATUS_ORDER.map((status) => {
+        const checked = selected.includes(status);
+        const fixed = fixedStatuses?.has(status) === true;
+        return (
+          <DropdownMenuCheckboxItem
+            key={status}
+            checked={checked}
+            disabled={fixed}
+            title={fixed ? fixedTitle : undefined}
+            onCheckedChange={() => onToggle(status)}
+            className={FILTER_ITEM_CLASS}
+          >
+            <HoverCheck checked={checked} />
+            <span
+              className={`size-2 rounded-full ${PROJECT_STATUS_CONFIG[status].dotColor}`}
+            />
+            {statusLabels[status]}
+          </DropdownMenuCheckboxItem>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1582,6 +1630,7 @@ export function IssueFilterMenu({
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
   const typeFilters = useViewStore((s) => s.typeFilters);
+  const projectStatusFilters = useViewStore((s) => s.projectStatusFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const viewStoreApi = useViewStoreApi();
@@ -1619,6 +1668,7 @@ export function IssueFilterMenu({
         goalFilters,
         cycleFilters,
         typeFilters,
+        projectStatusFilters,
         labelFilters,
         dateFilter: showDateFilter ? dateFilter : null,
       },
@@ -1917,6 +1967,29 @@ export function IssueFilterMenu({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
+            {/* Project status — a dimension of its own next to Project:
+                "everything in the projects that are in progress", without
+                naming them one by one. */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <CircleDashed className="size-3.5" />
+                <span className="flex-1">{t(($) => $.filters.section_project_status)}</span>
+                {projectStatusFilters.length > 0 && (
+                  <span className="text-caption text-primary font-medium">
+                    {projectStatusFilters.length}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-auto min-w-52 p-0">
+                <ProjectStatusSubContent
+                  selected={projectStatusFilters}
+                  onToggle={act.toggleProjectStatusFilter}
+                  fixedStatuses={viewBaseline?.projectStatus}
+                  fixedTitle={fixedTitle}
+                />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             {/* Label */}
             <DropdownMenuSub
               onOpenChange={(open) =>
@@ -2057,6 +2130,7 @@ export function IssueDisplayControls({
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
   const typeFilters = useViewStore((s) => s.typeFilters);
+  const projectStatusFilters = useViewStore((s) => s.projectStatusFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const cardPropertyIds = useViewStore((s) => s.cardPropertyIds);
@@ -2123,6 +2197,7 @@ export function IssueDisplayControls({
       goalFilters,
       cycleFilters,
       typeFilters,
+      projectStatusFilters,
       labelFilters,
       dateFilter: showDateFilter ? dateFilter : null,
     },

@@ -206,7 +206,11 @@ describe("TriggerRow enable toggle", () => {
 });
 
 describe("TriggerRow edit dialog", () => {
-  it("patches the label, cron and band of a schedule trigger", async () => {
+  // The band is its own column and the API takes it alone, so widening it
+  // sends window_minutes and nothing else about the schedule. That matters
+  // while the dialog is open: resending an untouched cron would overwrite the
+  // one a teammate just corrected on the same row.
+  it("patches the label and the band, without resending the untouched cron", async () => {
     const user = userEvent.setup();
     renderWithQuery(
       <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
@@ -218,13 +222,15 @@ describe("TriggerRow edit dialog", () => {
     await user.click(screen.getByRole("button", { name: "Save trigger" }));
 
     await waitFor(() => expect(mockUpdateTrigger).toHaveBeenCalledTimes(1));
-    expect(mockUpdateTrigger.mock.calls[0]?.[0]).toMatchObject({
+    const patch = mockUpdateTrigger.mock.calls[0]?.[0];
+    expect(patch).toMatchObject({
       autopilotId: AUTOPILOT_ID,
       triggerId: "trg-1",
       label: "Morning sweep",
       window_minutes: 60,
     });
-    expect(mockUpdateTrigger.mock.calls[0]?.[0].cron_expression).toMatch(/(^|\s)0 8 \* \* \*$/);
+    expect(patch.cron_expression).toBeUndefined();
+    expect(patch.timezone).toBeUndefined();
   });
 
   it("patches criteria and filters of a webhook trigger, and no cron", async () => {
@@ -256,10 +262,41 @@ describe("TriggerRow edit dialog", () => {
     expect(patch).toMatchObject({
       triggerId: "trg-1",
       event_match_criteria: "only production incidents",
-      event_filters: [],
     });
     expect(patch.cron_expression).toBeUndefined();
     expect(patch.window_minutes).toBeUndefined();
+    // The filter list was never touched — untouched fields do not travel
+    // (MUL-4302 discipline), so an empty list here is "not sent", not "sent
+    // and empty".
+    expect(patch.event_filters).toBeUndefined();
+  });
+
+  // The mirror of the case above, and the one the minimal patch could break:
+  // emptying a filter list is a decision, not an absence. `[]` has to travel,
+  // or a user who removes the last filter saves a trigger that still has it.
+  it("sends an emptied filter list, because clearing it is an edit", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow
+        trigger={trigger({
+          kind: "webhook",
+          cron_expression: null,
+          timezone: null,
+          webhook_token: "awt_token",
+          webhook_path: "/api/webhooks/autopilots/awt_token",
+          event_filters: [{ event: "issues", actions: ["opened"] }],
+        })}
+        autopilotId={AUTOPILOT_ID}
+        canWrite
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit trigger" }));
+    await user.click(screen.getByRole("button", { name: "Remove filter" }));
+    await user.click(screen.getByRole("button", { name: "Save trigger" }));
+
+    await waitFor(() => expect(mockUpdateTrigger).toHaveBeenCalledTimes(1));
+    expect(mockUpdateTrigger.mock.calls[0]?.[0].event_filters).toEqual([]);
   });
 });
 

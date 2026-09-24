@@ -1,6 +1,6 @@
--- ==============
+-- =====================
 -- VCS Connection (Forgejo / Gitea / GitLab)
--- ==============
+-- =====================
 
 -- name: ListVCSConnectionsByWorkspace :many
 SELECT * FROM vcs_connection
@@ -126,6 +126,7 @@ WITH checks AS (
 )
 SELECT
     pr.*,
+    COALESCE(ipr.linked_by_type, 'system')::text AS linked_by_type,
     COALESCE(c.total, 0)::bigint   AS checks_total,
     COALESCE(c.passed, 0)::bigint  AS checks_passed,
     COALESCE(c.failed, 0)::bigint  AS checks_failed,
@@ -135,6 +136,88 @@ JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
 LEFT JOIN checks c ON c.pr_id = pr.id
 WHERE ipr.issue_id = sqlc.arg('issue_id')
 ORDER BY pr.pr_created_at DESC;
+
+-- =====================
+-- VCS commit status (CI)
+-- =====================
+
+-- name: UpsertVCSCommitStatus :exec
+-- One row per (connection, sha, context); a redelivery or state transition
+-- overwrites in place. updated_at guards against an older event overwriting a
+-- newer one for the same context. state is normalized (passed/failed/pending).
+INSERT INTO vcs_commit_status (
+    connection_id, sha, context, state, target_url, description, updated_at
+) VALUES (
+    $1, $2, $3, $4, sqlc.narg('target_url'), sqlc.narg('description'), $5
+)
+ON CONFLICT (connection_id, sha, context) DO UPDATE SET
+    state       = EXCLUDED.state,
+    target_url  = EXCLUDED.target_url,
+    description = EXCLUDED.description,
+    updated_at  = EXCLUDED.updated_at
+WHERE EXCLUDED.updated_at >= vcs_commit_status.updated_at;
+
+-- name: ListIssueIDsForVCSPRHead :many
+-- Issues linked to any PR whose head sha matches the given status, so a
+-- commit-status event can fan out a PR-card refresh to the right issues.
+SELECT DISTINCT ipr.issue_id
+FROM vcs_pull_request pr
+JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
+WHERE pr.connection_id = $1 AND pr.head_sha = $2 AND pr.head_sha <> '';
+
+-- ==============
+-- Issue ↔ VCS PR link
+-- ==============
+
+-- name: LinkIssueToVCSPullRequest :execrows
+-- Mirrors LinkIssueToPullRequest: automatic link, 1 only when new.
+INSERT INTO issue_vcs_pull_request (
+    issue_id, pull_request_id, linked_by_type, linked_by_id
+) VALUES (
+    $1, $2, 'system', NULL
+)
+ON CONFLICT (issue_id, pull_request_id) DO NOTHING;
+
+-- name: LinkIssueToVCSPullRequestManually :execrows
+INSERT INTO issue_vcs_pull_request (
+    issue_id, pull_request_id, linked_by_type, linked_by_id
+) VALUES (
+    $1, $2, 'member', sqlc.narg('linked_by_id')
+)
+ON CONFLICT (issue_id, pull_request_id) DO UPDATE SET
+    linked_by_type = 'member',
+    linked_by_id = EXCLUDED.linked_by_id
+WHERE issue_vcs_pull_request.linked_by_type IS DISTINCT FROM 'member';
+
+-- name: ListIssueIDsForVCSPullRequest :many
+SELECT issue_id FROM issue_vcs_pull_request
+WHERE pull_request_id = $1;
+
+-- name: ListAutoLinkedIssueIDsForVCSPullRequest :many
+SELECT issue_id FROM issue_vcs_pull_request
+WHERE pull_request_id = $1
+  AND COALESCE(linked_by_type, 'system') <> 'member';
+
+-- name: UnlinkIssueFromVCSPullRequest :execrows
+DELETE FROM issue_vcs_pull_request
+WHERE issue_id = $1 AND pull_request_id = $2;
+
+-- name: GetVCSPullRequestByKey :one
+-- The stored row before a webhook upsert, so the handler can tell a merge
+-- transition apart from a later event on an already-merged PR.
+SELECT * FROM vcs_pull_request
+WHERE connection_id = $1 AND repo_owner = $2 AND repo_name = $3 AND pr_number = $4;
+
+-- name: GetVCSPullRequestInWorkspace :one
+SELECT * FROM vcs_pull_request
+WHERE id = $1 AND workspace_id = $2;
+
+-- name: FindVCSPullRequestByURL :one
+SELECT * FROM vcs_pull_request
+WHERE workspace_id = $1
+  AND lower(rtrim(html_url, '/')) = lower(sqlc.arg('html_url')::text)
+ORDER BY pr_updated_at DESC
+LIMIT 1;
 
 -- name: GetIssueCombinedPullRequestCloseAggregate :one
 -- Cross-provider close gate. An issue can carry PRs from GitHub AND a
@@ -165,61 +248,3 @@ FROM combined;
 -- ==============
 -- VCS commit status (CI)
 -- ==============
-
--- name: UpsertVCSCommitStatus :exec
--- One row per (connection, sha, context); a redelivery or state transition
--- overwrites in place. updated_at guards against an older event overwriting a
--- newer one for the same context. state is normalized (passed/failed/pending).
-INSERT INTO vcs_commit_status (
-    connection_id, sha, context, state, target_url, description, updated_at
-) VALUES (
-    $1, $2, $3, $4, sqlc.narg('target_url'), sqlc.narg('description'), $5
-)
-ON CONFLICT (connection_id, sha, context) DO UPDATE SET
-    state       = EXCLUDED.state,
-    target_url  = EXCLUDED.target_url,
-    description = EXCLUDED.description,
-    updated_at  = EXCLUDED.updated_at
-WHERE EXCLUDED.updated_at >= vcs_commit_status.updated_at;
-
--- name: ListIssueIDsForVCSPRHead :many
--- Issues linked to any PR whose head sha matches the given status, so a
--- commit-status event can fan out a PR-card refresh to the right issues.
-SELECT DISTINCT ipr.issue_id
-FROM vcs_pull_request pr
-JOIN issue_vcs_pull_request ipr ON ipr.pull_request_id = pr.id
-WHERE pr.connection_id = $1 AND pr.head_sha = $2 AND pr.head_sha <> '';
-
--- ==============
--- Issue ↔ VCS PR link
--- ==============
-
--- name: LinkIssueToVCSPullRequest :exec
--- Mirrors the GitHub link upsert: preserve_close_intent freezes close_intent
--- once a terminal merge/close event has been recorded.
-INSERT INTO issue_vcs_pull_request (
-    issue_id, pull_request_id, linked_by_type, linked_by_id, close_intent
-) VALUES (
-    $1, $2, sqlc.narg('linked_by_type'), sqlc.narg('linked_by_id'), $3
-)
-ON CONFLICT (issue_id, pull_request_id) DO UPDATE SET
-    close_intent = CASE
-        WHEN sqlc.arg('preserve_close_intent') THEN issue_vcs_pull_request.close_intent
-        ELSE EXCLUDED.close_intent
-    END;
-
--- name: ListIssueIDsForVCSPullRequest :many
-SELECT issue_id FROM issue_vcs_pull_request
-WHERE pull_request_id = $1;
-
--- name: UnlinkIssueFromVCSPullRequest :exec
--- Drops a link an earlier claim created, for the GitHub twin's reason: while a
--- PR is still editable, the link follows the live title/body parse, so a key the
--- payload still carries but no longer claims — "Closes MUL-1" edited down to
--- "Related MUL-1" — loses its link. A key deleted from the PR outright is NOT
--- covered: the payload keeps no trace of it, so noticing that needs the stored
--- links instead, which is its own change. Callers must not run this once the PR
--- has gone terminal — a post-merge edit cannot retroactively unlink a PR that
--- did the work.
-DELETE FROM issue_vcs_pull_request
-WHERE issue_id = $1 AND pull_request_id = $2;

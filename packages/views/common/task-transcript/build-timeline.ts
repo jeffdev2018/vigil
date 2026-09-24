@@ -22,6 +22,8 @@ export interface TimelineItem {
     | "elicitation"
     | (string & {});
   tool?: string;
+  /** Opaque identity for pairing tool events within a backend execution. */
+  callId?: string;
   content?: string;
   input?: Record<string, unknown>;
   output?: string;
@@ -128,6 +130,7 @@ function mergeRun(run: readonly TaskMessagePayload[]): TimelineItem {
     seq: first.seq,
     type: first.type,
     tool: first.tool,
+    callId: first.call_id,
     content,
     input: first.input,
     output: first.output,

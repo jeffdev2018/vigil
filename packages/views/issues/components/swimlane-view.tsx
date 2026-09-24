@@ -677,6 +677,10 @@ function SwimLaneViewImpl({
     includeNoProject: activeFiltersProp?.includeNoProject ?? false,
     goalFilters: activeFiltersProp?.goalFilters ?? [],
     projectGoalIds: activeFiltersProp?.projectGoalIds,
+    projectStatusFilters: activeFiltersProp?.projectStatusFilters ?? [],
+    // Needed to evaluate the project-status predicate: an Issue only carries
+    // `project_id`. Absent → the predicate is a no-op, never match-none.
+    projectStatusById: activeFiltersProp?.projectStatusById,
     labelFilters: activeFiltersProp?.labelFilters ?? [],
     // Carry the "Show sub-issues" toggle through to the extra-children merge
     // path (see `filterIssues(extra, activeFilters)` below); otherwise batch /

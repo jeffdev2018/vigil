@@ -119,7 +119,8 @@ const squadParentStatusOwned = `6. **Own the parent issue status.** This issue i
    ` + "`" + `multica issue status <issue-id> in_review` + "`" + ` — this responsibility is
    itself the standing instruction that authorizes that change, so do it even
    when no comment asked you to. Leave ` + "`" + `done` + "`" + ` to a human reviewer or
-   existing integrations (for example a PR with close intent that merges).`
+   existing integrations (for example PR auto-complete, which moves the issue
+   to ` + "`" + `done` + "`" + ` once every linked pull request is merged).`
 
 // squadParentStatusNotOwned is responsibility 6 for every other leader path:
 // an @squad mention on an issue owned by someone else (MUL-3724), and

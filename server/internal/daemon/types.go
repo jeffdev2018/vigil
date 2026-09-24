@@ -86,13 +86,16 @@ type SandboxSpec struct {
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
-	ID              string `json:"id"`
-	AgentID         string `json:"agent_id"`
-	RuntimeID       string `json:"runtime_id"`
-	IssueID         string `json:"issue_id"`
-	WorkspaceID     string `json:"workspace_id"`
-	WorkspaceSlug   string `json:"workspace_slug,omitempty"`
-	IssueIdentifier string `json:"issue_identifier,omitempty"`
+	// StartClaimSupported gates retries when talking to older servers.
+	StartClaimSupported bool   `json:"start_claim_supported,omitempty"`
+	DispatchedAt        string `json:"dispatched_at,omitempty"`
+	ID                  string `json:"id"`
+	AgentID             string `json:"agent_id"`
+	RuntimeID           string `json:"runtime_id"`
+	IssueID             string `json:"issue_id"`
+	WorkspaceID         string `json:"workspace_id"`
+	WorkspaceSlug       string `json:"workspace_slug,omitempty"`
+	IssueIdentifier     string `json:"issue_identifier,omitempty"`
 	// ModelOverride (JEF-12) mirrors agent_task_queue.model_override: a
 	// per-task model pin that outranks the agent's configured model and the
 	// daemon-wide env tier in the daemon's model cascade. Empty on a server
@@ -225,7 +228,8 @@ type Task struct {
 	QuickCreateDueDate            string                        `json:"quick_create_due_date,omitempty"`            // explicit calendar due date selected in quick-create
 	QuickCreateAttachmentIDs      []string                      `json:"quick_create_attachment_ids,omitempty"`      // attachments uploaded in the quick-create prompt and bound by issue create
 	QuickCreateSourceContext      json.RawMessage               `json:"quick_create_source_context,omitempty"`      // immutable historical context, separate from the new instruction
-	HandoffNote                   string                        `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
+	WakeupID                      string                        `json:"wakeup_id,omitempty"`
+	HandoffNote                   string                        `json:"handoff_note,omitempty"` // legacy assignment handoff instruction; rendered only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
 	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
 	// Goal (goal loop): the issue's goal and chain state; rendered in the per-turn prompt.

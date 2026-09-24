@@ -2,8 +2,11 @@ import { githubUrl, discordUrl } from "../components/shared";
 import { createEnDict } from "./en";
 import type { LandingDict } from "./types";
 
-export function createKoDict(allowSignup: boolean): LandingDict {
-  const base = createEnDict(allowSignup);
+export function createKoDict(
+  allowSignup: boolean,
+  docsHref: string,
+): LandingDict {
+  const base = createEnDict(allowSignup, docsHref);
 
   return {
     ...base,
@@ -240,7 +243,7 @@ export function createKoDict(allowSignup: boolean): LandingDict {
         resources: {
           label: "리소스",
           links: [
-            { label: "문서", href: "/docs/ko" },
+            { label: "문서", href: docsHref },
             { label: "API", href: githubUrl },
             { label: "X (Twitter)", href: "https://x.com/MulticaAI" },
             { label: "Discord", href: discordUrl },
@@ -268,6 +271,113 @@ export function createKoDict(allowSignup: boolean): LandingDict {
         fixes: "버그 수정",
       },
       entries: [
+        {
+          version: "0.5.2",
+          date: "2026-09-23",
+          title: "실행 중 작업에 지시 추가, Issue 중복 표시, 더 안정적인 작업 실행",
+          changes: [],
+          features: [
+            "Claude Code나 Codex 작업이 실행 중일 때도 새 지시를 더할 수 있습니다.",
+            "상태 선택에서 Issue를 중복으로 표시하고, 원래 Issue로 바로 이동하며, 목록에서도 그 관계가 보입니다.",
+            "커맨드라인에서 Issue를 만들 때 사용자 지정 속성도 함께 설정할 수 있습니다.",
+            "Telegram 그룹에서 에이전트를 @하면 최근 대화를 이미 알고 답합니다.",
+            "다운로드 페이지에서 Windows용 커맨드라인 설치 방법을 바로 볼 수 있습니다.",
+          ],
+          improvements: [
+            "OpenClaw의 각 에이전트가 자신에게 설정된 폴더에서 작업합니다.",
+            "Issue를 만들 때 올린 첨부 파일이 설명에 나타납니다.",
+            "답이 없는 Lark 봇에서 전달이 어디서 막혔는지 알 수 있습니다.",
+            "Issue의 예약된 재개가 자신의 시간대로 표시됩니다.",
+            "작업의 GitHub 풀 리퀘스트로 더 빨리 이동합니다.",
+            "실행 중 표시가 더 부드러워지고 기기 부담도 줄었습니다.",
+          ],
+          fixes: [
+            "Codex의 새 모델이 나오는 대로 선택 목록에 뜹니다.",
+            "커맨드라인 로그인이 서버에 닿지 않으면 계속 기다리지 않고 알려 줍니다.",
+            "초대받은 멤버는 가입을 제한한 셀프 호스팅에서도 가입을 마칠 수 있습니다.",
+            "시작이 확인되지 않은 작업은 멈춰 있지 않고 다시 시작됩니다.",
+            "작업 취소가 바로 응답하고, 스레드의 답글도 담당 에이전트에게 갑니다.",
+            "모바일 앱이 연결이 끊겨도 스스로 다시 연결합니다.",
+            "데스크톱 툴바 버튼 간격이 원래대로 돌아왔습니다.",
+            "Windows 설치 스크립트가 PowerShell 5.1에서도 실행됩니다.",
+            "프랑스어 확인 창이 옆으로 스크롤되지 않습니다.",
+            "오토파일럿이 만든 Issue가 활동으로 기록됩니다.",
+            "게스트 스쿼드 리더도 정상적으로 깨어나 일을 이어받습니다.",
+            "WeCom 답변이 돌아오지 않았을 때 어디서 사라졌는지 알 수 있습니다.",
+          ],
+        },
+        {
+          version: "0.5.1",
+          date: "2026-09-21",
+          title: "Issue 자동 재개, 댓글 직접 링크, 저장소 시작 브랜치, 더 안정적인 채널과 런타임",
+          changes: [],
+          features: [
+            "Issue에 새 댓글이 오거나 정해 둔 시각에 에이전트를 다시 시작하도록 설정할 수 있습니다.",
+            "이 재개 규칙은 Issue 사이드바나 오토파일럿에서 관리할 수 있습니다.",
+            "프로젝트의 저장소 작업을 어느 브랜치나 커밋에서 시작할지 정할 수 있습니다.",
+            "댓글과 답글의 직접 링크를 복사할 수 있고, 열면 해당 댓글이 강조됩니다.",
+            "WeCom 답변이 질문한 메시지 안에 돌아옵니다.",
+            "셀프 호스팅에서 Gitea나 호환 미러로 업데이트를 받을 수 있습니다.",
+          ],
+          improvements: [
+            "WeCom의 긴 답변이 중간에 사라지지 않고 전부 전달됩니다.",
+            "페이지가 더 빨리 열리고, 런타임 사용량이 휴대폰 화면에도 들어갑니다.",
+          ],
+          fixes: [
+            "이름이 같은 도구를 동시에 실행해도 결과가 뒤바뀌지 않습니다.",
+            "OpenCode 2.x가 실행되고, Oh-My-Pi 사용자 지정 런타임도 제대로 인식·검색됩니다.",
+            "Telegram 답장이 한 번만 가고, 재시작이나 재시도 뒤에도 중복되지 않습니다.",
+            "셀프 호스팅의 Telegram과 DingTalk이 설정한 시크릿을 제대로 받습니다.",
+            "하위 태스크를 취소하면 어느 단계에서 몇 개가 영향을 받았는지 알려 줍니다.",
+            "댓글 순서가 그대로 유지되고, 화면을 다시 열어도 Issue 링크가 열립니다.",
+            "로컬 폴더 리소스에 쓸 수 없는 이름 바꾸기가 더 이상 나오지 않습니다.",
+            "에디터에 붙여 넣은 이미지가 원래 형식을 유지합니다.",
+            "Inbox의 에이전트 활동 문구가 실제 내용과 맞습니다.",
+            "Windows 태스크가 추가 단계 없이 결과를 전달합니다.",
+          ],
+        },
+        {
+          version: "0.5.0",
+          date: "2026-09-18",
+          title: "프랑스어 화면, 더 안정적이고 군더더기 없는 에이전트 실행, Inbox 보관함 전체, 더 오래 유지되는 로그인",
+          changes: [],
+          features: [
+            "화면 언어로 프랑스어를 고를 수 있고, 웹과 데스크톱 앱 모두 지원합니다.",
+            "명령줄에서 스킬에 라벨을 달고, 스킬 페이지에서 라벨로 걸러 볼 수 있습니다.",
+            "Oh-My-Pi 에이전트의 사고 수준을 정할 수 있습니다.",
+            "명령줄에서 이미 올린 댓글을 고칠 수 있고, 다른 사람이 동시에 한 수정을 덮어쓰지 않습니다.",
+            "Issue 목록을 속한 프로젝트의 상태로 걸러 볼 수 있습니다.",
+            "오토파일럿의 일정을 하나씩 고치거나 잠시 멈출 수 있어, 지우고 다시 만들지 않아도 됩니다.",
+          ],
+          improvements: [
+            "에이전트가 작업을 이어갈 때 Issue와 댓글을 처음부터 다시 읽지 않습니다.",
+            "계속 사용하면 로그인이 연장되어, 30일마다 강제로 로그아웃되지 않습니다.",
+            "Inbox 보관함을 가장 오래된 알림까지 넘겨볼 수 있고, 필터와 링크도 전체를 다룹니다.",
+            "중복된 설명 문구가 사라지고, Chat 목록의 처음 너비가 Inbox와 같아졌습니다.",
+          ],
+          fixes: [
+            "WeCom에서 잇따라 보내도 메시지가 사라지지 않습니다.",
+            "에이전트의 WeCom 봇을 바꾸면 이전 봇의 기록이 남지 않습니다.",
+            "WeCom과 DingTalk 그룹에서 인용한 메시지도 요청과 함께 에이전트에 전달됩니다.",
+            "DingTalk 답장은 첫 메시지부터 어느 에이전트가 답하는지 알려 줍니다.",
+            "해지된 연동은 연결이 끊긴 것으로 표시됩니다.",
+            "Grok, Pi, Copilot, Codex 실행이 조용히 실패하거나 답의 일부를 빠뜨리지 않습니다.",
+            "Cursor 세션이 연결 시간이 초과된 뒤에도 남아 그대로 이어서 쓸 수 있습니다.",
+            "오래된 OpenCode가 디스크를 가득 채우지 않습니다.",
+            "Hermes 태스크가 마무리 단계에서 멈추지 않습니다.",
+            "데스크톱 앱이 직접 설치한 명령줄 도구를 찾고, CodeBuddy 답장도 온전히 보입니다.",
+            "Windows에서의 실행이 직접 설정한 도구 경로를 따릅니다.",
+            "비공개 런타임이 소유자가 맞지 않아 쓰지 못하는 일이 없습니다.",
+            "태스크의 비용과 사용량이 빠짐없이 기록됩니다.",
+            "태스크 안의 커밋이 그 태스크의 Git 정보를 사용합니다.",
+            "다시 연결된 뒤에도 태스크의 최종 결과가 전달됩니다.",
+            "하위 태스크를 취소하면 상위 단계의 진행이 올바르게 반영됩니다.",
+            "다른 곳에서 완료된 초대가 대기 상태로 남지 않습니다.",
+            "멘션 목록이 단어 중간에서도 열리고, 맞는 항목이 없을 때도 조작됩니다.",
+            "사이드바의 PR 연결과 @all 설명이 오해를 주지 않습니다.",
+            "Quick Create가 입력한 내용을 그대로 남깁니다.",
+          ],
+        },
         {
           version: "0.4.44",
           date: "2026-09-15",
@@ -3040,6 +3150,9 @@ export function createKoDict(allowSignup: boolean): LandingDict {
         title: "CLI가 더 편하신가요?",
         sub: "서버, 원격 개발 환경, headless 환경에 적합합니다. 데스크톱과 동일한 데몬을 터미널에서 바로 설치할 수 있습니다.",
         installLabel: "설치",
+        platformGroup: "플랫폼 선택",
+        platformMacosLinux: "macOS / Linux",
+        platformWindows: "Windows",
         startLabel: "데몬 시작",
         sshNote: "이미 서버에 접속해 있나요? 같은 명령을 SSH에서도 그대로 사용할 수 있습니다.",
         copyLabel: "복사",

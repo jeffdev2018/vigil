@@ -19,7 +19,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 
 | Open | When the task is about |
 |---|---|
-| `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running, making an issue recur |
+| `references/issues.md` | Issues: PR linking and auto-complete, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running, event/time wakeups, making an issue recur |
 | `references/racing.md` | Racing attempts: queueing 2-5 concurrent runs on one issue, reading their diffs, settling on a winner or abandoning the race |
 | `references/pr-walkthrough.md` | Answering a pull request walkthrough run: the `pr_walkthrough` block, the group kinds, anchoring an explanation to a hunk |
 | `references/review-flags.md` | Recording a review flag: what each severity means, when to state a confidence, the per-run cap, what a moving head does to a flag |
@@ -83,11 +83,6 @@ write which SUCCEEDED look like it failed, and invites a duplicate retry.
 mentioning, triggering and status changes mutate durable workspace state or
 start agent runs that cost real budget. Never run one to see what happens. When
 the user has not asked for a specific mutation, propose it instead of making it.
-
-**`--no-start` when you are only recording.** Assignment and status writes
-normally enqueue a run. When the work is already underway and the write merely
-records ownership or progress, pass `--no-start` on EVERY command in that flow —
-suppressing the assignment alone does not suppress a later status update.
 
 **Status keys identify workflow states; categories describe lifecycle only.**
 Custom statuses do not inherit built-in automation behavior. For status side

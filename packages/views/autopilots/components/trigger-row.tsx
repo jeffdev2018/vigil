@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Zap, Clock, Trash2, Webhook, RotateCw, Pencil, FlaskConical,
   ChevronDown, ChevronRight, Ban,
@@ -232,7 +232,11 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
             )}
           </div>
         )}
-        {trigger.next_run_at && (
+        {/* A disabled trigger keeps the next_run_at it had — the dispatcher
+            filters on `enabled` instead of clearing it — so the row would
+            otherwise carry the Disabled badge and a promise to run at 09:00
+            in the same breath. The badge is the true one. */}
+        {trigger.next_run_at && trigger.enabled && (
           <div className="text-caption text-muted-foreground">
             {t(($) => $.trigger_row.next_label, {
               date: formatInTimeZone(
@@ -582,6 +586,13 @@ export function AddTriggerDialog({
 }
 
 
+// Compares webhook event filters by content: two freshly-built arrays that
+// hold the same events/actions are not a user edit, even though they are a
+// different array instance every render.
+function sameEventFilters(a: WebhookEventFilter[], b: WebhookEventFilter[]): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 // Editing a trigger in place. Before this, an autopilot's routing rules were
 // only reachable through AutopilotDialog, which speaks for `triggers[0]` alone:
 // the second webhook on an autopilot could be created and deleted but never
@@ -604,50 +615,110 @@ export function EditTriggerDialog({
   const isSchedule = trigger.kind === "schedule";
   const isWebhook = trigger.kind === "webhook";
 
-  const [config, setConfig] = useState<ScheduleConfig>(() =>
-    trigger.cron_expression
-      ? {
-          ...parseCron(trigger.cron_expression, trigger.timezone ?? "UTC"),
-          windowMinutes: trigger.window_minutes ?? 0,
-        }
-      : getDefaultScheduleConfig(browserTimezone()),
-  );
+  const initialConfig = trigger.cron_expression
+    ? {
+        ...parseCron(trigger.cron_expression, trigger.timezone ?? "UTC"),
+        windowMinutes: trigger.window_minutes ?? 0,
+      }
+    : getDefaultScheduleConfig(browserTimezone());
+
+  const [config, setConfig] = useState<ScheduleConfig>(initialConfig);
   const [label, setLabel] = useState(trigger.label ?? "");
+  const [enabled, setEnabled] = useState(trigger.enabled);
   const [eventFilters, setEventFilters] = useState<WebhookEventFilter[]>(
     trigger.event_filters ?? [],
   );
   const [eventCriteria, setEventCriteria] = useState(trigger.event_match_criteria ?? "");
   const [submitting, setSubmitting] = useState(false);
   const scheduleGate = useScheduleSubmitGate(wsId);
-  const canSubmit = !submitting && (!isSchedule || scheduleGate.scheduleValid);
+
+  // What "changed" is measured against, frozen at mount — never read live off
+  // `trigger`. The detail query can refresh under an open dialog (a teammate
+  // saving this same row), and a prop moving under an untouched control would
+  // read as this user's edit: Save would then send a value they never set,
+  // back over the one that had just landed.
+  //
+  // The cron baseline is the editor's own rendering of the stored expression,
+  // not the stored text: `parseCron` → `toCron` normalizes (a bare cron on a
+  // zoned row comes back carrying its `TZ=` prefix), so comparing against the
+  // stored string would call an untouched schedule edited. Server-side that
+  // reads as a substantive change — republishing the rule version and moving
+  // this trigger's accountability to whoever opened the dialog, which
+  // MUL-4302 settled must not happen on a label-only or no-op save.
+  const baseline = useRef({
+    cron: toCron(initialConfig),
+    timezone: initialConfig.timezone,
+    windowMinutes: effectiveWindowMinutes(initialConfig),
+    // Trimmed like the value submit sends, so a stored label carrying stray
+    // whitespace is not already an edit the moment the dialog opens.
+    label: (trigger.label ?? "").trim(),
+    enabled: trigger.enabled,
+    eventFilters: trigger.event_filters ?? [],
+    eventCriteria: (trigger.event_match_criteria ?? "").trim(),
+  });
+
+  const cronDirty = toCron(config) !== baseline.current.cron;
+  const timezoneDirty = config.timezone !== baseline.current.timezone;
+  const windowDirty = effectiveWindowMinutes(config) !== baseline.current.windowMinutes;
+  // Any of the three means the schedule moved, which is what the preview gate
+  // must clear — the endpoint validates cron, zone and band as one schedule.
+  // What travels is still field by field: the band is its own column, and the
+  // API takes it alone, so widening a band must not resend a cron a teammate
+  // changed under the open dialog.
+  const scheduleDirty = cronDirty || timezoneDirty || windowDirty;
+  // Zone rides with the cron: a bare expression and its `TZ=` prefix are one
+  // value to the server, so sending one without the other is meaningless.
+  const cronPairDirty = cronDirty || timezoneDirty;
+  const labelDirty = label.trim() !== baseline.current.label;
+  const enabledDirty = enabled !== baseline.current.enabled;
+  // An emptied filter list or a cleared criteria string is a value the user
+  // set, not an absence to skip — only an array/string that still reads the
+  // same as the baseline is left out.
+  const filtersDirty = !sameEventFilters(eventFilters, baseline.current.eventFilters);
+  const criteriaDirty = eventCriteria.trim() !== baseline.current.eventCriteria;
+
+  const dirty = isSchedule
+    ? scheduleDirty || labelDirty || enabledDirty
+    : labelDirty || filtersDirty || criteriaDirty;
+  // The cron gate only stands between the user and a write that carries a
+  // cron. A row whose stored expression the server can no longer preview is
+  // exactly the one a user reaches for this dialog to switch OFF or rename,
+  // and a rejection of an expression they are not sending must not be what
+  // stops them.
+  const canSubmit = !submitting && dirty && (!scheduleDirty || scheduleGate.scheduleValid);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      // Label is sent unconditionally — "" is how the API clears one, and the
-      // field is a plain text box with no other way to say "remove it".
-      const patch: UpdateAutopilotTriggerRequest = { label: label.trim() };
+      // Only the fields that moved. The PATCH preserves everything it is not
+      // sent, so a field left out here keeps whatever the row has now — which
+      // is also what makes this dialog safe to have open while someone else
+      // edits the same trigger: it can only overwrite what its user touched.
+      const patch: UpdateAutopilotTriggerRequest = {};
+      if (labelDirty) patch.label = label.trim();
       if (isSchedule) {
-        if (!(await scheduleGate.ensureAccepted(config))) {
-          setSubmitting(false);
-          return;
+        if (scheduleDirty) {
+          if (!(await scheduleGate.ensureAccepted(config))) {
+            setSubmitting(false);
+            return;
+          }
         }
-        const cronExpr = toCron(config);
-        if (!cronExpr.trim()) {
-          setSubmitting(false);
-          return;
+        if (cronPairDirty) {
+          const cronExpr = toCron(config);
+          if (!cronExpr.trim()) {
+            setSubmitting(false);
+            return;
+          }
+          patch.cron_expression = cronExpr;
+          patch.timezone = config.timezone || undefined;
         }
-        patch.cron_expression = cronExpr;
-        patch.timezone = config.timezone;
-        patch.window_minutes = effectiveWindowMinutes(config);
+        if (windowDirty) patch.window_minutes = effectiveWindowMinutes(config);
+        if (enabledDirty) patch.enabled = enabled;
       }
       if (isWebhook) {
-        // Both are authoritative here: an empty list clears the filters and an
-        // empty string clears the criteria, which is what the emptied controls
-        // mean.
-        patch.event_filters = eventFilters;
-        patch.event_match_criteria = eventCriteria.trim();
+        if (filtersDirty) patch.event_filters = eventFilters;
+        if (criteriaDirty) patch.event_match_criteria = eventCriteria.trim();
       }
       await updateTrigger.mutateAsync({ autopilotId, triggerId: trigger.id, ...patch });
       toast.success(t(($) => $.edit_trigger_dialog.toast_saved));
@@ -671,16 +742,30 @@ export function EditTriggerDialog({
         <DialogTitle>{t(($) => $.edit_trigger_dialog.title)}</DialogTitle>
         <div className="min-w-0 space-y-4 pt-2">
           {isSchedule && (
-            <ScheduleEditor
-              value={config}
-              onChange={(next) => {
-                scheduleGate.clearRejection();
-                setConfig(next);
-              }}
-              wsId={wsId}
-              onValidityChange={scheduleGate.onValidityChange}
-              disabled={submitting}
-            />
+            <>
+              <ScheduleEditor
+                value={config}
+                onChange={(next) => {
+                  scheduleGate.clearRejection();
+                  setConfig(next);
+                }}
+                wsId={wsId}
+                onValidityChange={scheduleGate.onValidityChange}
+                disabled={submitting}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-caption font-medium text-muted-foreground">
+                  {t(($) => $.edit_trigger_dialog.enabled_label)}
+                </span>
+                <Switch
+                  size="sm"
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                  disabled={submitting}
+                  aria-label={t(($) => $.edit_trigger_dialog.enabled_label)}
+                />
+              </div>
+            </>
           )}
           {isWebhook && (
             <>
@@ -721,7 +806,12 @@ export function EditTriggerDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={t(($) => $.add_trigger_dialog.label_placeholder)}
-              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-body outline-none focus:ring-1 focus:ring-ring"
+              // Submit reads the label going into the network validation of a
+              // dirty schedule, then writes what it read — an edit landing in
+              // that window would be dropped silently, under the success toast
+              // for the write that shipped without it.
+              disabled={submitting}
+              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-body outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
           </div>
           <div className="flex justify-end pt-1">

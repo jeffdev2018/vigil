@@ -123,7 +123,7 @@ func (q *Queries) GetControllableTaskForIssue(ctx context.Context, issueID pgtyp
 }
 
 const listSteeringInstructions = `-- name: ListSteeringInstructions :many
-SELECT id, task_id, seq, type, tool, content, input, output, created_at, output_truncated FROM task_message WHERE task_id = $1 AND type = 'steering_instruction' ORDER BY seq
+SELECT id, task_id, seq, type, tool, content, input, output, created_at, call_id, output_truncated FROM task_message WHERE task_id = $1 AND type = 'steering_instruction' ORDER BY seq
 `
 
 func (q *Queries) ListSteeringInstructions(ctx context.Context, taskID pgtype.UUID) ([]TaskMessage, error) {
@@ -145,6 +145,7 @@ func (q *Queries) ListSteeringInstructions(ctx context.Context, taskID pgtype.UU
 			&i.Input,
 			&i.Output,
 			&i.CreatedAt,
+			&i.CallID,
 			&i.OutputTruncated,
 		); err != nil {
 			return nil, err

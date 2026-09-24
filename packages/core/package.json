@@ -46,6 +46,7 @@
     "./issues/gantt-arrows": "./issues/gantt-arrows.ts",
     "./issues/dependency-edges": "./issues/dependency-edges.ts",
     "./issues/queries": "./issues/queries.ts",
+    "./issues/wakeups": "./issues/wakeups.ts",
     "./issues/mutations": "./issues/mutations.ts",
     "./issues/dependencies": "./issues/dependencies.ts",
     "./issues/plan": "./issues/plan.ts",

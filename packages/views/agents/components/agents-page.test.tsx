@@ -4,6 +4,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Agent } from "@multica/core/types";
 import type { AgentActivity } from "@multica/core/agents";
+import type { SupportedLocale } from "@multica/core/i18n";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { AgentsPage } from "./agents-page";
@@ -220,11 +221,12 @@ function makeAdapter(
   };
 }
 
-function renderPage(adapter: NavigationAdapter = makeAdapter()) {
+function renderPage(adapter: NavigationAdapter = makeAdapter(), locale?: SupportedLocale) {
   renderWithI18n(
     <NavigationProvider value={adapter}>
       <AgentsPage />
     </NavigationProvider>,
+    { locale },
   );
 }
 
@@ -425,5 +427,15 @@ describe("AgentsPage row title link", () => {
     expect(rowToggle).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(rowToggle).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("AgentsPage docs link", () => {
+  it("points Learn more at the viewer's docs locale", () => {
+    renderPage(makeAdapter(), "fr");
+
+    expect(
+      screen.getByRole("link", { name: "En savoir plus →" }),
+    ).toHaveAttribute("href", "https://multica.ai/docs/fr/agents");
   });
 });

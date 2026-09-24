@@ -30,6 +30,9 @@ type telegramChannel struct {
 	// sentence to show the clicker as a toast. Nil leaves the buttons inert.
 	onApproval ApprovalClickHandler
 	logger     *slog.Logger
+	// recent buffers the group messages this loop has seen so an @-mention can
+	// carry the surrounding conversation (see recent_context.go). Nil disables.
+	recent *recentContextBuffer
 }
 
 // ApprovalClickHandler settles the ask an inline approval button names. appID
@@ -129,10 +132,11 @@ func (c *telegramChannel) dispatch(ctx context.Context, u Update) error {
 		c.handleCallback(ctx, u.CallbackQuery)
 		return nil
 	}
-	msg, ok := inboundFromUpdate(u, c.botID, c.botUsername)
+	msg, ok := inboundFromUpdateWithContext(u, c.botID, c.botUsername, c.recent)
 	if !ok {
 		return nil
 	}
+	c.recordRecent(u.Message, msg)
 	if msg.Type != channel.MsgTypeText {
 		if msg.Source.ChatType == channel.ChatTypeP2P || msg.AddressedToBot {
 			c.notifyUnsupported(ctx, u)
@@ -175,6 +179,22 @@ func (c *telegramChannel) handleCallback(ctx context.Context, q *CallbackQuery) 
 	}); err != nil {
 		c.logger.DebugContext(ctx, "telegram: approval message not updated", "error", err)
 	}
+}
+
+// recordRecent buffers a human group message after it has been translated,
+// so the window an @-mention reads never contains the mention itself. Runs
+// for every group message the loop sees — addressed or not, text or media —
+// because the next @-mention wants the conversation as members saw it. p2p
+// messages are never buffered: a 1:1 chat is already one continuous session.
+func (c *telegramChannel) recordRecent(m *Message, msg channel.InboundMessage) {
+	if c.recent == nil || m == nil || msg.Source.ChatType != channel.ChatTypeGroup {
+		return
+	}
+	var threadID int64
+	if m.IsTopicMessage {
+		threadID = m.MessageThreadID
+	}
+	c.recent.Record(m.Chat.ID, threadID, recentEntryFromMessage(m))
 }
 
 const (
@@ -259,6 +279,12 @@ type ChannelDeps struct {
 	// OnApprovalClick settles an inline approval button press. Nil leaves the
 	// buttons inert (the clicker is told so).
 	OnApprovalClick ApprovalClickHandler
+	// RecentContextSize caps how many preceding group messages each polling
+	// loop buffers per chat/topic and inlines as a <recent_context> block when
+	// a member @-mentions the bot. <=0 disables the feature; the production
+	// wiring sets DefaultRecentContextSize. Mirrors
+	// lark.InboundEnricherConfig.RecentContextSize.
+	RecentContextSize int
 }
 
 // RegisterTelegram registers the per-installation Telegram Factory so the
@@ -297,6 +323,7 @@ func newTelegramFactory(deps ChannelDeps) channel.Factory {
 			handler:     cfg.Handler,
 			onApproval:  deps.OnApprovalClick,
 			logger:      logger,
+			recent:      newRecentContextBuffer(deps.RecentContextSize),
 		}, nil
 	}
 }

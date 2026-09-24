@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { create } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { IssueStatus, IssuePriority, PropertyFilterValue } from "../../types";
+import type { IssueStatus, IssuePriority, ProjectStatus, PropertyFilterValue } from "../../types";
+import { PROJECT_STATUS_ORDER } from "../../projects/config";
 import { createWorkspaceAwareStorage, registerForWorkspaceRehydration } from "../../platform/workspace-storage";
 import { defaultStorage } from "../../platform/storage";
 
@@ -139,6 +140,7 @@ export interface FilterSnapshot {
   /** Work item type KEYS (F30), not ids — a type is referenced by its key
    *  everywhere, including on the issue row. */
   typeFilters: string[];
+  projectStatusFilters: ProjectStatus[];
   labelFilters: string[];
   propertyFilters: Record<string, PropertyFilterValue[]>;
 }
@@ -154,6 +156,7 @@ export type FilterDimension =
   | "goal"
   | "cycle"
   | "type"
+  | "projectStatus"
   | "label"
   | `property:${string}`;
 
@@ -265,6 +268,13 @@ export interface IssueViewState {
   cycleFilters: string[];
   /** Work item type keys (F30). Server-side, so it holds across pagination. */
   typeFilters: string[];
+  /**
+   * Lifecycle status of the parent project. Its own dimension next to
+   * `projectFilters` (AND across the two, OR within): "show me everything in
+   * the projects that are in progress" without naming them one by one. An
+   * issue with no project never matches.
+   */
+  projectStatusFilters: ProjectStatus[];
   labelFilters: string[];
   /**
    * Custom-property filters: definition id → selected values (checkbox
@@ -337,6 +347,7 @@ export interface IssueViewState {
   toggleGoalFilter: (goalId: string) => void;
   toggleCycleFilter: (cycleId: string) => void;
   toggleTypeFilter: (typeKey: string) => void;
+  toggleProjectStatusFilter: (status: ProjectStatus) => void;
   toggleLabelFilter: (labelId: string) => void;
   togglePropertyFilter: (propertyId: string, optionId: string) => void;
   /** Replace a property's full filter value set (used by scalar value inputs
@@ -388,6 +399,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
   goalFilters: [],
   cycleFilters: [],
   typeFilters: [],
+  projectStatusFilters: [],
   labelFilters: [],
   propertyFilters: {},
   dateFilter: null,
@@ -499,6 +511,12 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
         ? state.typeFilters.filter((key) => key !== typeKey)
         : [...state.typeFilters, typeKey],
     })),
+  toggleProjectStatusFilter: (status) =>
+    set((state) => ({
+      projectStatusFilters: state.projectStatusFilters.includes(status)
+        ? state.projectStatusFilters.filter((s) => s !== status)
+        : [...state.projectStatusFilters, status],
+    })),
   toggleLabelFilter: (labelId) =>
     set((state) => ({
       labelFilters: state.labelFilters.includes(labelId)
@@ -548,6 +566,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
       goalFilters: [],
       cycleFilters: [],
       typeFilters: [],
+      projectStatusFilters: [],
       labelFilters: [],
       propertyFilters: {},
       dateFilter: null,
@@ -573,6 +592,8 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
           return { cycleFilters: [] };
         case "type":
           return { typeFilters: [] };
+        case "projectStatus":
+          return { projectStatusFilters: [] };
         case "label":
           return { labelFilters: [] };
         default: {
@@ -711,6 +732,7 @@ export const viewStorePersistOptions = (name: string) => ({
     goalFilters: state.goalFilters,
     cycleFilters: state.cycleFilters,
     typeFilters: state.typeFilters,
+    projectStatusFilters: state.projectStatusFilters,
     labelFilters: state.labelFilters,
     propertyFilters: state.propertyFilters,
     sortBy: state.sortBy,
@@ -824,6 +846,16 @@ export function mergeViewStatePersisted<T extends IssueViewState>(
     tableCollapsedParents: Array.isArray(p.tableCollapsedParents)
       ? p.tableCollapsedParents
       : current.tableCollapsedParents,
+    // A saved view is a server-owned blob and a persisted snapshot can be
+    // hand-edited, so an unknown member can arrive here. It cannot be
+    // represented: the backend rejects it with a 400 and the filter chip
+    // resolves its dot through PROJECT_STATUS_CONFIG. Drop it, like
+    // `baselineFromQuery` does on the read side.
+    projectStatusFilters: Array.isArray(p.projectStatusFilters)
+      ? p.projectStatusFilters.filter((status): status is ProjectStatus =>
+          (PROJECT_STATUS_ORDER as readonly string[]).includes(status as string),
+        )
+      : current.projectStatusFilters,
   };
   return {
     ...merged,

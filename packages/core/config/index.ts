@@ -55,6 +55,9 @@ interface ConfigState {
   // MULTICA_LLM_API_KEY set — the onboarding native-runtime card stays
   // disabled and the getting-started checklist hides the native row.
   nativeRuntimeAvailable: boolean;
+  // Whether POST /api/issues atomically persists custom-property values.
+  // Older servers silently drop the field, so absent must fail closed.
+  issueCreatePropertiesSupported: boolean;
   // Whether deleting a comment keeps its replies (#8296). Older servers
   // deleted the replies too, so absent must fail closed: the client then
   // promises nothing about replies and uses the legacy delete route.
@@ -79,6 +82,7 @@ interface ConfigState {
   setTtsAvailable: (available?: boolean) => void;
   setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
   setNativeRuntimeAvailable: (available?: boolean) => void;
+  setIssueCreatePropertiesSupported: (supported?: boolean) => void;
   setCommentDeleteKeepRepliesSupported: (supported?: boolean) => void;
 }
 
@@ -101,6 +105,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   ttsAvailable: false,
   runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
   nativeRuntimeAvailable: false,
+  issueCreatePropertiesSupported: false,
   commentDeleteKeepRepliesSupported: false,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
@@ -131,6 +136,8 @@ export const configStore = createStore<ConfigState>((set) => ({
     }),
   setNativeRuntimeAvailable: (available = false) =>
     set({ nativeRuntimeAvailable: available === true }),
+  setIssueCreatePropertiesSupported: (supported = false) =>
+    set({ issueCreatePropertiesSupported: supported === true }),
   setCommentDeleteKeepRepliesSupported: (supported = false) =>
     set({ commentDeleteKeepRepliesSupported: supported === true }),
 }));

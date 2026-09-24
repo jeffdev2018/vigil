@@ -7,7 +7,7 @@ import { projectListOptions } from "@multica/core/projects/queries";
 import { childIssueProgressOptions } from "@multica/core/issues/queries";
 import { issueSurfaceGanttOptions } from "@multica/core/issues/surface/repository";
 import type { IssueSurfaceQueryPlan } from "@multica/core/issues/surface/query-plan";
-import type { IssueStatus, PropertyFilterValue } from "@multica/core/types";
+import type { IssueStatus, ProjectStatus, PropertyFilterValue } from "@multica/core/types";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { issueBehavesAsAny, statusColumnKeys, visibleStatusKeys } from "@multica/core/issues";
 import {
@@ -83,11 +83,15 @@ export interface IssueSurfaceData {
   }>;
   isLoading: boolean;
   /**
-   * The catalog request a CUSTOM status filter depends on failed. The filter
-   * cannot be honoured without it, so the surface shows a retryable error
-   * rather than an unexplained empty board. (MUL-6243)
+   * A filter catalog this surface depends on failed. The filter cannot be
+   * honoured without it, so the surface shows a retryable error rather than
+   * an unexplained empty board (MUL-6243) — or, for the project-status
+   * filter, an unfiltered one under an active chip.
    */
   isStatusCatalogError: boolean;
+  /** Re-runs the project list behind the project-status half of
+   *  {@link isStatusCatalogError}. */
+  retryProjectCatalog: () => void;
   /** The window's data is being revalidated while the previous snapshot is
    *  shown as a placeholder (sort/date change, or any grouped-board filter
    *  change). Drives the header's deferred refresh indicator — content stays
@@ -117,6 +121,7 @@ export function useIssueSurfaceData({
   projectFilters,
   includeNoProject,
   goalFilters,
+  projectStatusFilters,
   labelFilters,
   typeFilters,
   propertyFilters,
@@ -148,6 +153,7 @@ export function useIssueSurfaceData({
   projectFilters: string[];
   includeNoProject: boolean;
   goalFilters: string[];
+  projectStatusFilters: ProjectStatus[];
   labelFilters: string[];
   /** Work item type keys (F30). */
   typeFilters: string[];
@@ -164,6 +170,8 @@ export function useIssueSurfaceData({
   const {
     data: projectData,
     refetch: refetchProjects,
+    isPending: projectsPending,
+    isError: projectsError,
   } = useQuery({
     ...projectListOptions(wsId),
     enabled: loadProjects || goalFilters.length > 0,
@@ -179,9 +187,36 @@ export function useIssueSurfaceData({
     () => Object.fromEntries(projects.map((p) => [p.id, p.goal_ids ?? []])),
     [projects],
   );
+  // Keyed off `projectData`, NOT `projects`: the latter falls back to
+  // EMPTY_PROJECTS while the query is loading or failed, which would build a
+  // defined-but-empty map. `applyIssueFilters` treats a defined map as
+  // authoritative, so that map would drop every issue and blank the board.
+  // `undefined` is the honest answer until the catalog actually arrives, and
+  // it makes the predicate a no-op.
+  const projectStatusById = useMemo(
+    () =>
+      projectData
+        ? new Map(projectData.map((project) => [project.id, project.status]))
+        : undefined,
+    [projectData],
+  );
+  // An unresolved catalog is "cannot answer yet", not "no filter". Showing
+  // UNFILTERED rows under an active chip is as wrong as blanking the surface,
+  // and a failed project request would leave it that way for good. So where a
+  // surface actually applies the client predicate, hold it in loading and
+  // report the failure — the same contract `statusFilterPending` /
+  // `statusFilterError` give a custom status filter. Table and the
+  // server-status branches filter server-side and never read the catalog.
+  const usesClientProjectStatusFilter =
+    projectStatusFilters.length > 0 &&
+    !usesTable &&
+    (usesGantt || !serverStatusBranches.enabled);
+  const projectCatalogPending = usesClientProjectStatusFilter && projectsPending;
+  const projectCatalogError = usesClientProjectStatusFilter && projectsError;
+
   const workingFilterContext = useMemo(
-    () => ({ runningIssueIds: workingIssueIDs }),
-    [workingIssueIDs],
+    () => ({ runningIssueIds: workingIssueIDs, projectStatusById }),
+    [projectStatusById, workingIssueIDs],
   );
   const bucketedIssues = serverStatusBranches.enabled
     ? serverStatusBranches.issues
@@ -211,6 +246,7 @@ export function useIssueSurfaceData({
       includeNoProject,
       goalFilters,
       projectGoalIds,
+      projectStatusFilters,
       labelFilters,
       typeFilters,
       propertyFilters,
@@ -229,6 +265,7 @@ export function useIssueSurfaceData({
       priorityFilters,
       projectFilters,
       projectGoalIds,
+      projectStatusFilters,
       propertyFilters,
       showSubIssues,
       statusFilters,
@@ -390,6 +427,8 @@ export function useIssueSurfaceData({
       includeNoProject,
       goalFilters,
       projectGoalIds,
+      projectStatusFilters,
+      projectStatusById,
       labelFilters,
       typeFilters,
       propertyFilters,
@@ -408,6 +447,8 @@ export function useIssueSurfaceData({
       priorityFilters,
       projectFilters,
       projectGoalIds,
+      projectStatusById,
+      projectStatusFilters,
       showSubIssues,
       workingIssueIDs,
     ],
@@ -419,6 +460,7 @@ export function useIssueSurfaceData({
   // spinner — for the whole cold-load window. (MUL-6243)
   const isLoading =
     statusFilterPending ||
+    projectCatalogPending ||
     (serverGroupBranches.enabled
       ? serverGroupBranches.isLoading
       : usesGantt
@@ -465,6 +507,7 @@ export function useIssueSurfaceData({
     isEmpty:
       !isLoading &&
       !statusFilterError &&
+      !projectCatalogError &&
       !usesGantt &&
       !usesTable &&
       (serverStatusBranches.enabled
@@ -473,6 +516,10 @@ export function useIssueSurfaceData({
         : serverGroupBranches.enabled &&
           !serverGroupBranches.isError &&
           serverGroupBranches.total === 0),
-    isStatusCatalogError: statusFilterError,
+    // Widened past the status catalog: this flag means "a filter catalog this
+    // surface depends on is down", and the error state's copy and retry fit
+    // either one. `retryStatusCatalog` refetches both.
+    isStatusCatalogError: statusFilterError || projectCatalogError,
+    retryProjectCatalog: refetchProjects,
   };
 }
