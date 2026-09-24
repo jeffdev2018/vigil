@@ -57,14 +57,14 @@ var goalBlockerCriteria = map[string]string{
 	"external_wait":    "the run is waiting on something outside the workspace: a person, a deployment, a third party",
 }
 
-const goalSatisfiedInstructions = "Is the goal met by this run? True only when the closing status shows every part of the goal done, with concrete evidence of what was changed, filed or verified. A status that says the work is done without saying what was done is not met."
+const goalSatisfiedInstructions = "Is the goal met by this run? Judge the actions the server recorded, which are facts, above the run's own closing words, which are a claim. A recorded action that accomplishes the goal means it is met, even when the run does not describe it. With no recorded action, the closing status has to name concretely what was changed, filed or verified; a status that only says the work is done does not."
 
 const goalBlockerInstructions = "The goal is not met. Which of these explains why not?"
 
 // judgeByDecision answers the judge's two questions with a decision model and
 // leaves the prose to the chat model. Returning an error stops the chain, the
 // same as before: a judge that cannot judge must not let the loop guess.
-func (s *GoalLoopService) judgeByDecision(ctx context.Context, issue db.Issue, goal db.IssueGoal, closing string, continuation, max int) (goalJudgeAnswer, error) {
+func (s *GoalLoopService) judgeByDecision(ctx context.Context, issue db.Issue, goal db.IssueGoal, closing string, receipts []runReceipt, continuation, max int) (goalJudgeAnswer, error) {
 	state := map[string]any{
 		"issue_title":        issue.Title,
 		"run_closing_status": clampString(closing, goalStatusCap),
@@ -81,6 +81,11 @@ func (s *GoalLoopService) judgeByDecision(ctx context.Context, issue db.Issue, g
 	}
 	if evidence := goalEvidenceOf(goal.Evidence); len(evidence) > 0 && continuation > 0 {
 		state["evidence_from_previous_runs"] = evidence
+	}
+	// The server's own record of what this run did, which outranks anything
+	// the run says about itself.
+	if len(receipts) > 0 {
+		state["actions_the_server_recorded_for_this_run"] = receipts
 	}
 
 	res, err := s.Decisions.Ask(ctx, state, map[string]decisions.Question{

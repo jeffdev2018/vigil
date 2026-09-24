@@ -246,7 +246,8 @@ func (s *TaskService) ScoreRunConfidence(ctx context.Context, taskID pgtype.UUID
 	if s.Decisions.Enabled() {
 		var ok bool
 		score, rationale, judgeModel, ok = s.scoreRunConfidenceByDecision(
-			ctx, issue.Title, completed.Output, reviewVerdict, cfg.Threshold)
+			ctx, issue.Title, completed.Output, reviewVerdict,
+			receiptsFromResult(task.Result), cfg.Threshold)
 		if !ok {
 			// Same outcome as a failed chat call: a score needs a real
 			// assessment, so nothing is stored.

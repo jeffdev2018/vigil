@@ -71,7 +71,7 @@ func TestLevelMapsToScore(t *testing.T) {
 		chat := &rationaleClient{reply: `{"rationale":"nothing concrete"}`}
 		s := decisionTaskService(t, scoreReply(tc.level), chat)
 		score, _, _, ok := s.scoreRunConfidenceByDecision(
-			context.Background(), "Ship retry logging", "did the thing", "", 0.5)
+			context.Background(), "Ship retry logging", "did the thing", "", nil, 0.5)
 		if !ok {
 			t.Fatalf("level %v: no score", tc.level)
 		}
@@ -89,7 +89,7 @@ func TestRequestChangesCapsTheScore(t *testing.T) {
 	chat := &rationaleClient{reply: `{"rationale":"reviewer asked for changes"}`}
 	s := decisionTaskService(t, scoreReply(4), chat)
 	score, _, _, ok := s.scoreRunConfidenceByDecision(
-		context.Background(), "Ship retry logging", "all done", "request_changes", 0.5)
+		context.Background(), "Ship retry logging", "all done", "request_changes", nil, 0.5)
 	if !ok {
 		t.Fatal("no score")
 	}
@@ -99,7 +99,7 @@ func TestRequestChangesCapsTheScore(t *testing.T) {
 	// Any other verdict leaves the level alone.
 	s2 := decisionTaskService(t, scoreReply(4), &rationaleClient{reply: `{"rationale":"x"}`})
 	score2, _, _, _ := s2.scoreRunConfidenceByDecision(
-		context.Background(), "Ship retry logging", "all done", "approve", 0.5)
+		context.Background(), "Ship retry logging", "all done", "approve", nil, 0.5)
 	if score2 != 1.0 {
 		t.Errorf("an approving verdict changed the score to %v", score2)
 	}
@@ -112,7 +112,7 @@ func TestRationaleOnlyWhenSomeoneWillReadIt(t *testing.T) {
 	chat := &rationaleClient{reply: `{"rationale":"should not be asked"}`}
 	s := decisionTaskService(t, scoreReply(4), chat)
 	_, rationale, _, _ := s.scoreRunConfidenceByDecision(
-		context.Background(), "t", "output", "", 0.5)
+		context.Background(), "t", "output", "", nil, 0.5)
 	if chat.calls != 0 {
 		t.Errorf("asked for a rationale nobody reads (%d call(s))", chat.calls)
 	}
@@ -124,7 +124,7 @@ func TestRationaleOnlyWhenSomeoneWillReadIt(t *testing.T) {
 	chat2 := &rationaleClient{reply: `{"rationale":"claims done, names nothing"}`}
 	s2 := decisionTaskService(t, scoreReply(1), chat2)
 	_, rationale2, _, _ := s2.scoreRunConfidenceByDecision(
-		context.Background(), "t", "output", "", 0.5)
+		context.Background(), "t", "output", "", nil, 0.5)
 	if chat2.calls != 1 {
 		t.Errorf("below the threshold the rationale was not asked (%d call(s))", chat2.calls)
 	}
@@ -144,7 +144,7 @@ func TestScoreSurvivesAProseFailure(t *testing.T) {
 	} {
 		s := decisionTaskService(t, scoreReply(0), chat)
 		score, rationale, _, ok := s.scoreRunConfidenceByDecision(
-			context.Background(), "t", "output", "", 0.5)
+			context.Background(), "t", "output", "", nil, 0.5)
 		if !ok {
 			t.Errorf("%s: the score was dropped with the prose", name)
 		}
@@ -168,7 +168,7 @@ func TestNoScoreWithoutADecision(t *testing.T) {
 	} {
 		s := decisionTaskService(t, reply, &rationaleClient{reply: `{"rationale":"x"}`})
 		if _, _, _, ok := s.scoreRunConfidenceByDecision(
-			context.Background(), "t", "output", "", 0.5); ok {
+			context.Background(), "t", "output", "", nil, 0.5); ok {
 			t.Errorf("%s: returned a score without an assessment", name)
 		}
 	}
@@ -195,7 +195,7 @@ func TestRunOutputIsBounded(t *testing.T) {
 		RunConfidence: &rationaleClient{reply: `{"rationale":"x"}`},
 	}
 	s.scoreRunConfidenceByDecision(context.Background(), "t",
-		strings.Repeat("y", 200*1024), "", 0.5)
+		strings.Repeat("y", 200*1024), "", nil, 0.5)
 
 	if len(sent) > runConfidenceOutputBudget+4096 {
 		t.Errorf("request is %d bytes for a %d-byte output budget",
@@ -208,3 +208,79 @@ var (
 	_ RunConfidenceLLM = (*rationaleClient)(nil)
 	_ RunConfidenceLLM = (*llm.Client)(nil)
 )
+
+// TestRecordedActionsOutrankVagueProse reproduces the run a real smoke test
+// produced, which no unit test had caught: an agent was asked to post a
+// comment, posted it, the server recorded the receipt — and the run's closing
+// prose said only "I added the comment" with no detail. Scored on the prose
+// alone the level was the lowest one, so the run was filed for human review
+// and the goal chain re-ran it, posting the comment twice.
+//
+// The test asserts what is sent, not what a model answers: the receipts must
+// reach the endpoint, because that is the fix. What the model does with them
+// is its own business.
+func TestRecordedActionsReachTheJudge(t *testing.T) {
+	var sent map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&sent)
+		_, _ = w.Write([]byte(scoreReply(4)))
+	}))
+	defer srv.Close()
+	s := &TaskService{
+		Decisions:     decisions.New(decisions.Config{BaseURL: srv.URL, APIKey: "k"}),
+		RunConfidence: &rationaleClient{reply: `{"rationale":"x"}`},
+	}
+
+	receipts := receiptsFromResult([]byte(`{"summary":"I added the comment.","receipts":[
+		{"id":"r1","ok":true,"tool":"add_comment","args":"{\"content\":\"- one\\n- two\\n- three\"}"}]}`))
+	if len(receipts) != 1 || receipts[0].Tool != "add_comment" || !receipts[0].OK {
+		t.Fatalf("receipts not read from the result: %+v", receipts)
+	}
+
+	s.scoreRunConfidenceByDecision(context.Background(), "Summarise in a comment",
+		"I added the comment.", "", receipts, 0.5)
+
+	body, _ := json.Marshal(sent)
+	if !strings.Contains(string(body), "add_comment") {
+		t.Error("the recorded action never reached the endpoint, so the judge only saw the claim")
+	}
+	// The instruction has to say which of the two outranks the other, or the
+	// model has no reason to prefer the fact over the claim.
+	questions, _ := sent["questions"].(map[string]any)
+	q, _ := questions["evidence"].(map[string]any)
+	instructions, _ := q["instructions"].(string)
+	if !strings.Contains(instructions, "outrank") {
+		t.Errorf("the instruction does not rank recorded actions above the run's words: %q", instructions)
+	}
+	// And it must not describe evidence as code artefacts only: that is what
+	// scored a posted comment as nothing.
+	for _, codeOnly := range []string{"files changed, tests run, a pull request opened."} {
+		if strings.Contains(instructions, codeOnly) {
+			t.Errorf("the instruction still frames evidence as code work only: %q", codeOnly)
+		}
+	}
+}
+
+func TestReceiptsFromResultIsHonestAboutAbsence(t *testing.T) {
+	for name, raw := range map[string]string{
+		"no result":       ``,
+		"no receipts key": `{"summary":"done"}`,
+		"empty receipts":  `{"receipts":[]}`,
+		"not json":        `nope`,
+		"nameless tool":   `{"receipts":[{"id":"r1","ok":true,"tool":"  "}]}`,
+	} {
+		if got := receiptsFromResult([]byte(raw)); got != nil {
+			t.Errorf("%s: invented %d receipt(s)", name, len(got))
+		}
+	}
+	// A failed action is still a recorded fact, and the judge needs to see it.
+	got := receiptsFromResult([]byte(`{"receipts":[{"id":"r1","ok":false,"tool":"transition_issue","args":"{}"}]}`))
+	if len(got) != 1 || got[0].OK {
+		t.Errorf("a failed action was dropped or marked successful: %+v", got)
+	}
+	// Arguments are bounded per receipt.
+	long := `{"receipts":[{"id":"r1","ok":true,"tool":"add_comment","args":"` + strings.Repeat("x", 4000) + `"}]}`
+	if got := receiptsFromResult([]byte(long)); len(got) != 1 || len(got[0].Args) > runReceiptArgsCap {
+		t.Errorf("receipt arguments not bounded: %d bytes", len(got[0].Args))
+	}
+}
