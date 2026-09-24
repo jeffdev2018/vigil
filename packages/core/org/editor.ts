@@ -2,11 +2,19 @@ import { z } from "zod";
 
 import type { OrgDefinition, OrgMember, OrgUnit } from "../types";
 
-/** Display reporting parents above children; cycles stay finite and visible. */
-export function orgLayout(def: OrgDefinition) {
+/**
+ * The chart's rows, top first: a unit sits one row below the deepest unit it
+ * reports to. Only positions are left out, because a team's height depends on
+ * how many people it shows and the view lays that out itself. A reporting
+ * cycle still ends — the unit that closes it restarts at the top — so a
+ * broken definition stays visible instead of hanging the page.
+ */
+export function orgRows(def: OrgDefinition): OrgUnit[][] {
   const parents = new Map<string, string[]>();
   const ids = new Set(def.units.map(u => u.id));
-  for (const edge of def.edges) if (edge.kind === "reports_to" && ids.has(edge.to)) parents.set(edge.from, [...(parents.get(edge.from) ?? []), edge.to]);
+  for (const edge of def.edges) {
+    if (edge.kind === "reports_to" && ids.has(edge.to)) parents.set(edge.from, [...(parents.get(edge.from) ?? []), edge.to]);
+  }
   const depths = new Map<string, number>();
   const depth = (id: string, seen = new Set<string>()): number => {
     const cached = depths.get(id);
@@ -17,8 +25,14 @@ export function orgLayout(def: OrgDefinition) {
     depths.set(id, value);
     return value;
   };
-  const rows = new Map<number, OrgUnit[]>();
-  for (const unit of def.units) { const n = depth(unit.id); rows.set(n, [...(rows.get(n) ?? []), unit]); }
+  const rows: OrgUnit[][] = [];
+  for (const unit of def.units) (rows[depth(unit.id)] ??= []).push(unit);
+  return rows.filter(Boolean);
+}
+
+/** Display reporting parents above children; cycles stay finite and visible. */
+export function orgLayout(def: OrgDefinition) {
+  const rows = new Map(orgRows(def).map((units, row) => [row, units] as const));
   const width = Math.max(640, ...Array.from(rows.values(), r => r.length * 312 + 48));
   const nodes = Array.from(rows.entries()).flatMap(([row, units]) => units.map((unit, column) => ({ unit, x: (width - units.length * 312) / 2 + column * 312 + 16, y: row * 248 + 56 })));
   return { nodes, width, height: Math.max(300, (Math.max(0, ...rows.keys()) + 1) * 248 + 40) };

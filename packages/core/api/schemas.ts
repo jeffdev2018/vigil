@@ -6968,6 +6968,11 @@ export const OrgStructureDetailSchema = z.object({
 export const OrgTemplateListSchema = z.object({
   templates: z.array(z.object({ model: z.string(), composite: z.boolean().optional().catch(undefined), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
 }).loose();
+// Interpolation params for a server-coded message (simulate note / proposal):
+// zod's string-enum-as-string leniency applies here too — values stay
+// `string | number` rather than a strict literal set, so a param the client
+// doesn't recognize yet still comes through instead of failing the parse.
+const OrgCodeParamsSchema = z.record(z.string(), z.union([z.string(), z.number()])).catch({}).default({});
 export const OrgHealthSchema = z.object({
   structure_id: z.string().catch(""),
   window_days: z.number().catch(7),
@@ -6981,12 +6986,13 @@ export const OrgHealthSchema = z.object({
   human_review_items: z.number().catch(0),
   drift_rate: z.number().catch(0),
   units: z.array(z.object({ unit_id: z.string(), name: z.string().catch(""), routed: z.number().catch(0), escalations: z.number().catch(0), reassigned_outside: z.number().catch(0), vacant_roles: z.array(z.string()).catch([]), saturated_agents: z.array(z.string()).catch([]), paused: z.boolean().catch(false), spend_usd_ticks: z.number().catch(0), budget_usd_ticks: z.number().catch(0), human_review_items: z.number().catch(0) }).loose()).catch([]).default([]),
-  proposals: z.array(z.object({ key: z.string(), unit_id: z.string().optional(), title: z.string().catch(""), body: z.string().catch(""), measure: z.string().catch("") }).loose()).catch([]).default([]),
+  proposals: z.array(z.object({ key: z.string(), unit_id: z.string().optional(), title: z.string().catch(""), body: z.string().catch(""), measure: z.string().catch(""), code: z.string().optional(), params: OrgCodeParamsSchema.optional() }).loose()).catch([]).default([]),
 }).loose();
 export const OrgPreflightSchema = z.object({
   model: z.string().catch(""), pattern: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), coordination_cost_usd_ticks_per_issue: z.number().catch(0),
   human_review_items_per_issue: z.number().catch(0), human_review_seconds_per_issue: z.number().catch(0), units: z.number().catch(0), units_without_owner: z.number().catch(0), agents: z.number().catch(0),
   activation_requirements: z.array(z.string()).catch([]).default([]),
+  activation_requirement_codes: z.array(z.string()).catch([]).default([]),
 }).loose();
 export const OrgOfferListSchema = z.object({
   offers: z.array(z.object({ id: z.string(), agent_id: z.string().catch(""), agent_name: z.string().catch(""), confidence: z.number().catch(0), cost_usd_ticks: z.number().catch(0), eta_hours: z.number().catch(0), status: z.enum(["pending", "won", "lost", "over_cap"]).catch("pending"), created_at: z.string().catch("") }).loose()).catch([]).default([]),
@@ -7010,6 +7016,7 @@ export const OrgSimulationSchema = z.object({
   blocking_denies: z.array(z.string()).catch([]).default([]),
   cost_estimate_usd_ticks: z.number().catch(0),
   notes: z.array(z.string()).catch([]).default([]),
+  note_codes: z.array(z.object({ code: z.string().catch(""), params: OrgCodeParamsSchema }).loose()).catch([]).default([]),
 }).loose();
 export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();
 

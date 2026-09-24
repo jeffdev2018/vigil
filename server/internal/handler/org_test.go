@@ -268,14 +268,23 @@ func TestOrgChart(t *testing.T) {
 	dbfx.Insert(t, "org_flow", testutil.Cols{"id": uuid.NewString(), "workspace_id": testWorkspaceID, "structure_id": hier.ID, "unit_id": "team", "kind": "escalation", "details": "{}"})
 	hierRow, _ := testHandler.Queries.GetOrgStructure(ctx, db.GetOrgStructureParams{ID: parseUUID(hier.ID), WorkspaceID: ws})
 	health := testHandler.orgHealth(ctx, hierRow)
-	found := false
-	for _, p := range health.Proposals {
-		if p.Key == "escalations:team" {
-			found = true
+	var escalationsProposal *OrgProposal
+	for i := range health.Proposals {
+		if health.Proposals[i].Key == "escalations:team" {
+			escalationsProposal = &health.Proposals[i]
 		}
 	}
-	if !found || health.Escalations < 2 {
+	if escalationsProposal == nil || health.Escalations < 2 {
 		t.Fatalf("health: %+v", health)
+	}
+	// The structured code travels beside the English title/body/measure, not
+	// instead of them — an installed client ahead of this release still reads
+	// Title/Body/Measure; one that knows the code can translate it.
+	if escalationsProposal.Code != "escalations" || escalationsProposal.Params["unit"] != "Team" {
+		t.Fatalf("proposal code/params: %+v", escalationsProposal)
+	}
+	if escalationsProposal.Title == "" || escalationsProposal.Body == "" {
+		t.Fatal("the English text must still be present for installed clients")
 	}
 	if n := testHandler.orgProposeRestructurings(ctx, hierRow, health); n < 1 {
 		t.Fatal("proposal filed to the owner")
@@ -352,6 +361,13 @@ func TestOrgChart(t *testing.T) {
 	testutil.Call(t, testHandler.PreflightOrgStructure, testutil.WithURLParams(newRequest(http.MethodGet, "/api/org/"+hier.ID+"/preflight", nil), "id", hier.ID)).Want(http.StatusOK).JSON(&pf)
 	if pf["pattern"] != "supervisor" || pf["coordination_runs_per_issue"] != 1.0 {
 		t.Fatalf("preflight: %+v", pf)
+	}
+	// Codes beside the English requirements list, same order, for a client
+	// that knows how to translate them (installed clients keep reading the
+	// English strings — see CLAUDE.md "API Compatibility").
+	codes, _ := pf["activation_requirement_codes"].([]any)
+	if len(codes) != 3 || codes[0] != "owner" || codes[1] != "eval_attestation" || codes[2] != "termination" {
+		t.Fatalf("activation requirement codes: %+v", pf["activation_requirement_codes"])
 	}
 }
 

@@ -118,17 +118,12 @@ export function orgMermaid(def: OrgDefinition, pausedUnits: string[] = []): stri
   return lines.join("\n");
 }
 
-/** Which of the seven models a structure follows, as its template name. */
-export function orgModelLabel(model: OrgModel): string {
-  return ({ hierarchy: "Hierarchy", squads: "Autonomous squads", matrix: "Competence × project matrix", circles: "Circles and roles", owner_network: "Owner network", taskforce: "Temporary task force", market: "Internal market" } as Record<OrgModel, string>)[model] ?? model;
-}
-
 /** Is the structure acting right now. */
 export function orgIsLive(s: Pick<OrgStructure, "status">): boolean {
   return s.status === "active";
 }
 
-export { addOrgMembers, removeOrgMember, moveOrgMember, orgUnitRemovalBlockers, orgLayout, removeOrgUnit, orgWouldCycle, orgDefinitionChanges, parseEditableOrgDefinition } from "./editor";
+export { addOrgMembers, removeOrgMember, moveOrgMember, orgUnitRemovalBlockers, orgLayout, orgRows, removeOrgUnit, orgWouldCycle, orgDefinitionChanges, parseEditableOrgDefinition } from "./editor";
 
 export function orgTeamCatalogOptions(wsId: string) {
   return queryOptions({ queryKey: [...orgKeys.all(wsId), "team-catalog"], queryFn: () => api.listOrgTeamTemplates(), staleTime: 300_000 });

@@ -1235,6 +1235,11 @@ func (h *Handler) PreflightOrgStructure(w http.ResponseWriter, r *http.Request) 
 		"human_review_seconds_per_issue":        int(reviewPerIssue * orgLLMReviewSecondsPerItem),
 		"units":                                 len(def.Units), "units_without_owner": unowned, "agents": agents,
 		"activation_requirements": []string{"human owner", "eval attestation (30 cases)", "termination for task force, committee and market"},
+		// Codes for the three requirements above, same order — installed
+		// clients ahead of this release keep reading activation_requirements
+		// as English strings; a client that knows these codes translates them
+		// instead (see orgActivationRequirementText in packages/views/org/labels.ts).
+		"activation_requirement_codes": []string{"owner", "eval_attestation", "termination"},
 	})
 }
 

@@ -123,6 +123,61 @@ func TestOrgSimulateBlockingDeny(t *testing.T) {
 	}
 }
 
+// The server's English notes carry a structured code alongside them (K75
+// follow-up): a client that knows the code translates it, one that does not
+// still has the English sentence (see OrgSimulationNote, org_simulate.go).
+func TestOrgSimulateNoteCodes(t *testing.T) {
+	// No rule, and the hierarchy's root has no owner: nothing matches, and the
+	// unmatched branch names every ownerless unit.
+	root := OrgUnit{ID: "root", Name: "Root", Excludes: []string{"external_effects"}, Autonomy: "draft", Allow: []string{"read"}, Members: []OrgMember{}, Roles: []OrgRole{}}
+	unmatched := orgSimulate(t, map[string]any{
+		"model":      "hierarchy",
+		"definition": OrgDefinition{Units: []OrgUnit{root}},
+		"request":    orgSimRequest("Unrouted request"),
+	})
+	if unmatched.Receives != nil {
+		t.Fatalf("nothing should match: %+v", unmatched.Receives)
+	}
+	if len(unmatched.Notes) != len(unmatched.NoteCodes) {
+		t.Fatalf("Notes and NoteCodes must stay aligned: %d vs %d", len(unmatched.Notes), len(unmatched.NoteCodes))
+	}
+	if unmatched.NoteCodes[0].Code != "no_rule_matched" {
+		t.Fatalf("first note: %+v", unmatched.NoteCodes[0])
+	}
+	if unmatched.NoteCodes[1].Code != "unit_no_owner" || unmatched.NoteCodes[1].Params["unit"] != "Root" {
+		t.Fatalf("second note: %+v", unmatched.NoteCodes[1])
+	}
+
+	// A market unit, a superior who approves above the risk threshold, and no
+	// structure_id (so no measured spend): three notes at once.
+	trader := orgUnit("trader", "Trader", testUserID)
+	trader.ApprovalRisk = "high"
+	staged := orgSimulate(t, map[string]any{
+		"model":      "market",
+		"definition": OrgDefinition{Units: []OrgUnit{trader}, Market: OrgMarket{PriceCapUsdTicks: 1}},
+		"request":    orgSimRequest("Handle this deal"),
+	})
+	if staged.Receives == nil || staged.Receives.UnitID != "trader" {
+		t.Fatalf("the market's only unit takes it: %+v", staged.Receives)
+	}
+	codes := map[string]OrgSimulationNote{}
+	for _, n := range staged.NoteCodes {
+		codes[n.Code] = n
+	}
+	if _, ok := codes["market_not_staged"]; !ok {
+		t.Fatalf("market_not_staged missing: %+v", staged.NoteCodes)
+	}
+	if n, ok := codes["approval_risk"]; !ok || n.Params["risk"] != "high" {
+		t.Fatalf("approval_risk missing or wrong params: %+v", staged.NoteCodes)
+	}
+	if n, ok := codes["no_spend_observed"]; !ok || n.Params["days"] == nil {
+		t.Fatalf("no_spend_observed missing or missing days: %+v", staged.NoteCodes)
+	}
+	if len(staged.Notes) != len(staged.NoteCodes) {
+		t.Fatalf("Notes and NoteCodes must stay aligned: %d vs %d", len(staged.Notes), len(staged.NoteCodes))
+	}
+}
+
 // Three levels, so the ladder is more than one hop.
 func TestOrgSimulateEscalationPath(t *testing.T) {
 	team := orgUnit("team", "Team", testUserID, OrgMember{Type: "agent", ID: orgSimAgent(t, "team")})

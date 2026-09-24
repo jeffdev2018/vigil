@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { OrgSimulation } from "../types";
+import type { OrgHealth, OrgPreflight, OrgSimulation } from "../types";
 import {
+  OrgHealthSchema,
+  OrgPreflightSchema,
   OrgSimulationSchema,
   AppConfigSchema,
   OnboardingChecklistSchema,
@@ -6061,10 +6063,30 @@ describe("OrgSimulationSchema", () => {
     blocking_denies: ["rembourser"],
     cost_estimate_usd_ticks: 4200,
     notes: [],
+    note_codes: [],
   };
 
   it("keeps a valid simulation intact", () => {
     expect(parseWithFallback(simulation, OrgSimulationSchema, null, ENDPOINT)).toEqual(simulation);
+  });
+
+  it("keeps a note's structured code and params beside its English text", () => {
+    const withNote = {
+      ...simulation,
+      notes: ["no spend observed for this unit over the last 30 days"],
+      note_codes: [{ code: "no_spend_observed", params: { days: 30 } }],
+    };
+    expect(parseWithFallback(withNote, OrgSimulationSchema, null, ENDPOINT)).toEqual(withNote);
+  });
+
+  it("drops a malformed note_codes entry to its defaults rather than failing the whole simulation", () => {
+    const parsed = parseWithFallback<OrgSimulation | null>(
+      { ...simulation, note_codes: [{ code: 42, params: "oops" }] },
+      OrgSimulationSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.note_codes).toEqual([{ code: "", params: {} }]);
   });
 
   it("keeps an unrouted simulation, where no unit takes the request", () => {
@@ -6093,6 +6115,53 @@ describe("OrgSimulationSchema", () => {
       { ...simulation, prepares: undefined },
     ]) {
       expect(parseWithFallback(malformed, OrgSimulationSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+// GET /api/org/:id/health — proposals carry a structured code beside their
+// English title/body/measure (K75 follow-up).
+describe("OrgHealthSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/org/:id/health" };
+  const EMPTY: OrgHealth = { structure_id: "", window_days: 7, routed: 0, unrouted: 0, escalations: 0, stacked_escalations: 0, reassigned_outside: 0, market_short: 0, breakers: 0, human_review_items: 0, drift_rate: 0, units: [], proposals: [] };
+
+  it("keeps a proposal's code and params beside its English text", () => {
+    const health = {
+      ...EMPTY,
+      structure_id: "s1",
+      proposals: [{ key: "escalations:team", unit_id: "team", title: "Unit Team escalates too much", body: "…", measure: "2 escalations in 7 days (quota 1/day)", code: "escalations", params: { unit: "Team", count: 2, window_days: 7, quota: 1 } }],
+    };
+    expect(parseWithFallback(health, OrgHealthSchema, EMPTY, ENDPOINT)).toEqual(health);
+  });
+
+  it("keeps a proposal with no code — an installed backend older than this change", () => {
+    const health = { ...EMPTY, proposals: [{ key: "drift", title: "Drift", body: "…", measure: "10%" }] };
+    // `params` still materializes to `{}` (its schema defaults on a missing
+    // key); `code` stays genuinely absent (no default).
+    expect(parseWithFallback(health, OrgHealthSchema, EMPTY, ENDPOINT)).toEqual({ ...health, proposals: [{ ...health.proposals[0], params: {} }] });
+  });
+
+  it("falls back to the empty health on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, OrgHealthSchema, EMPTY, ENDPOINT)).toEqual(EMPTY);
+    }
+  });
+});
+
+// GET /api/org/:id/preflight — activation_requirement_codes rides beside the
+// English activation_requirements list, same order.
+describe("OrgPreflightSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/org/:id/preflight" };
+  const EMPTY: OrgPreflight = { model: "", pattern: "", coordination_runs_per_issue: 0, coordination_cost_usd_ticks_per_issue: 0, human_review_items_per_issue: 0, human_review_seconds_per_issue: 0, units: 0, units_without_owner: 0, agents: 0, activation_requirements: [], activation_requirement_codes: [] };
+
+  it("keeps the requirement codes alongside the English requirements", () => {
+    const pf = { ...EMPTY, model: "hierarchy", activation_requirements: ["human owner"], activation_requirement_codes: ["owner"] };
+    expect(parseWithFallback(pf, OrgPreflightSchema, EMPTY, ENDPOINT)).toEqual(pf);
+  });
+
+  it("falls back to the empty preflight on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, OrgPreflightSchema, EMPTY, ENDPOINT)).toEqual(EMPTY);
     }
   });
 });

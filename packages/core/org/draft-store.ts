@@ -37,8 +37,17 @@ export const useOrgWizardDraftStore = createDraftStore<{
   compete: boolean | null;
   chosenModel: import("../types").OrgModel | null;
   placement: Record<string, string>;
+  /** A task force cannot activate without a termination: either a dissolution
+   *  timestamp (ISO) or an end condition — see `orgActivationCheck` in
+   *  server/internal/handler/org.go. */
+  taskforceTermination: "date" | "condition" | null;
+  taskforceDissolveAt: string | null;
+  taskforceEndCondition: string;
 }>({
   storageKey: "org-wizard-draft",
-  emptyData: { step: 1, projectId: "", purpose: "", decider: null, teamShape: null, hasEnd: null, compete: null, chosenModel: null, placement: {} },
+  emptyData: {
+    step: 1, projectId: "", purpose: "", decider: null, teamShape: null, hasEnd: null, compete: null, chosenModel: null, placement: {},
+    taskforceTermination: null, taskforceDissolveAt: null, taskforceEndCondition: "",
+  },
   hasMeaningful: data => data.purpose.trim().length > 0 || data.projectId !== "",
 });
