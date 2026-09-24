@@ -350,6 +350,7 @@
     "rule_of_two_edge": "{{from}} → {{to}} が 3 つの露出を合算しています。この経路には人間の承認が必要になります。",
     "deciders_missing": "「{{unit}}」には外部作用があります。{{classes}} の決裁者を指定してください。",
     "committee_termination": "委員会「{{decision}}」: 定足数を 1〜{{max}} に、ラウンド数を 1 以上に設定してください。",
+    "committee_decision_missing": "決定の種類がない委員会があります。",
     "market_price_cap": "マーケットには人間が定める価格上限が必要です。",
     "squads_needs_agents": "「{{unit}}」は squads で動きます。squad またはエージェントのメンバーを割り当ててください。",
     "circles_needs_role": "「{{unit}}」は circles で動きます。ロールを少なくとも 1 つ設定してください。"
@@ -706,11 +707,8 @@
     "directory_error": "チームのディレクトリを読み込めませんでした。",
     "overview": {
       "eyebrow": "組織",
-      "teams_one": "{{count}} チーム",
       "teams_other": "{{count}} チーム",
-      "humans_one": "{{count}} 人",
       "humans_other": "{{count}} 人",
-      "agents_one": "{{count}} エージェント",
       "agents_other": "{{count}} エージェント",
       "watch_title": "要確認",
       "watch_empty": "確認すべきことはありません。",
@@ -721,8 +719,13 @@
       "model_title": "モデル",
       "model_hint": "モデルを変えると、各チームでの作業の流れ方が変わります。",
       "committees_empty": "委員会は定義されていません。",
-      "committee_row": "{{decision}} · {{count}} チーム · 定足数 {{quorum}}",
-      "committee_no_effect": "委員会は現在、実行時には何の効果もありません。サーバーは検証するだけです。"
+      "committee_no_effect": "委員会は現在、実行時には何の効果もありません。サーバーは検証するだけです。",
+      "committee_add": "委員会を追加",
+      "committee_remove": "この委員会を削除",
+      "committee_decision": "決定の種類（例: 採用）",
+      "committee_teams": "投票するチーム",
+      "committee_quorum": "定足数",
+      "committee_rounds": "最大ラウンド数"
     },
     "health": {
       "empty": "直近7日間でルーティングされた依頼はありません。テストして経路を確認してください。",

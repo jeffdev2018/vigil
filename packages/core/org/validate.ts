@@ -44,6 +44,7 @@ export interface OrgProblem {
     | "rule_of_two_edge"
     | "deciders_missing"
     | "committee_termination"
+    | "committee_decision_missing"
     | "market_price_cap"
     | "squads_needs_agents"
     | "circles_needs_role";
@@ -160,6 +161,7 @@ export function validateOrgDefinition(def: OrgDefinition, ctx: OrgValidateContex
   }
 
   for (const c of def.committees ?? []) {
+    if (!c.decision_type?.trim()) problems.push({ code: "committee_decision_missing", params: {} });
     const size = c.unit_ids?.length ?? 0;
     if (size === 0 || c.quorum < 1 || c.quorum > size || c.max_rounds < 1) {
       problems.push({ code: "committee_termination", params: { decision: c.decision_type, max: size } });
