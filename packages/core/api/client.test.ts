@@ -3195,7 +3195,7 @@ describe("ApiClient Brain note usage (JEF-413)", () => {
 
   it("parses a note's usage and calls the usage endpoint", async () => {
     const fetchMock = respond({
-      counts: { injected: 3, retrieved: 1, opened: 2, viewed: 4 },
+      counts: { injected: 3, retrieved: 1, opened: 2, viewed: 4, cited: 5 },
       runs_count: 2,
       viewers_count: 1,
       last_used_at: "2026-09-12T10:00:00Z",
@@ -3207,7 +3207,7 @@ describe("ApiClient Brain note usage (JEF-413)", () => {
     vi.stubGlobal("fetch", fetchMock);
     const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1", { limit: 5 });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/workspace/notes/note-1/usage?limit=5");
-    expect(usage.counts).toEqual({ injected: 3, retrieved: 1, opened: 2, viewed: 4 });
+    expect(usage.counts).toEqual({ injected: 3, retrieved: 1, opened: 2, viewed: 4, cited: 5 });
     expect(usage.runs).toHaveLength(2);
     expect(usage.runs[1]).toMatchObject({ task_id: "", private: true });
   });
@@ -3215,11 +3215,48 @@ describe("ApiClient Brain note usage (JEF-413)", () => {
   it("degrades a malformed usage response to zero counts and drops bad runs", async () => {
     vi.stubGlobal("fetch", respond({ counts: "lots", runs_count: -4, viewers_count: "x", last_used_at: 7, runs: [{ private: "no" }, { agent_name: "Kept" }] }));
     const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1");
-    expect(usage.counts).toEqual({ injected: 0, retrieved: 0, opened: 0, viewed: 0 });
+    expect(usage.counts).toEqual({ injected: 0, retrieved: 0, opened: 0, viewed: 0, cited: 0 });
     expect(usage.runs_count).toBe(0);
     expect(usage.viewers_count).toBe(0);
     expect(usage.last_used_at).toBeNull();
     expect(usage.runs.map((run) => run.agent_name)).toEqual(["Kept"]);
+  });
+
+  // JEF-417 / B06: a server that has not shipped the "cited" count yet omits
+  // it entirely — it must default to 0, not disappear or fail the parse.
+  it("defaults a missing cited count to 0", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({
+        counts: { injected: 1, retrieved: 0, opened: 0, viewed: 0 },
+        runs_count: 1,
+        viewers_count: 0,
+        last_used_at: null,
+        runs: [],
+      }),
+    );
+    const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1");
+    expect(usage.counts.cited).toBe(0);
+  });
+
+  // A run's `kinds` array is a loose string list server-side — an unknown
+  // kind (e.g. one a newer server added) must round-trip instead of being
+  // dropped, so the UI's default-branch label can still render it.
+  it("keeps an unknown usage kind on a run instead of dropping it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      respond({
+        counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0, cited: 1 },
+        runs_count: 1,
+        viewers_count: 0,
+        last_used_at: null,
+        runs: [
+          { task_id: "t1", agent_id: "a1", agent_name: "Ada", issue_id: "", issue_identifier: "", kinds: ["cited", "some-future-kind"], first_at: "2026-09-12T09:00:00Z", private: false },
+        ],
+      }),
+    );
+    const usage = await new ApiClient("https://api.example.test").getWorkspaceNoteUsage("note-1");
+    expect(usage.runs[0]?.kinds).toEqual(["cited", "some-future-kind"]);
   });
 
   it("falls back to an empty usage summary for a non-object body", async () => {

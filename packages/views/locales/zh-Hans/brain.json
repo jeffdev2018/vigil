@@ -204,6 +204,7 @@
     "kind_retrieved": "检索",
     "kind_opened": "打开",
     "kind_viewed": "阅读",
+    "kind_cited": "被引用",
     "viewers_other": "{{count}} 人阅读过",
     "last_used": "最近使用：{{time}}",
     "recent_runs": "最近的运行",

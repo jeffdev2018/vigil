@@ -81,7 +81,8 @@
     "group_current": "Page actuelle",
     "group_recent": "Consultés récemment",
     "group_search": "Résultats de recherche",
-    "group_cancelled": "Annulés"
+    "group_cancelled": "Annulés",
+    "note_not_found": "Note introuvable"
   },
   "slash_command": {
     "no_skills_configured": "Aucun skill configuré",

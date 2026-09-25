@@ -150,6 +150,8 @@ func TestWorkspaceKnowledgeBriefSection(t *testing.T) {
 		"README.md",
 		"multica brain save",
 		"multica brain list --search",
+		// JEF-417 / B06: the run is told how to cite a note it relies on.
+		"mention://note/<id>",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("brief missing %q\n---\n%s", want, out)

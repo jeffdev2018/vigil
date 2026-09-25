@@ -56,8 +56,16 @@ export interface UpdateWorkspaceNoteInput {
   revision: number;
 }
 
-/** How a Brain note was used (JEF-413). Loose: a kind added server-side still parses. */
-export type WorkspaceNoteUsageKind = "injected" | "retrieved" | "opened" | "viewed" | (string & {});
+/** How a Brain note was used (JEF-413). "cited" is an agent linking the note
+ *  in a comment/run output (JEF-417 / B06). Loose: a kind added server-side
+ *  still parses. */
+export type WorkspaceNoteUsageKind =
+  | "injected"
+  | "retrieved"
+  | "opened"
+  | "viewed"
+  | "cited"
+  | (string & {});
 
 /** One run that used a note. A private chat run keeps no task or issue. */
 export interface WorkspaceNoteUsageRun {
@@ -73,7 +81,7 @@ export interface WorkspaceNoteUsageRun {
 
 /** GET /api/workspace/notes/{id}/usage. People are counted, never named. */
 export interface WorkspaceNoteUsage {
-  counts: { injected: number; retrieved: number; opened: number; viewed: number };
+  counts: { injected: number; retrieved: number; opened: number; viewed: number; cited: number };
   runs_count: number;
   viewers_count: number;
   last_used_at: string | null;

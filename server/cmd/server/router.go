@@ -1519,6 +1519,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// MULTICA_LLM_* pays nothing for the subscription.
 	h.TaskService.SubscribeAgentMemoryExtraction(bus)
 
+	// Post-run Brain note citation extraction (JEF-417 / B06). Wired
+	// unconditionally: it is a pure regex + DB lookups pass, nothing to gate.
+	h.TaskService.SubscribeNoteCitationExtraction(bus)
+
 	// Post-failure postmortem drafting (k68). Wired unconditionally: without an
 	// assist-layer LLM the pass stores a deterministic scaffold instead, so the
 	// artifact exists in every deployment.

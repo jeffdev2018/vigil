@@ -204,6 +204,7 @@
     "kind_retrieved": "검색",
     "kind_opened": "열람",
     "kind_viewed": "읽음",
+    "kind_cited": "인용됨",
     "viewers_other": "{{count}}명이 읽음",
     "last_used": "마지막 사용: {{time}}",
     "recent_runs": "최근 실행",

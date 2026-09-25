@@ -102,6 +102,25 @@ describe("mention tokenizer", () => {
     expect(token!.attributes.type).toBe("issue");
   });
 
+  it("parses note mentions without @ prefix (JEF-417 / B06)", () => {
+    const token = tokenize("[the deploy note](mention://note/aaa-bbb)");
+    expect(token).toBeDefined();
+    expect(token!.attributes.label).toBe("the deploy note");
+    expect(token!.attributes.type).toBe("note");
+  });
+
+  it("renders a note mention without an @ prefix and round-trips it", () => {
+    const md = renderMarkdown({
+      attrs: { id: "aaa-bbb", label: "the deploy note", type: "note" },
+    });
+    expect(md).toBe("[the deploy note](mention://note/aaa-bbb)");
+
+    const token = tokenize(md);
+    expect(token).toBeDefined();
+    expect(token!.attributes.label).toBe("the deploy note");
+    expect(token!.attributes.type).toBe("note");
+  });
+
   it("finds an issue mention nested inside task list Markdown", () => {
     const token = tokenize("- [ ] [MUL-123](mention://issue/aaa-bbb)");
     expect(token).toBeDefined();

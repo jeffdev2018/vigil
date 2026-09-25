@@ -1592,6 +1592,43 @@ func (q *Queries) ListCommentsByIDsForIssue(ctx context.Context, arg ListComment
 	return items, nil
 }
 
+const listCommentsBySourceTask = `-- name: ListCommentsBySourceTask :many
+SELECT content FROM comment
+WHERE source_task_id = $1::uuid
+  AND workspace_id = $2::uuid
+  AND deleted_at IS NULL
+ORDER BY created_at ASC
+`
+
+type ListCommentsBySourceTaskParams struct {
+	TaskID      pgtype.UUID `json:"task_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Every live comment one run posted (JEF-417): the completion-time citation
+// pass scans these alongside the run's final output for
+// mention://note/<uuid> links. A deleted comment carries no citation the
+// workspace still sees.
+func (q *Queries) ListCommentsBySourceTask(ctx context.Context, arg ListCommentsBySourceTaskParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listCommentsBySourceTask, arg.TaskID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var content string
+		if err := rows.Scan(&content); err != nil {
+			return nil, err
+		}
+		items = append(items, content)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCommentsForIssue = `-- name: ListCommentsForIssue :many
 SELECT id, issue_id, author_type, author_id, content, type, created_at, updated_at, parent_id, workspace_id, resolved_at, resolved_by_type, resolved_by_id, source_task_id, quick_action_id, via_plugin_id, revision, recovery_settled_at, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id, a2a_intent, deleted_at FROM (
     SELECT id, issue_id, author_type, author_id, content, type, created_at, updated_at, parent_id, workspace_id, resolved_at, resolved_by_type, resolved_by_id, source_task_id, quick_action_id, via_plugin_id, revision, recovery_settled_at, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id, a2a_intent, deleted_at FROM comment

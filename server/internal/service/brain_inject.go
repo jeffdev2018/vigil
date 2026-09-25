@@ -276,6 +276,7 @@ func (s *NativeAgentService) nativeWorkspaceKnowledgeBrief(ctx context.Context, 
 		case reason.Reason != "":
 			fmt.Fprintf(&entry, "(%s)\n", reason.Reason)
 		}
+		fmt.Fprintf(&entry, "id: %s\n", util.UUIDToString(note.ID))
 		entry.WriteString(clampString(note.Content, nativeBriefNoteContentCap) + "\n")
 		if body.Len() > 0 && body.Len()+entry.Len() > nativeBriefNoteBytes {
 			break
@@ -294,6 +295,7 @@ func (s *NativeAgentService) nativeWorkspaceKnowledgeBrief(ctx context.Context, 
 	if omitted := len(notes) - len(injected); omitted > 0 {
 		fmt.Fprintf(&b, "(%d more note(s) not included here — use search_notes to reach them.)\n", omitted)
 	}
+	b.WriteString("When you rely on one of these notes, cite it inline as `[title](mention://note/<id>)`, using the id shown for that note. Never invent an id.\n")
 	return b.String()
 }
 

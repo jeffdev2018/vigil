@@ -51,6 +51,7 @@ export function NoteUsageSection({ wsId, noteId }: { wsId: string; noteId: strin
               `${t(($) => $.usage.kind_injected)} ${data.counts.injected}`,
               `${t(($) => $.usage.kind_retrieved)} ${data.counts.retrieved}`,
               `${t(($) => $.usage.kind_opened)} ${data.counts.opened}`,
+              `${t(($) => $.usage.kind_cited)} ${data.counts.cited}`,
               t(($) => $.usage.viewers, { count: data.viewers_count }),
               data.last_used_at ? t(($) => $.usage.last_used, { time: timeAgo(data.last_used_at) }) : null,
             ]
@@ -105,6 +106,8 @@ function kindLabel(t: ReturnType<typeof useT<"brain">>["t"], kind: string): stri
       return t(($) => $.usage.kind_opened);
     case "viewed":
       return t(($) => $.usage.kind_viewed);
+    case "cited":
+      return t(($) => $.usage.kind_cited);
     default:
       return kind;
   }

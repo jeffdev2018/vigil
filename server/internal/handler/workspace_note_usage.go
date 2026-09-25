@@ -100,6 +100,7 @@ type WorkspaceNoteUsageCounts struct {
 	Retrieved int64 `json:"retrieved"`
 	Opened    int64 `json:"opened"`
 	Viewed    int64 `json:"viewed"`
+	Cited     int64 `json:"cited"`
 }
 
 // WorkspaceNoteUsageRun is one run that used the note. A private chat run the
@@ -154,7 +155,7 @@ func (h *Handler) GetWorkspaceNoteUsage(w http.ResponseWriter, r *http.Request) 
 	userID := requestUserID(r)
 	actorType, _ := h.resolveActor(r, userID, uuidToString(note.WorkspaceID))
 	resp := WorkspaceNoteUsageResponse{
-		Counts:    WorkspaceNoteUsageCounts{Injected: summary.Injected, Retrieved: summary.Retrieved, Opened: summary.Opened, Viewed: summary.Viewed},
+		Counts:    WorkspaceNoteUsageCounts{Injected: summary.Injected, Retrieved: summary.Retrieved, Opened: summary.Opened, Viewed: summary.Viewed, Cited: summary.Cited},
 		RunsCount: summary.RunsCount, ViewersCount: summary.ViewersCount,
 		Runs: make([]WorkspaceNoteUsageRun, 0, len(rows)),
 	}

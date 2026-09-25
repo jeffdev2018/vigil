@@ -40,6 +40,17 @@ describe("RunBrainNotes", () => {
     expect(screen.getByRole("region", { name: "Brain notes" })).toBeTruthy();
   });
 
+  it("labels a cited note and an unknown kind with its raw value", async () => {
+    response.value = {
+      notes: [
+        { note_id: "cccccccc-3", title: "Release tags are cut from main", revision: 1, kinds: ["cited", "some-future-kind"], channels: ["comment"], first_at: null, deleted: false },
+      ],
+    };
+    render();
+    expect(await screen.findByText("Release tags are cut from main")).toBeTruthy();
+    expect(screen.getByText(/Cited, some-future-kind/)).toBeTruthy();
+  });
+
   it("renders nothing for a run that used no note", async () => {
     response.value = { notes: [] };
     const { container } = render();

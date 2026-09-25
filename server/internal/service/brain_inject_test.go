@@ -465,6 +465,14 @@ func TestNativeBriefCarriesTheSelectedWorkspaceKnowledge(t *testing.T) {
 	if !strings.Contains(brief, "<data workspace knowledge>") {
 		t.Errorf("the knowledge block is not fenced as a record:\n%s", brief)
 	}
+	// JEF-417 / B06: each note carries its id and the run is told how to cite
+	// it, so a claim citing a note can be traced back to it.
+	if !strings.Contains(block, "id: "+answering) {
+		t.Errorf("the answering note's id is not shown in the block:\n%s", block)
+	}
+	if !strings.Contains(block, "mention://note/<id>") {
+		t.Errorf("the block carries no citation instruction:\n%s", block)
+	}
 
 	injected := fx.Count(t, `SELECT count(*) FROM workspace_note_usage WHERE task_id = $1 AND kind = 'injected' AND channel = 'native_brief'`, taskID)
 	if injected == 0 || injected > nativeBriefNoteLimit {

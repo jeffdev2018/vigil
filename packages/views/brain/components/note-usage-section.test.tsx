@@ -27,7 +27,7 @@ vi.mock("../../common/task-transcript/open-run-button", () => ({
 }));
 
 const usage = (over: Partial<WorkspaceNoteUsage> = {}): WorkspaceNoteUsage => ({
-  counts: { injected: 4, retrieved: 2, opened: 1, viewed: 3 },
+  counts: { injected: 4, retrieved: 2, opened: 1, viewed: 3, cited: 5 },
   runs_count: 2,
   viewers_count: 2,
   last_used_at: new Date().toISOString(),
@@ -54,15 +54,38 @@ describe("NoteUsageSection", () => {
     const { container } = render(<NoteUsageSection wsId="ws-1" noteId="note-1" />);
     expect(container.querySelector('[data-slot="skeleton"], .animate-pulse')).not.toBeNull();
     expect(await screen.findByText("Used by 2 runs")).toBeTruthy();
-    expect(screen.getByText(/Injected 4 · Retrieved 2 · Opened 1 · Read by 2 people/)).toBeTruthy();
+    expect(
+      screen.getByText(/Injected 4 · Retrieved 2 · Opened 1 · Cited 5 · Read by 2 people/),
+    ).toBeTruthy();
     expect(screen.getByText("HAN-7")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open run" }).getAttribute("data-task")).toBe("task-1");
     expect(screen.getByText("Private chat run")).toBeTruthy();
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
+  it("labels a cited run and an unknown kind with its raw value", async () => {
+    state.fetch.mockResolvedValue(
+      usage({
+        runs: [
+          {
+            task_id: "task-2",
+            agent_id: "agent-1",
+            agent_name: "Ada",
+            issue_id: "",
+            issue_identifier: "",
+            kinds: ["cited", "some-future-kind"],
+            first_at: new Date().toISOString(),
+            private: false,
+          },
+        ],
+      }),
+    );
+    render(<NoteUsageSection wsId="ws-1" noteId="note-1" />);
+    expect(await screen.findByText(/Cited, some-future-kind/)).toBeTruthy();
+  });
+
   it("says so when nothing used the note", async () => {
-    state.fetch.mockResolvedValue(usage({ runs_count: 0, viewers_count: 0, runs: [], last_used_at: null, counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0 } }));
+    state.fetch.mockResolvedValue(usage({ runs_count: 0, viewers_count: 0, runs: [], last_used_at: null, counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0, cited: 0 } }));
     render(<NoteUsageSection wsId="ws-1" noteId="note-1" />);
     expect(await screen.findByText("No run has used this note yet.")).toBeTruthy();
   });

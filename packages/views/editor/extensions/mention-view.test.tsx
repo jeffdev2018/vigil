@@ -128,6 +128,20 @@ describe("MentionView project mention", () => {
   });
 });
 
+describe("MentionView note mention (JEF-417 / B06)", () => {
+  // No picker inserts this node type — the only requirement is that an
+  // existing comment's `[text](mention://note/<uuid>)` round-trips through
+  // the editor without gaining the default "@" prefix other unknown types get.
+  it("renders the label without an @ prefix", () => {
+    renderMention(
+      { type: "note", id: "aaa-bbb", label: "the deploy note" },
+      makeAdapter(),
+    );
+    expect(screen.getByText("the deploy note")).toBeTruthy();
+    expect(screen.queryByText("@the deploy note")).toBeNull();
+  });
+});
+
 describe("MentionView issue mention", () => {
   const ISSUE_ID = "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed";
   const ISSUE_PATH = `/acme/issues/${ISSUE_ID}`;

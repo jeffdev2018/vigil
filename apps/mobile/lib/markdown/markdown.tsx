@@ -162,6 +162,7 @@ export function Markdown({
       //
       //   mention://issue/<uuid>   → navigate to that issue detail
       //   mention://project/<uuid> → navigate to that project detail
+      //   mention://note/<uuid>    → navigate to that Brain note (JEF-417 / B06)
       //   mention://member/<uuid>  → no-op (no member profile screen yet)
       //   mention://agent/<uuid>   → no-op (no agent profile screen yet)
       //   mention://squad/<uuid>   → no-op (no squad profile screen yet)
@@ -179,6 +180,7 @@ export function Markdown({
           // the mapping explicit so a new type can't silently no-op.
           if (type === "issue") router.push(`/${wsSlug}/issue/${id}`);
           else if (type === "project") router.push(`/${wsSlug}/project/${id}`);
+          else if (type === "note") router.push(`/${wsSlug}/brain/note/${id}`);
         }
         return;
       }

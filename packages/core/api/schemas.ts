@@ -2233,13 +2233,18 @@ export const WorkspaceNoteUsageRunSchema = z.object({
 
 const UsageCountSchema = z.number().int().nonnegative().catch(0).default(0);
 
+const EMPTY_USAGE_COUNTS = { injected: 0, retrieved: 0, opened: 0, viewed: 0, cited: 0 };
+
 export const WorkspaceNoteUsageSchema = z.object({
   counts: z.object({
     injected: UsageCountSchema,
     retrieved: UsageCountSchema,
     opened: UsageCountSchema,
     viewed: UsageCountSchema,
-  }).loose().catch({ injected: 0, retrieved: 0, opened: 0, viewed: 0 }).default({ injected: 0, retrieved: 0, opened: 0, viewed: 0 }),
+    // Agent citation (JEF-417 / B06). Missing on an older server response —
+    // catch/default keep it at 0 rather than failing the whole summary.
+    cited: UsageCountSchema,
+  }).loose().catch(EMPTY_USAGE_COUNTS).default(EMPTY_USAGE_COUNTS),
   runs_count: UsageCountSchema,
   viewers_count: UsageCountSchema,
   last_used_at: z.string().nullable().catch(null).default(null),
@@ -2252,7 +2257,7 @@ export const WorkspaceNoteUsageSchema = z.object({
 }).loose();
 
 export const EMPTY_WORKSPACE_NOTE_USAGE: WorkspaceNoteUsage = Object.freeze({
-  counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0 },
+  counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0, cited: 0 },
   runs_count: 0,
   viewers_count: 0,
   last_used_at: null,
