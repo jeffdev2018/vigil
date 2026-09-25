@@ -31,30 +31,34 @@ func (q *Queries) CountWorkspaceNotesUpdatedSince(ctx context.Context, arg Count
 
 const createWorkspaceNote = `-- name: CreateWorkspaceNote :one
 INSERT INTO workspace_note (
-    id, workspace_id, title, content, tags, source,
-    source_task_id, source_agent_id, pinned, created_by_type, created_by_id
+    id, workspace_id, title, content, tags, source, kind,
+    source_task_id, source_agent_id, pinned, created_by_type, created_by_id,
+    decision_record_id
 )
 VALUES (
     $1, $2, $3, $4,
-    $5, $6, $7::uuid,
-    $8::uuid, $9,
-    $10, $11::uuid
+    $5, $6, $7, $8::uuid,
+    $9::uuid, $10,
+    $11, $12::uuid,
+    $13::uuid
 )
-RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at
+RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id
 `
 
 type CreateWorkspaceNoteParams struct {
-	ID            pgtype.UUID `json:"id"`
-	WorkspaceID   pgtype.UUID `json:"workspace_id"`
-	Title         string      `json:"title"`
-	Content       string      `json:"content"`
-	Tags          []string    `json:"tags"`
-	Source        string      `json:"source"`
-	SourceTaskID  pgtype.UUID `json:"source_task_id"`
-	SourceAgentID pgtype.UUID `json:"source_agent_id"`
-	Pinned        bool        `json:"pinned"`
-	CreatedByType string      `json:"created_by_type"`
-	CreatedByID   pgtype.UUID `json:"created_by_id"`
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	Title            string      `json:"title"`
+	Content          string      `json:"content"`
+	Tags             []string    `json:"tags"`
+	Source           string      `json:"source"`
+	Kind             string      `json:"kind"`
+	SourceTaskID     pgtype.UUID `json:"source_task_id"`
+	SourceAgentID    pgtype.UUID `json:"source_agent_id"`
+	Pinned           bool        `json:"pinned"`
+	CreatedByType    string      `json:"created_by_type"`
+	CreatedByID      pgtype.UUID `json:"created_by_id"`
+	DecisionRecordID pgtype.UUID `json:"decision_record_id"`
 }
 
 func (q *Queries) CreateWorkspaceNote(ctx context.Context, arg CreateWorkspaceNoteParams) (WorkspaceNote, error) {
@@ -65,11 +69,13 @@ func (q *Queries) CreateWorkspaceNote(ctx context.Context, arg CreateWorkspaceNo
 		arg.Content,
 		arg.Tags,
 		arg.Source,
+		arg.Kind,
 		arg.SourceTaskID,
 		arg.SourceAgentID,
 		arg.Pinned,
 		arg.CreatedByType,
 		arg.CreatedByID,
+		arg.DecisionRecordID,
 	)
 	var i WorkspaceNote
 	err := row.Scan(
@@ -89,6 +95,65 @@ func (q *Queries) CreateWorkspaceNote(ctx context.Context, arg CreateWorkspaceNo
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
+	)
+	return i, err
+}
+
+const createWorkspaceNoteFromDecisionRecord = `-- name: CreateWorkspaceNoteFromDecisionRecord :one
+INSERT INTO workspace_note (
+    id, workspace_id, title, content, source, kind,
+    created_by_type, decision_record_id
+)
+VALUES (
+    $1, $2, $3, $4,
+    'decision', 'decision', 'system', $5
+)
+ON CONFLICT (decision_record_id) WHERE decision_record_id IS NOT NULL DO NOTHING
+RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id
+`
+
+type CreateWorkspaceNoteFromDecisionRecordParams struct {
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	Title            string      `json:"title"`
+	Content          string      `json:"content"`
+	DecisionRecordID pgtype.UUID `json:"decision_record_id"`
+}
+
+// Mirrors a decision record into a Brain note (JEF-415 / B04). Idempotent via
+// the unique partial index on decision_record_id: a second attempt (a retry,
+// the runtime mirror racing the backfill) inserts nothing and returns no row,
+// which the caller reads as pgx.ErrNoRows / "already mirrored".
+func (q *Queries) CreateWorkspaceNoteFromDecisionRecord(ctx context.Context, arg CreateWorkspaceNoteFromDecisionRecordParams) (WorkspaceNote, error) {
+	row := q.db.QueryRow(ctx, createWorkspaceNoteFromDecisionRecord,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Title,
+		arg.Content,
+		arg.DecisionRecordID,
+	)
+	var i WorkspaceNote
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Content,
+		&i.Tags,
+		&i.Source,
+		&i.SourceTaskID,
+		&i.SourceAgentID,
+		&i.Pinned,
+		&i.ArchivedAt,
+		&i.MergedInto,
+		&i.CreatedByType,
+		&i.CreatedByID,
+		&i.Revision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
 	)
 	return i, err
 }
@@ -120,7 +185,7 @@ func (q *Queries) DeleteWorkspaceNote(ctx context.Context, arg DeleteWorkspaceNo
 }
 
 const getWorkspaceNote = `-- name: GetWorkspaceNote :one
-SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at FROM workspace_note
+SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id FROM workspace_note
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -149,12 +214,14 @@ func (q *Queries) GetWorkspaceNote(ctx context.Context, arg GetWorkspaceNotePara
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
 	)
 	return i, err
 }
 
 const listPinnedAndRecentWorkspaceNotesForBrief = `-- name: ListPinnedAndRecentWorkspaceNotesForBrief :many
-SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at FROM workspace_note
+SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id FROM workspace_note
 WHERE workspace_id = $1 AND archived_at IS NULL
 ORDER BY pinned DESC, updated_at DESC, id DESC
 LIMIT $2::int
@@ -193,6 +260,8 @@ func (q *Queries) ListPinnedAndRecentWorkspaceNotesForBrief(ctx context.Context,
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Kind,
+			&i.DecisionRecordID,
 		); err != nil {
 			return nil, err
 		}
@@ -259,18 +328,20 @@ func (q *Queries) ListWorkspaceNoteTags(ctx context.Context, workspaceID pgtype.
 
 const listWorkspaceNotes = `-- name: ListWorkspaceNotes :many
 
-SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at FROM workspace_note
+SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id FROM workspace_note
 WHERE workspace_id = $1
   AND ($2::bool OR archived_at IS NULL)
   AND ($3::text IS NULL OR $3::text = ANY(tags))
+  AND ($4::text IS NULL OR kind = $4::text)
 ORDER BY pinned DESC, updated_at DESC, id DESC
-LIMIT $4::int
+LIMIT $5::int
 `
 
 type ListWorkspaceNotesParams struct {
 	WorkspaceID     pgtype.UUID `json:"workspace_id"`
 	IncludeArchived bool        `json:"include_archived"`
 	Tag             pgtype.Text `json:"tag"`
+	Kind            pgtype.Text `json:"kind"`
 	PageLimit       int32       `json:"page_limit"`
 }
 
@@ -285,6 +356,7 @@ func (q *Queries) ListWorkspaceNotes(ctx context.Context, arg ListWorkspaceNotes
 		arg.WorkspaceID,
 		arg.IncludeArchived,
 		arg.Tag,
+		arg.Kind,
 		arg.PageLimit,
 	)
 	if err != nil {
@@ -311,6 +383,83 @@ func (q *Queries) ListWorkspaceNotes(ctx context.Context, arg ListWorkspaceNotes
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Kind,
+			&i.DecisionRecordID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const mirrorMissingDecisionRecordNotes = `-- name: MirrorMissingDecisionRecordNotes :many
+INSERT INTO workspace_note (
+    id, workspace_id, title, content, source, kind,
+    created_by_type, decision_record_id, created_at, updated_at
+)
+SELECT
+    gen_random_uuid(),
+    dr.workspace_id,
+    LEFT(COALESCE(NULLIF(btrim(dr.title), ''), 'Décision'), 200),
+    LEFT(
+        '## Contexte' || E'\n\n' || dr.context ||
+        E'\n\n## Décision' || E'\n\n' || dr.decision ||
+        E'\n\n## Conséquences' || E'\n\n' || COALESCE(dr.consequences, ''),
+        20000
+    ),
+    'decision',
+    'decision',
+    'system',
+    dr.id,
+    dr.created_at,
+    dr.created_at
+FROM decision_record dr
+WHERE NOT EXISTS (
+    SELECT 1 FROM workspace_note wn WHERE wn.decision_record_id = dr.id
+)
+ORDER BY dr.created_at
+LIMIT 500
+ON CONFLICT (decision_record_id) WHERE decision_record_id IS NOT NULL DO NOTHING
+RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id
+`
+
+// Catch-up for CreateWorkspaceNoteFromDecisionRecord: mirrorDecisionRecordToNote
+// is best-effort and logs rather than fails a run, so a transient error there
+// leaves a decision record with no note. This is the same INSERT...SELECT as
+// the 993 backfill migration, restricted to records that still have none and
+// capped per call so a large catch-up does not hold one long transaction.
+func (q *Queries) MirrorMissingDecisionRecordNotes(ctx context.Context) ([]WorkspaceNote, error) {
+	rows, err := q.db.Query(ctx, mirrorMissingDecisionRecordNotes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkspaceNote{}
+	for rows.Next() {
+		var i WorkspaceNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Content,
+			&i.Tags,
+			&i.Source,
+			&i.SourceTaskID,
+			&i.SourceAgentID,
+			&i.Pinned,
+			&i.ArchivedAt,
+			&i.MergedInto,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.Revision,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Kind,
+			&i.DecisionRecordID,
 		); err != nil {
 			return nil, err
 		}
@@ -329,7 +478,7 @@ UPDATE workspace_note SET
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at
+RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id
 `
 
 type SetWorkspaceNoteArchivedParams struct {
@@ -366,6 +515,8 @@ func (q *Queries) SetWorkspaceNoteArchived(ctx context.Context, arg SetWorkspace
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
 	)
 	return i, err
 }
@@ -376,10 +527,11 @@ UPDATE workspace_note SET
     content = COALESCE($4, content),
     tags = COALESCE($5::text[], tags),
     pinned = COALESCE($6, pinned),
+    kind = COALESCE($7::text, kind),
     revision = revision + 1,
     updated_at = now()
-WHERE id = $1 AND workspace_id = $2 AND revision = $7::bigint
-RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at
+WHERE id = $1 AND workspace_id = $2 AND revision = $8::bigint
+RETURNING id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id
 `
 
 type UpdateWorkspaceNoteParams struct {
@@ -389,6 +541,7 @@ type UpdateWorkspaceNoteParams struct {
 	Content          pgtype.Text `json:"content"`
 	Tags             []string    `json:"tags"`
 	Pinned           pgtype.Bool `json:"pinned"`
+	Kind             pgtype.Text `json:"kind"`
 	ExpectedRevision int64       `json:"expected_revision"`
 }
 
@@ -403,6 +556,7 @@ func (q *Queries) UpdateWorkspaceNote(ctx context.Context, arg UpdateWorkspaceNo
 		arg.Content,
 		arg.Tags,
 		arg.Pinned,
+		arg.Kind,
 		arg.ExpectedRevision,
 	)
 	var i WorkspaceNote
@@ -423,6 +577,8 @@ func (q *Queries) UpdateWorkspaceNote(ctx context.Context, arg UpdateWorkspaceNo
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
 	)
 	return i, err
 }

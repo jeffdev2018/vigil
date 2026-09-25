@@ -10,7 +10,24 @@
     "manual": "Manual",
     "agent": "By agent",
     "curation": "Curated",
+    "decision": "Decision record",
     "open_run": "Open the run"
+  },
+  "kind": {
+    "all": "All kinds",
+    "filter_label": "Filter by kind",
+    "picker_label": "Note kind",
+    "fact": "Fact",
+    "decision": "Decision",
+    "procedure": "Procedure",
+    "glossary": "Glossary",
+    "episode": "Episode",
+    "template": {
+      "decision": "## Context\n\n## Decision\n\n## Why\n\n## Alternatives considered\n\n## Constraints\n\n## Revisit on",
+      "procedure": "## When to use it\n\n## Steps\n\n1. \n2. \n3. \n\n## Verification",
+      "glossary": "## Definition\n\n## Synonyms\n\n## See also",
+      "episode": "## What happened\n\n## Impact\n\n## Resolution\n\n## Takeaways"
+    }
   },
   "list": {
     "loading": "Loading notes",

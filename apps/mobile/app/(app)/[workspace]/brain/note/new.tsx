@@ -12,8 +12,9 @@
  * so nothing is written into the cache first (root CLAUDE.md gate).
  */
 import { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { ActionSheetIOS, Alert, Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
+import type { WorkspaceNoteKind } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
 import { TextField } from "@/components/ui/text-field";
 import { AutosizeTextArea } from "@/components/ui/autosize-textarea";
@@ -23,7 +24,12 @@ import {
   noteWriteFailure,
   useCreateWorkspaceNote,
 } from "@/data/mutations/brain";
-import { parseTagInput } from "@/lib/brain-display";
+import {
+  NOTE_KINDS,
+  noteKindLabel,
+  noteKindTemplate,
+  parseTagInput,
+} from "@/lib/brain-display";
 
 /** Mirrors `workspaceNoteMaxTitleRunes` / `workspaceNoteMaxContentRunes`. */
 const MAX_TITLE_CHARS = 200;
@@ -36,12 +42,36 @@ export default function NewNoteSheet() {
   const [tagsRaw, setTagsRaw] = useState("");
   const [content, setContent] = useState("");
   const [pinned, setPinned] = useState(false);
+  const [kind, setKind] = useState<WorkspaceNoteKind>("fact");
 
   const submitting = create.isPending;
   const valid =
     title.trim() !== "" &&
     title.length <= MAX_TITLE_CHARS &&
     content.length <= MAX_CONTENT_CHARS;
+
+  // Picking a kind on an EMPTY editor inserts its Markdown skeleton.
+  // Switching again while the editor still holds exactly the previous
+  // kind's template (untouched) swaps it for the new one; the moment the
+  // author has typed anything else, switching kinds never overwrites it.
+  const pickKind = useCallback(() => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: "Note kind",
+        options: [...NOTE_KINDS.map((k) => noteKindLabel(k)), "Cancel"],
+        cancelButtonIndex: NOTE_KINDS.length,
+      },
+      (index) => {
+        const next = NOTE_KINDS[index];
+        if (!next) return;
+        const trimmed = content.trim();
+        if (trimmed === "" || trimmed === noteKindTemplate(kind).trim()) {
+          setContent(noteKindTemplate(next));
+        }
+        setKind(next);
+      },
+    );
+  }, [content, kind]);
 
   const onSubmit = useCallback(() => {
     if (!valid || submitting) return;
@@ -51,13 +81,14 @@ export default function NewNoteSheet() {
         content,
         tags: parseTagInput(tagsRaw),
         pinned,
+        kind,
       },
       {
         onSuccess: () => router.back(),
         onError: (err) => Alert.alert(...noteWriteFailure(err, "create")),
       },
     );
-  }, [content, create, pinned, submitting, tagsRaw, title, valid]);
+  }, [content, create, kind, pinned, submitting, tagsRaw, title, valid]);
 
   return (
     <ScrollView
@@ -96,6 +127,18 @@ export default function NewNoteSheet() {
             invalid={title.length > MAX_TITLE_CHARS}
             autoFocus
           />
+        </View>
+
+        <View className="gap-1">
+          <Text className="text-xs text-muted-foreground">Kind</Text>
+          <Pressable
+            onPress={pickKind}
+            accessibilityRole="button"
+            accessibilityLabel="Note kind"
+            className="flex-row items-center justify-between rounded-md border border-input px-3 py-2 active:bg-secondary/50"
+          >
+            <Text className="text-sm text-foreground">{noteKindLabel(kind)}</Text>
+          </Pressable>
         </View>
 
         <View className="gap-1">

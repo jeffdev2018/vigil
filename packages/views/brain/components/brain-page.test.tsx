@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
@@ -37,6 +38,7 @@ const note = (over: Partial<WorkspaceNote> = {}): WorkspaceNote => ({
   created_by_type: "member",
   created_by_id: "user-1",
   revision: 3,
+  kind: "fact",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-02T00:00:00Z",
   ...over,
@@ -134,7 +136,16 @@ async function renderNotes() {
   return rendered;
 }
 
+/** Base UI Select portals its popup onto document.body. */
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 describe("BrainPage", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mutations.create.mockResolvedValue(note({ id: "note-new" }));
@@ -188,9 +199,87 @@ describe("BrainPage", () => {
         title: "Postgres runs behind pgbouncer",
         content: "port 6432",
         tags: ["db", "infra"],
+        kind: "fact",
       }),
     );
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("inserts the kind's template into an empty editor, and never overwrites typed text", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByRole("button", { name: "New note" }));
+
+    await pickOption("Note kind", "Decision");
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Content") as HTMLTextAreaElement).value,
+      ).toContain("## Context"),
+    );
+
+    // Switching again while the editor still holds exactly the previous
+    // kind's template (untouched) swaps it for the new one.
+    await pickOption("Note kind", "Procedure");
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Content") as HTMLTextAreaElement).value,
+      ).not.toContain("## Context"),
+    );
+
+    // Switching again must not clobber text the author already has.
+    fireEvent.change(screen.getByLabelText("Content"), {
+      target: { value: "custom body" },
+    });
+    await pickOption("Note kind", "Glossary");
+    expect((screen.getByLabelText("Content") as HTMLTextAreaElement).value).toBe(
+      "custom body",
+    );
+  });
+
+  it("creates a note with the picked kind", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByRole("button", { name: "New note" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "x" } });
+    await pickOption("Note kind", "Glossary");
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(mutations.create).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "glossary" }),
+      ),
+    );
+  });
+
+  it("shows the note's kind badge, defaulting an unknown kind to Fact", async () => {
+    data.response = {
+      items: [
+        note({ kind: "decision" }),
+        note({
+          id: "note-2",
+          title: "Other",
+          kind: "some-future-kind" as unknown as WorkspaceNote["kind"],
+        }),
+      ],
+      tags: [],
+    };
+    await renderNotes();
+    expect(await screen.findByText("Decision")).toBeTruthy();
+    expect(screen.getByText("Fact")).toBeTruthy();
+  });
+
+  it("shows a note mirrored from a decision record with its own source badge", async () => {
+    data.response = { items: [note({ source: "decision" })], tags: [] };
+    await renderNotes();
+    expect(await screen.findByText("Decision record")).toBeTruthy();
+    // It links nowhere, unlike the agent source's "Open the run".
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("filters the note list by kind", async () => {
+    await renderNotes();
+    await screen.findByText("Deploys go through the release tag");
+    await pickOption("Filter by kind", "Procedure");
+    await waitFor(() =>
+      expect(data.lastParams).toMatchObject({ kind: "procedure" }),
+    );
   });
 
   it("sends the note's revision on edit so a concurrent write conflicts", async () => {
@@ -209,6 +298,30 @@ describe("BrainPage", () => {
           tags: ["deploy"],
           revision: 3,
         },
+      }),
+    );
+  });
+
+  it("omits kind from the save when unchanged, and sends it when the author picked a different one", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByText("Deploys go through the release tag"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.not.objectContaining({ kind: expect.anything() }),
+      }),
+    );
+
+    mutations.update.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await pickOption("Note kind", "Decision");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.objectContaining({ kind: "decision" }),
       }),
     );
   });

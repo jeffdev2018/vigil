@@ -38,6 +38,30 @@ const (
 	brainInjectRecentLimit = 4
 )
 
+// brainKindWeight multiplies a search hit's score by how much its kind
+// matters to a run's briefing: a decision or a procedure earns its place
+// above a plain fact more readily, an episode (a one-off run log) less so.
+// Unlisted or unknown kinds (an older row, a future kind) weigh like a fact.
+var brainKindWeight = map[string]float64{
+	NoteKindDecision:  1.2,
+	NoteKindProcedure: 1.15,
+	NoteKindGlossary:  1.0,
+	NoteKindFact:      1.0,
+	NoteKindEpisode:   0.85,
+}
+
+// weighBrainHitsByKind applies brainKindWeight to each hit's score in place.
+func weighBrainHitsByKind(hits []BrainSearchHit) []BrainSearchHit {
+	for i, hit := range hits {
+		w, ok := brainKindWeight[hit.Note.Kind]
+		if !ok {
+			w = 1.0
+		}
+		hits[i].Score = hit.Score * w
+	}
+	return hits
+}
+
 // BriefNoteReason is why one note is in a run's selection: a
 // brainknowledge.Reason* constant, plus the search score behind
 // brainknowledge.ReasonRelevant.
@@ -240,7 +264,11 @@ func (s *NativeAgentService) nativeWorkspaceKnowledgeBrief(ctx context.Context, 
 			break
 		}
 		var entry strings.Builder
-		entry.WriteString("## " + note.Title + "\n")
+		if note.Kind != "" && note.Kind != NoteKindFact {
+			fmt.Fprintf(&entry, "## [%s] %s\n", note.Kind, note.Title)
+		} else {
+			fmt.Fprintf(&entry, "## %s\n", note.Title)
+		}
 		reason := reasons[util.UUIDToString(note.ID)]
 		switch {
 		case reason.Reason == brainknowledge.ReasonRelevant && reason.Heading != "":
@@ -283,15 +311,20 @@ func (s *TaskService) searchBrainForBrief(ctx context.Context, workspaceID pgtyp
 	// BrainClaimQuery puts the run's own title on the first line.
 	subject, _, _ := strings.Cut(query, "\n")
 	subject = strings.TrimSpace(subject)
+	// 2x the final limit: the kind weight below reorders these candidates, so
+	// a note the raw SQL score ranked just outside brainInjectRelevantLimit
+	// still gets a chance to weigh its way back in before the cut.
+	const candidateLimit = 2 * brainInjectRelevantLimit
 	hits, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{
-		WorkspaceID: workspaceID, Query: query, Limit: brainInjectRelevantLimit,
+		WorkspaceID: workspaceID, Query: query, Limit: candidateLimit,
 	})
 	if err != nil {
 		return nil, err
 	}
+	hits = weighBrainHitsByKind(hits)
 	if subject != "" && subject != query {
 		subjectHits, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{
-			WorkspaceID: workspaceID, Query: subject, Limit: brainInjectRelevantLimit,
+			WorkspaceID: workspaceID, Query: subject, Limit: candidateLimit,
 		})
 		if err != nil {
 			// The broad pass already answered; a failed narrow one costs
@@ -299,8 +332,12 @@ func (s *TaskService) searchBrainForBrief(ctx context.Context, workspaceID pgtyp
 			slog.Warn("brain inject: subject pass failed; keeping the full-query ranking",
 				"workspace_id", util.UUIDToString(workspaceID), "error", err)
 		} else {
-			hits = mergeBrainHits(hits, subjectHits)
+			hits = mergeBrainHits(hits, weighBrainHitsByKind(subjectHits))
 		}
+	} else {
+		// mergeBrainHits re-sorts by score; without it the weighting above
+		// must re-order the single pass itself.
+		sort.SliceStable(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
 	}
 	if len(hits) > brainInjectRelevantLimit {
 		hits = hits[:brainInjectRelevantLimit]

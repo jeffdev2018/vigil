@@ -27,6 +27,9 @@ type BrainSearchParams struct {
 	Query, Tag      string
 	IncludeArchived bool
 	Limit           int32
+	// Kind restricts the search to one note kind (a NoteKind* constant). Empty
+	// searches every kind.
+	Kind string
 	// Neighbours admits notes only the vector leg finds: capture merge
 	// candidates a model judges. A search a person reads needs a lexical
 	// match or a calibrated similarity.
@@ -115,6 +118,9 @@ func SearchBrainNotes(ctx context.Context, q *db.Queries, emb NoteEmbedder, p Br
 	if p.Tag != "" {
 		params.Tag = pgtype.Text{String: p.Tag, Valid: true}
 	}
+	if p.Kind != "" {
+		params.Kind = pgtype.Text{String: p.Kind, Valid: true}
+	}
 	if emb != nil && emb.Enabled() {
 		if literal, model, ok := emb.QueryEmbedding(ctx, p.Query); ok {
 			params.QueryEmbedding = pgtype.Text{String: literal, Valid: true}
@@ -139,6 +145,7 @@ func SearchBrainNotes(ctx context.Context, q *db.Queries, emb NoteEmbedder, p Br
 				Source: row.Source, SourceTaskID: row.SourceTaskID, SourceAgentID: row.SourceAgentID, Pinned: row.Pinned,
 				ArchivedAt: row.ArchivedAt, MergedInto: row.MergedInto, CreatedByType: row.CreatedByType, CreatedByID: row.CreatedByID,
 				Revision: row.Revision, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+				Kind: row.Kind, DecisionRecordID: row.DecisionRecordID,
 			},
 			Score:          row.Score,
 			Snippet:        BrainSnippet(row.PassageBody, query),

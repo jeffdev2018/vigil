@@ -60,6 +60,12 @@ type WorkspaceNoteResponse struct {
 	Revision      int64    `json:"revision"`
 	CreatedAt     string   `json:"created_at"`
 	UpdatedAt     string   `json:"updated_at"`
+	// Kind is one of service.NoteKinds: fact, decision, procedure, glossary
+	// or episode.
+	Kind string `json:"kind"`
+	// DecisionRecordID is set when this note was mirrored from a decision
+	// record (source "decision").
+	DecisionRecordID *string `json:"decision_record_id,omitempty"`
 }
 
 type CreateWorkspaceNoteRequest struct {
@@ -67,6 +73,8 @@ type CreateWorkspaceNoteRequest struct {
 	Content string   `json:"content"`
 	Tags    []string `json:"tags"`
 	Pinned  bool     `json:"pinned"`
+	// Kind, one of service.NoteKinds. Empty defaults to "fact".
+	Kind string `json:"kind"`
 }
 
 type UpdateWorkspaceNoteRequest struct {
@@ -74,9 +82,37 @@ type UpdateWorkspaceNoteRequest struct {
 	Content *string   `json:"content"`
 	Tags    *[]string `json:"tags"`
 	Pinned  *bool     `json:"pinned"`
+	// Kind, one of service.NoteKinds. Omitted keeps the note's current kind.
+	Kind *string `json:"kind"`
 	// Revision is the value the client read. Omitted (0) means "I did not
 	// check"; the update is then refused rather than silently clobbering.
 	Revision int64 `json:"revision"`
+}
+
+// validateNoteKind normalizes an optional kind. An empty string is left for
+// the caller to default or to mean "unchanged"; a non-empty one must be a
+// known kind.
+func validateNoteKind(kind string) (string, bool) {
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return "", true
+	}
+	if !service.ValidNoteKind(kind) {
+		return "", false
+	}
+	return kind, true
+}
+
+// noteKindQueryFilter parses the optional ?kind= query param shared by the
+// list and search endpoints. An unknown value is a 400, not a silently
+// ignored filter.
+func noteKindQueryFilter(w http.ResponseWriter, r *http.Request) (string, bool) {
+	kind, ok := validateNoteKind(r.URL.Query().Get("kind"))
+	if !ok {
+		writeError(w, http.StatusBadRequest, "kind must be one of "+strings.Join(service.NoteKinds, ", "))
+		return "", false
+	}
+	return kind, true
 }
 
 func workspaceNoteToResponse(n db.WorkspaceNote) WorkspaceNoteResponse {
@@ -85,21 +121,23 @@ func workspaceNoteToResponse(n db.WorkspaceNote) WorkspaceNoteResponse {
 		tags = []string{}
 	}
 	resp := WorkspaceNoteResponse{
-		ID:            uuidToString(n.ID),
-		WorkspaceID:   uuidToString(n.WorkspaceID),
-		Title:         n.Title,
-		Content:       n.Content,
-		Tags:          tags,
-		Source:        n.Source,
-		SourceTaskID:  uuidToPtr(n.SourceTaskID),
-		SourceAgentID: uuidToPtr(n.SourceAgentID),
-		Pinned:        n.Pinned,
-		MergedInto:    uuidToPtr(n.MergedInto),
-		CreatedByType: n.CreatedByType,
-		CreatedByID:   uuidToPtr(n.CreatedByID),
-		Revision:      n.Revision,
-		CreatedAt:     timestampToString(n.CreatedAt),
-		UpdatedAt:     timestampToString(n.UpdatedAt),
+		ID:               uuidToString(n.ID),
+		WorkspaceID:      uuidToString(n.WorkspaceID),
+		Title:            n.Title,
+		Content:          n.Content,
+		Tags:             tags,
+		Source:           n.Source,
+		SourceTaskID:     uuidToPtr(n.SourceTaskID),
+		SourceAgentID:    uuidToPtr(n.SourceAgentID),
+		Pinned:           n.Pinned,
+		MergedInto:       uuidToPtr(n.MergedInto),
+		CreatedByType:    n.CreatedByType,
+		CreatedByID:      uuidToPtr(n.CreatedByID),
+		Revision:         n.Revision,
+		CreatedAt:        timestampToString(n.CreatedAt),
+		UpdatedAt:        timestampToString(n.UpdatedAt),
+		Kind:             n.Kind,
+		DecisionRecordID: uuidToPtr(n.DecisionRecordID),
 	}
 	if n.ArchivedAt.Valid {
 		archivedAt := timestampToString(n.ArchivedAt)
@@ -187,6 +225,11 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 		limit = parsed
 	}
 
+	kind, ok := noteKindQueryFilter(w, r)
+	if !ok {
+		return
+	}
+
 	params := db.ListWorkspaceNotesParams{
 		WorkspaceID:     workspaceID,
 		IncludeArchived: r.URL.Query().Get("archived") == "true",
@@ -195,13 +238,16 @@ func (h *Handler) ListWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 	if tag := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tag"))); tag != "" {
 		params.Tag = pgtype.Text{String: tag, Valid: true}
 	}
+	if kind != "" {
+		params.Kind = pgtype.Text{String: kind, Valid: true}
+	}
 
 	var rows []db.WorkspaceNote
 	if search := strings.TrimSpace(r.URL.Query().Get("search")); search != "" {
 		// The same ranked engine as /api/workspace/notes/search, so MCP
 		// note_list and the search endpoint agree; best match first.
 		hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{
-			WorkspaceID: workspaceID, Query: search, Tag: params.Tag.String, IncludeArchived: params.IncludeArchived, Limit: params.PageLimit,
+			WorkspaceID: workspaceID, Query: search, Tag: params.Tag.String, Kind: kind, IncludeArchived: params.IncludeArchived, Limit: params.PageLimit,
 		})
 		if err != nil {
 			slog.Error("brain list search failed", "workspace_id", uuidToString(workspaceID), "error", err)
@@ -315,6 +361,14 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "at most 10 tags of 50 characters each")
 		return
 	}
+	kind, ok := validateNoteKind(req.Kind)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "kind must be one of "+strings.Join(service.NoteKinds, ", "))
+		return
+	}
+	if kind == "" {
+		kind = service.DefaultNoteKind
+	}
 
 	actorType, actorID, taskID := h.noteActor(r, userID, workspaceIDStr)
 	source := "manual"
@@ -325,6 +379,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		Content:       content,
 		Tags:          tags,
 		Pinned:        req.Pinned,
+		Kind:          kind,
 		CreatedByType: actorType,
 		CreatedByID:   actorID,
 	}
@@ -338,7 +393,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	// "Show me first" (K69): a preview-mode run's note is held for approval.
 	if agentID, taskID, preview := h.previewRun(r); preview {
 		if eff, ok := h.recordPending(r, agentID, taskID, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", params.ID,
-			map[string]any{"title": title}, map[string]any{"title": title, "content": content, "tags": tags, "pinned": req.Pinned}, true); ok {
+			map[string]any{"title": title}, map[string]any{"title": title, "content": content, "tags": tags, "pinned": req.Pinned, "kind": kind}, true); ok {
 			writePending(w, eff, map[string]any{"id": uuidToString(eff.ID), "title": title, "pending_approval": true})
 			return
 		}
@@ -414,12 +469,23 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	if req.Pinned != nil {
 		params.Pinned = pgtype.Bool{Bool: *req.Pinned, Valid: true}
 	}
+	if req.Kind != nil {
+		kind, valid := validateNoteKind(*req.Kind)
+		if !valid || kind == "" {
+			writeError(w, http.StatusBadRequest, "kind must be one of "+strings.Join(service.NoteKinds, ", "))
+			return
+		}
+		params.Kind = pgtype.Text{String: kind, Valid: true}
+	}
 
 	// "Show me first" (K69): a preview-mode run's edit is held for approval.
 	if agentID, taskID, preview := h.previewRun(r); preview {
 		payload := map[string]any{}
 		if req.Title != nil {
 			payload["title"] = params.Title.String
+		}
+		if req.Kind != nil {
+			payload["kind"] = params.Kind.String
 		}
 		if req.Content != nil {
 			payload["content"] = params.Content.String
@@ -447,10 +513,10 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.embedNoteAsync(updated.ID)
-	// Undo (K69): title, content, tags and pin state as they were before the run's edit.
+	// Undo (K69): title, content, tags, pin state and kind as they were before the run's edit.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID,
-		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned},
-		map[string]any{"title": updated.Title, "content": updated.Content, "tags": updated.Tags, "pinned": updated.Pinned}, true)
+		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned, "kind": note.Kind},
+		map[string]any{"title": updated.Title, "content": updated.Content, "tags": updated.Tags, "pinned": updated.Pinned, "kind": updated.Kind}, true)
 
 	workspaceIDStr := uuidToString(note.WorkspaceID)
 	actorType, actorID, _ := h.noteActor(r, userID, workspaceIDStr)
@@ -592,6 +658,7 @@ func workspaceNotesToContext(notes []db.WorkspaceNote, reasons map[string]servic
 			Tags:    n.Tags,
 			Pinned:  n.Pinned,
 			Source:  n.Source,
+			Kind:    n.Kind,
 			Updated: timestampToString(n.UpdatedAt),
 		}
 		if reason, ok := reasons[id]; ok {

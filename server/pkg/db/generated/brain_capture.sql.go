@@ -170,7 +170,7 @@ func (q *Queries) GetBrainCapture(ctx context.Context, arg GetBrainCaptureParams
 }
 
 const getWorkspaceNoteByID = `-- name: GetWorkspaceNoteByID :one
-SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at FROM workspace_note WHERE id = $1
+SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id FROM workspace_note WHERE id = $1
 `
 
 func (q *Queries) GetWorkspaceNoteByID(ctx context.Context, id pgtype.UUID) (WorkspaceNote, error) {
@@ -193,6 +193,8 @@ func (q *Queries) GetWorkspaceNoteByID(ctx context.Context, id pgtype.UUID) (Wor
 		&i.Revision,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.DecisionRecordID,
 	)
 	return i, err
 }

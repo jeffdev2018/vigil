@@ -1,0 +1,1 @@
+ALTER TABLE workspace_note DROP COLUMN IF EXISTS kind;

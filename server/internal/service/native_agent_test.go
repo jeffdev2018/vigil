@@ -1020,6 +1020,35 @@ func TestNativeAgentBrainTools(t *testing.T) {
 		t.Errorf("opened note_revision = %d (err %v), want the revision read", revision, err)
 	}
 	pool.Exec(ctx, `DELETE FROM workspace_note_usage WHERE task_id = $1`, taskID)
+
+	// JEF-415 / B04: a note defaults to kind "fact"; update_note can change
+	// it; save_note can set it directly; an unknown kind is refused on both.
+	var defaultKind string
+	if err := pool.QueryRow(ctx, `SELECT kind FROM workspace_note WHERE id = $1`, noteID).Scan(&defaultKind); err != nil {
+		t.Fatalf("read kind: %v", err)
+	}
+	if defaultKind != "fact" {
+		t.Fatalf("default kind = %q, want fact", defaultKind)
+	}
+	if _, err := svc.callNativeTool(ctx, tctx, "update_note", map[string]any{"note_id": noteID, "kind": "not-a-kind"}); err == nil {
+		t.Fatal("update_note accepted an unknown kind")
+	}
+	if _, err := svc.callNativeTool(ctx, tctx, "update_note", map[string]any{"note_id": noteID, "kind": "decision"}); err != nil {
+		t.Fatalf("update_note kind: %v", err)
+	}
+	var updatedKind string
+	if err := pool.QueryRow(ctx, `SELECT kind FROM workspace_note WHERE id = $1`, noteID).Scan(&updatedKind); err != nil {
+		t.Fatalf("read updated kind: %v", err)
+	}
+	if updatedKind != "decision" {
+		t.Fatalf("updated kind = %q, want decision", updatedKind)
+	}
+	if _, err := svc.callNativeTool(ctx, tctx, "save_note", map[string]any{"title": "Glossaire helpdesk", "content": "SLA = délai garanti.", "kind": "glossary"}); err != nil {
+		t.Fatalf("save_note kind: %v", err)
+	}
+	if _, err := svc.callNativeTool(ctx, tctx, "save_note", map[string]any{"title": "Mauvais type", "content": "x", "kind": "not-a-kind"}); err == nil {
+		t.Fatal("save_note accepted an unknown kind")
+	}
 }
 
 // N01 — the data fence. Everything the workspace contains that reaches the

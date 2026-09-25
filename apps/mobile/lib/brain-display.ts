@@ -151,7 +151,9 @@ function truncate(value: string, max: number): string {
 }
 
 /** Where a note came from. Mirrors web's SourceBadge, including `capture`,
- *  which the organize flow stamps on notes made out of the inbox. */
+ *  which the organize flow stamps on notes made out of the inbox, and
+ *  `decision`, which the server stamps on a note mirroring a decision
+ *  record — it links to nothing, same as web. */
 export function noteSourceLabel(source: string): string {
   switch (source) {
     case "agent":
@@ -160,10 +162,32 @@ export function noteSourceLabel(source: string): string {
       return "Curated";
     case "capture":
       return "Captured";
+    case "decision":
+      return "Decision record";
     case "manual":
       return "Written";
     default:
       return source || "Written";
+  }
+}
+
+/** What kind of knowledge a note holds (JEF-415 / B04). Mirrors web's
+ *  `kindLabel`; the core schema already catches an unknown kind to "fact",
+ *  but a phone-native draft or an older cache entry can still hand this an
+ *  unrecognized value, so the fallback stays. */
+export function noteKindLabel(kind: string): string {
+  switch (kind) {
+    case "decision":
+      return "Decision";
+    case "procedure":
+      return "Procedure";
+    case "glossary":
+      return "Glossary";
+    case "episode":
+      return "Episode";
+    case "fact":
+    default:
+      return "Fact";
   }
 }
 
@@ -276,6 +300,38 @@ export function formatMediaClock(seconds: number): string {
   const m = Math.floor(total / 60);
   if (m < 60) return `${m}:${s}`;
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:${s}`;
+}
+
+/** Every kind the picker offers, in the order the action sheet shows them. */
+export const NOTE_KINDS = [
+  "fact",
+  "decision",
+  "procedure",
+  "glossary",
+  "episode",
+] as const;
+
+/**
+ * The Markdown skeleton a kind starts a note with — mirrors web's
+ * `kindTemplate` (packages/views/brain/components/brain-page.tsx) and the
+ * `en/brain.json` copy it reads, inlined here for the same reason every
+ * other label in this file is English-only. `fact` has none: it is the
+ * freeform default the other four are carved out of. The caller inserts
+ * this only into an EMPTY editor, never over text the author already typed.
+ */
+export function noteKindTemplate(kind: string): string {
+  switch (kind) {
+    case "decision":
+      return "## Context\n\n## Decision\n\n## Why\n\n## Alternatives considered\n\n## Constraints\n\n## Revisit on";
+    case "procedure":
+      return "## When to use it\n\n## Steps\n\n1. \n2. \n3. \n\n## Verification";
+    case "glossary":
+      return "## Definition\n\n## Synonyms\n\n## See also";
+    case "episode":
+      return "## What happened\n\n## Impact\n\n## Resolution\n\n## Takeaways";
+    default:
+      return "";
+  }
 }
 
 /** Tag input ("a, b, b") → the array the API takes. Mirrors web's

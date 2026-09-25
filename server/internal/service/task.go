@@ -7832,6 +7832,13 @@ func (s *TaskService) LoadWorkspaceNotesForBrief(ctx context.Context, workspaceI
 	recent := 0
 	for _, row := range rows {
 		if !row.Pinned {
+			if row.Source == "decision" {
+				// A decision note already reaches a run through pinning or
+				// relevance search; letting it also ride the recent tail
+				// would let an active project's steady stream of accepted
+				// decisions crowd every other kind out of it.
+				continue
+			}
 			if recent >= workspaceBriefNoteRecentLimit {
 				break
 			}

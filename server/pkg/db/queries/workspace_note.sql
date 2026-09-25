@@ -10,6 +10,7 @@ SELECT * FROM workspace_note
 WHERE workspace_id = $1
   AND (sqlc.arg('include_archived')::bool OR archived_at IS NULL)
   AND (sqlc.narg('tag')::text IS NULL OR sqlc.narg('tag')::text = ANY(tags))
+  AND (sqlc.narg('kind')::text IS NULL OR kind = sqlc.narg('kind')::text)
 ORDER BY pinned DESC, updated_at DESC, id DESC
 LIMIT sqlc.arg('page_limit')::int;
 
@@ -19,15 +20,68 @@ WHERE id = $1 AND workspace_id = $2;
 
 -- name: CreateWorkspaceNote :one
 INSERT INTO workspace_note (
-    id, workspace_id, title, content, tags, source,
-    source_task_id, source_agent_id, pinned, created_by_type, created_by_id
+    id, workspace_id, title, content, tags, source, kind,
+    source_task_id, source_agent_id, pinned, created_by_type, created_by_id,
+    decision_record_id
 )
 VALUES (
     sqlc.arg('id'), sqlc.arg('workspace_id'), sqlc.arg('title'), sqlc.arg('content'),
-    sqlc.arg('tags'), sqlc.arg('source'), sqlc.narg('source_task_id')::uuid,
+    sqlc.arg('tags'), sqlc.arg('source'), sqlc.arg('kind'), sqlc.narg('source_task_id')::uuid,
     sqlc.narg('source_agent_id')::uuid, sqlc.arg('pinned'),
-    sqlc.arg('created_by_type'), sqlc.narg('created_by_id')::uuid
+    sqlc.arg('created_by_type'), sqlc.narg('created_by_id')::uuid,
+    sqlc.narg('decision_record_id')::uuid
 )
+RETURNING *;
+
+-- name: CreateWorkspaceNoteFromDecisionRecord :one
+-- Mirrors a decision record into a Brain note (JEF-415 / B04). Idempotent via
+-- the unique partial index on decision_record_id: a second attempt (a retry,
+-- the runtime mirror racing the backfill) inserts nothing and returns no row,
+-- which the caller reads as pgx.ErrNoRows / "already mirrored".
+INSERT INTO workspace_note (
+    id, workspace_id, title, content, source, kind,
+    created_by_type, decision_record_id
+)
+VALUES (
+    sqlc.arg('id'), sqlc.arg('workspace_id'), sqlc.arg('title'), sqlc.arg('content'),
+    'decision', 'decision', 'system', sqlc.arg('decision_record_id')
+)
+ON CONFLICT (decision_record_id) WHERE decision_record_id IS NOT NULL DO NOTHING
+RETURNING *;
+
+-- name: MirrorMissingDecisionRecordNotes :many
+-- Catch-up for CreateWorkspaceNoteFromDecisionRecord: mirrorDecisionRecordToNote
+-- is best-effort and logs rather than fails a run, so a transient error there
+-- leaves a decision record with no note. This is the same INSERT...SELECT as
+-- the 993 backfill migration, restricted to records that still have none and
+-- capped per call so a large catch-up does not hold one long transaction.
+INSERT INTO workspace_note (
+    id, workspace_id, title, content, source, kind,
+    created_by_type, decision_record_id, created_at, updated_at
+)
+SELECT
+    gen_random_uuid(),
+    dr.workspace_id,
+    LEFT(COALESCE(NULLIF(btrim(dr.title), ''), 'Décision'), 200),
+    LEFT(
+        '## Contexte' || E'\n\n' || dr.context ||
+        E'\n\n## Décision' || E'\n\n' || dr.decision ||
+        E'\n\n## Conséquences' || E'\n\n' || COALESCE(dr.consequences, ''),
+        20000
+    ),
+    'decision',
+    'decision',
+    'system',
+    dr.id,
+    dr.created_at,
+    dr.created_at
+FROM decision_record dr
+WHERE NOT EXISTS (
+    SELECT 1 FROM workspace_note wn WHERE wn.decision_record_id = dr.id
+)
+ORDER BY dr.created_at
+LIMIT 500
+ON CONFLICT (decision_record_id) WHERE decision_record_id IS NOT NULL DO NOTHING
 RETURNING *;
 
 -- name: UpdateWorkspaceNote :one
@@ -39,6 +93,7 @@ UPDATE workspace_note SET
     content = COALESCE(sqlc.narg('content'), content),
     tags = COALESCE(sqlc.narg('tags')::text[], tags),
     pinned = COALESCE(sqlc.narg('pinned'), pinned),
+    kind = COALESCE(sqlc.narg('kind')::text, kind),
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND revision = sqlc.arg('expected_revision')::bigint

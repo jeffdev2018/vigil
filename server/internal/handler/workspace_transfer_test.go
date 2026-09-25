@@ -80,7 +80,7 @@ func TestWorkspaceTransfer(t *testing.T) {
 	dbfx.Insert(t, "triage_source", testutil.Cols{"workspace_id": source, "kind": "email", "ref_id": uuid.NewString(), "name": "xfer inbox " + uuid.NewString()[:8], "mode": "gate", "token_hash": triageDigest, "created_by_id": testUserID})
 	dbfx.Insert(t, "org_structure", testutil.Cols{"id": uuid.NewString(), "workspace_id": source, "project_id": project, "model": "squads", "name": "xfer squads", "status": "active",
 		"definition": `{"units":[{"id":"u","name":"Unit","owner_id":"` + testUserID + `","excludes":["external_effects"],"autonomy":"draft","allow":[],"deny":[],"escalation_quota_per_day":5,"members":[{"type":"member","id":"` + testUserID + `"},{"type":"agent","id":"` + agent + `"}],"roles":[]}],"edges":[],"rules":[],"committees":[]}`, "owner_id": testUserID})
-	dbfx.Insert(t, "workspace_note", testutil.Cols{"id": uuid.NewString(), "workspace_id": source, "title": "xfer note", "content": "token " + envSecret + " must not leak", "tags": "{}", "created_by_id": testUserID})
+	dbfx.Insert(t, "workspace_note", testutil.Cols{"id": uuid.NewString(), "workspace_id": source, "title": "xfer note", "content": "token " + envSecret + " must not leak", "tags": "{}", "kind": "decision", "created_by_id": testUserID})
 	label := dbfx.Insert(t, "issue_label", testutil.Cols{"workspace_id": source, "resource_type": "issue", "name": "xfer-label-" + uuid.NewString()[:6], "description": "", "color": "#000000"})
 	issue := dbfx.Issue(t, "xfer issue "+uuid.NewString()[:8], testutil.Cols{"workspace_id": source, "project_id": project, "goal_id": sub})
 	dbfx.InsertNoID(t, "issue_to_label", testutil.Cols{"issue_id": issue, "label_id": label}, "issue_id = $1 AND label_id = $2", issue, label)
@@ -208,6 +208,12 @@ func TestWorkspaceTransfer(t *testing.T) {
 	}
 	if dbfx.Count(t, `SELECT COUNT(*) FROM member WHERE workspace_id = $1`, target) != membersBefore {
 		t.Fatal("import never touches members")
+	}
+	// JEF-415 / B04: a note's kind rides the export/import round trip.
+	var importedKind string
+	dbfx.QueryRow(t, `SELECT kind FROM workspace_note WHERE workspace_id = $1 AND title = 'xfer note'`, target).Scan(&importedKind)
+	if importedKind != "decision" {
+		t.Fatalf("imported note kind = %q, want decision", importedKind)
 	}
 	// Second import: skip leaves everything, rename adds a copy, merge updates in place.
 	testutil.Call(t, testHandler.PreviewWorkspaceImport, transferMultipart(t, target, "/api/workspace-transfer/preview", data, nil)).Want(http.StatusOK).JSON(&preview)

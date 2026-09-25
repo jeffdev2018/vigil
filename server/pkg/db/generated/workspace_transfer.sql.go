@@ -628,7 +628,7 @@ func (q *Queries) ListLabelsForExport(ctx context.Context, workspaceID pgtype.UU
 }
 
 const listWorkspaceNotesForExport = `-- name: ListWorkspaceNotesForExport :many
-SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at FROM workspace_note WHERE workspace_id = $1 AND archived_at IS NULL AND merged_into IS NULL ORDER BY created_at ASC LIMIT 2000
+SELECT id, workspace_id, title, content, tags, source, source_task_id, source_agent_id, pinned, archived_at, merged_into, created_by_type, created_by_id, revision, created_at, updated_at, kind, decision_record_id FROM workspace_note WHERE workspace_id = $1 AND archived_at IS NULL AND merged_into IS NULL ORDER BY created_at ASC LIMIT 2000
 `
 
 func (q *Queries) ListWorkspaceNotesForExport(ctx context.Context, workspaceID pgtype.UUID) ([]WorkspaceNote, error) {
@@ -657,6 +657,8 @@ func (q *Queries) ListWorkspaceNotesForExport(ctx context.Context, workspaceID p
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Kind,
+			&i.DecisionRecordID,
 		); err != nil {
 			return nil, err
 		}

@@ -573,3 +573,51 @@ FOR EACH ROW EXECUTE FUNCTION `+functionName+`();`); err != nil {
 		t.Fatalf("storage objects after failed attach = %d, want 0: the fix must delete the orphan storage object", remaining)
 	}
 }
+
+// JEF-415 / B04: search filters by kind, and organize's "note" action can
+// set one.
+func TestWorkspaceNoteSearchKindFilter(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	proc := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Deploy procedure", Content: "Push the release tag on main.", Kind: "procedure"})
+	createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Vendor contacts", Content: "The printer vendor answers on Mondays."})
+
+	hits := searchNotes(t, workspaceID, "q=deploy&kind=procedure")
+	if len(hits) != 1 || hits[0].ID != proc.ID || hits[0].Kind != "procedure" {
+		t.Fatalf("kind=procedure search = %v, want only the procedure note", hits)
+	}
+	if hits := searchNotes(t, workspaceID, "q=deploy&kind=glossary"); len(hits) != 0 {
+		t.Errorf("kind=glossary matched the procedure note: %v", hits)
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=deploy&kind=opinion", workspaceID, nil)).
+		Want(http.StatusBadRequest)
+}
+
+func TestOrganizeBrainCaptureSetsKind(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	var created struct {
+		Capture BrainCaptureResponse `json:"capture"`
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.CreateBrainCapture),
+		noteRequest(http.MethodPost, "/api/brain/captures", workspaceID, map[string]any{"content": "always squash-merge"})).
+		Want(http.StatusCreated).JSON(&created)
+	capture := created.Capture
+
+	var out captureEnvelope
+	testutil.Call(t, noteWorkspaceHandler(testHandler.OrganizeBrainCapture),
+		testutil.WithURLParams(noteRequest(http.MethodPost, "/api/brain/captures/"+capture.ID+"/organize", workspaceID,
+			brainOrganizeRequest{Action: "note", Title: "Merge policy", Kind: "procedure"}), "id", capture.ID)).
+		Want(http.StatusOK).JSON(&out)
+	if out.Note == nil || out.Note.Kind != "procedure" {
+		t.Fatalf("organized note = %+v, want kind procedure", out.Note)
+	}
+
+	testutil.Call(t, noteWorkspaceHandler(testHandler.CreateBrainCapture),
+		noteRequest(http.MethodPost, "/api/brain/captures", workspaceID, map[string]any{"content": "another raw thought"})).
+		Want(http.StatusCreated).JSON(&created)
+	capture2 := created.Capture
+	testutil.Call(t, noteWorkspaceHandler(testHandler.OrganizeBrainCapture),
+		testutil.WithURLParams(noteRequest(http.MethodPost, "/api/brain/captures/"+capture2.ID+"/organize", workspaceID,
+			brainOrganizeRequest{Action: "note", Title: "Bad kind", Kind: "opinion"}), "id", capture2.ID)).
+		Want(http.StatusBadRequest)
+}

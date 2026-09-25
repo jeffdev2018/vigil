@@ -10,7 +10,24 @@
     "manual": "Manuelle",
     "agent": "Par un agent",
     "curation": "Curée",
+    "decision": "Décision enregistrée",
     "open_run": "Ouvrir le run"
+  },
+  "kind": {
+    "all": "Tous les types",
+    "filter_label": "Filtrer par type",
+    "picker_label": "Type de note",
+    "fact": "Fait",
+    "decision": "Décision",
+    "procedure": "Procédure",
+    "glossary": "Glossaire",
+    "episode": "Épisode",
+    "template": {
+      "decision": "## Contexte\n\n## Décision\n\n## Pourquoi\n\n## Alternatives écartées\n\n## Contraintes\n\n## À revoir le",
+      "procedure": "## Quand l'utiliser\n\n## Étapes\n\n1. \n2. \n3. \n\n## Vérification",
+      "glossary": "## Définition\n\n## Synonymes\n\n## Voir aussi",
+      "episode": "## Ce qui s'est passé\n\n## Impact\n\n## Résolution\n\n## À retenir"
+    }
   },
   "list": {
     "loading": "Chargement des notes",

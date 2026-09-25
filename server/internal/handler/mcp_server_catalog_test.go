@@ -75,6 +75,41 @@ func TestMCPCatalogueCoversTheBrainCaptureInbox(t *testing.T) {
 	}
 }
 
+// JEF-415 / B04: the note kind is a schema-level enum on every leaf that
+// creates, edits, lists or searches notes, so a client sees the five valid
+// values and their meaning instead of guessing a free-form string.
+func TestMCPCatalogueDeclaresNoteKindOnNoteLeaves(t *testing.T) {
+	for _, name := range []string{"note_create", "note_update", "note_list", "note_search", "note_organize"} {
+		leaf, ok := mcpLeafByName[name]
+		if !ok {
+			t.Fatalf("catalogue has no %q leaf", name)
+		}
+		var kind *mcpParam
+		for i := range leaf.Params {
+			if leaf.Params[i].Name == "kind" {
+				kind = &leaf.Params[i]
+			}
+		}
+		if kind == nil {
+			t.Fatalf("%s has no kind param", name)
+		}
+		if len(kind.Enum) != 5 {
+			t.Errorf("%s kind enum = %v, want the 5 note kinds", name, kind.Enum)
+		}
+		for _, want := range []string{"fact", "decision", "procedure", "glossary", "episode"} {
+			found := false
+			for _, e := range kind.Enum {
+				if e == want {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("%s kind enum %v is missing %q", name, kind.Enum, want)
+			}
+		}
+	}
+}
+
 // Provenance is not the caller's to choose: whatever a client passes, a
 // capture filed through MCP is stamped origin "mcp".
 func TestMCPNoteCaptureStampsItsOwnOrigin(t *testing.T) {

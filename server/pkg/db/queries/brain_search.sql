@@ -167,6 +167,7 @@ WITH items AS MATERIALIZED (
       AND n.workspace_id = sqlc.arg('workspace_id')::uuid
       AND (sqlc.arg('include_archived')::bool OR n.archived_at IS NULL)
       AND (sqlc.narg('tag')::text IS NULL OR sqlc.narg('tag')::text = ANY(n.tags))
+      AND (sqlc.narg('kind')::text IS NULL OR n.kind = sqlc.narg('kind')::text)
       AND p.tsv @@ (SELECT q FROM q_or)
       AND p.note_id NOT IN (SELECT en.note_id FROM excluded_notes en)
 ), present AS MATERIALIZED (
@@ -204,6 +205,7 @@ WITH items AS MATERIALIZED (
       AND vp.embedding_model = sqlc.narg('embedding_model')::text
       AND (sqlc.arg('include_archived')::bool OR vn.archived_at IS NULL)
       AND (sqlc.narg('tag')::text IS NULL OR sqlc.narg('tag')::text = ANY(vn.tags))
+      AND (sqlc.narg('kind')::text IS NULL OR vn.kind = sqlc.narg('kind')::text)
       AND vp.note_id NOT IN (SELECT en.note_id FROM excluded_notes en)
     ORDER BY distance
     LIMIT sqlc.arg('prefilter')::int * 4

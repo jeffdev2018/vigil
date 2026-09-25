@@ -260,6 +260,17 @@ describe("note schemas", () => {
     ).toEqual(EMPTY_WORKSPACE_NOTES_RESPONSE);
   });
 
+  it("defaults a missing or unrecognized kind to fact", () => {
+    const missing = WorkspaceNoteSchema.safeParse(NOTE_ROW);
+    expect(missing.success && missing.data.kind).toBe("fact");
+
+    const unknown = WorkspaceNoteSchema.safeParse({ ...NOTE_ROW, kind: "sketch" });
+    expect(unknown.success && unknown.data.kind).toBe("fact");
+
+    const known = WorkspaceNoteSchema.safeParse({ ...NOTE_ROW, kind: "decision" });
+    expect(known.success && known.data.kind).toBe("decision");
+  });
+
   it("keeps revision as a number — the conflict guard depends on it", () => {
     const parsed = WorkspaceNoteSchema.safeParse(NOTE_ROW);
     expect(parsed.success && parsed.data.revision).toBe(4);

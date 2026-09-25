@@ -54,6 +54,7 @@ const hit = (over: Partial<WorkspaceNoteSearchHit> = {}): WorkspaceNoteSearchHit
   pinned: false,
   created_by_type: "member",
   revision: 1,
+  kind: "fact",
   created_at: "",
   updated_at: "",
   score: 0.5,

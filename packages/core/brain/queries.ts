@@ -1,11 +1,11 @@
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import type { BrainCaptureStatus } from "../types";
+import type { BrainCaptureStatus, WorkspaceNoteKind } from "../types";
 
 export const brainKeys = {
   all: (wsId: string) => ["brain", wsId] as const,
-  list: (wsId: string, search: string, tag: string, archived: boolean) =>
-    [...brainKeys.all(wsId), "list", search, tag, archived] as const,
+  list: (wsId: string, search: string, tag: string, archived: boolean, kind: string) =>
+    [...brainKeys.all(wsId), "list", search, tag, archived, kind] as const,
   detail: (wsId: string, id: string) => [...brainKeys.all(wsId), "detail", id] as const,
   usage: (wsId: string, id: string) => [...brainKeys.all(wsId), "usage", id] as const,
   taskUsage: (wsId: string, taskId: string) =>
@@ -37,13 +37,14 @@ export function taskNoteUsageOptions(wsId: string, taskId: string) {
  */
 export function brainNotesOptions(
   wsId: string,
-  params?: { search?: string; tag?: string; archived?: boolean },
+  params?: { search?: string; tag?: string; archived?: boolean; kind?: WorkspaceNoteKind },
 ) {
   const search = params?.search ?? "";
   const tag = params?.tag ?? "";
   const archived = params?.archived === true;
+  const kind = params?.kind ?? "";
   return queryOptions({
-    queryKey: brainKeys.list(wsId, search, tag, archived),
+    queryKey: brainKeys.list(wsId, search, tag, archived, kind),
     // Each filter combination is its own cache entry, so without this every
     // keystroke would blank the list AND the tag chips back to the loading
     // skeleton — including the chip the user is about to click.
@@ -54,6 +55,7 @@ export function brainNotesOptions(
           search: search || undefined,
           tag: tag || undefined,
           archived: archived || undefined,
+          kind: kind || undefined,
         },
         { signal },
       ),
@@ -78,8 +80,14 @@ export const brainCaptureKeys = {
     [...brainCaptureKeys.captures(wsId), "list", status] as const,
   detail: (wsId: string, id: string) =>
     [...brainCaptureKeys.captures(wsId), "detail", id] as const,
-  search: (wsId: string, q: string, tag: string, archived: boolean, limit: number) =>
-    [...brainKeys.all(wsId), "search", q, tag, archived, limit] as const,
+  search: (
+    wsId: string,
+    q: string,
+    tag: string,
+    archived: boolean,
+    limit: number,
+    kind: string,
+  ) => [...brainKeys.all(wsId), "search", q, tag, archived, limit, kind] as const,
 };
 
 export function brainCapturesOptions(
@@ -110,19 +118,20 @@ export function brainCaptureOptions(wsId: string, id: string) {
 export function noteSearchOptions(
   wsId: string,
   q: string,
-  params?: { tag?: string; archived?: boolean; limit?: number },
+  params?: { tag?: string; archived?: boolean; limit?: number; kind?: WorkspaceNoteKind },
 ) {
   const tag = params?.tag ?? "";
   const archived = params?.archived === true;
   const limit = params?.limit ?? 20;
+  const kind = params?.kind ?? "";
   const query = q.trim();
   return queryOptions({
-    queryKey: brainCaptureKeys.search(wsId, query, tag, archived, limit),
+    queryKey: brainCaptureKeys.search(wsId, query, tag, archived, limit, kind),
     placeholderData: keepPreviousData,
     enabled: query !== "",
     queryFn: ({ signal }) =>
       api.searchWorkspaceNotes(
-        { q: query, tag: tag || undefined, archived, limit },
+        { q: query, tag: tag || undefined, archived, limit, kind: kind || undefined },
         { signal },
       ),
   });

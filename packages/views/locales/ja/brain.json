@@ -10,7 +10,24 @@
     "manual": "手動",
     "agent": "エージェント作成",
     "curation": "整理済み",
+    "decision": "決定記録",
     "open_run": "実行を開く"
+  },
+  "kind": {
+    "all": "すべての種類",
+    "filter_label": "種類で絞り込み",
+    "picker_label": "ノートの種類",
+    "fact": "事実",
+    "decision": "決定",
+    "procedure": "手順",
+    "glossary": "用語",
+    "episode": "エピソード",
+    "template": {
+      "decision": "## 背景\n\n## 決定\n\n## 理由\n\n## 検討した代替案\n\n## 制約\n\n## 見直し予定日",
+      "procedure": "## 使う場面\n\n## 手順\n\n1. \n2. \n3. \n\n## 確認方法",
+      "glossary": "## 定義\n\n## 類義語\n\n## 関連項目",
+      "episode": "## 何が起きたか\n\n## 影響\n\n## 対応\n\n## 学び"
+    }
   },
   "list": {
     "loading": "ノートを読み込み中",
