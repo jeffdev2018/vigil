@@ -14,7 +14,7 @@ An agent is not a continuously running process. It is a reusable identity and co
 | Setting | What it does |
 |---|---|
 | **Name, avatar, and description** | Tell the team who the agent is and what it is good at. The description is display-only and never enters the execution prompt. |
-| **Instructions** | Define its responsibilities, working style, boundaries, and delivery requirements. Used on every run. |
+| **Instructions** | Define its responsibilities, working style, boundaries, and delivery requirements. Used on every run. The workspace [doctrine](/doctrine) is injected alongside them on every run and outranks every other record in the brief; these instructions are the only thing that ranks with it. |
 | **Conversation starters** | Give people up to three agent-specific examples, shown when they open a new chat with the agent. Selecting one fills the composer without sending. |
 | **Skills** | Provide reusable methods, reference material, and supporting files. |
 | **Runtime, model, and thinking level** | Decide which runtime, AI coding tool, and model it runs on; some tools (such as Codex) also offer a service tier. |
@@ -90,3 +90,4 @@ The agent owner and workspace `owner`s and `admin`s can archive or restore an ag
 - [Squads](/squads) — let a leader pick the right member for the work.
 - [Daemon and runtimes](/daemon-runtimes) — where agents actually execute.
 - [Native runtime](/native-runtime) — run lightweight issue work with no daemon at all.
+- [Doctrine](/doctrine) — the workspace rules every agent is bound by.

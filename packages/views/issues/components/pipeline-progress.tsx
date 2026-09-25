@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { issuePipelineRunOptions, pipelinesOptions, stageStates, useAdvancePipelineRun, useCancelPipelineRun, useStartPipelineRun } from "@multica/core/pipelines";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
@@ -33,10 +40,22 @@ export function PipelineProgress({ issueId, canManage = true }: { issueId: strin
     return (
       <div data-testid="pipeline-start" className="flex flex-wrap items-center gap-2 px-2 py-1 text-caption">
         <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <select aria-label={t(($) => $.pipeline.pick)} className="rounded-md border border-input bg-transparent px-2 py-1" value={picked} onChange={(e) => setPicked(e.target.value)}>
-          <option value="">{t(($) => $.pipeline.pick)}</option>
-          {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.pipeline.pick) },
+            ...pipelines.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+          value={picked}
+          onValueChange={(value) => value !== null && setPicked(value)}
+        >
+          <SelectTrigger size="sm" aria-label={t(($) => $.pipeline.pick)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.pipeline.pick)}</SelectItem>
+            {pipelines.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Button type="button" size="sm" variant="outline" disabled={picked === "" || start.isPending} onClick={() => start.mutate(picked, { onError: fail })}>{t(($) => $.pipeline.start)}</Button>
         {run && <span className="text-muted-foreground">{t(($) => $.pipeline.last, { name: run.pipeline_name, status: t(($) => $.pipeline.status[run.status]) })}</span>}
       </div>

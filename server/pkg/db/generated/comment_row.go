@@ -38,6 +38,7 @@ func (r CreateCommentRow) Comment() Comment {
 		AnchorLineEnd:      r.AnchorLineEnd,
 		AnchorSide:         r.AnchorSide,
 		AnchorReviewFlagID: r.AnchorReviewFlagID,
+		DeletedAt:          r.DeletedAt,
 	}
 }
 
@@ -144,5 +145,6 @@ func (r ListAnchoredRootsForCommentsRow) Comment() Comment {
 		AnchorLineEnd:      r.AnchorLineEnd,
 		AnchorSide:         r.AnchorSide,
 		AnchorReviewFlagID: r.AnchorReviewFlagID,
+		DeletedAt:          r.DeletedAt,
 	}
 }

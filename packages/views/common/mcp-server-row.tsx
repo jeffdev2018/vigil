@@ -30,6 +30,9 @@ export type McpServerRowLabels = {
   configureAria: string;
   remove: string;
   removeAria: string;
+  /** Fallback transport label for a server whose transport this build does
+   *  not recognize. Falls back to the bare English word if omitted. */
+  unknownTransport?: string;
 };
 
 export type McpServerRenameState = {
@@ -41,9 +44,16 @@ export type McpServerRenameState = {
   onSubmit: () => void;
 };
 
-export function McpTransportIcon({ transport }: { transport: string }) {
+export function McpTransportIcon({
+  transport,
+  unknownLabel,
+}: {
+  transport: string;
+  /** Translated fallback for an unrecognized transport. Defaults to "Unknown". */
+  unknownLabel?: string;
+}) {
   const normalizedTransport = transport.trim().toLowerCase();
-  const transportLabel = mcpTransportLabel(transport);
+  const transportLabel = mcpTransportLabel(transport, unknownLabel);
   const TransportIcon =
     normalizedTransport === "stdio" || normalizedTransport === "local"
       ? SquareTerminal
@@ -143,7 +153,7 @@ export function McpServerRow({
 
   return (
     <li className="group flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30">
-      <McpTransportIcon transport={transport} />
+      <McpTransportIcon transport={transport} unknownLabel={labels.unknownTransport} />
 
       <div className="min-w-0 flex-1 has-[form]:space-y-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -214,7 +224,7 @@ export function McpServerRow({
           {status}
         </div>
         <p className="text-caption text-muted-foreground">
-          {mcpTransportLabel(transport)}
+          {mcpTransportLabel(transport, labels.unknownTransport)}
         </p>
       </div>
 

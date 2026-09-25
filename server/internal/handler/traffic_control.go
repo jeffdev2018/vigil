@@ -185,7 +185,9 @@ func (h *Handler) ListTrafficConflicts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = h.Queries.ResolveTrafficConflictsForFinishedRuns(r.Context(), issue.ID)
+	if err := h.Queries.ResolveTrafficConflictsForFinishedRuns(r.Context(), issue.ID); err != nil {
+		slog.Warn("traffic control: resolve conflicts for finished runs failed", "issue_id", uuidToString(issue.ID), "error", err)
+	}
 	rows, err := h.Queries.ListTrafficConflictsForIssue(r.Context(), issue.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list traffic conflicts")
@@ -202,6 +204,9 @@ func (h *Handler) ListTrafficConflicts(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) IgnoreTrafficConflict(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	cid, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "cid"), "conflict id")

@@ -2,8 +2,10 @@
 
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { SkillSummary } from "@multica/core/types";
+import type { SupportedLocale } from "@multica/core/i18n";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
       origins: [] as string[],
       agents: [] as string[],
       creators: [] as string[],
+      labels: [] as string[],
     },
     toggleSort: vi.fn(),
     setSortField: vi.fn(),
@@ -155,11 +158,12 @@ function makeAdapter(
   };
 }
 
-function renderPage(adapter: NavigationAdapter) {
+function renderPage(adapter: NavigationAdapter, locale?: SupportedLocale) {
   renderWithI18n(
     <NavigationProvider value={adapter}>
       <SkillsPage />
     </NavigationProvider>,
+    { locale },
   );
 }
 
@@ -208,17 +212,105 @@ describe("SkillsPage source link vs row navigation", () => {
   });
 
   // Sanity check that the rig exercises the row's auxclick handler at all —
-  // without this, the assertions above could pass vacuously.
+  // without this, the assertions above could pass vacuously. The target must
+  // be a cell with no link of its own: the name cell now carries the row's
+  // accessible anchor, which handles its own middle click.
   it("middle click elsewhere on the row still background-tabs the skill", async () => {
     const adapter = makeAdapter();
     renderPage(adapter);
 
-    const event = middleClick(await screen.findByText("animations"));
+    const event = middleClick(await screen.findByText("— unused"));
 
     expect(event.defaultPrevented).toBe(true);
     expect(adapter.openInNewTab).toHaveBeenCalledWith(
       "/acme/skills/skill-1",
       "animations",
     );
+  });
+});
+
+// The row is a plain <div> whose click/auxclick handlers are a mouse-only
+// convenience (ui/list-grid documents the split, views/navigation/use-row-link
+// repeats it). The title has to be a real anchor or the list has no keyboard
+// path, no "open in new tab" and no browser context menu at all.
+describe("SkillsPage row title link", () => {
+  function skillRow(): HTMLElement {
+    return screen.getByRole("row", { name: /animations/ });
+  }
+
+  it("renders the skill name as a real link", async () => {
+    renderPage(makeAdapter());
+
+    await screen.findByText("animations");
+    const link = within(skillRow()).getByRole("link", { name: "animations" });
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/acme/skills/skill-1");
+  });
+
+  it("navigates once from the keyboard when the title link is activated", async () => {
+    const user = userEvent.setup();
+    const adapter = makeAdapter();
+    renderPage(adapter);
+
+    await screen.findByText("animations");
+    const link = within(skillRow()).getByRole("link", { name: "animations" });
+    link.focus();
+    expect(link).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(adapter.push).toHaveBeenCalledWith("/acme/skills/skill-1");
+    expect(adapter.push).toHaveBeenCalledTimes(1);
+  });
+
+  // This rig carries a tab adapter (desktop), so AppLink owns the
+  // modifier-click. If the event also reached the row, rowLink would open a
+  // second tab.
+  it("opens a single tab on a modifier click of the title", async () => {
+    const adapter = makeAdapter();
+    renderPage(adapter);
+
+    await screen.findByText("animations");
+    fireEvent.click(
+      within(skillRow()).getByRole("link", { name: "animations" }),
+      { metaKey: true },
+    );
+
+    expect(adapter.openInNewTab).toHaveBeenCalledTimes(1);
+    expect(adapter.openInNewTab).toHaveBeenCalledWith(
+      "/acme/skills/skill-1",
+      "animations",
+    );
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+
+  it("names the selection toggles and reveals them on focus", async () => {
+    const user = userEvent.setup();
+    renderPage(makeAdapter());
+
+    await screen.findByText("animations");
+    const rowToggle = within(skillRow()).getByRole("button", {
+      name: "Select animations",
+    });
+    // Both are hidden by `opacity-0` while nothing is selected, so focus has
+    // to reveal them too or the keyboard lands on an invisible control.
+    expect(rowToggle.className).toContain("focus-visible:opacity-100");
+    expect(
+      screen.getByRole("button", { name: "Select all skills" }).className,
+    ).toContain("focus-visible:opacity-100");
+
+    rowToggle.focus();
+    expect(rowToggle).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(rowToggle).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("SkillsPage docs link", () => {
+  it("points Learn more at the viewer's docs locale", () => {
+    renderPage(makeAdapter(), "fr");
+
+    expect(
+      screen.getByRole("link", { name: "En savoir plus →" }),
+    ).toHaveAttribute("href", "https://multica.ai/docs/fr/skills");
   });
 });

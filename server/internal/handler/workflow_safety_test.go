@@ -35,7 +35,7 @@ func TestCancelledRunCleanup(t *testing.T) {
 		t.Fatalf("held writes pending before the cancel = %d, want 1", n)
 	}
 
-	if _, err := testHandler.TaskService.CancelTaskByUser(ctx, parseUUID(task)); err != nil {
+	if _, err := testHandler.TaskService.CancelTaskByUser(ctx, parseUUID(task), service.TaskCancellationActor{Type: "member", ID: parseUUID(testUserID)}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestCancelledQueuedRunIsNotSealed(t *testing.T) {
 	task := dbfx.Task(t, agent, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "issue_id": issue, "status": "queued"})
 	t.Cleanup(func() { testPool.Exec(ctx, `DELETE FROM audit_log_entry WHERE entity_id = $1`, task) })
 
-	if _, err := testHandler.TaskService.CancelTaskByUser(ctx, parseUUID(task)); err != nil {
+	if _, err := testHandler.TaskService.CancelTaskByUser(ctx, parseUUID(task), service.TaskCancellationActor{Type: "member", ID: parseUUID(testUserID)}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE entity_id = $1 AND action IN ($2, $3)`, task, AuditRunSealed, AuditRunCancelledCleanup); n != 0 {

@@ -1,16 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { Gauge, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlarmClock, Gauge, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useCurrentWorkspace } from "@multica/core/paths";
+import { workspaceKeys } from "@multica/core/workspace/queries";
+import {
+  FOLLOWUP_BUDGET_MAX,
+  FOLLOWUP_BUDGET_MIN,
+  clampFollowupBudget,
+  followupBudgetFromSettings,
+  mergeFollowupBudget,
+} from "@multica/core/followups";
+import { followupKeys } from "@multica/core/followups";
+import type { Workspace } from "@multica/core/types";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects";
 import { formatGateValue, runLimitPoliciesOptions, useDeleteRunLimitPolicy, useSaveRunLimitPolicy, type RunLimitGate, type RunLimitPolicy, type RunLimitPolicyInput } from "@multica/core/budgets/run-limits";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
+import { SettingsSaveState, type SettingsSaveStatus } from "./settings-layout";
 
 const TICKS_PER_USD = 1e10;
 
@@ -82,7 +98,115 @@ export function RunLimitsSection({ canManage }: { canManage: boolean }) {
           <RunLimitEditor policy={null} projects={projects} agents={agents} pending={save.isPending} onCancel={() => setEditing(null)} onSave={(input) => save.mutate({ input }, { onError: fail, onSuccess: () => setEditing(null) })} />
         )}
       </div>
+      <FollowupBudgetGroup canManage={canManage} />
     </section>
+  );
+}
+
+/**
+ * Follow-up budget: how many wake-ups ("réveil programmé") an agent and a
+ * workspace may file per day. A cap on what runs, so it sits with the run
+ * limits — but it lives in `workspace.settings.followups`, not in a policy
+ * row, so it saves through the workspace endpoint the way
+ * `settings.doctrine.require_review` does: read the current blob, merge this
+ * one key, PATCH the whole thing back (the server replaces it wholesale).
+ */
+function FollowupBudgetGroup({ canManage }: { canManage: boolean }) {
+  const { t } = useT("settings");
+  const wsId = useWorkspaceId();
+  const qc = useQueryClient();
+  const workspace = useCurrentWorkspace();
+  const stored = followupBudgetFromSettings(workspace?.settings);
+  const [perAgent, setPerAgent] = useState(String(stored.max_per_agent_per_day));
+  const [perWorkspace, setPerWorkspace] = useState(String(stored.max_per_workspace_per_day));
+  const [status, setStatus] = useState<SettingsSaveStatus>("idle");
+
+  // The workspace list arrives after the first paint, so the fields follow the
+  // stored values until the person edits them.
+  useEffect(() => {
+    setPerAgent(String(stored.max_per_agent_per_day));
+    setPerWorkspace(String(stored.max_per_workspace_per_day));
+  }, [stored.max_per_agent_per_day, stored.max_per_workspace_per_day]);
+
+  const agentValue = clampFollowupBudget(perAgent, stored.max_per_agent_per_day);
+  const workspaceValue = clampFollowupBudget(perWorkspace, stored.max_per_workspace_per_day);
+  const outOfRange = (raw: string) => {
+    const n = Number(raw.trim());
+    return raw.trim() !== "" && (!Number.isFinite(n) || n < FOLLOWUP_BUDGET_MIN || n > FOLLOWUP_BUDGET_MAX);
+  };
+  const refused = outOfRange(perAgent) || outOfRange(perWorkspace);
+  const dirty =
+    agentValue !== stored.max_per_agent_per_day || workspaceValue !== stored.max_per_workspace_per_day;
+
+  const save = async () => {
+    if (!workspace) return;
+    setStatus("saving");
+    try {
+      const merged = mergeFollowupBudget(workspace.settings, {
+        max_per_agent_per_day: agentValue,
+        max_per_workspace_per_day: workspaceValue,
+      });
+      const updated = await api.updateWorkspace(workspace.id, { settings: merged });
+      qc.setQueryData(workspaceKeys.list(), (old: Workspace[] | undefined) =>
+        old?.map((ws) => (ws.id === updated.id ? updated : ws)),
+      );
+      // The issue block quotes the budget from its own list response.
+      await qc.invalidateQueries({ queryKey: followupKeys.all(wsId) });
+      setStatus("saved");
+    } catch (error) {
+      setStatus("error");
+      toast.error(error instanceof Error && error.message ? error.message : t(($) => $.followup_budget.save_failed));
+    }
+  };
+
+  const field = (
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <label className="flex flex-col gap-1">
+      {label}
+      <Input
+        type="number"
+        min={FOLLOWUP_BUDGET_MIN}
+        max={FOLLOWUP_BUDGET_MAX}
+        step={1}
+        aria-label={label}
+        disabled={!canManage}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setStatus("idle"); }}
+      />
+    </label>
+  );
+
+  return (
+    <div data-testid="followup-budget" className="space-y-2 border-t border-border pt-3">
+      <div className="flex items-center gap-2">
+        <AlarmClock className="h-4 w-4 text-muted-foreground" />
+        <h4 className="font-medium">{t(($) => $.followup_budget.title)}</h4>
+        <SettingsSaveState
+          status={status}
+          savingLabel={t(($) => $.followup_budget.saving)}
+          savedLabel={t(($) => $.followup_budget.saved)}
+          errorLabel={t(($) => $.followup_budget.save_failed)}
+        />
+      </div>
+      <p className="text-caption text-muted-foreground">{t(($) => $.followup_budget.intro)}</p>
+      <div className="grid grid-cols-1 gap-2 text-caption md:grid-cols-2">
+        {field(t(($) => $.followup_budget.per_agent), perAgent, setPerAgent)}
+        {field(t(($) => $.followup_budget.per_workspace), perWorkspace, setPerWorkspace)}
+      </div>
+      {refused && (
+        <p role="alert" className="text-caption text-destructive">
+          {t(($) => $.followup_budget.out_of_range, { min: FOLLOWUP_BUDGET_MIN, max: FOLLOWUP_BUDGET_MAX })}
+        </p>
+      )}
+      {canManage && (
+        <Button type="button" size="sm" variant="outline" disabled={!dirty || refused || status === "saving"} onClick={() => void save()}>
+          {t(($) => $.followup_budget.save)}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -100,28 +224,65 @@ function RunLimitEditor({ policy, projects, agents, pending, onSave, onCancel }:
   const [warn, setWarn] = useState(String((policy?.warn_bps ?? 8000) / 100));
   const [action, setAction] = useState<RunLimitPolicy["action"]>(policy?.action ?? "enforce");
   const targets = scope === "project" ? projects.map((p) => ({ id: p.id, label: p.title })) : scope === "agent" ? agents.map((a) => ({ id: a.id, label: a.name })) : [];
-  const num = (s: string) => (s.trim() === "" ? null : Math.max(0, Number(s) || 0) || null);
+  // A typed 0 is a meaningful, distinct limit (e.g. 0 tool calls allowed) —
+  // not "unset". The old `|| null` chain treated 0 as falsy at every step
+  // (inside num() AND at each call site below) and silently coerced it to
+  // "no limit" instead, the opposite of what the field just said.
+  const num = (s: string) => {
+    if (s.trim() === "") return null;
+    const n = Number(s);
+    return Number.isNaN(n) ? null : Math.max(0, n);
+  };
+  const numCost = num(cost);
+  const numMinutes = num(minutes);
+  const numTurns = num(turns);
+  const numTools = num(tools);
   const input: RunLimitPolicyInput = {
     scope_type: scope, scope_id: scope === "workspace" ? null : scopeId || null,
-    max_cost_usd_ticks: num(cost) ? Math.round((num(cost) as number) * TICKS_PER_USD) : null,
-    max_duration_seconds: num(minutes) ? Math.round((num(minutes) as number) * 60) : null,
-    max_turns: num(turns) ? Math.round(num(turns) as number) : null,
-    max_tool_calls: num(tools) ? Math.round(num(tools) as number) : null,
+    max_cost_usd_ticks: numCost !== null ? Math.round(numCost * TICKS_PER_USD) : null,
+    max_duration_seconds: numMinutes !== null ? Math.round(numMinutes * 60) : null,
+    max_turns: numTurns !== null ? Math.round(numTurns) : null,
+    max_tool_calls: numTools !== null ? Math.round(numTools) : null,
     warn_bps: Math.round(Math.min(100, Math.max(0, Number(warn) || 0)) * 100), action,
   };
-  const valid = (scope === "workspace" || !!scopeId) && (input.max_cost_usd_ticks || input.max_duration_seconds || input.max_turns || input.max_tool_calls);
+  // Same truthiness trap as num() above: a limit of 0 is real and must count
+  // as "at least one gate is set", not fall out because 0 is falsy.
+  const valid = (scope === "workspace" || !!scopeId) && (
+    input.max_cost_usd_ticks != null || input.max_duration_seconds != null ||
+    input.max_turns != null || input.max_tool_calls != null
+  );
   return (
     <form data-testid="run-limit-editor" className="flex flex-col gap-2 rounded-md border border-border p-3 text-caption" onSubmit={(e) => { e.preventDefault(); if (valid) onSave(input); }}>
       {!policy && (
         <div className="flex flex-wrap gap-2">
-          <select aria-label={t(($) => $.budgets.scope)} className="rounded-md border border-input bg-transparent px-2 py-1" value={scope} onChange={(e) => { setScope(e.target.value as RunLimitPolicy["scope_type"]); setScopeId(""); }}>
-            {(["workspace", "project", "agent"] as const).map((s) => <option key={s} value={s}>{t(($) => $.budgets.scopes[s])}</option>)}
-          </select>
+          <Select
+            items={(["workspace", "project", "agent"] as const).map((s) => ({ value: s, label: t(($) => $.budgets.scopes[s]) }))}
+            value={scope}
+            onValueChange={(value) => {
+              if (value) setScope(value as RunLimitPolicy["scope_type"]);
+              setScopeId("");
+            }}
+          >
+            <SelectTrigger aria-label={t(($) => $.budgets.scope)} size="sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["workspace", "project", "agent"] as const).map((s) => <SelectItem key={s} value={s}>{t(($) => $.budgets.scopes[s])}</SelectItem>)}
+            </SelectContent>
+          </Select>
           {scope !== "workspace" && (
-            <select aria-label={t(($) => $.budgets.target)} className="rounded-md border border-input bg-transparent px-2 py-1" value={scopeId} onChange={(e) => setScopeId(e.target.value)}>
-              <option value="">{t(($) => $.budgets.target)}</option>
-              {targets.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
-            </select>
+            <Select
+              items={[
+                { value: "", label: t(($) => $.budgets.target) },
+                ...targets.map((x) => ({ value: x.id, label: x.label })),
+              ]}
+              value={scopeId}
+              onValueChange={(value) => setScopeId(value ?? "")}
+            >
+              <SelectTrigger aria-label={t(($) => $.budgets.target)} size="sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.budgets.target)}</SelectItem>
+                {targets.map((x) => <SelectItem key={x.id} value={x.id}>{x.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
         </div>
       )}
@@ -133,10 +294,20 @@ function RunLimitEditor({ policy, projects, agents, pending, onSave, onCancel }:
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">{t(($) => $.budgets.warning)}<Input type="number" min={0} max={100} className="w-20" aria-label={t(($) => $.budgets.warning)} value={warn} onChange={(e) => setWarn(e.target.value)} /></label>
-        <select aria-label={t(($) => $.budgets.action)} className="rounded-md border border-input bg-transparent px-2 py-1" value={action} onChange={(e) => setAction(e.target.value as RunLimitPolicy["action"])}>
-          <option value="enforce">{t(($) => $.budgets.actions.enforce)}</option>
-          <option value="observe">{t(($) => $.budgets.actions.observe)}</option>
-        </select>
+        <Select
+          items={[
+            { value: "enforce", label: t(($) => $.budgets.actions.enforce) },
+            { value: "observe", label: t(($) => $.budgets.actions.observe) },
+          ]}
+          value={action}
+          onValueChange={(value) => value && setAction(value as RunLimitPolicy["action"])}
+        >
+          <SelectTrigger aria-label={t(($) => $.budgets.action)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="enforce">{t(($) => $.budgets.actions.enforce)}</SelectItem>
+            <SelectItem value="observe">{t(($) => $.budgets.actions.observe)}</SelectItem>
+          </SelectContent>
+        </Select>
         <Button type="submit" size="sm" disabled={pending || !valid}>{t(($) => $.run_limits.save)}</Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>{t(($) => $.budgets.cancel)}</Button>
       </div>

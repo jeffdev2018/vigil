@@ -1,0 +1,1 @@
+ALTER TABLE project_sandbox_policy DROP CONSTRAINT IF EXISTS project_sandbox_policy_pkey;

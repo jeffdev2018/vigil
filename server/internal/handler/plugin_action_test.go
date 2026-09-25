@@ -79,6 +79,27 @@ func pluginInstallTokenRequest(method, path, token string, body any, params map[
 	return request
 }
 
+func TestPluginActionRequiresTheFeatureFlag(t *testing.T) {
+	withPluginsV1Flag(t, testHandler, false)
+	recorder := httptest.NewRecorder()
+
+	testHandler.GetPluginContext(recorder, pluginInstallTokenRequest(http.MethodGet, "/v1/context", "mpi_invalid", nil, nil))
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status=%d body=%s, want 403", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After=%q, want empty for a non-retryable feature gate", got)
+	}
+	var problem publicapiv1.Problem
+	if err := json.Unmarshal(recorder.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode feature flag problem: %v", err)
+	}
+	if problem.Status != http.StatusForbidden || problem.Code != "plugin_api_disabled" || problem.Title != "Forbidden" {
+		t.Fatalf("unexpected feature flag problem: %+v", problem)
+	}
+}
+
 func TestPluginInstallTokenRunsIssueCommentWorkflow(t *testing.T) {
 	installationID := installPluginForAction(t, []string{"issues:read", "issues:write", "comments:read", "comments:write"})
 	token, err := testHandler.PluginService.IssueInstallToken(context.Background(), parseUUID(installationID))
@@ -361,6 +382,37 @@ func TestPluginCommentIsAuthoredByTheUserAndMarkedWithThePlugin(t *testing.T) {
 	}
 	if viaPlugin == nil || *viaPlugin != installationID {
 		t.Fatalf("via_plugin_id = %v, want %s", viaPlugin, installationID)
+	}
+	// ...and the ordinary comment list says so, so the timeline can show it.
+	_, listed := listComments(t, issueID, "")
+	found := false
+	for _, c := range listed {
+		if c.ID == created.ID {
+			found = true
+			if c.ViaPluginID == nil || *c.ViaPluginID != installationID {
+				t.Fatalf("listed via_plugin_id = %v, want %s", c.ViaPluginID, installationID)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("plugin comment %s missing from the comment list", created.ID)
+	}
+	// The issue page renders the timeline, not the comment list.
+	entries, status := fetchTimeline(t, issueID)
+	if status != http.StatusOK {
+		t.Fatalf("timeline status=%d", status)
+	}
+	found = false
+	for _, e := range entries {
+		if e.ID == created.ID {
+			found = true
+			if e.ViaPluginID == nil || *e.ViaPluginID != installationID {
+				t.Fatalf("timeline via_plugin_id = %v, want %s", e.ViaPluginID, installationID)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("plugin comment %s missing from the timeline", created.ID)
 	}
 }
 

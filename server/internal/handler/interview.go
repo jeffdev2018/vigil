@@ -96,12 +96,17 @@ func (h *Handler) ensureInterviewStatus(ctx context.Context, wsID pgtype.UUID) (
 	if err := issuestatus.Ensure(ctx, h.Queries, wsID); err != nil {
 		return "", err
 	}
-	created, msg, err := h.createIssueStatusEntry(ctx, wsID, db.CreateIssueStatusEntryParams{
+	// Lifecycle category, not behavior: `blocked` is a built-in status KEY and
+	// stopped being a storable category when the enumeration collapsed to the
+	// four lifecycle values (MUL-7365). Parked work is in flight, so it belongs
+	// to `started`; the interview's own parking is enforced on the key
+	// (see ResumeInterview), never on this category.
+	created, msg, err := h.createIssueStatusEntry(ctx, wsID, issuestatus.CategoryStarted, db.CreateIssueStatusEntryParams{
 		WorkspaceID: wsID,
 		Key:         interviewStatusKey,
 		Name:        interviewStatusName,
 		Description: "Waiting for a product answer before work continues.",
-		Category:    issuestatus.Blocked,
+		Category:    issuestatus.CategoryStarted,
 		Color:       interviewStatusColor,
 	})
 	if err != nil {
@@ -117,6 +122,9 @@ func (h *Handler) ensureInterviewStatus(ctx context.Context, wsID pgtype.UUID) (
 func (h *Handler) AskRequirementInterview(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	userID, ok := requireUserID(w, r)

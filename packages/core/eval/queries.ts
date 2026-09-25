@@ -12,7 +12,6 @@ export const evalKeys = {
   cases: (wsId: string) => ["eval-cases", wsId] as const,
   suites: (wsId: string) => ["eval-suites", wsId] as const,
   runs: (wsId: string) => ["eval-runs", wsId] as const,
-  run: (wsId: string, runId: string) => ["eval-run", wsId, runId] as const,
   benchmarks: (wsId: string) => ["eval-benchmarks", wsId] as const,
   corpus: (suiteId: string) => ["eval-suite-corpus", suiteId] as const,
 };
@@ -32,16 +31,6 @@ export function evalRunsOptions(wsId: string) {
     enabled: !!wsId,
     refetchInterval: (query) =>
       (query.state.data as EvalRun[] | undefined)?.some((run) => run.status === "running") ? RUN_POLL_MS : false,
-  });
-}
-
-export function evalRunOptions(wsId: string, runId: string) {
-  return queryOptions({
-    queryKey: evalKeys.run(wsId, runId),
-    queryFn: () => api.getEvalRun(runId),
-    enabled: !!runId,
-    refetchInterval: (query) =>
-      (query.state.data as EvalRun | null | undefined)?.status === "running" ? RUN_POLL_MS : false,
   });
 }
 

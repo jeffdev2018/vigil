@@ -42,7 +42,9 @@ type TimelineEntry struct {
 	QuickActionID *string `json:"quick_action_id,omitempty"`
 	// Agent-to-agent message intent (F19), so the timeline chips it without a
 	// second fetch. Omitted on activity rows and on ordinary comments.
-	A2aIntent      *string              `json:"a2a_intent,omitempty"`
+	A2aIntent *string `json:"a2a_intent,omitempty"`
+	// ViaPluginID: the plugin installation a comment was posted through.
+	ViaPluginID    *string              `json:"via_plugin_id,omitempty"`
 	Reactions      []ReactionResponse   `json:"reactions,omitempty"`
 	Attachments    []AttachmentResponse `json:"attachments,omitempty"`
 	ResolvedAt     *string              `json:"resolved_at,omitempty"`
@@ -55,18 +57,25 @@ type TimelineEntry struct {
 	// on an unanchored comment and on activity rows.
 	Anchor      *CommentAnchorResponse `json:"anchor,omitempty"`
 	AnchorStale bool                   `json:"anchor_stale,omitempty"`
+	// Set only on a tombstone: a comment deleted while it still had replies.
+	DeletedAt               *string `json:"deleted_at,omitempty"`
+	SupplementTaskID        string  `json:"supplement_task_id,omitempty"`
+	SupplementStatus        string  `json:"supplement_status,omitempty"`
+	SupplementFailureReason *string `json:"supplement_failure_reason,omitempty"`
+	SupplementDeliveredAt   *string `json:"supplement_delivered_at,omitempty"`
 }
 
 // timelineHardCap bounds the per-issue timeline payload. Sized as a defensive
 // safety net, not a UX page window: see commentHardCap in comment.go for the
-// data-shape rationale (#1929).
-const timelineHardCap = 2000
+// data-shape rationale (#1929). A variable only so the cap tests can shrink it,
+// like commentHardCap; nothing outside tests assigns it.
+var timelineHardCap = 2000
 
 // timelineProbeLimit reads one row past the cap so "we hit the cap" can be
 // distinguished from "the issue happens to have exactly timelineHardCap rows".
 // Without the probe row an issue sitting exactly on the boundary would report a
 // complete timeline as truncated and pay a needless ancestor-backfill query.
-const timelineProbeLimit = timelineHardCap + 1
+func timelineProbeLimit() int32 { return int32(timelineHardCap) + 1 }
 
 // Truncation is signalled with a response header rather than a body field
 // because the unpaginated response is a bare JSON array (TimelineEntriesSchema =
@@ -163,7 +172,7 @@ func (h *Handler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 	comments, err := h.Queries.ListCommentsForIssue(ctx, db.ListCommentsForIssueParams{
 		IssueID:     issue.ID,
 		WorkspaceID: issue.WorkspaceID,
-		Limit:       timelineProbeLimit,
+		Limit:       timelineProbeLimit(),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list comments")
@@ -171,7 +180,7 @@ func (h *Handler) ListTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 	activities, err := h.Queries.ListActivitiesForIssue(ctx, db.ListActivitiesForIssueParams{
 		IssueID: issue.ID,
-		Limit:   timelineProbeLimit,
+		Limit:   timelineProbeLimit(),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list activities")
@@ -289,6 +298,14 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 	}
 	reactions := h.groupReactions(r, ids)
 	attachments := h.groupAttachments(r, ids)
+	supplements := make(map[string]db.TaskSupplement)
+	if rows, err := h.Queries.ListTaskSupplementsByCommentIDs(r.Context(), db.ListTaskSupplementsByCommentIDsParams{
+		WorkspaceID: comments[0].WorkspaceID, CommentIds: ids,
+	}); err == nil {
+		for _, row := range rows {
+			supplements[uuidToString(row.CommentID)] = row
+		}
+	}
 
 	out := make([]TimelineEntry, len(comments))
 	for i, c := range comments {
@@ -305,6 +322,7 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			CommentType:    &commentType,
 			QuickActionID:  uuidToPtr(c.QuickActionID),
 			A2aIntent:      textToPtr(c.A2aIntent),
+			ViaPluginID:    uuidToPtr(c.ViaPluginID),
 			ParentID:       uuidToPtr(c.ParentID),
 			CreatedAt:      timestampToString(c.CreatedAt),
 			UpdatedAt:      &updatedAt,
@@ -315,6 +333,13 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			ResolvedByType: textToPtr(c.ResolvedByType),
 			ResolvedByID:   uuidToPtr(c.ResolvedByID),
 			SourceTaskID:   uuidToPtr(c.SourceTaskID),
+			DeletedAt:      timestampToPtr(c.DeletedAt),
+		}
+		if supplement, ok := supplements[cid]; ok {
+			out[i].SupplementTaskID = uuidToString(supplement.TaskID)
+			out[i].SupplementStatus = supplement.Status
+			out[i].SupplementFailureReason = textToPtr(supplement.FailureReason)
+			out[i].SupplementDeliveredAt = timestampToPtr(supplement.DeliveredAt)
 		}
 	}
 	// Diff anchors (F07): resolved for the whole timeline at once, so a reply

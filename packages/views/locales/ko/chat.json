@@ -2,6 +2,7 @@
   "page": {
     "title": "채팅",
     "select_prompt": "대화를 선택하거나 +로 새로 시작하세요",
+    "archive_failed": "대화를 보관할 수 없습니다",
     "agent_link_no_access": "이 에이전트와 채팅할 권한이 없습니다."
   },
   "fab": {
@@ -23,6 +24,7 @@
     "send_failed_toast": "메시지를 보내지 못했습니다",
     "send_blocked_toast": "메시지가 전송되지 않았습니다 — 이 에이전트를 사용할 권한이 없습니다",
     "runtime_required_toast": "메시지가 전송되지 않았습니다 — 먼저 이 에이전트에 런타임을 연결하세요",
+    "runtime_access_denied_toast": "메시지가 전송되지 않았습니다 — 이 에이전트는 비공개 런타임에서 실행할 수 없습니다. 런타임을 공개로 변경하거나, 소유자가 사용할 수 있는 런타임으로 에이전트를 다시 연결/복사하세요",
     "attachment_bind_failed_toast": "메시지는 보냈지만 파일이 첨부되지 않았습니다. 잠시 후 다시 시도해 주세요.",
     "add_tooltip": "추가",
     "upload_file": "이미지 또는 파일",
@@ -30,7 +32,8 @@
     "change_project_context": "프로젝트 컨텍스트 변경",
     "remove_project_context": "프로젝트 컨텍스트 제거",
     "no_projects": "아직 프로젝트가 없습니다",
-    "project_context_unsupported": "프로젝트 설명이 적용되지 않습니다 — 이 에이전트의 데몬 업그레이드가 필요합니다"
+    "project_context_unsupported": "프로젝트 설명이 적용되지 않습니다 — 이 에이전트의 데몬 업그레이드가 필요합니다",
+    "run_notice": "보내면 {{name}}의 실행이 시작되며, 몇 분 걸릴 수 있습니다."
   },
   "queue": {
     "title_other": "대기 중인 메시지 {{count}}개",
@@ -56,6 +59,7 @@
       "timeout": "시간이 너무 오래 걸려 완료 전에 중단되었습니다. 다시 시도하거나 요청을 더 작게 나눠 보세요.",
       "codex_semantic_inactivity": "에이전트가 응답하지 않아 완료 전에 중단되었습니다. 다시 시도해 주세요.",
       "runtime_offline": "에이전트가 현재 오프라인 상태여서 답변할 수 없습니다. 다시 온라인이 되면 시도해 주세요.",
+      "runtime_access_denied": "이 에이전트는 비공개 런타임에서 실행할 수 없어 답변할 수 없습니다. 런타임을 공개로 변경하거나, 소유자가 사용할 수 있는 런타임으로 에이전트를 다시 연결/복사하세요.",
       "runtime_recovery": "완료 전에 에이전트가 다시 시작되었습니다. 다시 시도해 주세요.",
       "manual": "이 답변이 취소되었습니다.",
       "skill_bundle_unavailable": "에이전트의 skill을 내려받지 못해 답변을 시작하지 못했습니다. 대개 네트워크 연결 문제입니다. 다시 시도해 주세요.",
@@ -243,7 +247,8 @@
     "rename": "이름 변경",
     "delete": "채팅 삭제",
     "archive": "채팅 보관",
-    "unarchive": "채팅 보관 해제"
+    "unarchive": "채팅 보관 해제",
+    "more_actions_aria": "추가 작업"
   },
   "voice": {
     "start": "음성으로 메시지 입력",
@@ -254,7 +259,10 @@
     "error_not_configured": "이 서버에는 전사가 설정되어 있지 않습니다.",
     "error_failed": "녹음을 전사할 수 없습니다.",
     "listen": "듣기",
-    "stop_listening": "듣기 중지"
+    "stop_listening": "듣기 중지",
+    "conversation_start": "대화 모드",
+    "conversation_stop": "대화 종료",
+    "conversation_transcribing": "전사 중…"
   },
   "participants": {
     "add": "멤버 추가",
@@ -265,5 +273,8 @@
     "typing_name": "{{name}} 님이 입력 중…",
     "typing_count": "{{count}}명이 입력 중…",
     "author_badge": "{{name}} 님이 보냄"
+  },
+  "approvals": {
+    "strip_title_other": "승인 대기 {{count}}개"
   }
 }

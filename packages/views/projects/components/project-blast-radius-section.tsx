@@ -8,6 +8,13 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { blastRadiusPreviewOptions, blastRadiusRulesOptions, useCreateBlastRadiusRule, useDeleteBlastRadiusRule } from "@multica/core/projects/blast-radius";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 /**
@@ -81,11 +88,20 @@ export function ProjectBlastRadiusSection({ projectId, canEdit = true }: { proje
       {canEdit && (
         <div className="mt-2 flex flex-wrap items-center gap-2 px-2">
           <Input aria-label={t(($) => $.blast_radius.pattern)} placeholder={t(($) => $.blast_radius.pattern_placeholder)} className="h-8 w-56 font-mono" value={pattern} onChange={(e) => setPattern(e.target.value)} />
-          <select aria-label={t(($) => $.blast_radius.level)} className="h-8 rounded-md border bg-background px-2" value={level} onChange={(e) => setLevel(e.target.value)}>
-            {levels.map((l) => (
-              <option key={l} value={l}>{levelLabel(l)}</option>
-            ))}
-          </select>
+          <Select
+            items={levels.map((l) => ({ value: l, label: levelLabel(l) }))}
+            value={level}
+            onValueChange={(value) => value && setLevel(value)}
+          >
+            <SelectTrigger size="sm" aria-label={t(($) => $.blast_radius.level)}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {levels.map((l) => (
+                <SelectItem key={l} value={l}>{levelLabel(l)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="button" size="sm" disabled={create.isPending || pattern.trim() === ""} onClick={submit}>{t(($) => $.blast_radius.add)}</Button>
         </div>
       )}

@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { BusinessRule, Workspace } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Client parsing: packages/core/workspace/business-rules.test.ts.
 
@@ -82,8 +94,9 @@ describe("BusinessRulesSetting", () => {
   it("previews a rule in plain words with its dry-run, and activates only from the preview", async () => {
     render();
     expect(await screen.findByTestId("rules-empty")).toBeTruthy();
+    const user = userEvent.setup();
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "A workspace has at most three projects" } });
-    fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "project_create" } });
+    await pickOption(user, "Applies when", "a project is created");
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(state.created[0]).toEqual({ natural_language: "A workspace has at most three projects", attach_point: "project_create", action: undefined });
     const preview = await screen.findByTestId("rule-preview");
@@ -95,13 +108,15 @@ describe("BusinessRulesSetting", () => {
 
   it("sends a triage action with a webhook rule", async () => {
     render();
+    const user = userEvent.setup();
     // The attach points come from the same query as the rules, so wait for the
     // webhook option itself rather than for the (already empty) rule list.
-    await screen.findByRole("option", { name: /webhook delivery/i });
+    await pickOption(user, "Applies when", /webhook delivery/i);
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical becomes P0 for the oncall bot" } });
-    fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "webhook_received" } });
-    fireEvent.change(screen.getByLabelText("Then"), { target: { value: "accept" } });
-    fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "urgent" } });
+    await pickOption(user, "Then", "accept it as an issue");
+    // The dropdown shows the translated priority label now (Urgent), the
+    // value it submits is still the lowercase wire value ("urgent").
+    await pickOption(user, "Priority", "Urgent");
     fireEvent.click(await screen.findByRole("button", { name: "pick agent" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(state.created[0]).toEqual({
@@ -114,10 +129,10 @@ describe("BusinessRulesSetting", () => {
   // the editor only ever offered agents, so half the contract was unreachable.
   it("routes a triage rule to a member as well as to an agent", async () => {
     render();
-    await screen.findByRole("option", { name: /webhook delivery/i });
+    const user = userEvent.setup();
+    await pickOption(user, "Applies when", /webhook delivery/i);
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical goes to the oncall human" } });
-    fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "webhook_received" } });
-    fireEvent.change(screen.getByLabelText("Then"), { target: { value: "accept" } });
+    await pickOption(user, "Then", "accept it as an issue");
     fireEvent.click(await screen.findByRole("button", { name: "pick member" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(state.created[0]).toEqual({

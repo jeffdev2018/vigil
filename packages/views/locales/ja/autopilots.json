@@ -13,7 +13,9 @@
       "assignee": "担当",
       "trigger": "トリガー",
       "next_run": "次回実行",
-      "created": "作成日時"
+      "created": "作成日時",
+      "select_all": "すべての自動化を選択",
+      "select_autopilot": "{{name}} を選択"
     },
     "last_run_empty": "--",
     "empty": {
@@ -28,8 +30,8 @@
     "active": "アクティブ",
     "paused": "一時停止中",
     "paused_runtime_required": "一時停止中 — 担当エージェントのランタイムが必要です",
-    "paused_failure_rate": "一時停止中 — 実行の失敗が続いています",
-    "archived": "アーカイブ済み"
+    "archived": "アーカイブ済み",
+    "paused_failure_rate": "一時停止中 — 実行の失敗が続いています"
   },
   "execution_mode": {
     "create_issue": "課題を作成",
@@ -72,7 +74,6 @@
     "pause_aria": "オートパイロットを一時停止",
     "activate_aria": "オートパイロットを有効化",
     "paused_runtime_required": "担当エージェントのランタイムが失われたため一時停止しました。ランタイムを設定してから再度有効にしてください。",
-    "paused_failure_rate": "直近の実行の失敗が多すぎたため自動的に一時停止しました。失敗の原因を調査して修正してから、このオートパイロットを再度有効にしてください。",
     "bind_runtime": "ランタイムを設定",
     "edit": "編集",
     "run_now": "今すぐ実行",
@@ -82,6 +83,7 @@
     "run_blocked_invocation_not_allowed": "実行されませんでした — このオートパイロットのエージェントを使用する権限がありません",
     "run_blocked_runtime_offline": "実行されませんでした — エージェントのランタイムがオフラインです",
     "run_blocked_agent_runtime_required": "実行されませんでした — エージェントにランタイムがありません。実行するにはバインドしてください",
+    "run_blocked_runtime_access_denied": "実行されませんでした — エージェントはプライベートランタイムで実行できません。ランタイムを公開にするか、エージェントを再設定/コピーしてください",
     "run_blocked_target_unavailable": "実行されませんでした — エージェントを利用できません",
     "run_blocked_attribution": "実行されませんでした — 実行の責任者を特定できませんでした",
     "run_blocked_already_active": "実行されませんでした — 直近の実行が本件をカバーしています",
@@ -114,6 +116,7 @@
       "confirm": "削除",
       "deleting": "削除中..."
     },
+    "paused_failure_rate": "直近の実行の失敗が多すぎたため自動的に一時停止しました。失敗の原因を調査して修正してから、このオートパイロットを再度有効にしてください。",
     "load_more": "さらに読み込む",
     "loading_more": "読み込み中...",
     "showing_count": "{{total}} 件中 {{shown}} 件"
@@ -173,8 +176,6 @@
   },
   "trigger_row": {
     "disabled_badge": "無効",
-    "enable_aria": "トリガーを有効化",
-    "edit_trigger": "トリガーを編集",
     "deprecated_badge": "非推奨",
     "next_label": "次回: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -184,6 +185,7 @@
     "copy_url": "URL をコピー",
     "url_copied": "Webhook URL をコピーしました",
     "url_copy_failed": "URL をコピーできませんでした",
+    "edit_schedule": "スケジュールを編集",
     "rotate_url": "URL を再生成",
     "rotate_confirm_title": "Webhook URL を再生成",
     "rotate_confirm_description": "現在の URL は直ちに動作を停止します。この URL を呼び出している外部システムは新しい URL に更新する必要があります。続けますか?",
@@ -194,16 +196,18 @@
     "toast_rotate_failed": "URL を再生成できませんでした",
     "toast_deleted": "トリガーを削除しました",
     "toast_delete_failed": "トリガーを削除できませんでした",
-    "toast_enabled": "トリガーを有効にしました",
-    "toast_disabled": "トリガーを無効にしました",
-    "toast_toggle_failed": "トリガーの更新に失敗しました",
     "delete_dialog": {
       "title": "トリガーを削除",
       "description": "このトリガーは削除され、オートパイロットはこのスケジュールでは実行されなくなります。この操作は元に戻せません。",
       "cancel": "キャンセル",
       "confirm": "削除",
       "deleting": "削除中..."
-    }
+    },
+    "enable_aria": "トリガーを有効化",
+    "edit_trigger": "トリガーを編集",
+    "toast_enabled": "トリガーを有効にしました",
+    "toast_disabled": "トリガーを無効にしました",
+    "toast_toggle_failed": "トリガーの更新に失敗しました"
   },
   "deliveries": {
     "section_title": "Webhook の配信",
@@ -218,16 +222,6 @@
       "rejected": "拒否",
       "ignored": "無視",
       "failed": "失敗"
-    },
-    "reason": {
-      "trigger_disabled": "トリガー無効",
-      "autopilot_paused": "オートパイロット一時停止中",
-      "autopilot_archived": "オートパイロットアーカイブ済み",
-      "event_filtered": "イベントフィルターで除外",
-      "criteria_not_matched": "条件に一致せず",
-      "quota_exceeded": "実行上限に到達",
-      "invalid_signature": "署名が不正",
-      "missing_signature": "署名なし"
     },
     "signature": {
       "not_required": "署名なし",
@@ -248,10 +242,10 @@
       "content_type": "Content-Type",
       "replayed_from": "再実行元",
       "error_label": "エラー",
-      "reason_label": "理由",
       "raw_body": "生の本文",
       "selected_headers": "ヘッダー",
-      "response_body": "レスポンス本文"
+      "response_body": "レスポンス本文",
+      "reason_label": "理由"
     },
     "replay": {
       "action": "再実行",
@@ -261,49 +255,17 @@
       "disabled_invalid_signature": "署名が無効だったため再実行できません",
       "disabled_rejected": "拒否された配信は再実行できません",
       "disabled_queued": "まだキュー待ちです。処理が落ち着いてから再実行してください"
+    },
+    "reason": {
+      "trigger_disabled": "トリガー無効",
+      "autopilot_paused": "オートパイロット一時停止中",
+      "autopilot_archived": "オートパイロットアーカイブ済み",
+      "event_filtered": "イベントフィルターで除外",
+      "criteria_not_matched": "条件に一致せず",
+      "quota_exceeded": "実行上限に到達",
+      "invalid_signature": "署名が不正",
+      "missing_signature": "署名なし"
     }
-  },
-  "dry_run": {
-    "open": "サンプルイベントでテスト",
-    "title": "サンプルイベントでテスト",
-    "description": "このペイロードを配信判定の全工程（フィルター、ルーティング条件、一時停止状態、実行上限）に通して再生します。配信も実行も記録されません。",
-    "sample_label": "サンプル",
-    "payload_label": "イベントペイロード (JSON)",
-    "run": "ドライランを実行",
-    "running": "実行中...",
-    "replay_action": "ドライランとして再生",
-    "invalid_json": "JSON が不正です: {{message}}",
-    "invalid_shape": "ペイロードは JSON のオブジェクトまたは配列である必要があります。",
-    "verdict_would_run": "このイベントはオートパイロットを実行します",
-    "verdict_blocked": "このイベントはオートパイロットを実行しません",
-    "verdict_unreadable": "判定結果を読み取れませんでした",
-    "matched_filters": "一致したフィルター:",
-    "toast_failed": "ドライランに失敗しました"
-  },
-  "next_runs": {
-    "label": "次回の実行",
-    "loading": "読み込み中...",
-    "unavailable": "次回の実行を取得できません",
-    "never": "このスケジュールは今後実行されません。",
-    "blocked": "実行されません: {{reason}}",
-    "blocked_unknown": "ブロック中",
-    "window_hint": "予定時刻から {{minutes}} 分以内のランダムな時刻に実行されます。"
-  },
-  "signing_secret": {
-    "label": "署名シークレット",
-    "hint": "設定すると、すべての配信に X-Hub-Signature-256: sha256=<このシークレットを鍵とした生ボディの HMAC-SHA256 の16進値> が必要になります。署名なし・不正な署名の配信は 401 で拒否されます。",
-    "not_configured": "署名シークレットなし — Webhook URL のみで認証されます。",
-    "configured": "設定済み（末尾 {{hint}}）。",
-    "shown_once": "今すぐコピーしてください。表示は一度きりです。",
-    "generate": "署名シークレットを生成",
-    "rotate": "署名シークレットをローテーション",
-    "clear": "削除",
-    "copy": "シークレットをコピー",
-    "copied": "署名シークレットをコピーしました",
-    "copy_failed": "コピーに失敗しました",
-    "toast_rotated": "署名シークレットを更新しました — 送信側の再設定が必要です",
-    "toast_cleared": "署名シークレットを削除しました",
-    "toast_failed": "署名シークレットの更新に失敗しました"
   },
   "add_trigger_dialog": {
     "title": "トリガーを追加",
@@ -321,8 +283,13 @@
   },
   "edit_trigger_dialog": {
     "title": "トリガーを編集",
+    "label_field": "ラベル(任意)",
+    "label_placeholder": "例: 平日の朝",
+    "enabled_label": "有効",
     "submit": "トリガーを保存",
     "submitting": "保存中...",
+    "toast_updated": "スケジュールを更新しました",
+    "toast_update_failed": "スケジュールの更新に失敗しました",
     "toast_saved": "トリガーを更新しました",
     "toast_save_failed": "トリガーの更新に失敗しました"
   },
@@ -386,7 +353,7 @@
     "event_filter_add": "追加",
     "event_filter_remove_label": "フィルターを削除",
     "event_filter_hint": "これらのイベントに一致する Webhook のみを処理します。空にするとすべて許可します。",
-    "schedule_disabled_reason": "このオートパイロットには複数のスケジュールがあります。詳細ページで編集してください。",
+    "schedule_multiple_notice": "このオートパイロットにはスケジュールが {{count}} 件あります。このダイアログを閉じて、下の「トリガー」から個別に編集してください。",
     "schedule_empty": "スケジュールはありません。このオートパイロットは手動で実行したときだけ動きます。",
     "schedule_add": "スケジュールを追加",
     "error_title_required": "オートパイロット名を入力してください。",
@@ -401,6 +368,7 @@
         "description": "課題を作成せず、静かに実行します"
       }
     },
+    "schedule_disabled_reason": "このオートパイロットには複数のスケジュールがあります。詳細ページで編集してください。",
     "event_criteria_label": "次の場合のみ実行…",
     "event_criteria_placeholder": "例：本番環境のデプロイ失敗、または課金に関わるプルリクエスト",
     "event_criteria_hint": "このオートパイロットを実行すべきイベントを自分の言葉で説明します。各配信はこの説明に対して寛容に判定され、迷う場合は実行されます。空欄の場合はイベントフィルターのみで判定します。",
@@ -539,8 +507,100 @@
       "warning": "この操作は取り消せません。",
       "cancel": "キャンセル",
       "confirm": "完全に削除",
-      "deleting": "削除中…"
-    }
+      "deleting": "削除中…",
+      "partial": "{{succeeded}} 件削除、{{failed}} 件失敗。"
+    },
+    "status_partial": "{{succeeded}} 件更新、{{failed}} 件失敗。"
+  },
+  "wakeups": {
+    "title": "タスクのウェイクアップ",
+    "scope": "範囲",
+    "issue": "タスク",
+    "trigger": "トリガー",
+    "next": "ウェイクアップ状態",
+    "enabled": "有効",
+    "all_triggers": "すべてのトリガー",
+    "event": "イベント",
+    "at": "一回限り",
+    "recurring": "繰り返し",
+    "all_agents": "すべてのエージェント",
+    "search": "タスク・エージェントを検索",
+    "search_action": "検索",
+    "running": "実行中",
+    "active_runs": "{{count}} 件の実行が進行中",
+    "issue_closed": "タスクは終了済み",
+    "read_only": "作成者またはワークスペース管理者のみが管理できます",
+    "select_row": "{{issue}}、{{agent}} を選択",
+    "select_page": "このページの有効な項目を選択",
+    "load_error": "読み込めませんでした",
+    "loading": "読み込み中…",
+    "empty": "ルールはまだありません",
+    "selected": "{{count}} 件選択中",
+    "disable_selected": "選択項目を無効化",
+    "clear": "選択を解除",
+    "results": "{{page}} ページ · {{count}} 件",
+    "previous": "前へ",
+    "next_page": "次へ",
+    "confirm_title": "{{count}} 件を無効にしますか？",
+    "confirm_body": "今後の起動を停止し、エージェントに渡されていない待機中の実行を取り消します。割り当て済みの実行は継続します。実行ログから停止できます。",
+    "cancel": "キャンセル",
+    "confirm": "無効にする",
+    "disabling": "無効化中…",
+    "batch_result": "無効化：{{succeeded}} 件。失敗：{{failed}} 件。",
+    "scopes": {
+      "active": "起動待ち・実行中",
+      "all": "すべて",
+      "disabled": "無効",
+      "ended": "終了"
+    },
+    "target_agent": "起動するエージェント",
+    "wakeup_run": "起動後の実行",
+    "empty_filtered": "一致するルールがありません",
+    "clear_filters": "フィルターを解除",
+    "batch_success": "{{count}} 件のルールを無効化しました",
+    "batch_partial": "{{succeeded}} 件を無効化、{{failed}} 件が失敗しました。失敗した項目を選択したまま再試行できます。"
+  },
+  "dry_run": {
+    "open": "サンプルイベントでテスト",
+    "title": "サンプルイベントでテスト",
+    "description": "このペイロードを配信判定の全工程（フィルター、ルーティング条件、一時停止状態、実行上限）に通して再生します。配信も実行も記録されません。",
+    "sample_label": "サンプル",
+    "payload_label": "イベントペイロード (JSON)",
+    "run": "ドライランを実行",
+    "running": "実行中...",
+    "replay_action": "ドライランとして再生",
+    "invalid_json": "JSON が不正です: {{message}}",
+    "invalid_shape": "ペイロードは JSON のオブジェクトまたは配列である必要があります。",
+    "verdict_would_run": "このイベントはオートパイロットを実行します",
+    "verdict_blocked": "このイベントはオートパイロットを実行しません",
+    "verdict_unreadable": "判定結果を読み取れませんでした",
+    "matched_filters": "一致したフィルター:",
+    "toast_failed": "ドライランに失敗しました"
+  },
+  "next_runs": {
+    "label": "次回の実行",
+    "loading": "読み込み中...",
+    "unavailable": "次回の実行を取得できません",
+    "never": "このスケジュールは今後実行されません。",
+    "blocked": "実行されません: {{reason}}",
+    "blocked_unknown": "ブロック中",
+    "window_hint": "予定時刻から {{minutes}} 分以内のランダムな時刻に実行されます。"
+  },
+  "signing_secret": {
+    "label": "署名シークレット",
+    "hint": "設定すると、すべての配信に X-Hub-Signature-256: sha256=<このシークレットを鍵とした生ボディの HMAC-SHA256 の16進値> が必要になります。署名なし・不正な署名の配信は 401 で拒否されます。",
+    "not_configured": "署名シークレットなし — Webhook URL のみで認証されます。",
+    "configured": "設定済み（末尾 {{hint}}）。",
+    "shown_once": "今すぐコピーしてください。表示は一度きりです。",
+    "generate": "署名シークレットを生成",
+    "rotate": "署名シークレットをローテーション",
+    "clear": "削除",
+    "copy": "シークレットをコピー",
+    "copied": "署名シークレットをコピーしました",
+    "copy_failed": "コピーに失敗しました",
+    "toast_rotated": "署名シークレットを更新しました — 送信側の再設定が必要です",
+    "toast_cleared": "署名シークレットを削除しました",
+    "toast_failed": "署名シークレットの更新に失敗しました"
   },
   "daemon_import": {
     "open": "DAEMON.md をインポート",
@@ -583,10 +643,37 @@
   "memory": {
     "section_title": "メモリー",
     "export_button": "DAEMON.md をエクスポート",
+    "export_failed": "DAEMON.md をエクスポートできませんでした。",
     "empty_title": "メモリーはまだありません",
     "empty_hint": "このデーモンの実行が、次の実行に必要なことを書き込みます。",
     "updated_at": "更新 {{at}}",
     "last_run": "最終実行 {{at}}",
     "read_only": "実行が書き込みます。ここでは編集できません"
+  },
+  "from_sentence": {
+    "action": "文章から作成",
+    "title": "文章からオートパイロットを作成",
+    "description": "何をいつ行うかを書いてください。モデルがスケジュールを提案し、作成前に確認できます。",
+    "sentence_label": "入力する文章",
+    "sentence_placeholder": "毎週月曜 9 時に、未完了の課題を一覧にして投稿して。",
+    "draft": "この文章を読ませる",
+    "draft_failed": "この文章を読み取れませんでした",
+    "no_model": "モデルが設定されていません。スケジュールを自分で入力してください。",
+    "write_yourself": "手動フォームを開く",
+    "back": "文章を書き直す",
+    "field_title": "タイトル",
+    "field_cron": "cron 式",
+    "field_timezone": "タイムゾーン",
+    "field_prompt": "エージェントへの指示",
+    "field_mode": "実行モード",
+    "field_issue_title": "各実行で作成する課題のタイトル",
+    "field_assignee": "エージェント",
+    "assignee_placeholder": "どのエージェントが実行しますか？",
+    "next_runs": "次回以降の実行",
+    "create_paused": "一時停止で作成",
+    "create_active": "作成して有効化",
+    "created_paused": "オートパイロットを一時停止で作成しました",
+    "created_active": "オートパイロットを作成し有効化しました",
+    "create_failed": "オートパイロットを作成できませんでした"
   }
 }

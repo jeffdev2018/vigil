@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MirrorLinkList } from "@multica/core/mirrors";
 import { renderWithI18n } from "../../test/i18n";
@@ -49,6 +50,9 @@ beforeEach(() => {
   state.remove = vi.fn();
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectMirrorsSection", () => {
   it("says so when no link is configured", async () => {
     render();
@@ -73,11 +77,12 @@ describe("ProjectMirrorsSection", () => {
 
   it("never offers this project as its own mirror target", async () => {
     render();
-    // Wait for the project list query, not just for the empty <select> shell.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Target project" }));
+    // Wait for the project list query to have populated the popup.
     await screen.findByRole("option", { name: "Backend" });
-    const select = screen.getByLabelText("Target project");
-    const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"));
-    expect(values).toEqual(["", "p2", "p3"]);
+    const labels = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(labels).toEqual(["Choose a target project", "Backend", "Infra"]);
   });
 
   it("submits a trimmed label and only with both fields set", async () => {
@@ -85,8 +90,9 @@ describe("ProjectMirrorsSection", () => {
     const add = await screen.findByRole("button", { name: "Add link" });
     expect((add as HTMLButtonElement).disabled).toBe(true);
 
-    await screen.findByRole("option", { name: "Backend" });
-    fireEvent.change(screen.getByLabelText("Target project"), { target: { value: "p2" } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Target project" }));
+    await user.click(await screen.findByRole("option", { name: "Backend" }));
     fireEvent.change(screen.getByLabelText("Trigger label"), { target: { value: "  needs-mirror  " } });
     fireEvent.click(add);
     expect(state.create).toHaveBeenCalledWith(

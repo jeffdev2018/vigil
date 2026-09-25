@@ -1,12 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   CircleHelp,
   Hash,
   MessageSquare,
+  Plus,
   Sparkles,
   Workflow,
   X,
@@ -17,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@multica/ui/components/ui/tooltip";
+import { Button } from "@multica/ui/components/ui/button";
 import { NumberFlow } from "@multica/ui/components/ui/number-flow";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -36,7 +38,7 @@ import { AppLink } from "../../../navigation";
 import { TranscriptButton } from "../../../common/task-transcript";
 import { AttributionBadge } from "../../../issues/components/attribution-badge";
 import { taskStatusConfig } from "../../config";
-import { cancelReasonLabel, failureReasonLabel } from "./task-failure";
+import { cancellationActorLabel, cancelReasonLabel, failureReasonLabel } from "./task-failure";
 import { TeachFromRunButton } from "./memory-tab";
 import { Sparkline } from "../sparkline";
 import { useT, useTimeAgo } from "../../../i18n";
@@ -56,6 +58,8 @@ const RECENT_SKELETON_ROWS = 4;
 interface ActivityTabProps {
   agent: Agent;
   showPerformance?: boolean;
+  /** When present, the empty "Now" section offers to assign the first issue. */
+  onAssignWork?: () => void;
 }
 
 /**
@@ -71,7 +75,7 @@ interface ActivityTabProps {
  * the workspace 7d activity buckets for the trend), so opening this tab
  * adds no extra fetches once the page is hydrated.
  */
-export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps) {
+export function ActivityTab({ agent, showPerformance = true, onAssignWork }: ActivityTabProps) {
   const wsId = useWorkspaceId();
 
   const { data: snapshot = [] } = useQuery(agentTaskSnapshotOptions(wsId));
@@ -175,7 +179,7 @@ export function ActivityTab({ agent, showPerformance = true }: ActivityTabProps)
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} />
+      <NowSection tasks={activeTasks} issueMap={issueMap} agent={agent} onAssignWork={onAssignWork} />
       {showPerformance && (
         <Last30dSection activity={activity} avgDurationMs={avgDurationMs} />
       )}
@@ -209,13 +213,6 @@ export function AgentPerformanceSummary({ agent }: { agent: Agent }) {
     () => deriveAvgDurationLast30d(agentTasks, Date.now()),
     [agentTasks],
   );
-  const successPct =
-    summary.totalRuns > 0
-      ? Math.round(
-          ((summary.totalRuns - summary.totalFailed) / summary.totalRuns) *
-            100,
-        )
-      : 100;
 
   return (
     <section className="mt-5 border-t pt-5">
@@ -236,7 +233,7 @@ export function AgentPerformanceSummary({ agent }: { agent: Agent }) {
               })}
             />
             <Metric
-              value={`${successPct}%`}
+              value={<SuccessRate rate={summary.successRate} />}
               label={t(($) => $.tab_body.activity.success_label)}
             />
             <Metric
@@ -249,6 +246,13 @@ export function AgentPerformanceSummary({ agent }: { agent: Agent }) {
               destructive={summary.totalFailed > 0}
             />
           </div>
+          {summary.totalCancelled > 0 && (
+            <p className="mt-2 text-caption text-muted-foreground">
+              {t(($) => $.tab_body.activity.cancelled_count, {
+                count: summary.totalCancelled,
+              })}
+            </p>
+          )}
           <Sparkline
             buckets={summary.buckets}
             width={250}
@@ -266,7 +270,7 @@ function Metric({
   label,
   destructive = false,
 }: {
-  value: string;
+  value: ReactNode;
   label: string;
   destructive?: boolean;
 }) {
@@ -284,14 +288,42 @@ function Metric({
   );
 }
 
+function SuccessRate({
+  rate,
+  labelled = false,
+}: {
+  rate: number | null;
+  labelled?: boolean;
+}) {
+  const { t } = useT("agents");
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span tabIndex={0} />}>
+        {rate === null
+          ? "—"
+          : labelled
+            ? t(($) => $.tab_body.activity.success_pct, { percent: rate })
+            : `${rate}%`}
+      </TooltipTrigger>
+      <TooltipContent>
+        {rate === null
+          ? t(($) => $.tab_body.activity.success_unavailable)
+          : t(($) => $.tab_body.activity.success_hint)}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function NowSection({
   tasks,
   issueMap,
   agent,
+  onAssignWork,
 }: {
   tasks: AgentTask[];
   issueMap: Map<string, Issue>;
   agent: Agent;
+  onAssignWork?: () => void;
 }) {
   const { t } = useT("agents");
   return (
@@ -304,7 +336,15 @@ function NowSection({
       }
     >
       {tasks.length === 0 ? (
-        <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+        <div className="flex flex-wrap items-center gap-3">
+          <EmptyText>{t(($) => $.tab_body.activity.empty_now)}</EmptyText>
+          {onAssignWork && (
+            <Button type="button" variant="outline" size="sm" onClick={onAssignWork}>
+              <Plus aria-hidden="true" className="size-3.5" />
+              {t(($) => $.detail.assign_work)}
+            </Button>
+          )}
+        </div>
       ) : (
         <TaskList
           tasks={tasks}
@@ -328,10 +368,6 @@ function Last30dSection({
   const summary = summarizeActivityWindow(activity, 30);
   const { totalRuns, totalFailed } = summary;
   const locales = i18n.resolvedLanguage ?? i18n.language;
-  const successPct =
-    totalRuns > 0
-      ? Math.round(((totalRuns - totalFailed) / totalRuns) * 100)
-      : 100;
 
   return (
     <Section title={t(($) => $.tab_body.activity.section_last_30d)} subtitle={t(($) => $.tab_body.activity.subtitle_performance)}>
@@ -353,7 +389,7 @@ function Last30dSection({
               </span>
             </div>
             <div className="text-caption text-muted-foreground">
-              {t(($) => $.tab_body.activity.success_pct, { percent: successPct })}
+              <SuccessRate rate={summary.successRate} labelled />
               {avgDurationMs > 0 && (
                 <>
                   <Sep />
@@ -365,6 +401,16 @@ function Last30dSection({
                   <Sep />
                   <span className="text-destructive">
                     {t(($) => $.tab_body.activity.failed_count, { count: totalFailed })}
+                  </span>
+                </>
+              )}
+              {summary.totalCancelled > 0 && (
+                <>
+                  <Sep />
+                  <span>
+                    {t(($) => $.tab_body.activity.cancelled_count, {
+                      count: summary.totalCancelled,
+                    })}
                   </span>
                 </>
               )}
@@ -431,7 +477,7 @@ function RecentWorkSection({
             <button
               type="button"
               onClick={onShowMore}
-              className="mt-2 self-start rounded text-caption text-muted-foreground transition-colors hover:text-foreground"
+              className="mt-2 self-start rounded-xs text-caption text-muted-foreground transition-colors hover:text-foreground"
             >
               {t(($) => $.tab_body.activity.show_more)}
             </button>
@@ -517,6 +563,12 @@ function TaskRow({
   const timeAgo = useTimeAgo();
   const paths = useWorkspacePaths();
   const [cancelling, setCancelling] = useState(false);
+  const cancelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+    };
+  }, []);
   const cfg = taskStatusConfig[task.status] ?? taskStatusConfig.queued!;
   const Icon = cfg.icon;
   const hasIssue = task.issue_id !== "";
@@ -540,7 +592,18 @@ function TaskRow({
       await api.cancelTaskById(task.id);
       // No manual invalidate needed — the task:cancelled WS event flows
       // through useRealtimeSync's `task:` prefix path which already
-      // invalidates snapshot + per-agent + per-issue task lists.
+      // invalidates snapshot + per-agent + per-issue task lists, at which
+      // point this row's status flips out of the active set and the button
+      // disappears on its own. If that event never arrives (a dropped WS
+      // message, a disconnect right after the request), nothing else was
+      // resetting `cancelling` — the button stayed disabled forever with
+      // no way to tell whether the cancel actually went through. A local
+      // deadline resets it so the row is interactive again and the user
+      // can check status or retry, instead of depending solely on a
+      // message that already got lost once.
+      cancelTimeoutRef.current = setTimeout(() => {
+        setCancelling(false);
+      }, 15_000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t(($) => $.tab_body.activity.cancel_failed_toast));
       setCancelling(false);
@@ -596,6 +659,7 @@ function TaskRow({
     task.status === "failed"
       ? failureReasonLabel(task.failure_reason, t)
       : cancelReasonLabel(task, t);
+  const statusLabel = cancellationActorLabel(task, t) ?? taskStatusLabel(task.status, t);
 
   // Only show duration for terminal rows. An active row's duration is
   // inferred from the timeText already ("Started 2m ago") and adding a
@@ -671,7 +735,7 @@ function TaskRow({
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-muted-foreground">
           <span className={cfg.color}>
-            {taskStatusLabel(task.status, t)}
+            {statusLabel}
           </span>
           <Sep />
           <span>{timeText}</span>
@@ -733,7 +797,7 @@ function TaskRow({
             <TooltipTrigger
               render={<AppLink href={paths.issueDetail(task.issue_id)} />}
               aria-label={t(($) => $.tab_body.activity.open_issue_aria)}
-              className="flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+              className="flex items-center justify-center rounded-xs p-1 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             >
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </TooltipTrigger>
@@ -764,7 +828,7 @@ function TaskRow({
                   aria-label={t(($) => $.tab_body.activity.cancel_task_aria)}
                 />
               }
-              className="flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center rounded-xs p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </TooltipTrigger>
@@ -814,9 +878,16 @@ function Sep() {
 type AgentsT = ReturnType<typeof useT<"agents">>["t"];
 type TimeAgoFn = (dateStr: string) => string;
 
-function taskStatusLabel(status: AgentTask["status"], t: AgentsT): string {
+// Exported for reuse anywhere a run/task carries this same status wire
+// vocabulary (e.g. run-replay-dialog.tsx) — one status→label mapping
+// instead of a parallel one per surface. Loosened to `string` at the
+// boundary since not every caller has AgentTask's narrowed type (run
+// replay's RunReplay["run"]["status"] is a plain string); the switch stays
+// exhaustive over the known statuses either way.
+export function taskStatusLabel(status: AgentTask["status"] | string, t: AgentsT): string {
   switch (status) {
     case "queued":
+    case "deferred":
       return t(($) => $.tab_body.activity.status.queued);
     case "dispatched":
       return t(($) => $.tab_body.activity.status.dispatched);

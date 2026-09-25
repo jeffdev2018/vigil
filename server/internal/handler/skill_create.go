@@ -102,6 +102,13 @@ var (
 	errSkillOverwriteForbidden    = errors.New("not permitted to overwrite target skill")
 	errSkillOverwriteNameMismatch = errors.New("target skill name does not match the imported skill")
 	errSkillOverwriteNameConflict = errors.New("another skill in the workspace already has the imported name")
+	// errSkillOverwritePluginManaged mirrors refusePluginManagedSkill for the
+	// import-overwrite path: every overwrite (conflict-resolution import,
+	// runtime-local re-import, and the daemon skill refresh) funnels through
+	// this function, so the guard belongs here rather than duplicated at each
+	// caller. Not overridable via AllowOverwrite — a plugin's skill is a
+	// generated artifact of its installation regardless of who is asking.
+	errSkillOverwritePluginManaged = errors.New("target skill is managed by a plugin")
 )
 
 type skillOverwriteInput struct {
@@ -171,6 +178,9 @@ func (h *Handler) overwriteSkillWithFiles(ctx context.Context, input skillOverwr
 	}
 	if !allowOverwrite(input.UserID, existing) {
 		return SkillWithFilesResponse{}, errSkillOverwriteForbidden
+	}
+	if existing.PluginInstallationID.Valid {
+		return SkillWithFilesResponse{}, errSkillOverwritePluginManaged
 	}
 	// The overwrite is keyed on target_skill_id, but the conflict the user
 	// confirmed was a same-name collision; reject if the target's name no longer

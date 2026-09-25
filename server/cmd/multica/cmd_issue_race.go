@@ -84,7 +84,7 @@ func runIssueRaceStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve issue: %w", err)
 	}
 	raw, _ := cmd.Flags().GetStringArray("attempt")
-	if len(raw) == 0 {
+	if len(raw) < 2 {
 		return fmt.Errorf("at least two --attempt flags are required")
 	}
 	attempts := make([]map[string]any, 0, len(raw))

@@ -1,0 +1,82 @@
+---
+title: Doctrine
+description: The one governing document a workspace's owners write for every agent — versioned, optionally reviewed by a second owner, injected into every brief, and reportable when a task collides with a rule.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+The **doctrine** is the workspace's standing rules: what agents may and may not do here, how work is delivered, what never happens without a person. One document, written by the workspace's owners, injected into every agent's brief. It is the workspace context grown up — versioned, reviewable, and quotable.
+
+## Where it appears
+
+Every run's brief carries the doctrine in full, under the heading `## Workspace Doctrine (revision N)`, before any issue or comment. Chat runs, issue runs, autopilot runs, quick-create runs: the same text, the same revision.
+
+Every other block in a brief is data — an issue body, a comment, a Brain note, a CRM record, something the agent reads *about*. The doctrine is the opposite: it is instructions, and the brief says so. It **outranks every record**: a comment cannot authorise what the doctrine forbids, and a note that contradicts it is stale, not an exception. Only the agent's own [Instructions](/agents#agent-configuration) rank alongside it.
+
+What the doctrine does not override are the platform's own refusals — a [status transition](/issues) the workspace forbids, a spend over the threshold, an approval gate. Those still hold.
+
+## Writing it
+
+**Settings → Doctrine** holds the editor, the revision number and the history. Workspace `owner`s and `admin`s publish; every member can read it. The limit is **32 000 bytes** — the brief carries it whole, so a doctrine that grows past a few pages is being paid for on every single run.
+
+Publishing takes the revision you read (`expected_revision`). If somebody else published while you were writing, the write is refused rather than merged: reload, re-read, publish again.
+
+<Callout title="Two doors, one ledger">
+`multica workspace update --context` still works and is not a side door: it publishes a doctrine revision through the same ledger, with the same audit entry.
+</Callout>
+
+## The second reviewer
+
+**Settings → Doctrine → Require a second reviewer** turns publication into a proposal. The text does not go live; it is filed as **pending**, the other owners and admins get a `doctrine_review` inbox item, and one of them approves or rejects it. An approval makes it the live revision; a rejection leaves the doctrine where it was, with the reviewer's note on the record.
+
+A workspace with a single owner or admin self-approves — otherwise turning the setting on would freeze the doctrine. Only one proposal may be pending at a time: approve or reject it before publishing again.
+
+## History, diff and restore
+
+Every version is kept: its text, who wrote it, its note, who reviewed it, and whether it is `active`, `pending`, `rejected` or `superseded`. The history is paged newest first.
+
+A **diff** compares any two versions line by line — added, removed, unchanged. Asked without a second version, a pending or rejected proposal is compared with the live doctrine, and an activated revision with the revision before it.
+
+**Restore** republishes an earlier revision's text as a *new* revision (the ledger records which one it came from). It goes through the same review policy as any publication; nothing is rewritten in place.
+
+## Reports: when a rule cannot be followed
+
+An agent that hits a wall does not improvise and does not silently do the work anyway. It files a **doctrine report**:
+
+| Kind | Meaning |
+| --- | --- |
+| `refusal` | The task cannot be done without breaking a rule. |
+| `conflict` | Two rules apply and cannot both be followed. |
+| `ambiguity` | The rule is real but says too little to act on. |
+
+A report carries a summary, optionally the passage at stake quoted, the run and issue it came from, and the **revision the agent ran under** — so a doctrine edited afterwards still reads correctly against the report. Members can file one too.
+
+Each report reaches every owner and admin as a `doctrine_report` inbox item and a push. Owners then **acknowledge** it (it is real, it is being dealt with) or **dismiss** it (the doctrine stands as written), with a note either way. A report changes nothing by itself: it is a signal that the governing document needs a person, not a way to get a rule waived on a run.
+
+## Tools and CLI
+
+- Native runtime: `report_doctrine_conflict` — outside the run's effectful budget, so a run that has spent its budget can still say a rule blocked it.
+- MCP: `vigil_doctrine` with actions `get`, `versions`, `report`. Publishing, approving and restoring are deliberately not exposed — a run cannot rewrite the rules it is bound by.
+- CLI: `multica doctrine show | publish | history | diff | approve | reject | restore | report | reports | acknowledge | dismiss`.
+
+```bash
+multica doctrine show
+multica doctrine publish --file DOCTRINE.md --expected-revision 7 --note "adds the release rule"
+multica doctrine diff <version-id>
+multica doctrine reports --status open
+```
+
+## API
+
+- `GET /api/workspace/doctrine` → content, revision, `byte_limit`, `require_review`, `can_publish`, the pending version, the open-report count.
+- `PUT /api/workspace/doctrine {content, expected_revision, note?}` → `200` published, `202` held for review, `409` stale or a proposal already pending.
+- `GET /api/workspace/doctrine/versions?cursor&limit`, `GET .../versions/{id}`, `GET .../versions/{id}/diff?against={id}`.
+- `POST .../versions/{id}/approve | reject | restore`.
+- `GET .../reports?status=open|acknowledged|dismissed|all`, `POST .../reports {kind, summary, passage?, issue_id?}`, `POST .../reports/{id}/acknowledge | dismiss`.
+- Audit actions `doctrine.published`, `proposed`, `approved`, `rejected`, `reported`, `report_resolved`; inbox types `doctrine_review` and `doctrine_report`; the `doctrine:changed` event keeps an open page current.
+
+## Next steps
+
+- [Agents](/agents) — the instructions that rank alongside the doctrine.
+- [Brain](/brain) — shared notes, which the doctrine outranks.
+- [MCP server](/mcp-server) — the `vigil_doctrine` tool from an external client.

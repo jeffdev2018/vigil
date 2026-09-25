@@ -45,7 +45,7 @@ import type { Attachment } from "@multica/core/types";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { preprocessMobileMarkdown } from "./preprocess";
 import { useMarkdownStyle } from "./markdown-style";
-import { splitMarkdown } from "./split-markdown";
+import { splitMarkdown, type MarkdownSegment } from "./split-markdown";
 import { CodeBlock } from "./code-block";
 import { MarkdownImage } from "./markdown-image";
 
@@ -105,6 +105,25 @@ interface Props {
   compact?: boolean;
 }
 
+/**
+ * A stable key derived from the segment's own content rather than its array
+ * index. Content re-streaming (a chat message growing token by token) can
+ * insert or remove a mid-message segment; an index-based key would then
+ * relabel every sibling after that point and lose their React identity
+ * (and any local state / mount-driven effect, e.g. CodeBlock's Shiki
+ * highlight cache warm-up) even though their content never changed.
+ */
+function segmentKey(seg: MarkdownSegment): string {
+  switch (seg.type) {
+    case "prose":
+      return `prose:${seg.content}`;
+    case "code":
+      return `code:${seg.lang ?? ""}:${seg.code}`;
+    case "image":
+      return `image:${seg.uri}`;
+  }
+}
+
 export function Markdown({
   content,
   attachments,
@@ -143,6 +162,7 @@ export function Markdown({
       //
       //   mention://issue/<uuid>   → navigate to that issue detail
       //   mention://project/<uuid> → navigate to that project detail
+      //   mention://note/<uuid>    → navigate to that Brain note (JEF-417 / B06)
       //   mention://member/<uuid>  → no-op (no member profile screen yet)
       //   mention://agent/<uuid>   → no-op (no agent profile screen yet)
       //   mention://squad/<uuid>   → no-op (no squad profile screen yet)
@@ -160,6 +180,7 @@ export function Markdown({
           // the mapping explicit so a new type can't silently no-op.
           if (type === "issue") router.push(`/${wsSlug}/issue/${id}`);
           else if (type === "project") router.push(`/${wsSlug}/project/${id}`);
+          else if (type === "note") router.push(`/${wsSlug}/brain/note/${id}`);
         }
         return;
       }
@@ -188,7 +209,7 @@ export function Markdown({
           case "prose":
             return (
               <EnrichedMarkdownText
-                key={i}
+                key={segmentKey(seg)}
                 flavor="github"
                 markdown={seg.content}
                 markdownStyle={markdownStyle}
@@ -199,7 +220,7 @@ export function Markdown({
           case "code":
             return (
               <CodeBlock
-                key={i}
+                key={segmentKey(seg)}
                 code={seg.code}
                 lang={seg.lang}
                 selectable={selectable}
@@ -208,7 +229,7 @@ export function Markdown({
           case "image":
             return (
               <MarkdownImage
-                key={i}
+                key={segmentKey(seg)}
                 uri={seg.uri}
                 alt={seg.alt}
                 attachments={attachments}

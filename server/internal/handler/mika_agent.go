@@ -211,7 +211,11 @@ func (h *Handler) resolveMikaAgent(w http.ResponseWriter, r *http.Request, works
 
 	if runtime.Status == "online" {
 		h.TaskService.ReconcileAgentStatus(r.Context(), created.ID)
-		created, _ = h.Queries.GetAgent(r.Context(), created.ID)
+		if refreshed, err := h.Queries.GetAgent(r.Context(), created.ID); err == nil {
+			created = refreshed
+		} else {
+			slog.Warn("agent: post-reconcile reload failed", "error", err, "agent_id", uuidToString(created.ID))
+		}
 	}
 	return created, true, true
 }

@@ -617,6 +617,41 @@ func TestRedisLocalSkillImportStore_PopPendingBatch(t *testing.T) {
 	}
 }
 
+// TestRedisLocalSkillImportStore_PopPendingBatchZeroLimit is the regression
+// test for the limit<=0 guard: int64(limit)-1 with limit=0 gives a ZRANGE
+// stop index of -1, which Redis treats as "last element" and would return
+// the entire pending set instead of none, violating the method's own
+// "limit" contract.
+func TestRedisLocalSkillImportStore_PopPendingBatchZeroLimit(t *testing.T) {
+	rdb := newRedisTestClient(t)
+	ctx := context.Background()
+	store := NewRedisLocalSkillImportStore(rdb)
+
+	if _, err := store.Create(ctx, LocalSkillImportRequestInput{
+		RuntimeID: "runtime-zero-limit",
+		CreatorID: "user-1",
+		SkillKey:  "skill-0",
+	}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	batch, err := store.PopPendingBatch(ctx, "runtime-zero-limit", 0)
+	if err != nil {
+		t.Fatalf("pop batch with limit=0: %v", err)
+	}
+	if len(batch) != 0 {
+		t.Fatalf("limit=0 returned %d items, want 0 (the bug repro: returned the whole pending set before the fix)", len(batch))
+	}
+
+	negBatch, err := store.PopPendingBatch(ctx, "runtime-zero-limit", -1)
+	if err != nil {
+		t.Fatalf("pop batch with limit=-1: %v", err)
+	}
+	if len(negBatch) != 0 {
+		t.Fatalf("limit=-1 returned %d items, want 0", len(negBatch))
+	}
+}
+
 // Compile-time assertions: the Redis stores MUST satisfy the interfaces so
 // NewRouter's assignment stays type-safe.
 var (

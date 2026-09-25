@@ -1,0 +1,12 @@
+-- Runtime-pinned run attempts (JEF-234): a run-group attempt whose request
+-- carried runtime_id is pinned to that runtime. The pin is what lets
+-- ClaimAgentTask hand the task to that runtime even when the agent's bound
+-- runtime differs — the same shape as the benchmark leg_role pin, but
+-- per task row instead of per replay leg.
+--
+-- No index: the column is only read as part of full-row task fetches and as
+-- one disjunct of the claim fence, which is already gated by the
+-- runtime_id = $n / status = 'queued' predicates and their partial index.
+-- A NOT NULL column with a constant default is a fast catalog-only change on
+-- PostgreSQL 11+.
+ALTER TABLE agent_task_queue ADD COLUMN runtime_pinned BOOLEAN NOT NULL DEFAULT false;

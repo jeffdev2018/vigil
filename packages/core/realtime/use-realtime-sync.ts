@@ -10,6 +10,8 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { deliveryKeys } from "../issues/delivery";
+import { goalKeys } from "../issues/goal-loop";
 import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
 import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
@@ -26,6 +28,8 @@ import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
 import { issueTypeKeys } from "../issue-types/queries";
+import { contestKeys } from "../issues/contest";
+import { issueViewKeys } from "../issue-views/queries";
 import {
   agentTaskSnapshotKeys,
   workspaceWorkingAgentsKeys,
@@ -35,6 +39,9 @@ import {
 } from "../agents/queries";
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
+import { calendarEventKeys } from "../calendar-events/queries";
+import { doctrineKeys } from "../doctrine/queries";
+import { invalidatePackTargets } from "../packs/mutations";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { epicKeys } from "../projects/epic";
@@ -44,9 +51,13 @@ import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
 import { wecomKeys } from "../wecom/queries";
 import { telegramKeys } from "../telegram/queries";
+import { runHaltKeys } from "../run-halt/queries";
+import { onboardingChecklistKeys } from "../onboarding/checklist";
+import { runKeys } from "../runs/fleet-queries";
 import {
   onIssueCreated,
   onIssueUpdated,
+  onIssueDuplicateMarkChanged,
   onIssueDeleted,
   onIssueLabelsChanged,
   onIssuePropertiesChanged,
@@ -62,13 +73,18 @@ import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueD
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
-import { onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onBrainCaptureChanged, onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onFollowupChanged } from "../followups/ws-updaters";
+import { onIssueRecurrenceChanged } from "../recurrence/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
 } from "../notification-preferences/queries";
 import { workspaceKeys, workspaceListOptions } from "../workspace/queries";
-import { isWorkspaceDeletePending } from "../workspace/pending-delete";
+import {
+  isWorkspaceDeletePending,
+  isWorkspaceLeavePending,
+} from "../workspace/pending-delete";
 import {
   showWebNotification,
   type SystemNotificationPayload,
@@ -144,6 +160,8 @@ import type {
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
   MeetingEventPayload,
+  CalendarChangedPayload,
+  FollowupChangedPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -152,11 +170,10 @@ const chatWsLogger = createLogger("chat.ws");
  * Window over which incoming `task:message` frames are batched into a single
  * timeline cache write (MUL-6396).
  *
- * A fixed window, armed on the first frame and not reset by later ones, so a
- * sustained stream still lands every 100ms rather than being deferred until
- * the stream pauses. Short enough that streamed text still reads as live;
- * long enough that a run emitting several frames per second costs one merge
- * and one render instead of one per frame.
+ * The first frame after an idle window lands immediately; that is the
+ * user-visible leading edge. It also arms a fixed 100ms window for subsequent
+ * frames, not reset by later ones, so a sustained stream still costs at most
+ * one additional merge/render per window instead of one per frame.
  */
 const TASK_MESSAGE_FLUSH_MS = 100;
 
@@ -590,10 +607,10 @@ export async function handleInboxNew(
   item: InboxItem,
 ): Promise<void> {
   const sourceWsId = item.workspace_id;
-  if (sourceWsId) onInboxNew(qc, sourceWsId, item);
+  if (sourceWsId) void onInboxNew(qc, sourceWsId, item);
   // A new item in ANY workspace can light the workspace-switcher dot, so
   // refresh the cross-workspace summary regardless of the active workspace.
-  onInboxSummaryInvalidate(qc);
+  void onInboxSummaryInvalidate(qc);
   // Fire a native OS notification only when the app isn't focused. When
   // the user is already looking at Multica, the inbox sidebar's unread
   // styling is enough — no need to interrupt with a banner. `desktopAPI`
@@ -669,7 +686,10 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
   const wsId = getCurrentWsId();
   if (wsId) {
     qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
-    qc.invalidateQueries({ queryKey: inboxKeys.all(wsId) });
+    // Through the inbox's own entry point, not a plain invalidate: a reconnect
+    // can land during the list's first load, and a plain invalidate would be
+    // answered by the request already on the wire (see refreshInboxQuery).
+    void onInboxInvalidate(qc, wsId);
     qc.invalidateQueries({ queryKey: workspaceKeys.agents(wsId) });
     qc.invalidateQueries({ queryKey: workspaceKeys.members(wsId) });
     qc.invalidateQueries({ queryKey: workspaceKeys.squads(wsId) });
@@ -699,10 +719,15 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     // would sit behind the 5-minute staleTime, long enough to keep painting a
     // stale badge or to offer a type the server already archived. (F30)
     qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
+    // Contest (JEF-301): replaces the 10s live-contest poll this hook used
+    // to run — a contest:updated missed while disconnected must still be
+    // recovered on reconnect, or a contest that finished mid-gap would show
+    // "running" until an unrelated refetch happened to touch it.
+    qc.invalidateQueries({ queryKey: contestKeys.all(wsId) });
   }
   // Cross-workspace, so outside the wsId guard: a reconnect may have missed
   // inbox events from any workspace, so re-pull the switcher-dot summary.
-  onInboxSummaryInvalidate(qc);
+  void onInboxSummaryInvalidate(qc);
   // Per-issue caches are keyed without wsId, so the issueKeys.all(wsId)
   // prefix above does not reach them. They rely entirely on WS events for
   // freshness (staleTime: Infinity), so events missed while disconnected
@@ -770,18 +795,32 @@ export interface RealtimeSyncStores {
 // per streamed chunk, and a 5 s resolution is far below any liveness threshold.
 const RUN_ACTIVITY_TOUCH_MIN_MS = 5_000;
 
+// Throttles the call itself, not just the write: without this, a run
+// streaming several chunks/second with the timeline open still pays a
+// getQueriesData + findIndex scan of every open task list on every chunk,
+// even though the RUN_ACTIVITY_TOUCH_MIN_MS check below would refuse to
+// write on almost all of those calls anyway.
+const lastRunActivityTouchMs = new Map<string, number>();
+
 function touchCachedRunActivity(qc: QueryClient, taskId: string) {
   const now = new Date();
+  const nowMs = now.getTime();
+  const lastTouch = lastRunActivityTouchMs.get(taskId);
+  if (lastTouch !== undefined && nowMs - lastTouch < RUN_ACTIVITY_TOUCH_MIN_MS) return;
+
+  let touched = false;
   for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
     if (!Array.isArray(tasks)) continue;
     const idx = tasks.findIndex((t) => t?.id === taskId);
     if (idx === -1) continue;
     const previous = tasks[idx]?.last_activity_at;
-    if (previous && now.getTime() - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
+    if (previous && nowMs - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
     const next = tasks.slice();
     next[idx] = { ...tasks[idx]!, last_activity_at: now.toISOString() };
     qc.setQueryData<AgentTask[]>(key, next);
+    touched = true;
   }
+  if (touched) lastRunActivityTouchMs.set(taskId, nowMs);
 }
 
 /**
@@ -840,14 +879,14 @@ export function useRealtimeSync(
     const refreshMap: Record<string, () => void> = {
       inbox: () => {
         const wsId = getCurrentWsId();
-        if (wsId) onInboxInvalidate(qc, wsId);
+        if (wsId) void onInboxInvalidate(qc, wsId);
         // inbox:read / inbox:archived / inbox:unarchived / batch events arrive
         // here. They can originate from a workspace other than the active one
         // (personal events fan out to all the user's connections), so always
         // refresh the cross-workspace summary — its dot must clear when another
         // workspace's items are read/archived, and light again when an unread
         // item is restored from the archive.
-        onInboxSummaryInvalidate(qc);
+        void onInboxSummaryInvalidate(qc);
       },
       agent: () => {
         const wsId = getCurrentWsId();
@@ -859,6 +898,9 @@ export function useRealtimeSync(
           // per-squad members-status cache without refetching the static squad
           // list summary.
           invalidateSquadMemberStatusQueries(qc, wsId);
+          // Getting-started checklist (OS plan, chantier 5): an agent
+          // create flips `agent_created`.
+          qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         }
       },
       member: () => {
@@ -879,7 +921,15 @@ export function useRealtimeSync(
       },
       project: () => {
         const wsId = getCurrentWsId();
-        if (wsId) qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+          // The issue table can filter on a project's status, so a
+          // project create/update/delete changes which issues a filtered
+          // window holds. The payload carries no previous status to compare
+          // against, and project writes are rare, so refresh the table
+          // queries unconditionally rather than guess.
+          qc.invalidateQueries({ queryKey: issueKeys.tableAll(wsId) });
+        }
       },
       // Dated cycles (F29). A cycle write can also move issues between cycles
       // (close runs the rollover), so the issue tree is stale too.
@@ -909,6 +959,15 @@ export function useRealtimeSync(
       // can never reach it, and staleTime: Infinity means navigating away and
       // back does not heal it either. Without this the banner never appears for
       // the approver, and never clears for the requester.
+      // approval:asked|decided (OS plan, chantier 3): an ask appeared or was
+      // settled somewhere — the feed behind every inline card is stale, and
+      // so are the projections it was derived from.
+      approval: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: ["approvals", wsId] });
+        qc.invalidateQueries({ queryKey: inboxKeys.decisions(wsId) });
+      },
       issue_transition: () => {
         const wsId = getCurrentWsId();
         if (!wsId) return;
@@ -967,7 +1026,18 @@ export function useRealtimeSync(
       // client. (MUL-6458)
       issue_status: () => {
         const wsId = getCurrentWsId();
-        if (wsId) qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
+          // Status-group order is server-owned and depends on catalog positions.
+          // Rows/facets and unrelated groupings do not change on catalog edits.
+          qc.invalidateQueries({
+            queryKey: [...issueKeys.tableAll(wsId), "groups"],
+            predicate: (query) => {
+              const group = query.queryKey[5];
+              return !!group && typeof group === "object" && "kind" in group && group.kind === "status";
+            },
+          });
+        }
       },
       // The work item type catalogue (F30). Invalidate only, exactly like the
       // status catalogue above: an issue row stores the type KEY, and its name
@@ -991,6 +1061,61 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         const userId = authStore.getState().user?.id;
         if (wsId && userId) qc.invalidateQueries({ queryKey: pinKeys.all(wsId, userId) });
+      },
+      // Contest (K72, JEF-301): every step (objections ready, an answer, a
+      // human verdict) publishes contest:updated. contestKeys.all(wsId) is
+      // the parent of every contest query (issue, target, preflight,
+      // settings), so one invalidate covers whichever surface is open — the
+      // issue panel and target-scoped card refetch on their own key.
+      // Replaces the 10s poll issueContestsOptions/targetContestsOptions
+      // used to run while a contest was live.
+      contest: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: contestKeys.all(wsId) });
+      },
+      // project_resource:created|updated|deleted (JEF-301). Keyed by project
+      // under projectKeys.detail(wsId, projectId), so the prefix carries no
+      // project id to target one query — predicate-match every project's
+      // resources list instead of invalidating the whole project prefix.
+      project_resource: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              key[0] === "projects" &&
+              key[1] === wsId &&
+              key[2] === "detail" &&
+              key[4] === "resources"
+            );
+          },
+        });
+      },
+      // Goal loop (JEF-301): goal:created|updated|deleted mirrors the
+      // issue:aux_changed fallback already used for the same query (a
+      // continuation, pause/resume, or an answer given outside the web app).
+      goal: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: goalKeys.all(wsId) });
+      },
+      // Saved issue views (JEF-301): issue_view:created|updated|deleted.
+      // Invalidate only — the payload is a change hint, not a row to merge.
+      issue_view: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: issueViewKeys.all(wsId) });
+      },
+      // Decision memory (K29, JEF-301): decision:created. Two independent
+      // decision surfaces exist — the project's decision log (raw
+      // ["decisions", wsId] key, same one useCreateIssueDecision in
+      // projects/decisions.ts already invalidates on its own writes) and an
+      // issue's decision cards (issueKeys.decisions). A recorded decision
+      // can appear on either, so both are refreshed.
+      decision: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: ["decisions", wsId] });
+        qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
       },
       daemon: () => {
         const wsId = getCurrentWsId();
@@ -1102,6 +1227,16 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: reviewFlagKeys.all(wsId) });
       },
+      // Fleet halt (K05 / m169 / OS chantier 4). `run_halt:changed` carries
+      // `{run_halt, cancelled?}` — refetched via invalidate rather than
+      // setQueryData so the banner, the settings toggle and the Runs page
+      // header always read the one query the server just wrote.
+      run_halt: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: runHaltKeys.all(wsId) });
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
+      },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
@@ -1119,6 +1254,9 @@ export function useRealtimeSync(
         if (!wsId) return;
         qc.invalidateQueries({ queryKey: agentTaskSnapshotKeys.list(wsId) });
         qc.invalidateQueries({ queryKey: workspaceWorkingAgentsKeys.all(wsId) });
+        // Getting-started checklist (OS plan, chantier 5): a task lifecycle
+        // event is what flips `first_run_completed`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         // The Table working-agent shortcut derives an assignee set from the
         // projection above. Refresh its server-owned graph alongside that set
         // so rows/groups/facets cannot remain on an old task transition while
@@ -1155,6 +1293,10 @@ export function useRealtimeSync(
         // open composer's chips (e.g. an agent finishing its run becomes
         // triggerable again mid-typing).
         qc.invalidateQueries({ queryKey: issueKeys.commentTriggerPreviewAll() });
+        // Runs fleet page (OS plan, chantier 4): any task:* lifecycle event
+        // can move a row between active/terminal or change its blocker, so
+        // the whole runs prefix is invalidated alongside the other lists.
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
         // Issue-trigger previews (assign/status/create/batch) are deliberately
         // NOT invalidated here. Unlike comment triggers, the assign source
         // (create / assignee change) cancels existing tasks before enqueuing, so
@@ -1207,6 +1349,17 @@ export function useRealtimeSync(
       "agent_memory:created",
       "agent_memory:updated",
       "agent_memory:deleted",
+      // brain_capture:changed needs its `change` field to decide whether the
+      // note and search projections move with the inbox, and the prefix path
+      // hands handlers no payload — so it takes the specific route below.
+      "brain_capture:changed",
+      // followup:changed needs its issue_id to refresh that issue's list, and
+      // the prefix path hands handlers no payload — specific route below.
+      "followup:changed",
+      // issue_recurrence:changed carries no issue payload to merge and its
+      // "issue_recurrence" prefix has no refreshMap entry, so the prefix path
+      // would drop it silently — specific route below.
+      "issue_recurrence:changed",
       // cross_review:rework / escalated raise a notice signal in addition to
       // the invalidation, so they skip the prefix path to avoid handling the
       // same frame twice.
@@ -1226,6 +1379,30 @@ export function useRealtimeSync(
       if (refresh) debouncedRefresh(prefix, refresh);
     });
 
+    const unsubFollowup = ws.on("followup:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      // ws.on hands every handler `unknown` (see ws-client.ts) — the map
+      // types the frame, it does not narrow the callback.
+      const payload = p as Partial<FollowupChangedPayload> | undefined;
+      onFollowupChanged(qc, wsId, typeof payload?.issue_id === "string" ? payload.issue_id : undefined);
+    });
+
+    // The rule is shared by the series, so this refetches the workspace's
+    // recurrence entries rather than the one issue the frame names.
+    const unsubIssueRecurrence = ws.on("issue_recurrence:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      onIssueRecurrenceChanged(qc, wsId);
+    });
+
+    const unsubBrainCapture = ws.on("brain_capture:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      const change = (p as { change?: unknown } | undefined)?.change;
+      onBrainCaptureChanged(qc, wsId, typeof change === "string" ? change : undefined);
+    });
+
     // --- Specific event handlers (granular cache updates) ---
     // No self-event filtering: actor_id identifies the USER, not the TAB.
     // Filtering by actor_id would block other tabs of the same user.
@@ -1243,6 +1420,13 @@ export function useRealtimeSync(
           projectChanged: payload.project_changed,
           delegateChanged: payload.delegate_changed,
         });
+        onIssueDuplicateMarkChanged(
+          qc,
+          wsId,
+          issue.id,
+          payload.duplicate_of_issue_id,
+          payload.prev_duplicate_of_issue_id,
+        );
         if (issue.status) {
           onInboxIssueStatusChanged(qc, wsId, issue.id, issue.status);
         }
@@ -1253,7 +1437,12 @@ export function useRealtimeSync(
       const { issue } = p as IssueCreatedPayload;
       if (!issue) return;
       const wsId = getCurrentWsId();
-      if (wsId) onIssueCreated(qc, wsId, issue);
+      if (wsId) {
+        onIssueCreated(qc, wsId, issue);
+        // Getting-started checklist (OS plan, chantier 5): flips
+        // `issue_created`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
+      }
     });
 
     // issue:aux_changed carries an answer given outside the web app — a decision
@@ -1265,8 +1454,16 @@ export function useRealtimeSync(
       const { issue_id } = p as { issue_id?: string };
       const wsId = getCurrentWsId();
       if (!wsId) return;
-      if (issue_id) qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
-      else qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+      if (issue_id) {
+        qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
+        // The goal loop also publishes this event on every change (a
+        // continuation, a pause/resume, an answer given from outside the web
+        // app) so the card refreshes live without a dedicated event type.
+        qc.invalidateQueries({ queryKey: goalKeys.issue(wsId, issue_id) });
+      } else {
+        qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+        qc.invalidateQueries({ queryKey: goalKeys.all(wsId) });
+      }
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {
@@ -1275,7 +1472,7 @@ export function useRealtimeSync(
       const wsId = getCurrentWsId();
       if (wsId) {
         onIssueDeleted(qc, wsId, issue_id);
-        onInboxIssueDeleted(qc, wsId, issue_id);
+        void onInboxIssueDeleted(qc, wsId, issue_id);
       }
     });
 
@@ -1372,6 +1569,43 @@ export function useRealtimeSync(
     const unsubMeetingCreated = ws.on("meeting:created", handleMeetingEvent);
     const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
     const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
+
+    // Native calendar (OS plan, chantier 19). Invalidate only — the payload
+    // is a change hint (create, update, status change, or a participant's
+    // response), same choice as meetings above. The list and agenda queries
+    // are keyed by from/to, so every window currently open is stale; the
+    // detail query is keyed by event_id when the frame names one.
+    const unsubCalendarChanged = ws.on("calendar:changed", (p) => {
+      const payload = (p ?? {}) as CalendarChangedPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: calendarEventKeys.all(wsId) });
+      if (payload.event_id) {
+        qc.invalidateQueries({ queryKey: calendarEventKeys.detail(wsId, payload.event_id) });
+      }
+    });
+
+    // Workspace doctrine (OS plan, chantier 22). Invalidate only — the payload
+    // is a change hint (published, proposed, approved/rejected, a report filed
+    // or resolved), same choice as the calendar above. The version ledger, the
+    // diffs and the report lists are all keyed under the same workspace root,
+    // so one invalidation covers whichever block is on screen.
+    const unsubDoctrineChanged = ws.on("doctrine:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: doctrineKeys.all(wsId) });
+    });
+
+    // Packs (OS plan, vague B). Invalidate only, same choice as the doctrine
+    // above. An install rewrites the catalogue's install state AND every
+    // collection the bundle touched (agents, skills, projects, goals,
+    // autopilots, the org chart, issues, the doctrine), so this reuses the
+    // mutation's own target list rather than keeping a second copy of it.
+    const unsubPackChanged = ws.on("pack:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      invalidatePackTargets(qc, wsId);
+    });
 
     // Review rework loop (JEF-238): a request_changes verdict sent the task
     // back to the worker, or the cycle cap escalated to a human. Refresh the
@@ -1599,6 +1833,12 @@ export function useRealtimeSync(
       if (user_id === myUserId) {
         const slug = getCurrentSlug();
         const wsId = getCurrentWsId();
+        // Self-initiated leave: useLeaveWorkspace owns storage cleanup and the
+        // caller owns navigation (both run after the request resolves).
+        // Reacting here too would race that flow's navigation with a full-page
+        // relocate, and its refetch with ours — the CancelledError this guard
+        // exists to prevent. Removals decided elsewhere still land here.
+        if (wsId && isWorkspaceLeavePending(wsId)) return;
         if (slug && wsId) {
           clearWorkspaceStorage(defaultStorage, slug);
           logger.warn("removed from workspace, switching");
@@ -1608,10 +1848,20 @@ export function useRealtimeSync(
       }
     });
 
+    // delivery:changed — the acceptance criteria or the reported result of an
+    // issue moved; the delivery panel and its task list refetch.
+    const unsubDeliveryChanged = ws.on("delivery:changed", (p) => {
+      const { issue_id } = (p ?? {}) as { issue_id?: string };
+      const wsId = getCurrentWsId();
+      if (!issue_id || !wsId) return;
+      qc.invalidateQueries({ queryKey: deliveryKeys.detail(wsId, issue_id) });
+      qc.invalidateQueries({ queryKey: ["issues", "tasks", wsId, issue_id] });
+    });
+
     const unsubMemberAdded = ws.on("member:added", (p) => {
-      const { member, workspace_name } = p as MemberAddedPayload;
+      const { member, workspace_name } = p as Partial<MemberAddedPayload>;
       const myUserId = authStore.getState().user?.id;
-      if (member.user_id === myUserId) {
+      if (member?.user_id === myUserId) {
         qc.invalidateQueries({ queryKey: workspaceKeys.list() });
         qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
         onToast?.(
@@ -1631,20 +1881,40 @@ export function useRealtimeSync(
       );
     });
 
-    // invitation:accepted / declined / revoked — refresh invitation lists
-    const unsubInvitationAccepted = ws.on("invitation:accepted", () => {
-      const currentWsId = getCurrentWsId();
-      if (currentWsId) {
-        qc.invalidateQueries({ queryKey: workspaceKeys.invitations(currentWsId) });
-        qc.invalidateQueries({ queryKey: workspaceKeys.members(currentWsId) });
-      }
-    });
-    const unsubInvitationDeclined = ws.on("invitation:declined", () => {
-      const currentWsId = getCurrentWsId();
-      if (currentWsId) {
-        qc.invalidateQueries({ queryKey: workspaceKeys.invitations(currentWsId) });
-      }
-    });
+    // invitation:accepted / declined / revoked — refresh invitation lists.
+    // The workspace broadcast reaches every online member, so the admin lists
+    // refresh unconditionally. The account-level pending list is gated on the
+    // acting user: only the invitee who concluded the invite (possibly from
+    // another surface or device) needs their stale pending row dropped —
+    // staleTime is Infinity, so nothing refetches it on its own. Without the
+    // gate every accept/decline fanout refetches the list once per online
+    // member. The actor rides the frame envelope (ws-client hands it to the
+    // handler as its second argument), not the event payload.
+    const unsubInvitationAccepted = ws.on(
+      "invitation:accepted",
+      (_payload, actorId) => {
+        const currentWsId = getCurrentWsId();
+        if (currentWsId) {
+          qc.invalidateQueries({ queryKey: workspaceKeys.invitations(currentWsId) });
+          qc.invalidateQueries({ queryKey: workspaceKeys.members(currentWsId) });
+        }
+        if (actorId === authStore.getState().user?.id) {
+          qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
+        }
+      },
+    );
+    const unsubInvitationDeclined = ws.on(
+      "invitation:declined",
+      (_payload, actorId) => {
+        const currentWsId = getCurrentWsId();
+        if (currentWsId) {
+          qc.invalidateQueries({ queryKey: workspaceKeys.invitations(currentWsId) });
+        }
+        if (actorId === authStore.getState().user?.id) {
+          qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
+        }
+      },
+    );
     const unsubInvitationRevoked = ws.on("invitation:revoked", () => {
       qc.invalidateQueries({ queryKey: workspaceKeys.myInvitations() });
     });
@@ -1678,27 +1948,29 @@ export function useRealtimeSync(
     const taskMessageBatches = new Map<string, TaskMessagePayload[]>();
     let taskMessageFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
+    const writeTaskMessageBatch = (taskId: string, batch: TaskMessagePayload[]) => {
+      // Re-check, because a queued batch may be up to one window old and
+      // `setQueryData` does NOT postpone garbage collection — query-core arms
+      // that timer when the last observer leaves and never again on write.
+      // Closing a transcript while its run keeps streaming therefore has the
+      // entry disappear mid-window, and writing then REBUILDS it holding only
+      // this batch. With the app-wide `staleTime: Infinity` the next open
+      // would read that stub as fresh and never fetch, so everything before it
+      // would be missing until the window is reloaded. Dropping the batch
+      // instead costs nothing: the rows are persisted, so the next open fetches
+      // the whole timeline.
+      if (!isTaskMessageTimelineHeld(qc, taskId)) return;
+      qc.setQueryData<TaskMessagePayload[]>(
+        chatKeys.taskMessages(taskId),
+        (old = []) => mergeTaskMessagesBySeq(old, batch),
+      );
+    };
+
     const flushTaskMessages = () => {
       taskMessageFlushTimer = null;
 
       for (const [taskId, batch] of taskMessageBatches) {
-        // Re-check, because holding was last verified up to a window ago and
-        // `setQueryData` does NOT postpone garbage collection — query-core arms
-        // that timer when the last observer leaves and never again on write.
-        // Closing a transcript while its run keeps streaming therefore has the
-        // entry disappear mid-window, and writing then REBUILDS it holding only
-        // this batch. With the app-wide `staleTime: Infinity` the next open
-        // would read that stub as fresh and never fetch, so everything before
-        // it would be missing until the window is reloaded. Dropping the batch
-        // instead costs nothing: the rows are persisted, so the next open
-        // fetches the whole timeline.
-        if (!isTaskMessageTimelineHeld(qc, taskId)) {
-          continue;
-        }
-        qc.setQueryData<TaskMessagePayload[]>(
-          chatKeys.taskMessages(taskId),
-          (old = []) => mergeTaskMessagesBySeq(old, batch),
-        );
+        writeTaskMessageBatch(taskId, batch);
       }
       taskMessageBatches.clear();
     };
@@ -1716,14 +1988,17 @@ export function useRealtimeSync(
       // hot path for every run in the workspace, not just the visible ones.
       if (!isTaskMessageTimelineHeld(qc, payload.task_id)) return;
 
-      const batch = taskMessageBatches.get(payload.task_id);
-      if (batch) batch.push(payload);
-      else taskMessageBatches.set(payload.task_id, [payload]);
-
-      // Fixed window, not a resetting debounce: a continuous stream must still
-      // flush every TASK_MESSAGE_FLUSH_MS instead of being starved until a gap.
+      // Leading edge: render the first frame after an idle window now. The
+      // timer is still armed so the remainder of a burst is coalesced and a
+      // continuous stream cannot render more than once per fixed window after
+      // this one immediate write.
       if (!taskMessageFlushTimer) {
+        writeTaskMessageBatch(payload.task_id, [payload]);
         taskMessageFlushTimer = setTimeout(flushTaskMessages, TASK_MESSAGE_FLUSH_MS);
+      } else {
+        const batch = taskMessageBatches.get(payload.task_id);
+        if (batch) batch.push(payload);
+        else taskMessageBatches.set(payload.task_id, [payload]);
       }
 
       chatWsLogger.debug("task:message (global)", {
@@ -2116,6 +2391,12 @@ export function useRealtimeSync(
       unsubMeetingCreated();
       unsubMeetingUpdated();
       unsubMeetingDeleted();
+      unsubCalendarChanged();
+      unsubDoctrineChanged();
+      unsubPackChanged();
+      unsubBrainCapture();
+      unsubFollowup();
+      unsubIssueRecurrence();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();
@@ -2134,6 +2415,7 @@ export function useRealtimeSync(
       unsubWsDeleted();
       unsubMemberRemoved();
       unsubMemberAdded();
+      unsubDeliveryChanged();
       unsubInvitationCreated();
       unsubInvitationAccepted();
       unsubInvitationDeclined();

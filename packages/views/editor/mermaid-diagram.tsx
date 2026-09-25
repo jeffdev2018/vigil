@@ -32,6 +32,7 @@ import { Check, Copy, Maximize2 } from "lucide-react";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { useT } from "../i18n";
 import { useDragToScroll } from "./hooks/use-drag-to-scroll";
+import { useThemeVersion } from "../common/use-theme-version";
 import { MermaidViewer } from "./mermaid-viewer";
 import type { Size } from "./utils/zoom-transform";
 
@@ -236,35 +237,6 @@ function buildViewerMermaidDocument(
   return `<!doctype html><html><head><style>:root { ${cssVariables} } html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; } svg { display: block; width: ${layout.width}px; height: ${layout.height}px; max-width: none; }</style></head><body>${svg}</body></html>`;
 }
 
-function useThemeVersion() {
-  const [themeVersion, setThemeVersion] = useState(0);
-
-  useEffect(() => {
-    const bumpThemeVersion = () => setThemeVersion((version) => version + 1);
-    const observer = new MutationObserver(bumpThemeVersion);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "style", "data-theme"],
-    });
-    if (document.body) {
-      observer.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class", "style", "data-theme"],
-      });
-    }
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    mediaQuery.addEventListener("change", bumpThemeVersion);
-
-    return () => {
-      observer.disconnect();
-      mediaQuery.removeEventListener("change", bumpThemeVersion);
-    };
-  }, []);
-
-  return themeVersion;
-}
-
 /**
  * Tracks which horizontal edges of a scroll container have content beyond
  * them, so CSS can fade those edges as an affordance that the diagram
@@ -410,7 +382,7 @@ export function MermaidDiagram({ chart }: { chart: string }) {
       } catch (err) {
         if (!cancelled) {
           setRendered(null);
-          setError(err instanceof Error ? err.message : "Failed to render Mermaid diagram");
+          setError(err instanceof Error ? err.message : t(($) => $.mermaid.render_error_detail));
         }
       }
     }
@@ -420,6 +392,14 @@ export function MermaidDiagram({ chart }: { chart: string }) {
     return () => {
       cancelled = true;
     };
+    // t is intentionally excluded: react-i18next's t is not referentially
+    // stable across renders here, and this effect's own setState calls
+    // would re-trigger it on every render — an infinite loop. It is only
+    // read inside the render-failure branch for a fallback string, so a
+    // stale closure over an old locale's t for that one message is an
+    // acceptable trade-off (matches the same pattern elsewhere in this
+    // package, e.g. settings/components/lark-tab.tsx).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart, diagramId, themeVersion]);
 
   const overflow = useHorizontalOverflow(scrollRef, [rendered?.inlineDocument]);

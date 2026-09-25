@@ -42,12 +42,13 @@ const mirror = (over: Partial<IssueMirrors["mirrors"][number]> = {}) => ({
   type_synced: false, ...over,
 });
 
-function render() {
+function render(locale: "en" | "zh-Hans" = "en") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderWithI18n(
     <QueryClientProvider client={qc}>
       <IssueMirrorsSection issueId="i1" />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -84,8 +85,8 @@ describe("IssueMirrorsSection", () => {
   it("toggles the per-mirror types-synced marker", async () => {
     state.data = { mirrors: [mirror()], mirror_of: null };
     render();
-    const box = (await screen.findAllByRole("checkbox"))[0] as HTMLInputElement;
-    expect(box.checked).toBe(false);
+    const box = (await screen.findAllByRole("checkbox"))[0]!;
+    expect(box).not.toBeChecked();
     fireEvent.click(box);
     expect(state.setSynced).toHaveBeenCalledWith(
       { mirrorId: "m1", value: true },
@@ -113,5 +114,16 @@ describe("IssueMirrorsSection", () => {
     state.data = { mirrors: [mirror({ project_title: "" })], mirror_of: null };
     render();
     expect(await screen.findByText("Mirror in Deleted project")).toBeTruthy();
+  });
+
+  // Regression: the mirror's status badge rendered the raw snapshot key
+  // ({m.status}) directly, with no i18n resolution, unlike every other
+  // status surface (useStatusLabel/useIssueStatuses).
+  it("translates the mirror's status badge for a built-in status category", async () => {
+    state.data = { mirrors: [mirror({ status: "done" })], mirror_of: null };
+    render("zh-Hans");
+    const chip = await screen.findByTestId("issue-mirror-chip");
+    expect(chip.textContent).toContain("已完成");
+    expect(chip.textContent).not.toContain("done");
   });
 });

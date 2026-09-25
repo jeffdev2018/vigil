@@ -25,6 +25,46 @@ func (q *Queries) DeleteWhyChunk(ctx context.Context, arg DeleteWhyChunkParams) 
 	return err
 }
 
+const listGoalsForWhy = `-- name: ListGoalsForWhy :many
+SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date FROM goal WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 5000
+`
+
+// Reindex-only variant of ListGoals, capped like the other three reindex
+// sources above. ListGoals itself stays uncapped: goal.go's listing and
+// workspace_transfer's copy both need every goal, not a 5000-row page.
+func (q *Queries) ListGoalsForWhy(ctx context.Context, workspaceID pgtype.UUID) ([]Goal, error) {
+	rows, err := q.db.Query(ctx, listGoalsForWhy, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Goal{}
+	for rows.Next() {
+		var i Goal
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentGoalID,
+			&i.Title,
+			&i.Description,
+			&i.SuccessMeasure,
+			&i.DueDate,
+			&i.OwnerID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceCommentsForWhy = `-- name: ListWorkspaceCommentsForWhy :many
 
 SELECT id, issue_id, content FROM comment
@@ -227,6 +267,44 @@ func (q *Queries) UpsertWhyChunk(ctx context.Context, arg UpsertWhyChunkParams) 
 		arg.SourceID,
 		arg.IssueID,
 		arg.Content,
+	)
+	return err
+}
+
+const upsertWhyChunksBatch = `-- name: UpsertWhyChunksBatch :exec
+INSERT INTO decision_search_chunk (id, workspace_id, source_type, source_id, issue_id, content)
+SELECT
+    unnest($1::uuid[]),
+    $2::uuid,
+    $3::text,
+    unnest($4::uuid[]),
+    unnest($5::uuid[]),
+    unnest($6::text[])
+ON CONFLICT (source_type, source_id) DO UPDATE SET content = EXCLUDED.content, issue_id = EXCLUDED.issue_id, updated_at = now()
+`
+
+type UpsertWhyChunksBatchParams struct {
+	Ids         []pgtype.UUID `json:"ids"`
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	SourceType  string        `json:"source_type"`
+	SourceIds   []pgtype.UUID `json:"source_ids"`
+	IssueIds    []pgtype.UUID `json:"issue_ids"`
+	Contents    []string      `json:"contents"`
+}
+
+// Batch variant of UpsertWhyChunk for ReindexWhy: one source type's whole
+// page (up to 5000 rows) in a single round trip instead of one call per row.
+// workspace_id and source_type are constant across a call; the row-varying
+// columns are zipped by several single-argument unnest calls the same way
+// CreateTaskMessages does (sqlc only understands that signature).
+func (q *Queries) UpsertWhyChunksBatch(ctx context.Context, arg UpsertWhyChunksBatchParams) error {
+	_, err := q.db.Exec(ctx, upsertWhyChunksBatch,
+		arg.Ids,
+		arg.WorkspaceID,
+		arg.SourceType,
+		arg.SourceIds,
+		arg.IssueIds,
+		arg.Contents,
 	)
 	return err
 }

@@ -1,7 +1,6 @@
 package memoryeval
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,17 +42,13 @@ func TestAdoptionGate(t *testing.T) {
 	}
 }
 
-func TestSnapshotRejectsLinksAndNestedOutput(t *testing.T) {
-	root := t.TempDir()
-	if _, err := snapshot(root, filepath.Join(root, "nested")); err == nil {
-		t.Fatal("accepted recursive snapshot")
-	}
-	if err := os.Symlink("/etc/passwd", filepath.Join(root, "link")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := snapshot(root, filepath.Join(t.TempDir(), "snapshot")); err == nil {
-		t.Fatal("followed symlink")
-	}
+// ReadJSON and cappedBuffer are still live (VerifyJavaScript's container
+// path uses cappedBuffer; ReadJSON reads back every report). The
+// snapshot()-specific assertions this test used to carry were removed along
+// with Run/evaluate/snapshot/TestDockerMemoryComparison (dead code, fork-only,
+// never called outside the Run() path that nothing invokes — see the memory
+// eval audit finding on evaluation.go).
+func TestReadJSONRejectsTrailingDataAndCappedBufferEnforcesItsCap(t *testing.T) {
 	var suite Suite
 	file := filepath.Join(t.TempDir(), "suite.json")
 	if err := os.WriteFile(file, []byte(`{} {}`), 0600); err != nil {
@@ -71,82 +66,23 @@ func TestSnapshotRejectsLinksAndNestedOutput(t *testing.T) {
 	}
 }
 
-// Opt-in only: pinned local image, no pulls, providers, credentials or live repo.
-func TestDockerMemoryComparison(t *testing.T) {
-	image := os.Getenv("MULTICA_EVAL_TEST_IMAGE")
-	if image == "" {
-		t.Skip("set MULTICA_EVAL_TEST_IMAGE to a local immutable Alpine-compatible image ID")
-	}
-	root := t.TempDir()
-	write := func(path, content string) {
-		t.Helper()
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	worker := `set -eu
-test ! -e /checks/check.sh
-test ! -e /answer
-test -z "$(ip route show default)"
-if touch /input/host-write 2>/dev/null; then exit 70; fi
-if grep -q 'Always return uppercase' /memory.json; then tr '[:lower:]' '[:upper:]' < task.txt; else cat task.txt; fi
-`
-	for _, id := range []string{"a", "b"} {
-		write(filepath.Join(root, id, "worker.sh"), worker)
-		write(filepath.Join(root, id, "task.txt"), "hello "+id)
-	}
-	write(filepath.Join(root, "checks", "check.sh"), `set -eu
-test ! -e /memory.json
-test "$(cat /answer)" = "$(tr '[:lower:]' '[:upper:]' < task.txt)"
-`)
+func TestRuntimeGate(t *testing.T) {
 	r := testReport()
-	r.Suite.Image = image
-	output := filepath.Join(root, "results")
-	got, err := Run(context.Background(), r, root, output)
-	if err != nil {
-		t.Fatal(err)
+	r.Suite.WorkerProtocol = "multica_runtime_v1"
+	if ok, _ := r.Gate(); ok {
+		t.Fatal("missing observations accepted")
 	}
-	if !got.Eligible {
-		t.Fatalf("not eligible: %+v", got)
+	for i := range r.Cases {
+		a := &RuntimeEvidence{Provider: "claude", RequestedModel: "fixture", ExecutableHash: r.Cases[i].InputHash, PromptHash: r.Cases[i].InputHash, BriefHash: r.Cases[i].InputHash, Status: "completed"}
+		b := *a
+		r.Cases[i].Baseline.Runtime = a
+		r.Cases[i].Candidate.Runtime = &b
 	}
-	var stored Report
-	if err := ReadJSON(filepath.Join(output, "report.json"), &stored); err != nil {
-		t.Fatal(err)
-	}
-	if ok, why := stored.Gate(); !ok {
+	if ok, why := r.Gate(); !ok {
 		t.Fatal(why)
 	}
-	for _, c := range stored.Cases {
-		if c.Baseline.Status != "failed" || c.Candidate.Status != "passed" || c.Candidate.CostUSD != nil || c.Candidate.HumanInterventions != nil {
-			t.Fatalf("wrong results: %+v", c)
-		}
-		if _, err := os.Stat(filepath.Join(root, c.ID, "host-write")); !os.IsNotExist(err) {
-			t.Fatal("fixture changed")
-		}
-	}
-	if _, err := Run(context.Background(), r, root, output); err == nil {
-		t.Fatal("overwrote report")
-	}
-	// Verifier exit 2 is an infrastructure error, not a baseline failure that
-	// could manufacture an improvement. A timeout must also close adoption.
-	r.Suite.Verifier = []string{"/bin/sh", "-c", "exit 2"}
-	result := evaluate(context.Background(), r.Suite, filepath.Join(output, "a", "input"), filepath.Join(output, "a", "checks"), filepath.Join(output, "candidate.json"), filepath.Join(output, "error.answer"))
-	if result.Status != "error" {
-		t.Fatalf("infrastructure error counted as quality: %+v", result)
-	}
-	r.Suite.Worker = []string{"/bin/sh", "-c", "sleep 30"}
-	r.Suite.TimeoutSeconds = 1
-	result = evaluate(context.Background(), r.Suite, filepath.Join(output, "a", "input"), filepath.Join(output, "a", "checks"), filepath.Join(output, "candidate.json"), filepath.Join(output, "timeout.answer"))
-	if result.Status != "error" || !strings.Contains(result.Diagnostic, "deadline") {
-		t.Fatalf("timeout: %+v", result)
-	}
-	r.Suite.Worker = []string{"/bin/sh", "-c", "head -c 65537 /dev/zero"}
-	r.Suite.TimeoutSeconds = 5
-	result = evaluate(context.Background(), r.Suite, filepath.Join(output, "a", "input"), filepath.Join(output, "a", "checks"), filepath.Join(output, "candidate.json"), filepath.Join(output, "overflow.answer"))
-	if result.Status != "error" || !strings.Contains(result.Diagnostic, "exceeded") {
-		t.Fatalf("output cap: status=%s bytes=%d diagnostic=%s", result.Status, len(result.Artifact), result.Diagnostic)
+	r.Cases[1].Candidate.Runtime.RequestedModel = "other"
+	if ok, _ := r.Gate(); ok {
+		t.Fatal("different model accepted")
 	}
 }

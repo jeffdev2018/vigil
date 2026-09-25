@@ -1,15 +1,13 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@multica/ui/lib/utils";
+import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import {
   useNavigationInputBindings,
   useTabHistory,
 } from "@/hooks/use-tab-history";
 import {
   SidebarProvider,
-  SidebarTrigger,
   useSidebar,
 } from "@multica/ui/components/ui/sidebar";
 import { ModalRegistry } from "@multica/views/modals/registry";
@@ -29,6 +27,7 @@ import {
 } from "@multica/views/navigation";
 import { getCurrentSlug, subscribeToCurrentSlug } from "@multica/core/platform";
 import { useDesktopUnreadBadge } from "@multica/views/platform";
+import { useT } from "@multica/views/i18n";
 import {
   DesktopNavigationProvider,
   routeContentLinkPath,
@@ -36,65 +35,9 @@ import {
 import { TabBar } from "./tab-bar";
 import { TabContent } from "./tab-content";
 import { WindowOverlay } from "./window-overlay";
+import { WindowToolbar, WINDOW_TOOLBAR_CLEARANCE } from "./window-toolbar";
 
 const TOP_BAR_HEIGHT_CLASS = "h-12";
-const WINDOW_TOOLBAR_CLEARANCE = 184;
-const toolbarMotion = {
-  type: "spring",
-  stiffness: 420,
-  damping: 38,
-  mass: 0.8,
-} as const;
-
-function WindowToolbar() {
-  const { canGoBack, canGoForward, goBack, goForward } = useTabHistory();
-  const navButtonClassName =
-    "flex size-7 items-center justify-center rounded-md text-faint-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-30";
-
-  return (
-    <div
-      className={cn(
-        "fixed left-0 top-0 z-30 flex w-[184px] shrink-0 items-center px-3",
-        TOP_BAR_HEIGHT_CLASS,
-      )}
-      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-    >
-      <div
-        className="flex items-center gap-1 pl-[70px]"
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-      >
-        <SidebarTrigger
-          className="size-7 text-faint-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        />
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={goBack}
-            disabled={!canGoBack}
-            aria-label="Go back"
-            title="Go back"
-            className={navButtonClassName}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={goForward}
-            disabled={!canGoForward}
-            aria-label="Go forward"
-            title="Go forward"
-            className={navButtonClassName}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SidebarTopSpacer() {
   return <div className={cn("shrink-0", TOP_BAR_HEIGHT_CLASS)} />;
@@ -116,50 +59,92 @@ function useNativeNavigationGestures() {
 
 
 // The main area's top bar doubles as a window drag region. When the sidebar
-// is not occupying main-flow width, leave room for the fixed window toolbar
-// so tabs do not land beneath the traffic lights / navigation controls.
-function MainTopBar() {
+// is not occupying enough main-flow width, leave the remainder here so tabs
+// do not land beneath the traffic lights / navigation controls. The matching
+// 200ms transition cancels the sidebar gap's movement during toggle; live
+// resize previews disable it through data-sidebar-resize-consumer.
+function MainTopBar({ sidebarMounted }: { sidebarMounted: boolean }) {
   const { state, isCompact } = useSidebar();
-  const sidebarHidden = state === "collapsed" || isCompact;
+  const sidebarHidden = !sidebarMounted || state === "collapsed" || isCompact;
+  const toolbarClearance: React.CSSProperties["paddingLeft"] = sidebarHidden
+    ? WINDOW_TOOLBAR_CLEARANCE
+    : `max(0px, calc(${WINDOW_TOOLBAR_CLEARANCE}px - var(--sidebar-live-width, var(--sidebar-width))))`;
 
   return (
-    <motion.header
-      animate={{ paddingLeft: sidebarHidden ? WINDOW_TOOLBAR_CLEARANCE : 0 }}
-      className={cn("relative shrink-0 flex items-center gap-2", TOP_BAR_HEIGHT_CLASS)}
-      initial={false}
-      transition={toolbarMotion}
+    <header
+      data-slot="main-top-bar"
+      data-sidebar-resize-consumer
+      className={cn(
+        "relative shrink-0 flex items-center gap-2 transition-[padding-left] duration-200 ease-out motion-reduce:transition-none",
+        TOP_BAR_HEIGHT_CLASS,
+      )}
+      style={{ paddingLeft: toolbarClearance }}
     >
-      <motion.div
+      <div
         aria-hidden
-        animate={{ left: sidebarHidden ? WINDOW_TOOLBAR_CLEARANCE : 0 }}
         className="absolute inset-y-0 right-0"
-        initial={false}
-        transition={toolbarMotion}
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        style={
+          {
+            left: toolbarClearance,
+            WebkitAppRegion: "drag",
+          } as React.CSSProperties
+        }
       />
-      <div className="relative z-10 flex h-full min-w-0 max-w-full items-center">
+      <div
+        data-slot="main-top-bar-content"
+        className="relative z-10 flex h-full min-w-0 max-w-full items-center"
+      >
         <TabBar />
       </div>
-    </motion.header>
+    </header>
   );
 }
 
 // The canvas hugs the expanded sidebar with a hairline gap. When the sidebar
 // leaves the main flow, the left margin must grow to mirror the fixed mr-2 so
 // the floating canvas sits symmetrically inside the window frame.
-function MainCanvas({ children }: { children: React.ReactNode }) {
+function MainCanvas({
+  children,
+  showWorkspaceLoading,
+}: {
+  children: React.ReactNode;
+  showWorkspaceLoading: boolean;
+}) {
   const { state, isCompact } = useSidebar();
+  const { t } = useT("layout");
   const sidebarHidden = state === "collapsed" || isCompact;
+  const loadingLabel = t(($) => $.workspace_loader.loading_workspace);
 
+  // A spring on `marginLeft` re-laid-out the whole canvas — every list,
+  // table and virtualised row inside it — on every frame of the toggle, to
+  // travel 6px. The gap now moves on the same 200ms CSS transition as
+  // MainTopBar's padding, so the two edges still arrive together, the work
+  // stays on the compositor's side of one property, and reduced motion is
+  // honoured for free.
   return (
-    <motion.div
-      animate={{ marginLeft: sidebarHidden ? 8 : 2 }}
-      className="relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-[var(--surface-shadow)]"
-      initial={false}
-      transition={toolbarMotion}
+    <div
+      data-sidebar-resize-consumer
+      className={cn(
+        "relative flex flex-1 min-h-0 flex-col overflow-hidden mr-2 mb-2 rounded-xl bg-page-canvas ring-1 ring-surface-border shadow-surface",
+        "transition-[margin-left] duration-200 ease-out motion-reduce:transition-none",
+        sidebarHidden ? "ml-2" : "ml-0.5",
+      )}
     >
       {children}
-    </motion.div>
+      {showWorkspaceLoading && (
+        <div
+          aria-label={loadingLabel}
+          aria-live="polite"
+          className="absolute inset-0 z-20 flex items-center justify-center bg-page-canvas"
+          role="status"
+        >
+          <div className="flex flex-col items-center gap-4">
+            <MulticaIcon className="size-8 animate-pulse" />
+            <p className="text-body text-muted-foreground">{loadingLabel}</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -270,7 +255,7 @@ export function DesktopShell() {
           IndexRedirect, not a route. */}
       <WorkspaceSlugProvider slug={slug}>
         <DesktopInboxBridge />
-        <div className="flex h-screen bg-app-shell">
+        <div className="flex h-dvh bg-app-shell">
           {/* bg-app-shell is the wrapper's non-inset fill, so it also owns the
               non-inset half of --sidebar-wrapper-fill. sidebar.tsx supplies the
               inset half of both. Anything that has to paint an opaque layer
@@ -291,8 +276,8 @@ export function DesktopShell() {
             {slug && <AppSidebar topSlot={<SidebarTopSpacer />} searchSlot={<SearchTrigger />} />}
             {/* Right side: header + content container */}
             <div className="flex flex-1 min-w-0 flex-col">
-              <MainTopBar />
-              <MainCanvas>
+              <MainTopBar sidebarMounted={Boolean(slug)} />
+              <MainCanvas showWorkspaceLoading={!slug}>
                 {/* Same indicator, same anchor as web: DashboardLayout puts it
                     at the top of SidebarInset, and MainCanvas is desktop's
                     equivalent relative/overflow-hidden content box. Desktop

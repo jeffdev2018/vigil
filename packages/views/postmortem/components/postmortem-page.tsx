@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Check, X, Loader2, ScrollText, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
+import { FileText, Check, X, Loader2, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { humanizeIdentifier } from "@multica/core/utils";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { AppLink } from "../../navigation";
 import { ApiError } from "@multica/core/api";
@@ -17,9 +18,8 @@ import {
   useApprovePostmortem,
   useDiscardPostmortem,
 } from "@multica/core/postmortem/mutations";
-import { agentTasksOptions } from "@multica/core/agents/queries";
-import { agentListOptions } from "@multica/core/workspace/queries";
-import { TranscriptButton } from "../../common/task-transcript/transcript-button";
+import { OpenRunButton } from "../../common/task-transcript/open-run-button";
+import { failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT, useTimeAgo } from "../../i18n";
 import {
   CollectionPageHeader,
@@ -32,6 +32,23 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/
 import { cn } from "@multica/ui/lib/utils";
 
 const STATES: PostmortemState[] = ["draft", "approved", "discarded"];
+
+/**
+ * Readable label for a postmortem's failure code. Known codes use the shared
+ * task-failure table; a code this build has never seen keeps its last segment
+ * humanized ("agent_error.new_thing" → "New thing") instead of the raw code.
+ */
+function useFailureReasonLabel(): (reason: string) => string {
+  const { t } = useT("agents");
+  return useCallback(
+    (reason: string) => {
+      const known = failureReasonLabel(reason, t);
+      if (known && known !== reason) return known;
+      return humanizeIdentifier(reason.split(".").pop() || reason);
+    },
+    [t],
+  );
+}
 
 /** Provider-reported cost in 1e-10 USD ticks → a short USD string. */
 function formatCost(ticks: number): string {
@@ -147,6 +164,7 @@ function PostmortemList({
 }) {
   const { t } = useT("postmortem");
   const timeAgo = useTimeAgo();
+  const reasonLabel = useFailureReasonLabel();
 
   if (isLoading) {
     return (
@@ -222,8 +240,8 @@ function PostmortemList({
               <span className="line-clamp-2 text-body">{item.summary}</span>
               <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
                 {item.failure_reason ? (
-                  <Badge variant="secondary" className="font-mono text-micro">
-                    {item.failure_reason}
+                  <Badge variant="secondary" className="text-micro" title={item.failure_reason}>
+                    {reasonLabel(item.failure_reason)}
                   </Badge>
                 ) : null}
                 <span className="shrink-0">{timeAgo(item.created_at)}</span>
@@ -278,6 +296,7 @@ function PostmortemDetailBody({
 }) {
   const { t } = useT("postmortem");
   const timeAgo = useTimeAgo();
+  const reasonLabel = useFailureReasonLabel();
   // Null-safe: the page can render in tests without a workspace route.
   const slug = useWorkspaceSlug();
   const approve = useApprovePostmortem(wsId);
@@ -341,7 +360,7 @@ function PostmortemDetailBody({
             </TooltipContent>
           </Tooltip>
           <p className="truncate text-caption text-muted-foreground">
-            {item.failure_reason || t(($) => $.detail.failure_reason_label)}
+            {item.failure_reason ? reasonLabel(item.failure_reason) : t(($) => $.detail.failure_reason_label)}
             {" · "}
             {timeAgo(item.created_at)}
             {typeof item.cost_usd_ticks === "number" && item.cost_usd_ticks > 0
@@ -403,6 +422,7 @@ function PostmortemDetailBody({
                 wsId={wsId}
                 agentId={item.agent_id}
                 taskId={item.source_task_id}
+                label={t(($) => $.detail.open_run)}
               />
             ) : null}
           </div>
@@ -462,46 +482,3 @@ function handleResolveError(
   toast.error(t(($) => $.detail.error_toast));
 }
 
-/**
- * Opens the transcript of the run this postmortem analyzes.
- *
- * The postmortem stores source_task_id, but there is no single-task endpoint
- * to resolve it with, so the button reads the agent's run list — the same
- * cached query the agent's Activity tab uses — and finds the row there. A run
- * that has aged out of that list (or a postmortem whose agent was deleted)
- * renders nothing rather than a control that would open an empty dialog.
- */
-function OpenRunButton({
-  wsId,
-  agentId,
-  taskId,
-}: {
-  wsId: string;
-  agentId: string;
-  taskId: string;
-}) {
-  const { t } = useT("postmortem");
-  const [open, setOpen] = useState(false);
-  const { data: tasks = [] } = useQuery(agentTasksOptions(wsId, agentId));
-  // Workspace-wide agent list: already in cache on every dashboard surface,
-  // and the dialog header needs a name the task row does not carry.
-  const { data: agents = [] } = useQuery(agentListOptions(wsId));
-  const task = tasks.find((candidate) => candidate.id === taskId);
-  if (!task) return null;
-  const agentName = agents.find((agent) => agent.id === agentId)?.name ?? "";
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <ScrollText aria-hidden="true" className="size-3.5" />
-        {t(($) => $.detail.open_run)}
-      </Button>
-      <TranscriptButton
-        task={task}
-        agentName={agentName}
-        renderButton={false}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
-}

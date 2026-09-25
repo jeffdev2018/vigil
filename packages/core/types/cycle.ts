@@ -82,6 +82,62 @@ export interface ListCyclesResponse {
   total: number;
 }
 
+// Per-actor capacity and velocity (JEF-246). The human/agent split of
+// CycleCapacity says how much each POOL can take; these say how much each
+// PERSON or AGENT can take — and, for velocity, how much each actually did.
+
+export type CycleActorType = "member" | "agent";
+
+/** One actor's declared capacity for a cycle, as the server returns it. */
+export interface CycleActorCapacity {
+  actor_type: CycleActorType;
+  /** Member rows key on user_id, agent rows on agent id — the same ids issue
+   *  assignees use. */
+  actor_id: string;
+  name: string;
+  points: number;
+}
+
+export interface CycleCapacitiesResponse {
+  capacities: CycleActorCapacity[];
+}
+
+/** One row of the full-replace PUT. `name` is server-derived, never sent. */
+export interface CycleActorCapacityWrite {
+  actor_type: CycleActorType;
+  actor_id: string;
+  /** Whole points, 0..10000. */
+  points: number;
+}
+
+export interface CycleVelocityActor {
+  actor_type: CycleActorType;
+  actor_id: string;
+  name: string;
+  /** null when the actor declared no capacity: there is done work, but no bar
+   *  to fill — same semantics as CycleCapacitySide.capacity. */
+  capacity_points: number | null;
+  done_points: number;
+  done_count: number;
+}
+
+export interface CycleVelocityHistoryEntry {
+  cycle_id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  done_points: number;
+  done_count: number;
+}
+
+export interface CycleVelocity {
+  cycle_id: string;
+  actors: CycleVelocityActor[];
+  /** Done work assigned to nobody, or to a squad rather than one actor. */
+  other_done_points: number;
+  history: CycleVelocityHistoryEntry[];
+}
+
 /** Per-project progress of the issues that count for a goal (F29). */
 export interface GoalProjectProgress {
   project_id: string;

@@ -197,6 +197,64 @@ describe("WelcomeAfterOnboarding", () => {
     expect(mockCreateIssue).toHaveBeenCalledTimes(2);
   });
 
+  it("native path: seeds the first-run issue assigned to Mika and navigates straight there", async () => {
+    mockCreateIssue.mockResolvedValueOnce({
+      id: "issue-first-run",
+      identifier: "MUL-2",
+      workspace_id: "ws-1",
+    });
+    useWelcomeStore.getState().set({
+      workspaceId: "ws-1",
+      choice: "native",
+      agentId: "agent-mika",
+    });
+
+    renderWelcome();
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/test-ws/issues/issue-first-run");
+    });
+
+    expect(mockCreateIssue).toHaveBeenCalledTimes(1);
+    expect(mockCreateIssue.mock.calls[0]![0]).toMatchObject({
+      title: "Your first run",
+      status: "todo",
+      assignee_type: "agent",
+      assignee_id: "agent-mika",
+    });
+    // No completion modal on this path — it lands the person directly on
+    // the running issue instead of a "got it" screen.
+    expect(screen.queryByRole("button", { name: /got it/i })).not.toBeInTheDocument();
+  });
+
+  it("native path: does not seed for a different workspace", () => {
+    useWelcomeStore.getState().set({
+      workspaceId: "ws-2",
+      choice: "native",
+      agentId: "agent-mika",
+    });
+
+    const { container } = renderWelcome();
+    expect(container.firstChild).toBeNull();
+    expect(mockCreateIssue).not.toHaveBeenCalled();
+  });
+
+  it("native path: offers a retry instead of dismissing when seeding fails", async () => {
+    mockCreateIssue.mockRejectedValueOnce(new Error("network down"));
+    useWelcomeStore.getState().set({
+      workspaceId: "ws-1",
+      choice: "native",
+      agentId: "agent-mika",
+    });
+
+    renderWelcome();
+
+    expect(
+      await screen.findByRole("button", { name: /try again/i }),
+    ).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
   it("dismisses only when the member chooses to", async () => {
     mockCreateIssue.mockRejectedValueOnce(new Error("network down"));
     useWelcomeStore.getState().set({

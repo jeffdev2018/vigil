@@ -478,9 +478,20 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "the identity token carries no email")
 		return
 	}
-	if verified, ok := idClaims["email_verified"].(bool); ok && !verified {
-		writeError(w, http.StatusUnauthorized, "the identity provider has not verified this email")
-		return
+	// Some providers send the claim as a string rather than a JSON boolean;
+	// an explicit "false" in either form is a refusal. An absent claim is
+	// accepted as before (many providers omit it entirely).
+	switch verified := idClaims["email_verified"].(type) {
+	case bool:
+		if !verified {
+			writeError(w, http.StatusUnauthorized, "the identity provider has not verified this email")
+			return
+		}
+	case string:
+		if strings.EqualFold(strings.TrimSpace(verified), "false") {
+			writeError(w, http.StatusUnauthorized, "the identity provider has not verified this email")
+			return
+		}
 	}
 	if domains := ssoDomains(conn.AllowedDomains); len(domains) > 0 {
 		at := strings.LastIndex(email, "@")

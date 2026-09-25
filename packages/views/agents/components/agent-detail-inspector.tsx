@@ -115,7 +115,11 @@ export function AgentDetailInspector({
     enabled:
       canEdit &&
       profileDraft.name.length > 0 &&
-      profileDraft.description.length <= AGENT_DESCRIPTION_MAX_LENGTH,
+      // Code points, not UTF-16 units — matches the CharCounter shown below
+      // the textarea (line ~234) so a description with astral characters
+      // (emoji, etc.) never shows "under the limit" while autosave silently
+      // refuses to fire because .length counted surrogate pairs as 2.
+      [...profileDraft.description].length <= AGENT_DESCRIPTION_MAX_LENGTH,
     isEqual: profileDraftsEqual,
   });
 
@@ -158,7 +162,6 @@ export function AgentDetailInspector({
     <div className="space-y-8">
       <SettingsSection
         title={t(($) => $.inspector.section_profile)}
-        description={t(($) => $.inspector.section_profile_hint)}
         action={
           <SettingsSaveState
             status={profileAutoSave.status}
@@ -171,7 +174,6 @@ export function AgentDetailInspector({
         <SettingsCard>
           <SettingsRow
             label={t(($) => $.inspector.avatar_label)}
-            description={t(($) => $.inspector.avatar_hint)}
             size="none"
           >
             <div className="flex justify-start sm:justify-end">
@@ -241,7 +243,6 @@ export function AgentDetailInspector({
 
       <SettingsSection
         title={t(($) => $.inspector.section_execution)}
-        description={t(($) => $.inspector.section_execution_hint)}
       >
         <SettingsCard>
           <SettingsRow

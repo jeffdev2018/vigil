@@ -4,6 +4,7 @@ import { memo, type Ref } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { AppLink } from "../../navigation";
 import type { Issue, Project,
   IssueProperty,
@@ -22,7 +23,9 @@ import { PriorityIcon } from "./priority-icon";
 import { ProgressRing } from "./progress-ring";
 import { IssueActionsContextMenu } from "../actions";
 import { LabelChip } from "../../labels/label-chip";
+import { RecurringBadge } from "./recurring-badge";
 import { CustomStatusChip } from "./custom-status-chip";
+import { IssueDuplicateOfMarker } from "./issue-duplicates";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { useIssueSurfaceSelection } from "../surface/selection-context";
 import { useLocale } from "../../i18n";
@@ -87,9 +90,10 @@ function ListRowContent({
     <IssueActionsContextMenu issue={issue}>
       <div
         ref={containerRef}
+        data-slot="issue-list-row"
         style={containerStyle}
         {...containerProps}
-        className={`group/row flex h-9 items-center gap-2 px-4 text-body transition-colors ${
+        className={`group/row flex h-[var(--issue-row-height)] items-center gap-2 px-4 text-body transition-colors ${
           selected
             ? "bg-surface-selected hover:not-data-[popup-open]:bg-surface-selected data-[popup-open]:bg-surface-selected"
             : "hover:not-data-[popup-open]:bg-surface-hover data-[popup-open]:bg-surface-hover"
@@ -99,16 +103,17 @@ function ListRowContent({
           className="relative flex shrink-0 items-center justify-center w-4 h-4"
           {...checkboxProps}
         >
-          <PriorityIcon
-            priority={issue.priority}
-            className={selected ? "hidden" : "group-hover/row:hidden"}
-          />
-          <input
-            type="checkbox"
+          {storeProperties.priority && issue.priority !== "none" && (
+            <PriorityIcon
+              priority={issue.priority}
+              className={selected ? "hidden" : "group-hover/row:hidden"}
+            />
+          )}
+          <Checkbox
             checked={selected}
-            onChange={() => toggle(issue.id)}
-            className={`absolute inset-0 cursor-pointer accent-primary ${
-              selected ? "" : "hidden group-hover/row:block"
+            onCheckedChange={() => toggle(issue.id)}
+            className={`absolute inset-0 cursor-pointer ${
+              selected ? "" : "hidden group-hover/row:flex"
             }`}
           />
         </div>
@@ -124,9 +129,10 @@ function ListRowContent({
 
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
             <span className="truncate">{issue.title}</span>
-            {/* List sections are categories, so a custom status needs to name
-                itself on the row. Silent for built-ins. (MUL-6243) */}
+            {/* Keep custom names visible when this row appears outside a status section. */}
             <CustomStatusChip status={issue.status} className="shrink-0" />
+            {issue.recurrence_id ? <RecurringBadge /> : null}
+            <IssueDuplicateOfMarker issue={issue} insideLink />
             {showChildProgress && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5">
                 <ProgressRing done={childProgress!.done} total={childProgress!.total} size={14} />

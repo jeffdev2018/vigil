@@ -30,15 +30,25 @@ vi.mock("./components/chat-input", () => ({
 vi.mock("./components/chat-thread-list", () => ({
   ChatThreadList: ({
     onSelectSession,
+    onArchive,
   }: {
     onSelectSession: (s: { id: string; agent_id: string }) => void;
+    onArchive: (s: { id: string; agent_id: string }) => void;
   }) => (
-    <button
-      type="button"
-      onClick={() => onSelectSession({ id: "session-9", agent_id: "agent-9" })}
-    >
-      select-thread
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => onSelectSession({ id: "session-9", agent_id: "agent-9" })}
+      >
+        select-thread
+      </button>
+      <button
+        type="button"
+        onClick={() => onArchive({ id: "session-1", agent_id: "agent-1" })}
+      >
+        archive-thread
+      </button>
+    </>
   ),
 }));
 vi.mock("./components/chat-session-header", () => ({
@@ -110,11 +120,28 @@ const storeListeners = vi.hoisted(() => new Set<() => void>());
 const availableAgentsRef = vi.hoisted(() => ({ current: [] as Agent[] }));
 const agentsSettledRef = vi.hoisted(() => ({ current: true }));
 const mockStartNewChat = vi.hoisted(() => vi.fn());
+// Archiving fails when this is set, so the page's selection rollback is
+// observable through the store snapshot below.
+const archiveFails = vi.hoisted(() => ({ current: false }));
 const mockToastError = vi.hoisted(() => vi.fn());
 const mockSetActiveSession = vi.hoisted(() =>
   vi.fn((id: string | null) => {
     storeRef.current = { ...storeRef.current, activeSessionId: id };
     storeListeners.forEach((l) => l());
+  }),
+);
+// Left side-effect-free on purpose: applying a selection is the controller's
+// job (covered in use-chat-controller.test.tsx). What the page owns — and what
+// these tests assert — is WHICH session it asks for, and when.
+const mockSelectSession = vi.hoisted(() => vi.fn());
+// The displayed, non-archived history the shared archive flow walks to pick
+// the chat that replaces an archived one (see use-archive-session-flow).
+const historyRef = vi.hoisted(() => ({
+  current: [] as Array<{ id: string; agent_id: string; status: string }>,
+}));
+const mockArchiveSession = vi.hoisted(() =>
+  vi.fn((_id: string, options?: { onError?: () => void }) => {
+    if (archiveFails.current) options?.onError?.();
   }),
 );
 const subscribeToStore = vi.hoisted(() => (cb: () => void) => {
@@ -173,9 +200,9 @@ vi.mock("./components/use-chat-controller", async () => {
       handleUploadFile: vi.fn(),
       handleNewChat: vi.fn(),
       handleStartNewChat: mockStartNewChat,
-      handleSelectSession: vi.fn(),
-      advanceSelectionAfterArchive: vi.fn(),
-      archiveSession: vi.fn(),
+      handleSelectSession: mockSelectSession,
+      historySessions: historyRef.current,
+      archiveSession: mockArchiveSession,
       setActiveSession: mockSetActiveSession,
       setSelectedAgentId: vi.fn(),
     }),
@@ -249,6 +276,8 @@ beforeEach(() => {
   storeListeners.clear();
   availableAgentsRef.current = [agent];
   agentsSettledRef.current = true;
+  archiveFails.current = false;
+  historyRef.current = [];
   layout.width = DESKTOP;
 });
 
@@ -399,5 +428,56 @@ describe("ChatPage responsive layout", () => {
       screen.getByRole("button", { name: "select-thread" }),
     ).toBeInTheDocument();
     expect(screen.getByText("chat-input")).toBeInTheDocument();
+  });
+});
+
+// The move / rollback matrix itself belongs to the shared flow
+// (components/use-archive-session-flow.test.tsx), including the fact that a
+// caller-supplied move replaces the default advance — which is how this page
+// drops back to the list when compact. What these pin is that the page's
+// archive entry point runs that flow at all.
+describe("ChatPage archive", () => {
+  beforeEach(() => {
+    historyRef.current = [
+      { id: "session-1", agent_id: "agent-1", status: "active" },
+      { id: "session-next", agent_id: "agent-1", status: "active" },
+    ];
+  });
+
+  it("moves the selection off the archived conversation", () => {
+    storeRef.current = { activeSessionId: "session-1" };
+    renderPage("session=session-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "archive-thread" }));
+
+    expect(mockSelectSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "session-next" }),
+    );
+    expect(mockArchiveSession).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  // The selection move is optimistic: a failed archive has to put the user
+  // back on the conversation that is still in the list, not leave them
+  // reading another one.
+  it("restores the selection when the server refuses the archive", () => {
+    archiveFails.current = true;
+    storeRef.current = { activeSessionId: "session-1" };
+    renderPage("session=session-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "archive-thread" }));
+
+    // Moved off it, then asked for the archived conversation back.
+    expect(mockSelectSession.mock.calls[0]?.[0]).toMatchObject({
+      id: "session-next",
+    });
+    expect(mockSelectSession).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "session-1" }),
+    );
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Couldn't archive the conversation",
+    );
   });
 });

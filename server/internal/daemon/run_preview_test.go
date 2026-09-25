@@ -122,7 +122,7 @@ func TestPreviewStartProbeAndStop(t *testing.T) {
 
 	task := Task{ID: "11111111-1111-1111-1111-111111111111"}
 	env := map[string]string{"MULTICA_PORT_BASE": strconv.Itoa(port), "MULTICA_PORT_COUNT": "10"}
-	d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), envRoot, env, lifecycleTestLogger())
+	<-d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), envRoot, env, lifecycleTestLogger())
 
 	if len(*reports) == 0 {
 		t.Fatal("no preview was reported")
@@ -179,7 +179,7 @@ func TestPreviewScriptThatNeverAnswersReportsError(t *testing.T) {
 	defer restore()
 
 	task := Task{ID: "22222222-2222-2222-2222-222222222222"}
-	d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), envRoot,
+	<-d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), envRoot,
 		map[string]string{"MULTICA_PORT_BASE": strconv.Itoa(port)}, lifecycleTestLogger())
 	defer d.stopRunPreview(task.ID, lifecycleTestLogger())
 
@@ -198,7 +198,7 @@ func TestPreviewScriptThatNeverAnswersReportsError(t *testing.T) {
 // A run with no `run` script declares nothing at all. Most runs are this one.
 func TestPreviewWithoutARunScriptDeclaresNothing(t *testing.T) {
 	d, reports := previewTestDaemon(t)
-	d.startRunPreview(context.Background(), Task{ID: "33333333-3333-3333-3333-333333333333"},
+	<-d.startRunPreview(context.Background(), Task{ID: "33333333-3333-3333-3333-333333333333"},
 		nil, t.TempDir(), t.TempDir(), nil, lifecycleTestLogger())
 	if len(*reports) != 0 {
 		t.Fatalf("reports = %+v, want none", *reports)
@@ -212,7 +212,7 @@ func TestPreviewFetchRelaysTheLocalResponse(t *testing.T) {
 	d, _ := previewTestDaemon(t)
 
 	task := Task{ID: "44444444-4444-4444-4444-444444444444"}
-	d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), t.TempDir(),
+	<-d.startRunPreview(context.Background(), task, []string{script}, t.TempDir(), t.TempDir(),
 		map[string]string{"MULTICA_PORT_BASE": strconv.Itoa(port)}, lifecycleTestLogger())
 	defer d.stopRunPreview(task.ID, lifecycleTestLogger())
 
@@ -300,5 +300,30 @@ func TestPreviewLogTailIsBounded(t *testing.T) {
 	tail := previewLogTail(envRoot)
 	if len(tail) > lifecycleOutputLimit+4 {
 		t.Fatalf("tail is %d bytes, want it bounded near %d", len(tail), lifecycleOutputLimit)
+	}
+}
+
+// runTask defers stopRunPreview right after starting the preview, and several
+// preparation failures return immediately after. The stop must always find the
+// preview: a registration that lands after it would leave the run script
+// running, and its port bound, for the life of the daemon.
+func TestPreviewStopRightAfterStartKillsTheScript(t *testing.T) {
+	workDir := t.TempDir()
+	script := fakeScript(t, "run.sh", `i=0; while :; do i=$((i+1)); echo $i > "$PWD/beat"; sleep 0.05; done`)
+	d, _ := previewTestDaemon(t)
+
+	for i := 0; i < 20; i++ {
+		task := Task{ID: fmt.Sprintf("66666666-6666-6666-6666-%012d", i)}
+		_ = os.Remove(filepath.Join(workDir, "beat"))
+		d.startRunPreview(context.Background(), task, []string{script}, workDir, t.TempDir(),
+			map[string]string{"MULTICA_PORT_BASE": strconv.Itoa(freeTestPort(t))}, lifecycleTestLogger())
+		d.stopRunPreview(task.ID, lifecycleTestLogger())
+
+		before, _ := os.ReadFile(filepath.Join(workDir, "beat"))
+		time.Sleep(300 * time.Millisecond)
+		after, _ := os.ReadFile(filepath.Join(workDir, "beat"))
+		if string(before) != string(after) {
+			t.Fatalf("iteration %d: the run script is still running after the stop (beat %q -> %q)", i, before, after)
+		}
 	}
 }

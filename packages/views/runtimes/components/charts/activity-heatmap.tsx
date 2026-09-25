@@ -259,7 +259,7 @@ export function ActivityHeatmap({
                 <title>
                   {c.date}:{" "}
                   {c.cost > 0
-                    ? `$${c.cost.toFixed(2)}`
+                    ? formatUsd(c.cost)
                     : t(($) => $.charts.heatmap_no_activity)}
                 </title>
               </rect>

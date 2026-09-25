@@ -202,12 +202,3 @@ func EstimateTicks(usage Usage) int64 {
 		float64(usage.CacheWriteTokens)*rate.CacheWrite) / 1_000_000
 	return authoritative + int64(math.Round(estimatedUSD*float64(TicksPerUSD)))
 }
-
-// EstimateTotalTicks prices a complete run composed of multiple usage rows.
-func EstimateTotalTicks(rows []Usage) int64 {
-	var total int64
-	for _, row := range rows {
-		total += EstimateTicks(row)
-	}
-	return total
-}

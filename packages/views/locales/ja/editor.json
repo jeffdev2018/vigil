@@ -41,9 +41,6 @@
     "link_copied": "リンクをコピーしました",
     "copy_link_failed": "リンクをコピーできませんでした",
     "canvas_label": "画像キャンバス。ドラッグで移動、スクロールで拡大縮小、ダブルクリックで実際のサイズに切り替えできます。",
-    "previous": "前の画像",
-    "next": "次の画像",
-    "sequence_position": "{{index}} / {{total}}",
     "unavailable": "この画像は表示できないためスキップしました。"
   },
   "canvas": {
@@ -54,6 +51,7 @@
   },
   "attachment": {
     "download_failed": "ダウンロードリンクを取得できませんでした。しばらくしてからもう一度お試しください。",
+    "preview_fallback_title": "HTML 添付ファイル",
     "preview": "プレビュー",
     "preview_loading": "プレビューを読み込み中…",
     "preview_failed": "プレビューを読み込めませんでした",
@@ -61,7 +59,10 @@
     "preview_unsupported": "このファイル形式はプレビューできません。",
     "close": "閉じる",
     "open_in_new_tab": "新しいタブで開く",
-    "remove": "添付ファイルを削除"
+    "remove": "添付ファイルを削除",
+    "previous": "前へ",
+    "next": "次へ",
+    "sequence_position": "{{index}} / {{total}}"
   },
   "link_hover": {
     "copy_link": "リンクをコピー",
@@ -80,7 +81,8 @@
     "group_current": "現在のページ",
     "group_recent": "最近見た項目",
     "group_search": "検索結果",
-    "group_cancelled": "キャンセル済み"
+    "group_cancelled": "キャンセル済み",
+    "note_not_found": "ノートが見つかりません"
   },
   "code_block": {
     "html_preview": "HTML プレビュー",
@@ -106,6 +108,7 @@
   "mermaid": {
     "diagram_label": "Mermaid 図",
     "render_error": "Mermaid ダイアグラムを描画できません。",
+    "render_error_detail": "ダイアグラムの描画に失敗しました。",
     "rendering": "ダイアグラムを描画中…",
     "viewer_title": "ダイアグラム",
     "canvas_label": "ダイアグラムキャンバス。ドラッグで移動、スクロールで拡大縮小できます。",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -285,10 +286,10 @@ func (h *Hub) forgetRuntimeGoneSeen(eventID string) {
 }
 
 // HeartbeatHandler processes a daemon:heartbeat frame. It must verify that
-// runtimeID is one of identity.RuntimeIDs (the connection's authenticated
+// payload.RuntimeID is one of identity.RuntimeIDs (the connection's authenticated
 // scope) and return the ack payload to send back. Returning an error skips
 // the ack and is logged at debug level.
-type HeartbeatHandler func(ctx context.Context, identity ClientIdentity, runtimeID string, supportsBatchImport bool) (*protocol.DaemonHeartbeatAckPayload, error)
+type HeartbeatHandler func(ctx context.Context, identity ClientIdentity, payload protocol.DaemonHeartbeatRequestPayload) (*protocol.DaemonHeartbeatAckPayload, error)
 
 // RPCHandler processes a generic daemon:rpc_request (MUL-4257). It dispatches
 // on method (e.g. "tasks.claim"), scoping work to identity (DaemonID +
@@ -449,13 +450,26 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request, identity C
 
 // NotifyTaskAvailable sends a best-effort wakeup to daemons watching runtimeID.
 func (h *Hub) NotifyTaskAvailable(runtimeID, taskID string) {
-	h.notifyTaskAvailable(runtimeID, taskID, "")
+	h.notifyTask(protocol.EventDaemonTaskAvailable, runtimeID, taskID, "")
+}
+
+// NotifyTaskSupplementAvailable wakes only the daemon that owns runtimeID;
+// the task ID lets that daemon wake the matching in-flight run without polling
+// or disturbing the machine-level new-task claim loop.
+func (h *Hub) NotifyTaskSupplementAvailable(runtimeID, taskID string) {
+	h.notifyTask(protocol.EventDaemonTaskSupplementAvailable, runtimeID, taskID, "")
 }
 
 // NotifyRuntimeProfilesChanged asks connected daemons in workspaceID to pull
 // runtime profiles after a create, update, disable, or delete.
 func (h *Hub) NotifyRuntimeProfilesChanged(workspaceID, profileID string) {
 	h.notifyRuntimeProfilesChanged(workspaceID, profileID, "")
+}
+
+// NotifyRunHaltChanged asks connected daemons in workspaceID to reconcile
+// control status immediately after the workspace halt flipped (JEF-257).
+func (h *Hub) NotifyRunHaltChanged(workspaceID string) {
+	h.notifyRunHaltChanged(workspaceID, "")
 }
 
 // NotifyWorkspacesChanged asks every connected daemon authenticated as userID
@@ -480,11 +494,11 @@ func (h *Hub) NotifyRuntimeGone(runtimeID string) {
 	h.notifyRuntimeGone(runtimeID, "")
 }
 
-func (h *Hub) notifyTaskAvailable(runtimeID, taskID, eventID string) {
-	if h == nil || runtimeID == "" {
+func (h *Hub) notifyTask(eventType, runtimeID, taskID, eventID string) {
+	if h == nil || runtimeID == "" || (eventType == protocol.EventDaemonTaskSupplementAvailable && taskID == "") {
 		return
 	}
-	data, err := taskAvailableFrame(runtimeID, taskID)
+	data, err := taskWakeupFrame(eventType, runtimeID, taskID)
 	if err != nil {
 		return
 	}
@@ -501,6 +515,17 @@ func (h *Hub) notifyRuntimeProfilesChanged(workspaceID, profileID, eventID strin
 		return
 	}
 	data, err := runtimeProfilesChangedFrame(workspaceID, profileID)
+	if err != nil {
+		return
+	}
+	h.notifyWorkspaceFrame(workspaceID, data, eventID)
+}
+
+func (h *Hub) notifyRunHaltChanged(workspaceID, eventID string) {
+	if h == nil || workspaceID == "" {
+		return
+	}
+	data, err := runHaltChangedFrame(workspaceID)
 	if err != nil {
 		return
 	}
@@ -613,10 +638,10 @@ func (h *Hub) DeliverDaemonRuntime(scopeID string, frame []byte, eventID string)
 		M.WakeupReceivedTotal.Add(1)
 	}
 	switch msg.Type {
-	case protocol.EventDaemonTaskAvailable:
+	case protocol.EventDaemonTaskAvailable, protocol.EventDaemonTaskSupplementAvailable:
 		var payload protocol.TaskAvailablePayload
-		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.RuntimeID == "" {
-			slog.Debug("daemon websocket relay: invalid task_available payload", "error", err, "scope_id", scopeID, "event_id", eventID)
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.RuntimeID == "" || (msg.Type == protocol.EventDaemonTaskSupplementAvailable && payload.TaskID == "") {
+			slog.Debug("daemon websocket relay: invalid task wakeup payload", "type", msg.Type, "error", err, "scope_id", scopeID, "event_id", eventID)
 			M.WakeupDeliveredMiss.Add(1)
 			return
 		}
@@ -630,6 +655,19 @@ func (h *Hub) DeliverDaemonRuntime(scopeID string, frame []byte, eventID string)
 		var payload protocol.RuntimeProfilesChangedPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.WorkspaceID == "" {
 			slog.Debug("daemon websocket relay: invalid runtime_profiles_changed payload", "error", err, "scope_id", scopeID, "event_id", eventID)
+			M.WakeupDeliveredMiss.Add(1)
+			return
+		}
+		delivered, deduped := h.notifyWorkspaceFrame(payload.WorkspaceID, frame, eventID)
+		if delivered {
+			M.WakeupDeliveredHit.Add(1)
+		} else if !deduped {
+			M.WakeupDeliveredMiss.Add(1)
+		}
+	case protocol.EventDaemonRunHaltChanged:
+		var payload protocol.RunHaltChangedPayload
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.WorkspaceID == "" {
+			slog.Debug("daemon websocket relay: invalid run_halt_changed payload", "error", err, "scope_id", scopeID, "event_id", eventID)
 			M.WakeupDeliveredMiss.Add(1)
 			return
 		}
@@ -762,9 +800,9 @@ func (h *Hub) notifyUserFrame(userID string, data []byte, eventID string) (deliv
 	return delivered, deduped
 }
 
-func taskAvailableFrame(runtimeID, taskID string) ([]byte, error) {
+func taskWakeupFrame(eventType, runtimeID, taskID string) ([]byte, error) {
 	return json.Marshal(protocol.Message{
-		Type: protocol.EventDaemonTaskAvailable,
+		Type: eventType,
 		Payload: mustMarshalRaw(protocol.TaskAvailablePayload{
 			RuntimeID: runtimeID,
 			TaskID:    taskID,
@@ -778,6 +816,15 @@ func runtimeProfilesChangedFrame(workspaceID, profileID string) ([]byte, error) 
 		Payload: mustMarshalRaw(protocol.RuntimeProfilesChangedPayload{
 			WorkspaceID:      workspaceID,
 			RuntimeProfileID: profileID,
+		}),
+	})
+}
+
+func runHaltChangedFrame(workspaceID string) ([]byte, error) {
+	return json.Marshal(protocol.Message{
+		Type: protocol.EventDaemonRunHaltChanged,
+		Payload: mustMarshalRaw(protocol.RunHaltChangedPayload{
+			WorkspaceID: workspaceID,
 		}),
 	})
 }
@@ -1032,6 +1079,15 @@ func (c *client) handleRPCFrame(raw json.RawMessage) {
 	}
 	go func() {
 		defer func() { <-c.rpcSem }()
+		// The handler runs outside any HTTP middleware, so a panic here would
+		// take the whole server down. Recover it and answer 500 so the daemon
+		// falls back to HTTP.
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("daemon websocket rpc handler panicked", "method", req.Method, "daemon_id", c.identity.DaemonID, "panic", r, "stack", string(debug.Stack()))
+				c.sendRPCResponse(req.RequestID, http.StatusInternalServerError, nil, "internal error")
+			}
+		}()
 		// Bound server-side execution by the caller's requested budget (in
 		// addition to the connection ctx), so a slow RPC is cancelled — and its
 		// work rolled back — rather than committing after the daemon has already
@@ -1113,7 +1169,7 @@ func (c *client) handleHeartbeatFrame(raw json.RawMessage) {
 	// that keeps the HTTP heartbeat from putting a per-call timeout on
 	// PopPending. The natural bound is the read pump's lifetime (the conn
 	// closes if the daemon goes away) plus Redis's own server-side limits.
-	ack, err := handler(context.Background(), c.identity, payload.RuntimeID, payload.SupportsBatchImport)
+	ack, err := handler(context.Background(), c.identity, payload)
 	if err != nil {
 		slog.Warn("daemon websocket heartbeat handler failed",
 			"error", err,

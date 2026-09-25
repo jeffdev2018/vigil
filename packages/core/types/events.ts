@@ -9,6 +9,7 @@ import type { Project } from "./project";
 import type { Cycle } from "./cycle";
 import type { Label } from "./label";
 import type { Postmortem } from "./postmortem";
+import type { Followup } from "./followup";
 
 // WebSocket event types (matching Go server protocol/events.go)
 export type WSEventType =
@@ -18,6 +19,7 @@ export type WSEventType =
   | "issue:deleted"
   | "issue:aux_changed"
   | "comment:created"
+  | "delivery:changed"
   | "comment:updated"
   | "comment:deleted"
   | "comment:resolved"
@@ -38,6 +40,9 @@ export type WSEventType =
   | "task:scored"
   | "task:escalated"
   | "task:workflow-selected"
+  // Inline approvals (OS plan, chantier 3): an ask appeared or was settled.
+  | "approval:asked"
+  | "approval:decided"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -125,13 +130,59 @@ export type WSEventType =
   | "workspace_note:created"
   | "workspace_note:updated"
   | "workspace_note:deleted"
+  // Brain capture inbox (OS plan, vague B): one event for every capture
+  // transition — captured, transcribed, suggested, note, merge, discard,
+  // reopened, deleted. Payload: {capture_id, status, change}.
+  | "brain_capture:changed"
+  // Follow-ups (OS plan, vague B, réveil programmé): a deferred wake-up of an
+  // issue's agent was scheduled or cancelled — by a member, an agent run, the
+  // CLI or MCP. Payload: {issue_id, followup_id, change, followup?}.
+  | "followup:changed"
+  // Recurring issues (OS plan, table stakes): a recurrence rule was created,
+  // updated or cleared on an issue. New occurrences arrive through the normal
+  // issue:created event. Payload: {issue_id, recurrence_id, change}.
+  | "issue_recurrence:changed"
   | "cross_review:queued"
   | "cross_review:report"
   | "cross_review:rework"
   | "cross_review:escalated"
   | "critic_verdict:created"
   | "critic_verdict:relaunch"
-  | "run_preview:updated";
+  | "run_preview:updated"
+  // Runs fleet page (OS plan, chantier 4): the kill switch and a plain
+  // halt/lift both publish this. `cancelled` is present only for the kill
+  // switch, which halts then cancels every run not already over.
+  | "run_halt:changed"
+  // Native calendar (OS plan, chantier 19): an event was created, updated,
+  // its status changed (scheduled/cancelled, including a proposal's
+  // accept/decline), or a participant answered.
+  | "calendar:changed"
+  // Workspace doctrine (OS plan, chantier 22): a revision was published, one
+  // was proposed for review, a proposal was approved/rejected, or a report
+  // was filed or resolved.
+  | "doctrine:changed"
+  // Packs (OS plan, vague B): a pack was installed, upgraded or removed.
+  | "pack:changed"
+  // Contest (K72, JEF-301): a rival model's objections, an answer, or a
+  // human verdict moved the contest's status. One event for every step.
+  | "contest:updated"
+  // Project resources (JEF-301): a project's linked resource was added,
+  // edited, or removed.
+  | "project_resource:created"
+  | "project_resource:updated"
+  | "project_resource:deleted"
+  // Goal loop (JEF-301): an issue's stated goal was set, its state advanced,
+  // or it was cleared.
+  | "goal:created"
+  | "goal:updated"
+  | "goal:deleted"
+  // Saved issue views (JEF-301): a view was created, edited, or removed.
+  | "issue_view:created"
+  | "issue_view:updated"
+  | "issue_view:deleted"
+  // Decision memory (K29, JEF-301): a decision was recorded on a project's
+  // issue.
+  | "decision:created";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -163,6 +214,10 @@ export interface IssueUpdatedPayload {
   // delegates server-side, the involved list. Absent on an older backend,
   // which has no delegates to move anything.
   delegate_changed?: boolean;
+  // Both ends of a duplicate-mark change (MUL-7349). The mark is not on Issue,
+  // so these tell the realtime layer whose duplicate relations to refresh.
+  duplicate_of_issue_id?: string | null;
+  prev_duplicate_of_issue_id?: string | null;
 }
 
 export interface IssueDeletedPayload {
@@ -233,6 +288,15 @@ export interface AgentArchivedPayload {
 
 export interface AgentRestoredPayload {
   agent: Agent;
+}
+
+/** approval:asked / approval:decided — the feed behind every inline card is stale. */
+export interface ApprovalEventPayload {
+  source: "decision" | "transition" | "goal_question" | (string & {});
+  id: string;
+  issue_id: string;
+  kind: string;
+  outcome?: string;
 }
 
 export interface InboxNewPayload {
@@ -332,6 +396,86 @@ export interface RunPreviewUpdatedPayload {
   status: string;
 }
 
+/**
+ * Fleet halt (K05 / m169 / OS chantier 4). `run_halt` is the same shape
+ * `GET /api/run-halt` returns — kept as `unknown` here rather than importing
+ * the zod-inferred `RunHalt` type, since events.ts stays dependency-free from
+ * feature schemas; consumers read it through `runHaltOptions`'s own query
+ * instead of this payload. `cancelled` is present only on a kill switch.
+ */
+export interface RunHaltChangedPayload {
+  run_halt: unknown;
+  cancelled?: number;
+}
+
+/**
+ * Native calendar (OS plan, chantier 19). A change hint, not a row: fired on
+ * create, update, a status change (scheduled/cancelled, including a
+ * proposal's accept/decline through its Decision Card), and a participant's
+ * response — listeners invalidate the calendar queries rather than merging
+ * this, the same choice `MeetingEventPayload` makes for meetings.
+ */
+/**
+ * Follow-ups (OS plan, vague B, réveil programmé): a deferred wake-up of an
+ * issue's agent was scheduled or cancelled — by a member, an agent run, the
+ * CLI or MCP. `followup` rides along on "scheduled" only; a cancel carries the
+ * id alone, so listeners refetch the issue's pending list rather than merging.
+ * `change` is open on the wire — read it with a `default` branch.
+ */
+export interface FollowupChangedPayload {
+  issue_id: string;
+  followup_id: string;
+  change: "scheduled" | "cancelled" | (string & {});
+  followup?: Followup;
+}
+
+/**
+ * Recurring issues (OS plan, table stakes): the standing order on an issue was
+ * created, updated or cleared. The rule belongs to the whole series, so the
+ * payload names the issue it was filed from rather than every member —
+ * listeners refetch the series instead of merging. `change` is open on the
+ * wire: read it with a `default` branch.
+ */
+export interface IssueRecurrenceChangedPayload {
+  issue_id: string;
+  recurrence_id: string;
+  change: "created" | "updated" | "cleared" | (string & {});
+}
+
+export interface CalendarChangedPayload {
+  event_id: string;
+  issue_id: string | null;
+  status: string;
+  starts_at: string;
+}
+
+/**
+ * Workspace doctrine (OS plan, chantier 22). A change hint, not a row: the
+ * doctrine, its version ledger and its reports are all read back from the
+ * API, so listeners invalidate the doctrine queries rather than merging this.
+ * `change` is one of published | proposed | rejected | reported |
+ * report_acknowledged | report_dismissed — read it with a `default` branch.
+ */
+export interface DoctrineChangedPayload {
+  revision: number;
+  change: string;
+  version_id?: string;
+  report_id?: string;
+  pending_version_id?: string;
+}
+
+/**
+ * Packs (OS plan, vague B). A change hint, not a row: the catalogue, the
+ * install ledger and each install's items are all read back from the API, so
+ * listeners invalidate the pack queries rather than merging this. `change` is
+ * one of installed | uninstalled — read it with a `default` branch.
+ */
+export interface PackChangedPayload {
+  pack_id: string;
+  version: string;
+  change: string;
+}
+
 export interface CrossReviewEventPayload {
   issue_id: string;
   review_task_id?: string;
@@ -418,6 +562,8 @@ export interface ActivityCreatedPayload {
 }
 
 export interface TaskMessagePayload {
+  /** Opaque tool-call identity, scoped to one backend execution. */
+  call_id?: string;
   task_id: string;
   issue_id: string;
   chat_session_id?: string;
@@ -446,6 +592,18 @@ export interface TaskMessagePayload {
   content?: string;
   input?: Record<string, unknown>;
   output?: string;
+  /**
+   * Whether `output` is the whole tool output that ran (`tool_result` only).
+   *
+   * Tri-state on purpose. `undefined` means no daemon ever measured this
+   * record — messages stored before the flag existed, and messages from an
+   * older installed daemon — and must be presented as unknown, never as
+   * complete: the original length is gone and cannot be reconstructed.
+   * `true` means the remainder was never uploaded and no amount of expanding
+   * or scrolling recovers it, which is what separates it from a client-side
+   * display clip.
+   */
+  output_truncated?: boolean;
   created_at?: string;
 }
 
@@ -787,6 +945,16 @@ export interface InvitationRevokedPayload {
   invitee_email: string;
 }
 
+export interface DeliveryChangedPayload {
+  issue_id?: string;
+}
+
+export interface BrainCaptureChangedPayload {
+  capture_id: string;
+  status: string;
+  change: string;
+}
+
 export interface ChatSessionCreatedPayload {
   workspace_id: string;
   chat_session_id: string;
@@ -818,10 +986,12 @@ export interface WSEventPayloadMap {
   "issue:created": IssueCreatedPayload;
   "issue:updated": IssueUpdatedPayload;
   "issue:deleted": IssueDeletedPayload;
+  "delivery:changed": DeliveryChangedPayload;
   /** An answer given outside the web app (a decision card answered from Slack). */
   "issue:aux_changed": { issue_id?: string };
   "issue_attachments:changed": IssueAttachmentsChangedPayload;
   "issue_labels:changed": IssueLabelsChangedPayload;
+  "issue_metadata:changed": IssueMetadataChangedPayload;
   "issue_properties:changed": IssuePropertiesChangedPayload;
   "property:created": PropertyChangedPayload;
   "property:updated": PropertyChangedPayload;
@@ -856,6 +1026,8 @@ export interface WSEventPayloadMap {
   "task:escalated": TaskEscalatedPayload;
   "task:workflow-selected": TaskWorkflowSelectedPayload;
   "task:progress": unknown;
+  "approval:asked": ApprovalEventPayload;
+  "approval:decided": ApprovalEventPayload;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;
   "inbox:unread": InboxUnreadPayload;
@@ -936,6 +1108,31 @@ export interface WSEventPayloadMap {
   "critic_verdict:created": CriticVerdictEventPayload;
   "critic_verdict:relaunch": CriticVerdictEventPayload;
   "run_preview:updated": RunPreviewUpdatedPayload;
+  "run_halt:changed": RunHaltChangedPayload;
+  "calendar:changed": CalendarChangedPayload;
+  "followup:changed": FollowupChangedPayload;
+  "issue_recurrence:changed": IssueRecurrenceChangedPayload;
+  "doctrine:changed": DoctrineChangedPayload;
+  "pack:changed": PackChangedPayload;
+  "brain_capture:changed": BrainCaptureChangedPayload;
+  // Field shape is inconsistent across server emitters (some send `note`,
+  // one sends `note_id`), so there is no single honest interface yet.
+  "workspace_note:created": unknown;
+  "workspace_note:updated": unknown;
+  "workspace_note:deleted": unknown;
+  // No formal payload interfaces yet — refreshMap handlers for these (JEF-301)
+  // only need the event prefix, not the payload.
+  "contest:updated": unknown;
+  "project_resource:created": unknown;
+  "project_resource:updated": unknown;
+  "project_resource:deleted": unknown;
+  "goal:created": unknown;
+  "goal:updated": unknown;
+  "goal:deleted": unknown;
+  "issue_view:created": unknown;
+  "issue_view:updated": unknown;
+  "issue_view:deleted": unknown;
+  "decision:created": unknown;
 }
 
 /**
@@ -946,3 +1143,13 @@ export interface WSEventPayloadMap {
  */
 export type WSEventPayload<E extends WSEventType> =
   E extends keyof WSEventPayloadMap ? WSEventPayloadMap[E] : unknown;
+
+// Compile-time completeness check. WSEventPayload's fallback above means a
+// WSEventType missing from WSEventPayloadMap degrades silently to `unknown`
+// instead of erroring — exactly how 6 events went unmapped unnoticed. This
+// makes that omission a typecheck failure instead.
+type _MissingWSEventPayloadMapEntries = Exclude<WSEventType, keyof WSEventPayloadMap>;
+const _assertWSEventPayloadMapComplete: [_MissingWSEventPayloadMapEntries] extends [never]
+  ? true
+  : ["WSEventPayloadMap is missing an entry for:", _MissingWSEventPayloadMapEntries] = true;
+void _assertWSEventPayloadMapComplete;

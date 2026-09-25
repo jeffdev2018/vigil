@@ -586,6 +586,10 @@ func (h *Handler) DeleteCycle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete cycle history")
 		return
 	}
+	if err := qtx.DeleteCycleActorCapacitiesByCycle(r.Context(), db.DeleteCycleActorCapacitiesByCycleParams{CycleID: cycle.ID, WorkspaceID: wsUUID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete cycle capacities")
+		return
+	}
 	if err := qtx.DeleteIssueViewsByProjectScope(r.Context(), db.DeleteIssueViewsByProjectScopeParams{WorkspaceID: wsUUID, ScopeID: cycle.ID}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete cycle views")
 		return

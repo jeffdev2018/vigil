@@ -2,11 +2,14 @@ package handler
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
 // The claim's serialization key, and what F11 changed about it.
@@ -237,25 +240,52 @@ func TestClaimAgentTask_QuickCreateSerializationUnchangedByRunGroups(t *testing.
 	}
 }
 
-// A private runtime still only serves its owner's agents, group or no group.
+// A private runtime still never RUNS a foreign agent, group or no group. What
+// changed is where that is settled: the SQL claim no longer filters an owner
+// mismatch out, so the delivery gate — which holds the runtime row FOR UPDATE —
+// can refuse it and fail the task with a reason the user can read, instead of
+// leaving it queued in silence until the TTL. Asserting on the SQL claim alone
+// would now pass on a build that delivered the task anyway, so this reads the
+// only two things that matter: nothing was handed to the daemon, and the task
+// settled as runtime_access_denied.
+//
 // The F11 conjunct sits inside the exclusion, not in the visibility gate, but
-// this is the threat model a rewrite of the query would most easily undo.
+// a grouped attempt is the path a rewrite of the query would most easily open.
 func TestClaimAgentTask_PrivateRuntimeStillRefusesAForeignAgentsGroupedAttempt(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
 	fx := testutil.New(testPool, testWorkspaceID, testUserID)
 	otherUser := fx.User(t, "Claim Group Outsider", "claim-group-outsider@example.com")
-	runtimeID := fx.Runtime(t, "claim-private-runtime", testutil.Cols{"visibility": "private", "owner_id": otherUser})
-	agentID := fx.Agent(t, "claim-private-agent", runtimeID, testutil.Cols{"owner_id": testUserID})
-	issueID := fx.Issue(t, "a private runtime is not opened by racing")
+	fx.Member(t, testWorkspaceID, otherUser, "member")
+	runtimeID := createClaimReclaimRuntime(t, ctx, "Claim group private runtime")
+	agentID, issueID := createClaimReclaimAgentAndIssue(t, ctx, runtimeID, "Claim group private agent")
+	// The runtime belongs to someone else; the agent belongs to this user.
+	fx.Exec(t, `UPDATE agent_runtime SET visibility = 'private', owner_id = $1 WHERE id = $2`, otherUser, runtimeID)
+	fx.Exec(t, `UPDATE agent SET owner_id = $1 WHERE id = $2`, testUserID, agentID)
+
+	taskID := seedQueuedIssueTask(t, ctx, agentID, runtimeID, issueID)
 	groupID := fx.Insert(t, "run_group", testutil.Cols{
 		"workspace_id":  testWorkspaceID,
 		"issue_id":      issueID,
 		"created_by":    testUserID,
 		"attempt_count": 1,
 	})
-	fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID, "run_group_id": groupID})
+	fx.Exec(t, `UPDATE agent_task_queue SET run_group_id = $1 WHERE id = $2`, groupID, taskID)
 
-	if got := claimOnce(t, agentID, runtimeID); got != "" {
-		t.Fatalf("claimed %s on a private runtime owned by another user; want nothing", got)
+	req := newDaemonTokenRequest(http.MethodPost, "/api/daemon/runtimes/"+runtimeID+"/tasks/claim", nil,
+		testWorkspaceID, "claim-group-private")
+	req = withURLParam(req, "runtimeId", runtimeID)
+	w := testutil.Call(t, testHandler.ClaimTaskByRuntime, req).Want(http.StatusOK)
+	if strings.TrimSpace(w.Body.String()) != `{"task":null}` {
+		t.Fatalf("a grouped attempt was delivered on a foreign private runtime: %s", w.Body.String())
+	}
+
+	var status, failureReason string
+	fx.QueryRow(t, `SELECT status, failure_reason FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status, &failureReason)
+	if status != "failed" || failureReason != taskfailure.ReasonRuntimeAccessDenied.String() {
+		t.Fatalf("task state = %q/%q, want failed/%s", status, failureReason, taskfailure.ReasonRuntimeAccessDenied)
 	}
 }
 

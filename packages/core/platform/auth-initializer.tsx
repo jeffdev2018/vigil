@@ -103,6 +103,23 @@ export function AuthInitializer({
         // Absent on servers without a TTS provider: "read aloud" falls back
         // to the browser voice rather than disappearing.
         configStore.getState().setTtsAvailable(cfg.tts_available === true);
+        // Absent on servers without a configured model for the native
+        // runtime: the onboarding card stays disabled.
+        configStore
+          .getState()
+          .setNativeRuntimeAvailable(cfg.native_runtime_available === true);
+        configStore
+          .getState()
+          .setIssueCreatePropertiesSupported(
+            cfg.issue_create_properties_supported === true,
+          );
+        // Older servers delete a comment's replies with it; promise nothing
+        // about replies unless the server declares otherwise.
+        configStore
+          .getState()
+          .setCommentDeleteKeepRepliesSupported(
+            cfg.comment_delete_keep_replies_supported === true,
+          );
         if (cfg.posthog_key) {
           initAnalytics({
             key: cfg.posthog_key,

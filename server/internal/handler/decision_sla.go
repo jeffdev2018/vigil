@@ -100,12 +100,15 @@ func (h *Handler) notifyDecisionEscalated(ctx context.Context, d db.IssueDecisio
 	if err != nil {
 		return
 	}
-	details, _ := json.Marshal(map[string]any{
+	details, err := json.Marshal(map[string]any{
 		"decision_id":      uuidToString(d.ID),
 		"urgency":          d.Urgency,
 		"question":         d.Question,
 		"escalation_level": d.EscalationLevel,
 	})
+	if err != nil {
+		slog.Warn("decision sla: marshal escalation details failed", "decision_id", uuidToString(d.ID), "error", err)
+	}
 	wsID := uuidToString(d.WorkspaceID)
 	for _, rcpt := range h.escalationRecipients(ctx, d, sla) {
 		item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{

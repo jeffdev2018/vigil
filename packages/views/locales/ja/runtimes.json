@@ -13,7 +13,7 @@
     "filter_all_description": "このビューのすべてのランタイム",
     "empty": {
       "title": "まだランタイムがありません",
-      "hint": "デスクトップ版はこのコンピュータを自動でスキャンします。別のマシン — サーバー、開発用マシン、ターミナルのあるコンピュータ — を使うには、ここに追加してください。"
+      "hint": "デスクトップ版はこのコンピュータを自動検出します。他のコンピュータはここで接続できます。"
     },
     "no_matches": {
       "title": "一致する結果なし",
@@ -24,16 +24,15 @@
     },
     "bootstrapping": {
       "title": "ローカルランタイムを起動中…",
-      "hint": "通常は数秒かかります。デーモンがワークスペースに登録しています。"
+      "hint": "ワークスペースに接続中..."
     }
   },
   "mika_setup": {
     "title": "ランタイムの準備ができました。Mika と始めましょう。",
-    "description": "Mika は目標を課題に落とし込み、適切なエージェントを調整し、ワークフローに必要な再利用可能な specialist の追加を支援します。",
+    "description": "Mika にタスクの整理とエージェントの調整を任せましょう。",
     "action": "Mika と始める",
     "failed": "Mika を開始できませんでした",
     "dialog_title": "Mika をどこで実行しますか？",
-    "dialog_description": "Mika が使うランタイムを選んでください。後から設定で変更できます。",
     "cancel": "キャンセル"
   },
   "machine": {
@@ -47,6 +46,7 @@
     "section_remote": "リモート",
     "section_cloud": "クラウド",
     "this_machine": "このデバイス",
+    "unknown_machine": "不明なマシン",
     "cli_sign_in_needed": "サインインが必要",
     "local_badge": "ローカル · このマシン",
     "pending_custom_runtimes": "登録待ちのカスタムランタイム",
@@ -76,12 +76,13 @@
       "workload_hint": "実行中 {{running}} 件 · キュー待ち {{queued}} 件",
       "cli": "CLI",
       "cloud_worker": "クラウドワーカー",
-      "local_daemon": "ローカルデーモン"
+      "local_daemon": "ローカルデーモン",
+      "cloud_worker_named": "{{provider}} クラウド"
     },
     "rename": "マシンの名前を変更",
     "rename_dialog": {
       "title": "マシンの名前を変更",
-      "description": "このマシンに分かりやすい名前を付けます。このマシン上のすべてのランタイムに適用され、エージェントのランタイム選択時にも表示されます。",
+      "description": "このコンピュータと、そのすべてのランタイムに使われます。",
       "placeholder": "例：私の MacBook",
       "hint": "空欄にするとデバイスのデフォルト名を使用します。",
       "cancel": "キャンセル",
@@ -90,7 +91,8 @@
       "toast_saved": "マシンの名前を変更しました",
       "toast_cleared": "マシン名をクリアしました",
       "toast_failed": "マシンの名前変更に失敗しました"
-    }
+    },
+    "unassigned": "未割り当て"
   },
   "health": {
     "online": {
@@ -247,10 +249,12 @@
     "title": "コンピュータを追加",
     "description": "追加したいコンピュータで、この 2 つのコマンドを実行してください。デーモンがオンラインになった瞬間に検出します。",
     "step1_label": "Multica CLI をインストール",
+    "platform_group": "プラットフォームを選択",
+    "platform_macos_linux": "macOS / Linux",
+    "platform_windows": "Windows",
     "step2_label": "デーモンを起動",
     "step2_hint": "サインインのためにブラウザを開き、その後デーモンをバックグラウンドで実行し続けます。",
     "live_listening": "あなたのコンピュータを待っています",
-    "live_listening_hint": "デーモンが起動するとすぐに検出します — 通常は 1 分以内です。",
     "troubleshooting": "そのコンピュータでブラウザを開けませんか?",
     "trouble_intro": "ブラウザでのサインインの代わりにトークンを使ってください。手順 2 を置き換え、ターミナルがある場所ならどこでも動作します。",
     "trouble_token_hint_prefix": "トークンは ",
@@ -261,21 +265,20 @@
     "copy_aria": "コピー",
     "cancel": "キャンセル",
     "success_title": "コンピュータを接続しました",
-    "success_description": "コンピュータがオンラインになり、準備ができました。エージェントを作成すると、ここで実行を開始できます。",
+    "success_description": "コンピュータに接続しました。エージェントを作成できます。",
     "view_runtime": "ランタイムを表示",
     "create_agent": "エージェントを作成"
   },
   "cloud_runtime": {
     "action": "クラウドランタイム",
     "title": "クラウドランタイム",
-    "description": "マネージドなクラウドノードを起動し、その Fleet ステータスを確認します。",
+    "description": "クラウドランタイムを作成します。",
     "create_title": "新規ノード",
-    "create_hint": "名前、インスタンスタイプ、ディスクサイズを選んでください。残りは Fleet が適用します。",
     "nodes_title": "Fleet ノード",
     "refresh": "更新",
     "nodes_empty": "クラウドノードなし",
     "nodes_failed": "クラウドランタイムを利用できません",
-    "nodes_failed_hint": "Fleet がノード一覧を返しませんでした。",
+    "nodes_failed_hint": "クラウドノードを読み込めません。再試行してください。",
     "node_fallback_name": "クラウドノード",
     "create": "ノードを作成",
     "creating": "作成中...",
@@ -347,7 +350,8 @@
       "completed": "更新が完了しました。デーモンを再起動しています...",
       "failed": "更新に失敗しました",
       "timeout": "タイムアウト"
-    }
+    },
+    "updated_to": "{{version}} に更新しました"
   },
   "cli_auth": {
     "authenticated": "認証済み",
@@ -379,7 +383,11 @@
     "heatmap_quietest_weekday": "最も静かな曜日",
     "heatmap_average": "平均 {{value}}",
     "heatmap_window_total_other": "{{count}}日間の合計",
-    "tooltip_total": "合計"
+    "tooltip_total": "合計",
+    "tasks_completed": "完了",
+    "tasks_cancelled": "キャンセル済み",
+    "tasks_failed": "失敗",
+    "time_run_time": "実行時間"
   },
   "list": {
     "col_runtime": "ランタイム",
@@ -436,7 +444,7 @@
       "read_only": "読み取り専用"
     },
     "detail": {
-      "base_family": "ベースプロトコルファミリー",
+      "base_family": "ベースランタイム",
       "command": "コマンド",
       "description": "説明",
       "no_description": "説明なし",
@@ -448,12 +456,12 @@
     "form": {
       "create_title": "新しいカスタムランタイム",
       "edit_title": "カスタムランタイムを編集",
-      "step_family_label": "ベースプロトコルファミリーを選択",
-      "step_family_hint": "このランタイムが使用する基盤の CLI プロトコル。",
+      "step_family_label": "ベースランタイムを選択",
+      "step_family_hint": "このコマンドと互換性のある CLI を選択します。",
       "step_details_label": "ランタイムを設定",
       "step_progress": "ステップ {{current}} / {{total}}",
-      "family_label": "ベースプロトコルファミリー",
-      "family_locked_hint": "作成後はベースプロトコルファミリーを変更できません。",
+      "family_label": "ベースランタイム",
+      "family_locked_hint": "作成後はベースランタイムを変更できません。",
       "display_name_label": "表示名",
       "display_name_placeholder": "例：マイカスタム Claude…",
       "command_name_label": "コマンド",
@@ -487,12 +495,16 @@
       "cancel": "キャンセル",
       "deleting": "削除中…",
       "toast_deleted": "カスタムランタイムをワークスペースから削除しました",
-      "error_bound": "まだエージェントが使用しているため、このランタイムは削除できません。",
+      "error_bound": "まだエージェントが使用しているため、このカスタムランタイムは削除できません。該当のエージェントは、このランタイムを登録した別のマシン上にいる場合があります。",
       "error_generic": "ランタイムの削除に失敗しました。"
     }
   },
   "usage": {
     "period_label": "期間",
+    "period_7d": "過去7日間",
+    "period_30d": "過去30日間",
+    "period_90d": "過去90日間",
+    "period_180d": "過去180日間",
     "dimension_label": "ディメンション",
     "kpi_cost_label": "コスト · {{days}} 日",
     "kpi_cost_delta": "前期比 {{sign}}{{pct}}%",
@@ -539,6 +551,8 @@
     "cost_by_tab_model": "モデル別",
     "cost_by_caption_agent_other": "このランタイムのエージェント {{count}} 個",
     "cost_by_caption_model_other": "使用されたモデル {{count}} 個",
+    "cost_by_show_zero_cost_other": "0円のエージェントを{{count}}件表示",
+    "cost_by_hide_zero_cost": "0円のエージェントを隠す",
     "daily_breakdown_toggle": "日別内訳テーブル",
     "table_date": "日付",
     "table_model": "モデル",

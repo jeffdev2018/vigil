@@ -98,7 +98,7 @@ vi.mock("@multica/core/projects/queries", () => ({
 // Steerable per test: the invoke rule is what decides whether an OPEN session's
 // agent is still runnable. Default true so every existing case is unaffected.
 const invokableAgentIds = vi.hoisted(() => ({ current: null as string[] | null }));
-vi.mock("@multica/views/issues/components", () => ({
+vi.mock("../../issues/components/pickers/assignee-picker", () => ({
   canAssignAgent: (agent: { id: string }) =>
     invokableAgentIds.current === null ||
     invokableAgentIds.current.includes(agent.id),
@@ -464,56 +464,55 @@ describe("useChatController project context", () => {
   });
 });
 
-describe("useChatController.advanceSelectionAfterArchive", () => {
+// The advance-after-archive sequence moved to the shared archive flow
+// (use-archive-session-flow.test.tsx owns its matrix). What stays here is the
+// controller's half: the history it hands that flow, and the cross-agent sync
+// the flow depends on when it re-selects through handleSelectSession.
+describe("useChatController.historySessions", () => {
+  it("drops archived chats and hands back the displayed order", () => {
+    const archived = makeSession({
+      id: "sArchived",
+      agent_id: "agent-a",
+      status: "archived",
+      updated_at: "2026-07-08T09:00:00Z",
+    });
+    const result = setup("sA", [sC, archived, sA, sB], [agentA, agentB]);
+
+    expect(result.current.historySessions.map((s) => s.id)).toEqual([
+      "sA",
+      "sB",
+      "sC",
+    ]);
+  });
+});
+
+describe("useChatController.handleSelectSession", () => {
   beforeEach(() => {
     h.store.setActiveSession.mockClear();
     h.store.setSelectedAgentId.mockClear();
-    h.archivedMutate.mockClear();
   });
 
-  it("advances to the next chat and syncs the selected agent across agents", () => {
-    const result = setup("sA", [sA, sB, sC], [agentA, agentB]);
-    act(() => result.current.advanceSelectionAfterArchive(sA));
+  it("syncs the selected agent when the chosen chat belongs to another one", () => {
+    // Why the archive flow re-selects through this function rather than
+    // setActiveSession: a follow-up "new chat" must default to the agent of
+    // the chat now on screen.
+    const result = setup("sA", [sA, sB], [agentA, agentB]);
+    act(() => result.current.handleSelectSession(sB));
 
     expect(h.store.setActiveSession).toHaveBeenCalledWith("sB");
-    // The next chat belongs to a different agent — selectedAgentId must follow
-    // so a subsequent "new chat" defaults to the right agent (the review bug).
     expect(h.store.setSelectedAgentId).toHaveBeenCalledWith("agent-b");
   });
 
-  it("does not touch the selected agent when the next chat is the same agent", () => {
-    // Both chats belong to agent-a; archiving the open one advances within the
-    // same agent, so there is no reason to rewrite selectedAgentId.
-    const a1 = makeSession({ id: "a1", agent_id: "agent-a", updated_at: "2026-07-08T03:00:00Z" });
-    const a2 = makeSession({ id: "a2", agent_id: "agent-a", updated_at: "2026-07-08T02:00:00Z" });
-    const result = setup("a1", [a1, a2], [agentA, agentB]);
-    act(() => result.current.advanceSelectionAfterArchive(a1));
+  it("leaves the selected agent alone within the same agent", () => {
+    const a2 = makeSession({
+      id: "a2",
+      agent_id: "agent-a",
+      updated_at: "2026-07-08T02:00:00Z",
+    });
+    const result = setup("sA", [sA, a2], [agentA, agentB]);
+    act(() => result.current.handleSelectSession(a2));
 
     expect(h.store.setActiveSession).toHaveBeenCalledWith("a2");
-    expect(h.store.setSelectedAgentId).not.toHaveBeenCalled();
-  });
-
-  it("falls back to the previous chat when archiving the last open one", () => {
-    const result = setup("sC", [sA, sB, sC], [agentA, agentB]);
-    act(() => result.current.advanceSelectionAfterArchive(sC));
-
-    expect(h.store.setActiveSession).toHaveBeenCalledWith("sB");
-  });
-
-  it("clears the selection when archiving the only chat", () => {
-    const only = makeSession({ id: "only", agent_id: "agent-a" });
-    const result = setup("only", [only], [agentA]);
-    act(() => result.current.advanceSelectionAfterArchive(only));
-
-    expect(h.store.setActiveSession).toHaveBeenCalledWith(null);
-    expect(h.store.setSelectedAgentId).not.toHaveBeenCalled();
-  });
-
-  it("is a no-op when the archived chat is not the open one", () => {
-    const result = setup("sB", [sA, sB, sC], [agentA, agentB]);
-    act(() => result.current.advanceSelectionAfterArchive(sA));
-
-    expect(h.store.setActiveSession).not.toHaveBeenCalled();
     expect(h.store.setSelectedAgentId).not.toHaveBeenCalled();
   });
 });
@@ -523,7 +522,23 @@ describe("useChatController.archiveSession", () => {
     const result = setup("sA", [sA, sB, sC], [agentA, agentB]);
     act(() => result.current.archiveSession("sA"));
 
-    expect(h.archivedMutate).toHaveBeenCalledWith({ sessionId: "sA", archived: true });
+    expect(h.archivedMutate).toHaveBeenCalledWith(
+      { sessionId: "sA", archived: true },
+      { onError: undefined },
+    );
+  });
+
+  // The caller's rollback has to reach the mutation, or a failed archive
+  // leaves the page's optimistic selection move stranded.
+  it("forwards the caller's onError to the mutation", () => {
+    const result = setup("sA", [sA, sB, sC], [agentA, agentB]);
+    const onError = vi.fn();
+    act(() => result.current.archiveSession("sA", { onError }));
+
+    expect(h.archivedMutate).toHaveBeenCalledWith(
+      { sessionId: "sA", archived: true },
+      { onError },
+    );
   });
 });
 

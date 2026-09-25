@@ -1,27 +1,19 @@
 {
   "page": {
     "title": "Org",
-    "new_structure": "New structure",
     "empty": "No structure yet",
     "empty_description": "A structure decides who works on what: it routes issues to units, escalates, approves and spends. Pick one of the seven models to start.",
     "workspace_default": "Workspace default",
     "unknown_project": "Unknown project",
-    "revision": "rev. {{n}}",
     "no_owner": "No owner",
-    "paused_units_one": "{{count}} paused unit",
-    "paused_units_other": "{{count}} paused units",
     "back": "All structures",
     "loading": "Loading...",
-    "chart": "Chart",
-    "editor": "Definition",
-    "units_summary": "Units",
-    "no_units": "No unit in this definition.",
     "members_one": "{{count}} member",
     "members_other": "{{count}} members",
-    "revisions": "Revisions",
     "no_revisions": "No revision yet.",
-    "revision_row": "rev. {{n}} · {{status}} · {{model}}",
-    "read_only": "Dissolved structures are read-only."
+    "read_only": "Dissolved structures are read-only.",
+    "paused_because": "Paused: {{reason}}",
+    "read_only_role": "Only a workspace owner or admin can change this organization."
   },
   "status": {
     "draft": "Draft",
@@ -38,40 +30,174 @@
     "taskforce": "Temporary task force",
     "market": "Internal market"
   },
-  "autonomy": {
-    "read_only": "Read only",
-    "draft": "Draft",
-    "approve_payload": "Approve payload",
-    "auto": "Auto"
-  },
   "new": {
-    "title": "New structure",
     "description": "Choose where it applies, then the model it follows. You can edit the definition afterwards.",
     "project": "Applies to",
     "workspace_default": "Workspace default (every project without its own)",
-    "runs_per_issue_one": "{{count}} coordination run per issue",
-    "runs_per_issue_other": "{{count}} coordination runs per issue",
+    "runs_per_issue_one": "{{count}} coordination step per issue",
+    "runs_per_issue_other": "{{count}} coordination steps per issue",
     "loading": "Loading templates...",
     "cancel": "Cancel",
-    "error": "Could not create the structure",
-    "replaces_existing": "Picking a template replaces the current structure “{{name}}” as a new revision.",
     "composite_title": "Hierarchy of teams"
+  },
+  "wizard": {
+    "title": "Create an organisation",
+    "step": "Step {{n}} of {{total}}",
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "purpose": {
+      "question": "What is this team here to do?",
+      "help": "One sentence. Its words name the structure and become what each unit picks up.",
+      "label": "In one sentence",
+      "placeholder": "Answer our customers' tickets within the day.",
+      "remaining": "{{count}} characters left",
+      "too_long": "{{count}} characters over the limit"
+    },
+    "flow": {
+      "question": "How does the work move?",
+      "decider": "When a request arrives, who decides in the end?",
+      "decider_one_person": "One person, always the same",
+      "decider_each_team": "Each team, for its own area",
+      "decider_topic_owner": "The owner of each topic",
+      "shape": "Teams by project, by role, or both?",
+      "shape_project": "By project",
+      "shape_role": "By role",
+      "shape_both": "Both",
+      "end": "A mission with an end?",
+      "compete": "Put the agents in competition?",
+      "yes": "Yes",
+      "no": "No",
+      "result": "Your model: {{model}}",
+      "pick_another": "Choose otherwise",
+      "catalog": "The seven structures",
+      "catalog_close": "Back to the questions",
+      "taskforce_termination_question": "How does it end?",
+      "taskforce_termination_date": "On a date",
+      "taskforce_termination_condition": "On a condition",
+      "taskforce_dissolve_label": "End date",
+      "taskforce_dissolve_placeholder": "Choose a date and time",
+      "taskforce_end_condition_label": "End condition",
+      "taskforce_termination_hint": "Choose an end date or an end condition."
+    },
+    "model_line": {
+      "hierarchy": "A clear chain: every team knows who to escalate to.",
+      "squads": "Each squad owns its area, its budget and its answer.",
+      "matrix": "Competence pools lend their people to the projects that need them.",
+      "circles": "Roles, not titles: each circle holds its own decisions.",
+      "owner_network": "Flat: one owner and one backup per topic.",
+      "taskforce": "A borrowed team with a stated end.",
+      "market": "Agents bid; the best offer under your price cap wins."
+    },
+    "template": {
+      "support": "Customer support",
+      "practice": "Practice",
+      "agency": "Agency",
+      "finance": "Direction and finance",
+      "research": "Research",
+      "generic": "Direction and team"
+    },
+    "people": {
+      "question": "Who is part of it?",
+      "help": "Everyone in this workspace, humans and agents.",
+      "template": "Units suggested for: {{template}}",
+      "unit_of": "Unit of {{name}}",
+      "empty": "No member or agent in this workspace yet."
+    },
+    "review": {
+      "question": "Your draft",
+      "model": "Model",
+      "name": "Name",
+      "unnamed": "Named after the model",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "open": "Open my draft",
+      "draft_note": "Nothing is activated: the draft opens in the chart so you can adjust it.",
+      "replaces_existing": "Opening the draft revises the current structure “{{name}}”.",
+      "error": "Could not create the structure"
+    },
+    "catalog": "Business templates",
+    "transfer": "Import / export",
+    "transfer_hint": "Transfer workspace items with a preview before importing.",
+    "unit_templates": {
+      "support-lead": {
+        "name": "Support coordination",
+        "mission": "Own the queue and answer for the team."
+      },
+      "front-line": {
+        "name": "Front line",
+        "mission": "Answer incoming requests the day they arrive."
+      },
+      "escalation": {
+        "name": "Escalation",
+        "mission": "Take what the front line cannot close."
+      },
+      "partner": {
+        "name": "Firm leadership",
+        "mission": "Answer for every file that leaves the firm."
+      },
+      "intake": {
+        "name": "Intake",
+        "mission": "Open a file, gather what it needs, say what it will take."
+      },
+      "review": {
+        "name": "Review",
+        "mission": "Read every file before it goes out."
+      },
+      "account": {
+        "name": "Client relations",
+        "mission": "Hold the relationship and arbitrate what ships."
+      },
+      "production": {
+        "name": "Production",
+        "mission": "Turn a brief into the deliverable it asks for."
+      },
+      "quality": {
+        "name": "Quality",
+        "mission": "Nothing goes out unread."
+      },
+      "direction": {
+        "name": "Direction",
+        "mission": "Decide and answer for the team."
+      },
+      "finance": {
+        "name": "Finance",
+        "mission": "Prepare every figure; a human signs it off."
+      },
+      "research-lead": {
+        "name": "Research coordination",
+        "mission": "Choose the questions and answer for the conclusions."
+      },
+      "research": {
+        "name": "Research",
+        "mission": "Look for the answer and show the sources."
+      },
+      "peer-review": {
+        "name": "Peer review",
+        "mission": "Check the sources before a conclusion is published."
+      },
+      "team": {
+        "name": "Team",
+        "mission": "Do the work the team was set up for."
+      }
+    }
   },
   "form": {
     "name": "Name",
     "owner": "Human owner",
     "owner_none": "No owner",
-    "dissolve_at": "Dissolve at",
+    "dissolve_at": "End date",
     "end_condition": "End condition",
     "end_none": "None",
     "end_all_issues_done": "All issues done",
     "end_budget_spent": "Budget spent",
-    "budget": "Budget (USD ticks)",
+    "budget": "Budget (USD)",
     "definition": "Definition (JSON)",
     "invalid_json": "Invalid JSON: {{error}}",
     "save": "Save",
     "saved": "Structure saved",
-    "error": "Could not save the structure"
+    "error": "Could not save the structure",
+    "advanced_json": "Advanced (JSON)"
   },
   "actions": {
     "activate": "Activate",
@@ -86,12 +212,12 @@
   },
   "activate": {
     "title": "Activate the structure",
-    "description": "Activation needs a human owner and your attestation that the 30-case evaluation set passed. The numbers below come from the preflight.",
+    "description": "Review the operating model and estimates before activating routing. The attestation below is your manual declaration of testing.",
     "attestation": "Eval attestation",
     "attestation_placeholder": "Ran the 30-case set on {{date}}: ...",
-    "loading": "Running preflight...",
-    "pattern": "Pattern",
-    "runs": "Coordination runs per issue",
+    "loading": "Checking before activation...",
+    "pattern": "How it operates",
+    "runs": "Coordination steps per issue",
     "cost": "Coordination cost per issue",
     "review_seconds": "Human review per issue",
     "seconds": "{{count}} s",
@@ -123,12 +249,12 @@
     "routed": "Routed",
     "unrouted": "Unrouted",
     "escalations": "Escalations",
-    "stacked": "Stacked escalations",
+    "stacked": "Issues escalated twice",
     "reassigned_outside": "Reassigned outside",
-    "market_short": "Market short",
-    "breakers": "Breakers",
-    "human_review": "Human review items",
-    "drift": "Drift rate",
+    "market_short": "Not enough market offers",
+    "breakers": "Auto-paused units",
+    "human_review": "Waiting on human review",
+    "drift": "Share reassigned outside the structure",
     "units": "Units",
     "unit": "Unit",
     "vacant_roles": "Vacant roles",
@@ -174,5 +300,501 @@
     "won": "Won",
     "lost": "Lost",
     "over_cap": "Over cap"
+  },
+  "canvas": {
+    "no_selection": "Pick a unit to open its record.",
+    "json_broken": "The JSON below no longer parses; fix it to get the canvas back."
+  },
+  "tester": {
+    "request": "The request",
+    "placeholder": "Write it the way a customer or a colleague would.",
+    "basis_draft": "Against the draft, rev. {{n}}.",
+    "basis_unsaved": "Against the draft, rev. {{n}} (unsaved).",
+    "basis_active": "Against the active revision, rev. {{n}}.",
+    "examples": "Examples:",
+    "example_1": "My card was declined at checkout, three customers today already.",
+    "example_2": "Rotate the production database password before Friday.",
+    "from_issue": "Test with a real issue",
+    "picker_title": "Pick an issue",
+    "picker_description": "Its title, description and labels fill the request.",
+    "labels": "Labels:",
+    "submit": "Test",
+    "running": "Testing…",
+    "empty": "Nothing tested yet. Write a request and run it against the chart above.",
+    "receives": "Receives",
+    "prepares": "Prepares",
+    "decides": "Decides",
+    "escalates": "Escalates to",
+    "blocked": "Blocked by",
+    "blocked_none": "Nothing this unit refuses.",
+    "blocked_consequence": "the request will be escalated with its context; this unit will not carry it out.",
+    "cost": "Estimated cost",
+    "notes": "Notes",
+    "root": "— (root)",
+    "nobody": "Nobody",
+    "no_unit": "No unit takes this request.",
+    "open_unit": "Show {{name}} on the chart",
+    "kind": {
+      "agent": "agent",
+      "member": "member",
+      "squad": "squad"
+    },
+    "error": "The test failed",
+    "error_invalid": "The definition on the canvas is not valid, so nothing was tested: {{error}}. Settle the problems listed beside the chart first.",
+    "stale": "The request or organization changed. Run the test again."
+  },
+  "problem": {
+    "unit_name_required": "Every unit needs an id and a name.",
+    "duplicate_unit_id": "The id “{{id}}” is used by two units.",
+    "taskforce_unit_model": "“{{unit}}”: a task force is a structure, not a unit.",
+    "hierarchy_roots": "A hierarchy has exactly one unit reporting to nobody; there are {{count}}.",
+    "autonomy_over_trust": "“{{unit}}” grants {{autonomy}} but {{agent}}'s trust dial stops at {{trust}}.",
+    "rule_of_two_unit": "“{{unit}}” holds untrusted input, sensitive data and external effects at once: a human approval will be required.",
+    "rule_of_two_edge": "{{from}} → {{to}} cumulates the three exposures: a human approval will be required on that link.",
+    "deciders_missing": "“{{unit}}” has external effects: name who decides on {{classes}}.",
+    "committee_termination": "Committee “{{decision}}”: set a quorum between 1 and {{max}} and at least one round.",
+    "committee_decision_missing": "A committee has no decision type.",
+    "market_price_cap": "A market needs the human price cap.",
+    "squads_needs_agents": "“{{unit}}” runs as a squad: give it a squad or agent members.",
+    "circles_needs_role": "“{{unit}}” runs as circles: give it at least one role."
+  },
+  "unit": {
+    "title": "Unit record",
+    "close": "Close the record",
+    "remove_unit": "Delete this unit",
+    "name": "Name",
+    "mission": "Mission",
+    "mission_none": "No goal",
+    "own_mission": "Its mission",
+    "own_mission_placeholder": "What this unit is here to do.",
+    "trust": "Trust dial",
+    "trust_level": {
+      "read_only": "Reads only",
+      "draft": "Prepares drafts",
+      "approve_payload": "Acts once approved",
+      "auto": "Acts alone within its limits"
+    },
+    "allow": "Decides alone",
+    "deny": "Never does",
+    "verb_placeholder": "A verb, e.g. merge",
+    "add": "Add",
+    "remove": "Remove {{item}}",
+    "properties": "What it handles",
+    "property": {
+      "untrusted_input": "Untrusted input",
+      "sensitive_data": "Sensitive data and secrets",
+      "external_effects": "External effects"
+    },
+    "human_approval": "A human approves before it acts",
+    "deciders": "Who decides",
+    "decider": {
+      "money": "Money",
+      "outbound_data": "Outbound data",
+      "external_message": "External message"
+    },
+    "decider_none": "Nobody yet",
+    "members": "Members",
+    "no_members": "No member yet.",
+    "move_to": "Move {{name}} to another unit",
+    "trust_level_hint": {
+      "read_only": "It reads and comments, never changing anything.",
+      "draft": "It prepares a draft that a human finishes and sends.",
+      "approve_payload": "It prepares the content; a human approves before it goes out.",
+      "auto": "It acts alone, within the limits it was given."
+    },
+    "capability": {
+      "read": "Read",
+      "comment": "Comment",
+      "propose_plan": "Propose a plan",
+      "delete": "Delete",
+      "bill": "Bill",
+      "refund": "Refund",
+      "send_external_without_approval": "Message outside without approval",
+      "touch_secrets": "Touch secrets",
+      "commit_money": "Commit money",
+      "publish": "Publish",
+      "sign": "Sign"
+    },
+    "capability_enforcement": {
+      "tool": "Blocked by the tools",
+      "instruction": "Told to the agent, not technically enforced"
+    }
+  },
+  "visual": {
+    "team_count": "{{count}} teams",
+    "team_name": "Team name",
+    "budget": "Team budget (USD)",
+    "roles": "Roles",
+    "role_name": "Role name",
+    "responsibilities": "Responsibilities",
+    "assign_role": "Assign this role",
+    "new_role": "New role",
+    "add_role": "Add role",
+    "keywords": "Keywords, separated by commas",
+    "edge": {
+      "reports_to": "Reports to",
+      "escalates_to": "Escalates to",
+      "backs_up": "Backs up",
+      "consults": "Consults"
+    },
+    "remove_connection": "Remove connection",
+    "connection_type": "Connection type",
+    "target": "Target team",
+    "choose_team": "Choose a team",
+    "cycle": "This reporting line would create a loop.",
+    "add_connection": "Add connection",
+    "remove_team": "Remove team and its connections",
+    "advanced": "Advanced: JSON definition",
+    "search": "Find a person or agent",
+    "remove_role": "Remove this role",
+    "team_count_one": "{{count}} team",
+    "team_count_other": "{{count}} teams"
+  },
+  "history": {
+    "compare": "Compare",
+    "title": "Revision {{n}}",
+    "description": "Restore the definition and model as a new revision. Current status, owner, budget and dates are preserved. All current validation rules apply.",
+    "current": "Current definition",
+    "previous": "Selected revision",
+    "dirty": "Save or discard your edits before restoring.",
+    "restore": "Restore this definition",
+    "restored": "Definition restored",
+    "absent": "Team not present",
+    "full_diff": "Changed teams are summarized above. Open the full definitions to inspect responsibilities, relationships, rules and budgets.",
+    "sheet_hint": "Every published version, newest first. Restoring publishes an old version as a new one.",
+    "revision_label": "Revision {{n}}",
+    "in_force": "in force",
+    "by_system": "Automatic"
+  },
+  "catalog": {
+    "retry": "Try again",
+    "preparing": "Preparing preview…",
+    "preview": "What will be installed",
+    "includes": "3 agents with roles, 1 shared procedure, 1 project, 1 org chart, 1 starter task and 1 weekly review.",
+    "paused": "Agents need a runtime connection. The organization stays in draft and the weekly review stays paused.",
+    "collisions": "{{count}} name conflicts detected. New items will be renamed; existing items are preserved.",
+    "install": "Install this team",
+    "installing": "Installing…",
+    "installed": "Installation result",
+    "next": "Review the created items below, connect your agents to runtimes, then open the structure to check it before activation.",
+    "done": "View structures",
+    "names": {
+      "support": "Customer support",
+      "product": "Product & engineering",
+      "agency": "Content agency",
+      "finance": "Operations & finance",
+      "research": "Research desk"
+    },
+    "descriptions": {
+      "support": "Triage requests, draft replies and review sensitive cases.",
+      "product": "Turn a brief into implementation and reviewed delivery.",
+      "agency": "Plan, draft and review with a consistent editorial voice.",
+      "finance": "Prepare decisions and check supporting evidence.",
+      "research": "Investigate, cross-check sources and synthesize findings."
+    },
+    "roles": "{{count}} complementary roles",
+    "count_labels": {
+      "agents": "Agents",
+      "skills": "Skills",
+      "projects": "Projects",
+      "org_structures": "Organizations",
+      "autopilots": "Routines",
+      "issues": "Tasks",
+      "profiles": "Profiles",
+      "goals": "Goals",
+      "notes": "Notes",
+      "triage_sources": "Sources"
+    }
+  },
+  "workspace": {
+    "eyebrow": "YOUR TEAM WORKSPACE",
+    "title": "The right role. The right team.",
+    "description": "Give your organization a shape. Bring agents and people together, clarify responsibilities and move work forward.",
+    "structures": "Structures",
+    "teams": "Teams",
+    "active": "Active",
+    "your_structures": "Your organizations",
+    "add_title": "Create an organization",
+    "add_description": "Describe the need, choose how work flows and assign members.",
+    "explore": "Get started",
+    "pending": "Unsaved changes",
+    "saved": "All changes saved",
+    "tabs": {
+      "compose": "Compose",
+      "activity": "Activity",
+      "history": "History",
+      "settings": "Settings"
+    },
+    "leave_title": "Leave without saving?",
+    "keep_editing": "Keep editing",
+    "discard": "Discard and leave"
+  },
+  "coherence": {
+    "mission": "Team mission",
+    "owner": "Human owner",
+    "add_members": "Add members",
+    "empty_team": "This team is empty. Add its first members.",
+    "remove_member": "Remove {{name}} from this team",
+    "no_role": "No role assigned",
+    "rule_fields": {
+      "keywords": "Keywords",
+      "labels": "Labels",
+      "paths": "Paths"
+    },
+    "priority": "Priority",
+    "remove_rule": "Remove rule",
+    "add_rule": "Add rule",
+    "team_model": "Team operating model",
+    "inherit_model": "Inherit from organization / parent team",
+    "escalation_quota": "Escalations per day",
+    "quorum_block": "Committee “{{name}}” requires {{quorum}} teams. Explicitly change its composition or quorum before deleting this team.",
+    "scope_taken": "This scope already has an organization. Choose another project or edit the existing organization.",
+    "excluded": "Do not assign",
+    "conflict": "A newer revision exists. Your draft is preserved; compare the versions before saving it.",
+    "publish": "Publish changes",
+    "publish_hint": "These changes will immediately affect routing in the active organization.",
+    "sections": {
+      "units": "Teams",
+      "edges": "Relationships",
+      "rules": "Routing rules",
+      "committees": "Committees",
+      "market": "Market"
+    },
+    "squad": "Execution squad (optional)",
+    "no_squad": "Use the members above",
+    "goal": "Linked goal",
+    "no_goal": "No goal",
+    "exposures": "This team handles",
+    "properties": {
+      "untrusted_input": "Untrusted external content",
+      "sensitive_data": "Sensitive data",
+      "external_effects": "External actions"
+    },
+    "human_approval": "Human approval required",
+    "collective": "Collective decisions and market",
+    "market": {
+      "price_cap_usd_ticks": "Price cap per offer (USD)"
+    },
+    "catalog_admin": "Installing a template requires an administrator or owner role.",
+    "move_member": "Move {{name}} to another team",
+    "move_hint": "Move to… (local role removed)",
+    "members": "Members"
+  },
+  "studio": {
+    "search_org": "Search organizations…",
+    "empty_title": "Build your first team",
+    "empty_hint": "Describe its mission, choose its members, then check where requests go.",
+    "no_results": "No people match this filter.",
+    "explicit_people": "Nobody is added automatically. Choose only the people who will work in this organization.",
+    "no_match": "No organization matches “{{query}}”."
+  },
+  "unit_kind": {
+    "unit": "Team",
+    "pool": "Pool",
+    "circle": "Circle",
+    "taskforce": "Task force",
+    "market": "Market"
+  },
+  "approval_risk": {
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High"
+  },
+  "edge_kind": {
+    "reports_to": "reports to",
+    "escalates_to": "escalates to",
+    "backs_up": "backs up",
+    "consults": "consults"
+  },
+  "edge_kind_effect": {
+    "live": "Affects routing",
+    "informational": "Informational only, no effect on routing"
+  },
+  "member_role": {
+    "owner": "Owner",
+    "member": "Member",
+    "lead": "First to receive"
+  },
+  "simulate_note": {
+    "no_rule_matched": "No rule matched and the model has no fallback unit.",
+    "unit_no_owner": "“{{unit}}” has no human owner, so it never receives work.",
+    "market_not_staged": "This unit runs an internal market: the run goes to the best offer under the price cap, which a simulation does not stage.",
+    "approval_risk": "The unit's superior approves first when the request's contract risk is {{risk}}.",
+    "no_spend_observed": "No spend observed for this unit over the last {{days}} days."
+  },
+  "proposal": {
+    "escalations": {
+      "title": "Unit {{unit}} escalates too much",
+      "body": "Add a backup member, split the unit, or widen its allow list so fewer issues go up.",
+      "measure": "{{count}} escalations in {{window_days}} days (quota {{quota}}/day)"
+    },
+    "vacant_roles": {
+      "title": "Roles vacant in {{unit}}",
+      "body": "Fill the roles or remove them: {{roles}}",
+      "measure": "{{vacant}} of {{total}} roles vacant"
+    },
+    "saturated_agents": {
+      "title": "Agents saturated in {{unit}}",
+      "body": "Add capacity to the unit or route less to it.",
+      "measure": "{{count}} agent(s) with {{threshold}}+ open runs"
+    },
+    "budget_spent": {
+      "title": "Budget spent by {{unit}}",
+      "body": "Raise the budget or pause the unit until next month.",
+      "measure": "{{spend}} of {{budget}} this month"
+    },
+    "unrouted": {
+      "title": "Issues without a resolvable owner",
+      "body": "Add routing rules (labels, paths, keywords) or a fallback unit.",
+      "measure": "{{unrouted}} of {{total}} issues unrouted"
+    },
+    "drift": {
+      "title": "Measured flows drift from the declared structure",
+      "body": "Re-review the structure: humans reassign outside the units it routes to.",
+      "measure": "{{percent}}% of routed issues reassigned outside"
+    }
+  },
+  "activation_requirement": {
+    "owner": "A human owner",
+    "eval_attestation": "The eval attestation (30-case set)",
+    "termination": "A declared termination for the task force, committee and market"
+  },
+  "agent_trust": {
+    "observer": "Observer",
+    "propose": "Propose",
+    "approval": "Acts with approval",
+    "autonomous": "Autonomous"
+  },
+  "unknown_value": "Unknown value",
+  "plan": {
+    "legend_reports": "reports to, and escalates there",
+    "legend_escalates": "escalates elsewhere",
+    "legend_trace": "path of the tested request",
+    "zoom_out": "Zoom out",
+    "zoom_in": "Zoom in",
+    "zoom_reset": "Reset zoom to 100%",
+    "zoom_fit": "Fit the chart to the window",
+    "team_label": "Team {{name}}",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "paused": "Paused",
+    "no_lead": "No lead yet: escalations from this team have no one to reach.",
+    "more_people_one": "+ {{count}} other",
+    "more_people_other": "+ {{count}} others",
+    "fewer_people": "Show fewer",
+    "add_people": "Add",
+    "lead": "Lead",
+    "lead_subtitle": "Answers for the team",
+    "receives_first": "Receives first",
+    "agent": "Agent",
+    "human": "Human",
+    "empty_title": "No team yet",
+    "empty_hint": "Add a first team, or start from a business template that brings its roles and its routing rules.",
+    "add_team": "Add a team"
+  },
+  "bar": {
+    "organizations": "Organizations",
+    "browse": "All organizations",
+    "catalog": "Business templates",
+    "create": "New organization",
+    "unpublished": "Changes not published yet",
+    "saved": "Saved · revision {{n}}",
+    "test": "Test a request",
+    "discard": "Discard changes",
+    "publish": "Publish",
+    "save": "Save",
+    "more": "More actions",
+    "history": "History",
+    "transfer": "Import or export"
+  },
+  "inspector": {
+    "title": "Inspector",
+    "loading": "Loading the team directory…",
+    "directory_error": "Couldn't load the team directory.",
+    "overview": {
+      "eyebrow": "Organization",
+      "teams_one": "{{count}} team",
+      "teams_other": "{{count}} teams",
+      "humans_one": "{{count}} human",
+      "humans_other": "{{count}} humans",
+      "agents_one": "{{count}} agent",
+      "agents_other": "{{count}} agents",
+      "watch_title": "Worth a look",
+      "watch_empty": "Nothing needs attention.",
+      "vacant_role": "Role with nobody in it: “{{role}}”, in {{unit}}.",
+      "unit_no_owner": "{{unit}} has no human owner.",
+      "activity_title": "Activity, last 7 days",
+      "settings_title": "Settings",
+      "model_title": "Model",
+      "model_hint": "Changing the model changes how work circulates through every team.",
+      "committees_empty": "No committee defined.",
+      "committee_no_effect": "A committee has no effect at run time today: the server only validates it.",
+      "committee_add": "Add a committee",
+      "committee_remove": "Remove this committee",
+      "committee_decision": "Decision type (e.g. hiring)",
+      "committee_teams": "Teams that vote",
+      "committee_quorum": "Quorum",
+      "committee_rounds": "Rounds at most"
+    },
+    "health": {
+      "empty": "No request routed in the last 7 days. Test one to see the path it would take.",
+      "unit_saturated": "Saturated: {{agents}}"
+    },
+    "unit": {
+      "eyebrow": "Team",
+      "mission_count": "{{count}}/240",
+      "kind_label": "Team type",
+      "remove_confirm": "Click again to confirm — this cannot be undone.",
+      "autonomy_title": "Autonomy",
+      "accountable_title": "Who answers for it",
+      "approval_risk_label": "Approval risk threshold",
+      "approval_risk_none": "No threshold set",
+      "deciders_hint": "Shown because this team is exposed to external effects.",
+      "member_role_label": "Role in the team",
+      "role_vacant": "Vacant",
+      "receives_title": "Receives",
+      "receives_intro": "Requests that mention:",
+      "receives_none": "No routing rule yet: this team only receives what is assigned by hand.",
+      "can_title": "Can",
+      "cannot_title": "Cannot",
+      "capability_locked": "Always refused — not removable.",
+      "capability_instruction_note": "* An instruction given to the agent, not a technical block: no tool enforces it today.",
+      "upward_title": "Reports up",
+      "reports_to_none": "Nobody — this is the top of the chart.",
+      "advanced_title": "Advanced"
+    },
+    "person": {
+      "teams_title": "Teams",
+      "teams_none": "Not on any team in this organization.",
+      "agent_autonomy_title": "Autonomy granted by {{unit}}",
+      "agent_autonomy_hint": "An agent never has more rights than the team that hands it work.",
+      "agent_trust_label": "Trust mode",
+      "owns_title": "Owns",
+      "owns_hint": "Validates every draft from these teams.",
+      "owns_none": "Doesn't own any team here."
+    }
+  },
+  "add_team": {
+    "title": "Add a team",
+    "hint": "It starts by drafting rather than acting. You can change that on its card.",
+    "name": "Name",
+    "name_placeholder": "Customer support",
+    "parent": "Reports to",
+    "parent_required": "Reports to (required in a hierarchy)",
+    "no_parent": "Nobody: it sits at the top",
+    "owner": "Lead",
+    "no_owner": "No lead yet",
+    "submit": "Add the team"
+  },
+  "directory": {
+    "title": "Add to {{team}}",
+    "hint": "Humans and agents from this workspace.",
+    "search": "Search a person or an agent",
+    "only_unplaced": "Only people not yet in a team here",
+    "everyone_placed": "Everyone already belongs to a team in this organization. Turn the filter off to add someone to a second team.",
+    "no_match": "Nobody matches this search.",
+    "elsewhere": "in another team",
+    "add_one": "Add {{count}} person",
+    "add_other": "Add {{count}} people"
   }
 }

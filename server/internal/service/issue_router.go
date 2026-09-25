@@ -163,7 +163,7 @@ func consecutiveFailures(rows []db.ListRecentIssueTaskOutcomesRow) int {
 // policy. A pool member the policy rejects is not a routing target, so the
 // risk-based pool falls through to the next member exactly as if it were
 // offline.
-func (s *TaskService) routeIssueTask(ctx context.Context, issue db.Issue, agent db.Agent, filter runtimeComplianceFilter) (runtimeID pgtype.UUID, decision *RoutingDecision, ok bool) {
+func (s *TaskService) routeIssueTask(ctx context.Context, issue db.Issue, filter runtimeComplianceFilter) (runtimeID pgtype.UUID, decision *RoutingDecision, ok bool) {
 	ws, err := s.Queries.GetWorkspace(ctx, issue.WorkspaceID)
 	if err != nil {
 		return pgtype.UUID{}, nil, false

@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import {
+  findMatchingApproval,
   getInboxDisplayTitle,
   getQuickCreateOutcomeDetail,
+  isApprovalAskType,
+  isDoctrineType,
   isAutopilotQuotaNotice,
   isQuickCreateOutcome,
   resolveDetailItem,
@@ -150,5 +154,82 @@ describe("resolveDetailItem", () => {
   // redirects to the issue page, and the pane must not invent a row meanwhile.
   it("resolves nothing when neither key is in the list", () => {
     expect(resolveDetailItem(list, "issue-gone", "issue-also-gone")).toBeNull();
+  });
+});
+
+describe("isApprovalAskType", () => {
+  it("names the four inline-approval inbox item types", () => {
+    expect(isApprovalAskType("decision_request")).toBe(true);
+    expect(isApprovalAskType("decision_escalated")).toBe(true);
+    expect(isApprovalAskType("transition_approval_requested")).toBe(true);
+    expect(isApprovalAskType("goal_question")).toBe(true);
+    expect(isApprovalAskType("new_comment")).toBe(false);
+  });
+});
+
+describe("isDoctrineType", () => {
+  it("names only the two items whose subject is the doctrine", () => {
+    expect(isDoctrineType("doctrine_review")).toBe(true);
+    expect(isDoctrineType("doctrine_report")).toBe(true);
+    expect(isDoctrineType("new_comment")).toBe(false);
+  });
+});
+
+describe("findMatchingApproval", () => {
+  function approvalItem(over: Partial<ApprovalItem> = {}): ApprovalItem {
+    return {
+      id: "d1",
+      source: "decision",
+      kind: "decision",
+      issue: { id: "issue-a", identifier: "ONE-1", title: "Ship it", status: "in_progress" },
+      task_id: "",
+      asked_by: { type: "agent", id: "a1", name: "" },
+      question: "",
+      options: [],
+      recommended_option_id: "",
+      urgency: "normal",
+      created_at: "",
+      expires_at: null,
+      sla_deadline_at: null,
+      can_decide: true,
+      cannot_decide_reason: "",
+      decision: null,
+      gate: null,
+      transition: null,
+      goal_question: null,
+      ...over,
+    };
+  }
+
+  it("matches a decision request by the decision id named in its details", () => {
+    const row = item({ type: "decision_request", details: { decision_id: "d1" } });
+    const match = approvalItem({ id: "d1" });
+    expect(findMatchingApproval(row, [match, approvalItem({ id: "d2" })])).toBe(match);
+  });
+
+  it("finds nothing for a decision request whose details carry no decision id", () => {
+    const row = item({ type: "decision_request", details: null });
+    expect(findMatchingApproval(row, [approvalItem()])).toBeNull();
+  });
+
+  it("matches a transition request by issue id, not by inbox item id", () => {
+    const row = item({ id: "inbox-x", type: "transition_approval_requested", issue_id: "issue-a" });
+    const match = approvalItem({ id: "r1", source: "transition", issue: { id: "issue-a", identifier: "", title: "", status: "" } });
+    expect(findMatchingApproval(row, [match])).toBe(match);
+  });
+
+  it("matches a goal question by issue id", () => {
+    const row = item({ type: "goal_question", issue_id: "issue-a" });
+    const match = approvalItem({ id: "g1", source: "goal_question", issue: { id: "issue-a", identifier: "", title: "", status: "" } });
+    expect(findMatchingApproval(row, [match])).toBe(match);
+  });
+
+  it("does not cross-match a transition ask against a decision-source approval on the same issue", () => {
+    const row = item({ type: "transition_approval_requested", issue_id: "issue-a" });
+    expect(findMatchingApproval(row, [approvalItem({ source: "decision", issue: { id: "issue-a", identifier: "", title: "", status: "" } })])).toBeNull();
+  });
+
+  it("returns nothing for an inbox item type the approvals feed does not cover", () => {
+    expect(findMatchingApproval(item({ type: "new_comment" }), [approvalItem()])).toBeNull();
   });
 });

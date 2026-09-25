@@ -31,6 +31,9 @@ export interface OrgUnit {
   owner_id?: string;
   squad_id?: string;
   mission_goal_id?: string;
+  /** The unit's own sentence: what it is here to do. Free text (at most 240
+   *  characters), unlike `mission_goal_id` which points at a goal. */
+  mission?: string;
   budget_usd_ticks?: number;
   excludes: OrgProperty[];
   autonomy: OrgAutonomy;
@@ -112,6 +115,7 @@ export interface OrgRevision {
   note: string;
   changed_by: string | null;
   created_at: string;
+  definition?: OrgDefinition;
 }
 
 export interface OrgTemplate {
@@ -126,6 +130,8 @@ export interface OrgTemplate {
 }
 
 export interface OrgWriteRequest {
+  expected_revision?: number;
+  restore_revision_id?: string;
   project_id?: string | null;
   model?: OrgModel;
   name?: string;
@@ -158,6 +164,11 @@ export interface OrgProposal {
   title: string;
   body: string;
   measure: string;
+  /** Structured code (+ interpolation params) for `title`/`body`/`measure`,
+   *  alongside the server's English text — see `orgProposalTitle` /
+   *  `orgProposalBody` / `orgProposalMeasure` in packages/views/org/labels.ts. */
+  code?: string;
+  params?: Record<string, string | number>;
 }
 
 export interface OrgHealth {
@@ -187,6 +198,9 @@ export interface OrgPreflight {
   units_without_owner: number;
   agents: number;
   activation_requirements: string[];
+  /** Codes for `activation_requirements`, same order — see
+   *  `orgActivationRequirementText` in packages/views/org/labels.ts. */
+  activation_requirement_codes: string[];
 }
 
 export interface OrgOffer {
@@ -198,4 +212,53 @@ export interface OrgOffer {
   eta_hours: number;
   status: "pending" | "won" | "lost" | "over_cap";
   created_at: string;
+}
+
+export interface OrgTeamTemplate { id: string; name: string; description: string; roles: string[]; procedure: string }
+// Simulating a request against a draft or a revision (POST /api/org/simulate).
+export interface OrgSimulationUnit {
+  id: string;
+  name: string;
+  model: string;
+  autonomy: string;
+}
+
+export interface OrgSimulationRef {
+  unit_id: string;
+  unit_name: string;
+}
+
+export interface OrgSimulationActor {
+  kind: "agent" | "member" | "squad" | "none";
+  id: string;
+  name: string;
+}
+
+export interface OrgSimulationRequest {
+  model?: string;
+  definition?: OrgDefinition;
+  structure_id?: string;
+  request: { title: string; description?: string; keywords?: string[]; labels?: string[] };
+}
+
+/** A structured code (+ params) for one entry of `OrgSimulation.notes`, at
+ *  the same index — see `orgSimulateNoteText` in packages/views/org/labels.ts. */
+export interface OrgSimulationNote {
+  code: string;
+  params: Record<string, string | number>;
+}
+
+export interface OrgSimulation {
+  basis: "draft" | "revision";
+  structure_id: string;
+  revision: number;
+  unit: OrgSimulationUnit | null;
+  receives: OrgSimulationRef | null;
+  prepares: OrgSimulationActor;
+  decides: OrgSimulationActor;
+  escalation_path: OrgSimulationRef[];
+  blocking_denies: string[];
+  cost_estimate_usd_ticks: number;
+  notes: string[];
+  note_codes: OrgSimulationNote[];
 }

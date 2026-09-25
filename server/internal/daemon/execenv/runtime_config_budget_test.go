@@ -20,7 +20,14 @@ import (
 // (workspace_knowledge.go), with a byte budget and a line saying what was cut.
 // Long reference material belongs behind a pointer; only what the agent needs
 // before it can act belongs in the prefix.
-const briefFloorByteBudget = 15360 // 15 KiB
+// Raised from 15 KiB to 16 KiB when the upstream merge added two actionable
+// guardrails to `## Available Commands` (+306 bytes): the `--fresh` semantics
+// of `multica repo checkout`, and the Git-identity rule that stops a task from
+// rewriting a shared checkout's or the global user identity. Both are rules the
+// agent must know BEFORE it acts — a pointer an agent may not follow does not
+// protect a shared git config — so they belong in the prefix, and the declared
+// cost moves instead.
+const briefFloorByteBudget = 16384 // 16 KiB
 
 func TestBriefFloorStaysWithinItsBudget(t *testing.T) {
 	t.Parallel()

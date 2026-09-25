@@ -460,15 +460,15 @@ function TransactionRow({ row }: { row: BillingTransaction }) {
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption font-medium">
           {row.tx_type}
-          <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
+          <span className="ml-1.5 rounded-xs bg-muted px-1.5 py-0.5 font-mono text-micro text-muted-foreground">
             {row.source}
           </span>
         </span>
         <span
           className={`text-body tabular-nums ${
             credit >= 0
-              ? "text-green-700 dark:text-green-400"
-              : "text-red-700 dark:text-red-400"
+              ? "text-success"
+              : "text-destructive"
           }`}
         >
           {t(($) => $.transactions.credits_value, {
@@ -613,12 +613,12 @@ function TopupRow({ row }: { row: BillingTopup }) {
         <span className="text-caption font-medium">
           {row.tier_id || row.id.slice(0, 8)}
           <span
-            className={`ml-1.5 rounded px-1.5 py-0.5 font-mono text-micro ${
+            className={`ml-1.5 rounded-xs px-1.5 py-0.5 font-mono text-micro ${
               row.status === "credited"
-                ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                ? "bg-success/10 text-success"
                 : row.status === "failed" || row.status === "canceled"
-                  ? "bg-red-500/10 text-red-700 dark:text-red-400"
-                  : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-warning/10 text-warning"
             }`}
           >
             {row.status}

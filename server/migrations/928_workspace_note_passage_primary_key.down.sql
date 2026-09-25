@@ -1,0 +1,1 @@
+ALTER TABLE workspace_note_passage DROP CONSTRAINT IF EXISTS workspace_note_passage_pkey;

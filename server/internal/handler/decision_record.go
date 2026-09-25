@@ -18,8 +18,10 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Decision memory (K29): when an issue is accepted (enters a done status),
@@ -269,16 +271,19 @@ func (h *Handler) extractDecisionsWith(ctx context.Context, model *llm.Client, i
 			continue
 		}
 		recID := dbid.NewV7()
-		if _, err := h.Queries.CreateDecisionRecord(ctx, db.CreateDecisionRecordParams{
+		rec, err := h.Queries.CreateDecisionRecord(ctx, db.CreateDecisionRecordParams{
 			ID: recID, WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: run.ID,
 			SourceMessageSeq: d.SourceSeq, Title: strings.TrimSpace(d.Title), Context: strings.TrimSpace(d.Context),
 			Decision: strings.TrimSpace(d.Decision), Consequences: optionalText(d.Consequences),
 			AuthorType: "agent", AuthorID: run.AgentID,
-		}); err != nil {
+		})
+		if err != nil {
 			return created, fmt.Errorf("store decision: %w", err)
 		}
 		created++
 		h.indexWhy(ctx, issue.WorkspaceID, whySourceDecisionRecord, recID, issue.ID, decisionRecordWhyContent(d.Title, d.Context, d.Decision))
+		h.mirrorDecisionRecordToNote(ctx, rec)
+		h.publish(protocol.EventDecisionCreated, uuidToString(issue.WorkspaceID), "agent", uuidToString(run.AgentID), map[string]any{"decision": decisionRecordToResponse(rec)})
 	}
 	if created > 0 {
 		h.audit(ctx, issue.WorkspaceID, "agent", uuidToString(run.AgentID), AuditDecisionRecorded, "issue", issue.ID,
@@ -290,6 +295,52 @@ func (h *Handler) extractDecisionsWith(ctx context.Context, model *llm.Client, i
 func optionalText(s string) pgtype.Text {
 	s = strings.TrimSpace(s)
 	return pgtype.Text{String: s, Valid: s != ""}
+}
+
+// decisionRecordNoteContent is the Markdown body a decision record mirrors
+// into a Brain note, same shape as the 993 backfill migration produces for
+// pre-existing records: one section per field, whatever the record has.
+func decisionRecordNoteContent(context, decision, consequences string) string {
+	return util.TruncateUTF8Runes(
+		"## Contexte\n\n"+context+
+			"\n\n## Décision\n\n"+decision+
+			"\n\n## Conséquences\n\n"+consequences,
+		workspaceNoteMaxContentRunes,
+	)
+}
+
+// mirrorDecisionRecordToNote (JEF-415 / B04) gives a decision record's fact a
+// second, searchable and injectable life as a Brain note: source 'decision',
+// kind 'decision', pointed back at the record. Idempotent via the unique
+// partial index on workspace_note.decision_record_id — CreateWorkspaceNoteFromDecisionRecord
+// does nothing and returns pgx.ErrNoRows on a repeat, which is not an error
+// here.
+//
+// Called right after the record commits, not inside its transaction: the two
+// callers (extraction, manual creation) do not hold one open across the loop
+// that creates every decision of a run. A failure here must not undo an
+// already-stored decision, so it is logged, never returned to the caller.
+func (h *Handler) mirrorDecisionRecordToNote(ctx context.Context, rec db.DecisionRecord) {
+	_, err := h.Queries.CreateWorkspaceNoteFromDecisionRecord(ctx, db.CreateWorkspaceNoteFromDecisionRecordParams{
+		ID:               dbid.NewV7(),
+		WorkspaceID:      rec.WorkspaceID,
+		Title:            util.TruncateUTF8Runes(decisionRecordNoteTitle(rec.Title), workspaceNoteMaxTitleRunes),
+		Content:          decisionRecordNoteContent(rec.Context, rec.Decision, rec.Consequences.String),
+		DecisionRecordID: rec.ID,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		slog.Error("decision record: mirror to brain note failed", "decision_record_id", uuidToString(rec.ID), "workspace_id", uuidToString(rec.WorkspaceID), "error", err)
+	}
+}
+
+// decisionRecordNoteTitle keeps the mirrored note inside workspace_note's
+// 1..200 title CHECK: a record whose title is blank would otherwise fail the
+// insert and leave the decision out of the Brain. Same fallback as 993.
+func decisionRecordNoteTitle(title string) string {
+	if strings.TrimSpace(title) == "" {
+		return "Décision"
+	}
+	return strings.TrimSpace(title)
 }
 
 // issueAccepted tells whether the issue now sits in a done-category status.
@@ -305,13 +356,13 @@ func (h *Handler) issueAccepted(ctx context.Context, issue db.Issue) bool {
 // change must not wait for a model call.
 func (h *Handler) extractDecisionsAsync(issue db.Issue) {
 	model := h.LLM
-	go func() {
+	util.GoBackground("decision extraction", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		if _, err := h.extractDecisionsWith(ctx, model, issue); err != nil {
 			slog.Warn("decision extraction failed", "error", err, "issue_id", uuidToString(issue.ID))
 		}
-	}()
+	})
 }
 
 // GET /api/projects/{id}/decisions?author_type=agent|member
@@ -393,8 +444,11 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	var req createDecisionsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -443,6 +497,7 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
 	authorID := pgtype.UUID{}
 	if err := authorID.Scan(actorID); err != nil {
+		slog.Warn("failed to scan decision record author id", "actor_id", actorID, "error", err)
 		authorID = pgtype.UUID{}
 	}
 	out := make([]DecisionRecordResponse, 0, len(req.Decisions))
@@ -458,8 +513,11 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to store decision")
 			return
 		}
-		out = append(out, decisionRecordToResponse(rec))
+		decResp := decisionRecordToResponse(rec)
+		out = append(out, decResp)
 		h.indexWhy(r.Context(), issue.WorkspaceID, whySourceDecisionRecord, rec.ID, issue.ID, decisionRecordWhyContent(rec.Title, rec.Context, rec.Decision))
+		h.mirrorDecisionRecordToNote(r.Context(), rec)
+		h.publish(protocol.EventDecisionCreated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"decision": decResp})
 	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditDecisionRecorded, "issue", issue.ID,
 		map[string]any{"count": len(out), "run_id": uuidToString(run.ID), "source": "manual"}, nil)

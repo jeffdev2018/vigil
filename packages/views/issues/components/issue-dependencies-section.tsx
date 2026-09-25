@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
+import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import {
   issueDependenciesOptions,
@@ -15,9 +16,9 @@ import { useT } from "../../i18n";
 import { StatusIcon } from "./status-icon";
 
 /**
- * "Blocks" / "Blocked by" lists in the issue detail sidebar. Renders nothing
- * when the issue has neither; links are added from the actions menu
- * (Relations submenu), like the parent issue.
+ * Relation lists in the issue detail sidebar: blocks / blocked by / related /
+ * duplicate (R01). Renders nothing when the issue has none; links are added
+ * from the actions menu (Relations submenu), like the parent issue.
  */
 export function IssueDependenciesSection({ issueId }: { issueId: string }) {
   const { t } = useT("issues");
@@ -28,7 +29,9 @@ export function IssueDependenciesSection({ issueId }: { issueId: string }) {
 
   const blocks = data?.blocks ?? [];
   const blockedBy = data?.blocked_by ?? [];
-  if (blocks.length === 0 && blockedBy.length === 0) return null;
+  const related = data?.related ?? [];
+  const duplicate = data?.duplicate ?? [];
+  if (blocks.length === 0 && blockedBy.length === 0 && related.length === 0 && duplicate.length === 0) return null;
 
   const renderList = (label: string, items: IssueDependency[]) =>
     items.length > 0 && (
@@ -60,7 +63,19 @@ export function IssueDependenciesSection({ issueId }: { issueId: string }) {
                   type="button"
                   title={t(($) => $.actions.remove_dependency)}
                   aria-label={t(($) => $.actions.remove_dependency)}
-                  onClick={() => remove.mutate({ issueId, dependencyId: dep.id })}
+                  onClick={() =>
+                    remove.mutate(
+                      { issueId, dependencyId: dep.id },
+                      {
+                        onError: (err) =>
+                          toast.error(
+                            err instanceof Error && err.message
+                              ? err.message
+                              : t(($) => $.actions.remove_dependency_failed),
+                          ),
+                      },
+                    )
+                  }
                   className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -76,6 +91,8 @@ export function IssueDependenciesSection({ issueId }: { issueId: string }) {
     <div className="flex flex-col gap-2">
       {renderList(t(($) => $.detail.section_blocked_by), blockedBy)}
       {renderList(t(($) => $.detail.section_blocks), blocks)}
+      {renderList(t(($) => $.detail.section_related), related)}
+      {renderList(t(($) => $.detail.section_duplicate), duplicate)}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { configStore } from "@multica/core/config";
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MeetingListResponse } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -163,6 +164,12 @@ describe("MeetingsPage", () => {
     data.meetings.meetings = [];
     renderPage();
     expect(await screen.findByText("No meetings yet")).toBeTruthy();
+    // The empty state repeats the header action so the first recording is
+    // one click away from the explanation.
+    const buttons = screen.getAllByRole("button", { name: /record a meeting/i });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    expect(data.store.open).toHaveBeenCalled();
   });
 
   it("shows a quiet banner and disables recording when the server has no STT", async () => {
@@ -233,11 +240,51 @@ describe("MeetingsPage", () => {
     expect(data.deleteMeeting).toHaveBeenCalledWith("meet-1");
   });
 
-  it("clicking a row navigates to that meeting's detail page", async () => {
+  // The row's click/auxclick handlers are a mouse-only convenience (see
+  // views/navigation/use-row-link). The row used to claim `role="button"` with
+  // a tabIndex and no key handler, so the keyboard could focus it and activate
+  // nothing at all; the title anchor is the real route to the meeting.
+  it("renders the meeting title as a real link", async () => {
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Weekly sync" });
+    expect(link).toHaveAttribute("href", "/acme/meetings/meet-1");
+  });
+
+  it("navigates once from the keyboard when the title link is activated", async () => {
+    const user = userEvent.setup();
     const adapter = renderPage();
-    fireEvent.click(await screen.findByText("Weekly sync"));
-    // The whole row is the click target (useRowLink), so the name cell stays
-    // plain text rather than a nested anchor.
+
+    const link = await screen.findByRole("link", { name: "Weekly sync" });
+    link.focus();
+    expect(link).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(adapter.push).toHaveBeenCalledWith("/acme/meetings/meet-1");
+    expect(adapter.push).toHaveBeenCalledTimes(1);
+  });
+
+  // This rig carries a tab adapter (desktop), so AppLink owns the
+  // modifier-click. If the event also reached the row, rowLink would open a
+  // second tab.
+  it("opens a single tab on a modifier click of the title", async () => {
+    const adapter = renderPage();
+
+    fireEvent.click(await screen.findByRole("link", { name: "Weekly sync" }), {
+      metaKey: true,
+    });
+
+    expect(adapter.openInNewTab).toHaveBeenCalledTimes(1);
+    expect(adapter.openInNewTab).toHaveBeenCalledWith(
+      "/acme/meetings/meet-1",
+      "Weekly sync",
+    );
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+
+  it("clicking the row outside the title still navigates to that meeting", async () => {
+    const adapter = renderPage();
+    // A cell with no interactive content of its own — the row surface.
+    fireEvent.click(await screen.findByText("Zoom"));
     expect(adapter.push).toHaveBeenCalledWith("/acme/meetings/meet-1");
   });
 });

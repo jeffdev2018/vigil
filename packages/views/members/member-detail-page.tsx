@@ -1,5 +1,7 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../common/load-error-state";
 import { ChevronRight, UserRound } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { MemberRole } from "@multica/core/types";
@@ -18,11 +20,15 @@ export function MemberDetailPage({ userId }: { userId: string }) {
   const { t } = useT("members");
   const wsId = useWorkspaceId();
   const workspace = useCurrentWorkspace();
-  const { data: members = [], isLoading } = useQuery(memberListOptions(wsId));
+  const { data: members = [], isLoading, error: membersError, refetch: refetchMembers } = useQuery(memberListOptions(wsId));
   const member = members.find((m) => m.user_id === userId) ?? null;
 
   if (isLoading && !member) {
     return <MemberDetailSkeleton />;
+  }
+
+  if (!member && membersError && !isResourceMissingError(membersError)) {
+    return <LoadErrorState onRetry={() => void refetchMembers()} />;
   }
 
   if (!member) {

@@ -2,6 +2,7 @@
   "page": {
     "title": "Chat",
     "select_prompt": "Pick a conversation, or start a new one with +",
+    "archive_failed": "Couldn't archive the conversation",
     "agent_link_no_access": "You don't have access to chat with this agent."
   },
   "fab": {
@@ -24,6 +25,7 @@
     "send_failed_toast": "Failed to send message",
     "send_blocked_toast": "Message not sent — you no longer have permission to use this agent",
     "runtime_required_toast": "Message not sent — bind a runtime to this agent first",
+    "runtime_access_denied_toast": "Message not sent — this agent can't run on its private runtime. Make the runtime public, or rebind/copy the agent to a runtime its owner can use",
     "attachment_bind_failed_toast": "Message sent, but files were not attached. Please try again in a moment.",
     "add_tooltip": "Add",
     "upload_file": "Image or files",
@@ -31,7 +33,8 @@
     "change_project_context": "Change project context",
     "remove_project_context": "Remove project context",
     "no_projects": "No projects yet",
-    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade"
+    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade",
+    "run_notice": "Sending starts a run of {{name}}; it may take a few minutes."
   },
   "queue": {
     "title_one": "{{count}} queued message",
@@ -58,6 +61,7 @@
       "timeout": "The agent took too long and stopped before finishing. Try again, or break your request into smaller steps.",
       "codex_semantic_inactivity": "The agent went idle and stopped before finishing. Please try again.",
       "runtime_offline": "The agent is offline right now, so it couldn't reply. Please try again once it's back online.",
+      "runtime_access_denied": "This agent can't run on its private runtime, so it couldn't reply. Make the runtime public, or rebind/copy the agent to a runtime its owner can use.",
       "runtime_recovery": "The agent restarted before it could finish. Please try again.",
       "manual": "This reply was cancelled.",
       "skill_bundle_unavailable": "The agent's skills couldn't be downloaded, so it never got started. This is usually a connection problem — please try again.",
@@ -247,7 +251,8 @@
     "rename": "Rename chat",
     "archive": "Archive chat",
     "unarchive": "Unarchive chat",
-    "delete": "Delete chat"
+    "delete": "Delete chat",
+    "more_actions_aria": "More actions"
   },
   "voice": {
     "start": "Dictate a message",
@@ -258,7 +263,10 @@
     "error_not_configured": "Transcription is not configured on this server.",
     "error_failed": "The recording could not be transcribed.",
     "listen": "Listen",
-    "stop_listening": "Stop listening"
+    "stop_listening": "Stop listening",
+    "conversation_start": "Conversation mode",
+    "conversation_stop": "End conversation",
+    "conversation_transcribing": "Transcribing…"
   },
   "participants": {
     "add": "Add member",
@@ -269,5 +277,9 @@
     "typing_name": "{{name}} is typing…",
     "typing_count": "{{count}} people are typing…",
     "author_badge": "Sent by {{name}}"
+  },
+  "approvals": {
+    "strip_title_one": "{{count}} pending approval",
+    "strip_title_other": "{{count}} pending approvals"
   }
 }

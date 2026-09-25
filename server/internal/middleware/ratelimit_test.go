@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 })
 
 func TestRateLimit_NilRedis(t *testing.T) {
-	mw := RateLimit(nil, 5, time.Minute, nil)
+	mw := RateLimit(nil, 5, time.Minute, nil, false)
 	handler := mw(okHandler)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
@@ -29,7 +30,7 @@ func TestRateLimit_NilRedis(t *testing.T) {
 
 func TestRateLimit_AllowsUnderLimit(t *testing.T) {
 	rdb := newRedisTestClient(t)
-	mw := RateLimit(rdb, 3, time.Minute, nil)
+	mw := RateLimit(rdb, 3, time.Minute, nil, false)
 	handler := mw(okHandler)
 
 	for i := 0; i < 3; i++ {
@@ -45,7 +46,7 @@ func TestRateLimit_AllowsUnderLimit(t *testing.T) {
 
 func TestRateLimit_BlocksOverLimit(t *testing.T) {
 	rdb := newRedisTestClient(t)
-	mw := RateLimit(rdb, 2, time.Minute, nil)
+	mw := RateLimit(rdb, 2, time.Minute, nil, false)
 	handler := mw(okHandler)
 
 	for i := 0; i < 2; i++ {
@@ -78,7 +79,7 @@ func TestRateLimit_BlocksOverLimit(t *testing.T) {
 
 func TestRateLimit_RetryAfterHeader(t *testing.T) {
 	rdb := newRedisTestClient(t)
-	mw := RateLimit(rdb, 1, 2*time.Minute, nil)
+	mw := RateLimit(rdb, 1, 2*time.Minute, nil, false)
 	handler := mw(okHandler)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
@@ -102,7 +103,7 @@ func TestRateLimit_RetryAfterHeader(t *testing.T) {
 
 func TestRateLimit_DifferentIPs(t *testing.T) {
 	rdb := newRedisTestClient(t)
-	mw := RateLimit(rdb, 1, time.Minute, nil)
+	mw := RateLimit(rdb, 1, time.Minute, nil, false)
 	handler := mw(okHandler)
 
 	ips := []string{"10.0.1.1:9000", "10.0.1.2:9000", "10.0.1.3:9000"}
@@ -199,7 +200,7 @@ func TestExtractIP_IPv6Normalization(t *testing.T) {
 
 func TestRateLimit_LuaScript_SetsTTL(t *testing.T) {
 	rdb := newRedisTestClient(t)
-	mw := RateLimit(rdb, 10, 30*time.Second, nil)
+	mw := RateLimit(rdb, 10, 30*time.Second, nil, false)
 	handler := mw(okHandler)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
@@ -241,5 +242,103 @@ func TestParseTrustedProxies_InvalidSkipped(t *testing.T) {
 	nets := ParseTrustedProxies("10.0.0.0/8, not-a-cidr, 172.16.0.0/12")
 	if len(nets) != 2 {
 		t.Fatalf("expected 2 valid CIDRs (invalid skipped), got %d", len(nets))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// In-memory fallback: production + nil Redis client (JEF-288)
+// ---------------------------------------------------------------------------
+
+func TestRateLimit_NilRedisProduction_FallsBackToInMemory_AllowsUnderLimit(t *testing.T) {
+	mw := RateLimit(nil, 2, time.Minute, nil, true)
+	handler := mw(okHandler)
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
+		req.RemoteAddr = "10.1.0.1:9000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d", i+1, rec.Code)
+		}
+	}
+}
+
+func TestRateLimit_NilRedisProduction_FallsBackToInMemory_BlocksOverLimit(t *testing.T) {
+	mw := RateLimit(nil, 1, time.Minute, nil, true)
+	handler := mw(okHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
+	req.RemoteAddr = "10.1.0.2:9000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request: expected 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
+	req.RemoteAddr = "10.1.0.2:9000"
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request: expected 429, got %d", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header on 429")
+	}
+}
+
+func TestRateLimit_NilRedisProduction_InMemoryLimiterIsPerIP(t *testing.T) {
+	mw := RateLimit(nil, 1, time.Minute, nil, true)
+	handler := mw(okHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
+	req.RemoteAddr = "10.1.0.3:9000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ip 1: expected 200, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/auth/send-code", nil)
+	req.RemoteAddr = "10.1.0.4:9000"
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ip 2 (different IP): expected 200, got %d", rec.Code)
+	}
+}
+
+func TestInMemoryRateLimiter_WindowResets(t *testing.T) {
+	l := newInMemoryRateLimiter(1, 10*time.Millisecond)
+
+	allowed, _ := l.allow("k")
+	if !allowed {
+		t.Fatal("first call should be allowed")
+	}
+	allowed, _ = l.allow("k")
+	if allowed {
+		t.Fatal("second call within window should be blocked")
+	}
+
+	time.Sleep(15 * time.Millisecond)
+	allowed, _ = l.allow("k")
+	if !allowed {
+		t.Fatal("call after window reset should be allowed")
+	}
+}
+
+func TestInMemoryRateLimiter_SweepsExpiredEntriesWhenBounded(t *testing.T) {
+	l := newInMemoryRateLimiter(1, time.Nanosecond)
+	for i := 0; i < inMemoryRateLimiterMaxKeys+1; i++ {
+		l.allow(fmt.Sprintf("k%d", i))
+	}
+	// All entries expired instantly (1ns window); crossing the bound must
+	// have swept them rather than growing forever.
+	l.mu.Lock()
+	size := len(l.counts)
+	l.mu.Unlock()
+	if size > inMemoryRateLimiterMaxKeys {
+		t.Fatalf("expected sweep to bound the map, got %d entries", size)
 	}
 }

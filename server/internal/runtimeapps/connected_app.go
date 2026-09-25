@@ -59,3 +59,34 @@ func titleASCII(s string) string {
 	}
 	return string(b)
 }
+
+// MergeOverlayResults folds two per-task overlays into one: the mcpServers
+// maps are merged by server name (b wins on a name collision, which the
+// distinct provider names make impossible in practice) and the connected
+// apps are concatenated. A zero result on either side is the identity.
+func MergeOverlayResults(a, b MCPOverlayResult) MCPOverlayResult {
+	if len(a.MCPOverlay) == 0 {
+		return b
+	}
+	if len(b.MCPOverlay) == 0 {
+		return a
+	}
+	type payload struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	var pa, pb payload
+	if json.Unmarshal(a.MCPOverlay, &pa) != nil || json.Unmarshal(b.MCPOverlay, &pb) != nil {
+		return a
+	}
+	if pa.MCPServers == nil {
+		pa.MCPServers = map[string]json.RawMessage{}
+	}
+	for name, server := range pb.MCPServers {
+		pa.MCPServers[name] = server
+	}
+	raw, err := json.Marshal(pa)
+	if err != nil {
+		return a
+	}
+	return MCPOverlayResult{MCPOverlay: raw, ConnectedApps: append(append([]ConnectedApp{}, a.ConnectedApps...), b.ConnectedApps...)}
+}

@@ -22,6 +22,7 @@ import type {
 } from "@multica/core/types";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { InfoBanner } from "../../common/info-banner";
 import {
   runtimeDisplayLabel,
   runtimeListOptions,
@@ -123,13 +124,13 @@ function defaultRenameName(name: string): string {
 function ResultIcon({ status }: { status: BulkImportResult["status"] }) {
   switch (status) {
     case "created":
-      return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />;
+      return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />;
     case "updated":
-      return <RefreshCw className="h-3.5 w-3.5 shrink-0 text-blue-600" />;
+      return <RefreshCw className="h-3.5 w-3.5 shrink-0 text-info" />;
     case "conflict":
-      return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />;
+      return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />;
     case "skipped":
-      return <SkipForward className="h-3.5 w-3.5 shrink-0 text-yellow-600" />;
+      return <SkipForward className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
     case "failed":
       return <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />;
   }
@@ -264,40 +265,42 @@ function BulkImportSummary({ results }: { results: BulkImportResult[] }) {
     <div className="space-y-4 py-2">
       {/* Summary counts */}
       <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
-        <div className="rounded-md bg-green-50 px-3 py-2 dark:bg-green-950/30">
-          <div className="text-title font-semibold text-green-700 dark:text-green-400">
+        <div className="rounded-md bg-success-subtle px-3 py-2">
+          <div className="text-title font-semibold text-success-strong">
             {created.length}
           </div>
           <div className="text-caption text-muted-foreground">
             {t(($) => $.runtime_import.bulk_summary_created)}
           </div>
         </div>
-        <div className="rounded-md bg-blue-50 px-3 py-2 dark:bg-blue-950/30">
-          <div className="text-title font-semibold text-blue-700 dark:text-blue-400">
+        <div className="rounded-md bg-info-subtle px-3 py-2">
+          <div className="text-title font-semibold text-info-strong">
             {updated.length}
           </div>
           <div className="text-caption text-muted-foreground">
             {t(($) => $.runtime_import.bulk_summary_updated)}
           </div>
         </div>
-        <div className="rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
-          <div className="text-title font-semibold text-amber-700 dark:text-amber-400">
+        <div className="rounded-md bg-warning-subtle px-3 py-2">
+          <div className="text-title font-semibold text-warning-strong">
             {conflicts.length}
           </div>
           <div className="text-caption text-muted-foreground">
             {t(($) => $.runtime_import.bulk_summary_conflicts)}
           </div>
         </div>
-        <div className="rounded-md bg-yellow-50 px-3 py-2 dark:bg-yellow-950/30">
-          <div className="text-title font-semibold text-yellow-700 dark:text-yellow-400">
+        {/* "skipped" is neutral (not an alert state on its own — the user
+            chose it), so it gets the muted tile rather than a second amber. */}
+        <div className="rounded-md bg-muted px-3 py-2">
+          <div className="text-title font-semibold text-foreground">
             {skipped.length}
           </div>
           <div className="text-caption text-muted-foreground">
             {t(($) => $.runtime_import.bulk_summary_skipped)}
           </div>
         </div>
-        <div className="rounded-md bg-red-50 px-3 py-2 dark:bg-red-950/30">
-          <div className="text-title font-semibold text-red-700 dark:text-red-400">
+        <div className="rounded-md bg-destructive-subtle px-3 py-2">
+          <div className="text-title font-semibold text-destructive-strong">
             {failed.length}
           </div>
           <div className="text-caption text-muted-foreground">
@@ -311,7 +314,7 @@ function BulkImportSummary({ results }: { results: BulkImportResult[] }) {
         {results.map((r) => (
           <div
             key={r.key}
-            className="flex items-center gap-2 rounded px-2 py-1.5 text-caption"
+            className="flex items-center gap-2 rounded-xs px-2 py-1.5 text-caption"
           >
             <ResultIcon status={r.status} />
             <span className="min-w-0 flex-1 truncate">{r.name}</span>
@@ -350,23 +353,19 @@ function ConflictResolutionPanel({
 
   return (
     <div className="space-y-4 py-2">
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-body text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-        <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="min-w-0">
-            <p className="font-medium">
-              {single
-                ? t(($) => $.runtime_import.conflict_single_title)
-                : t(($) => $.runtime_import.conflict_bulk_title, {
-                    count: conflicts.length,
-                  })}
-            </p>
-            <p className="mt-1 text-caption">
-              {t(($) => $.runtime_import.conflict_hint)}
-            </p>
-          </div>
-        </div>
-      </div>
+      <InfoBanner
+        role="warning"
+        icon={AlertTriangle}
+        title={
+          single
+            ? t(($) => $.runtime_import.conflict_single_title)
+            : t(($) => $.runtime_import.conflict_bulk_title, {
+                count: conflicts.length,
+              })
+        }
+      >
+        {t(($) => $.runtime_import.conflict_hint)}
+      </InfoBanner>
 
       {!single && (
         <div className="flex flex-wrap gap-2">
@@ -402,7 +401,7 @@ function ConflictResolutionPanel({
           return (
             <div key={r.key} className="rounded-lg border bg-card p-3">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium">{r.name}</div>
                   {r.error && (
@@ -953,7 +952,7 @@ export function RuntimeLocalSkillImportPanel({
             {bulkState.results.map((r) => (
               <div
                 key={r.key}
-                className="flex items-center gap-2 rounded px-2 py-1 text-caption"
+                className="flex items-center gap-2 rounded-xs px-2 py-1 text-caption"
               >
                 <ResultIcon status={r.status} />
                 <span className="truncate">{r.name}</span>
@@ -1075,9 +1074,6 @@ export function RuntimeLocalSkillImportPanel({
           <p className="text-body text-muted-foreground">
             {t(($) => $.runtime_import.no_skills_title)}
           </p>
-          <p className="mt-1 text-caption text-muted-foreground">
-            {t(($) => $.runtime_import.no_skills_hint)}
-          </p>
         </div>
       );
     }
@@ -1095,9 +1091,6 @@ export function RuntimeLocalSkillImportPanel({
 
         {filteredRuntimeSkills.length === 0 ? (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center">
-            <p className="text-body text-muted-foreground">
-              {t(($) => $.runtime_import.no_search_results_title)}
-            </p>
             <p className="mt-1 text-caption text-muted-foreground">
               {t(($) => $.runtime_import.no_search_results_hint, {
                 query: skillSearchQuery.trim(),
@@ -1108,14 +1101,10 @@ export function RuntimeLocalSkillImportPanel({
           <>
             {/* Select all header */}
             <label className="flex cursor-pointer items-center gap-2 px-1 py-1">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected;
-                }}
-                onChange={toggleAll}
-                className="cursor-pointer accent-primary"
+                indeterminate={someSelected}
+                onCheckedChange={toggleAll}
               />
               <span className="text-caption text-muted-foreground">
                 {t(($) => $.runtime_import.select_all, {

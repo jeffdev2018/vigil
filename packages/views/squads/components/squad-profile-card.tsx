@@ -13,6 +13,7 @@ import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/ac
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { AppLink } from "../../navigation";
+import { useWorkspaceRoleLabel } from "../../members/member-profile-card";
 import { useT } from "../../i18n";
 
 interface SquadProfileCardProps {
@@ -125,6 +126,7 @@ function MembersList({
   wsMembers: { user_id: string; name: string; role: string }[];
 }) {
   const { t } = useT("squads");
+  const roleLabel = useWorkspaceRoleLabel();
   const p = useWorkspacePaths();
   const visible = members.slice(0, 3);
   const overflow = Math.max(0, memberCount - visible.length);
@@ -175,7 +177,7 @@ function MembersList({
               )}
               {m.member_type === "member" && memberRole && (
                 <span className="max-w-[3.5rem] shrink-0 truncate text-muted-foreground">
-                  {memberRole}
+                  {roleLabel(memberRole)}
                 </span>
               )}
             </AppLink>

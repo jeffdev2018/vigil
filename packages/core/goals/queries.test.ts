@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { goalAncestry, goalChildren, goalProgress } from "./queries";
+import { goalChildren, goalProgress } from "./queries";
 import type { Goal } from "../types";
 
 function stubFetch(body: unknown, status = 200) {
@@ -34,8 +34,6 @@ describe("goals client", () => {
   it("walks the tree and computes progress", () => {
     const goals = [goal({ id: "m" }), goal({ id: "s", parent_goal_id: "m" }), goal({ id: "t", parent_goal_id: "s" })];
     expect(goalChildren(goals, null).map((g) => g.id)).toEqual(["m"]);
-    expect(goalAncestry(goals, "t").map((g) => g.id)).toEqual(["m", "s", "t"]);
-    expect(goalAncestry([goal({ id: "a", parent_goal_id: "b" }), goal({ id: "b", parent_goal_id: "a" })], "a").length).toBe(2);
     expect(goalProgress(goal({ issue_count: 4, done_count: 1 }))).toBe(0.25);
     expect(goalProgress(goal({}))).toBe(0);
   });

@@ -38,6 +38,14 @@ INSERT INTO plan_verification (workspace_id, issue_id, plan_id, plan_version, ta
 VALUES ($1, $2, $3, $4, $5, $6, 'queued')
 RETURNING *;
 
+-- name: SetPlanVerificationTaskID :exec
+-- MaybeEnqueuePlanVerification records the row BEFORE enqueuing the
+-- verification run, with task_id set to the placeholder value $2
+-- (source_task_id) so PlanVerificationExistsForSource closes the re-fire
+-- window immediately. This swaps the placeholder for the real verification
+-- task_id once EnqueueTaskForIssueWithHandoff has actually succeeded.
+UPDATE plan_verification SET task_id = $2 WHERE id = $1;
+
 -- name: GetPlanVerificationByTask :one
 SELECT * FROM plan_verification WHERE task_id = $1;
 

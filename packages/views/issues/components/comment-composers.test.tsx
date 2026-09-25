@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -131,6 +131,7 @@ vi.mock("../../editor", async () => ({
   ContentEditor: forwardRef(function MockContentEditor(
     {
       defaultValue,
+      value,
       onUpdate,
       placeholder,
       onUploadFile,
@@ -140,6 +141,7 @@ vi.mock("../../editor", async () => ({
       quickActionMenu,
     }: {
       defaultValue?: string;
+      value?: string;
       onUpdate?: (markdown: string) => void;
       placeholder?: string;
       onUploadFile?: (file: File, uploadId: string) => Promise<UploadResult | null>;
@@ -153,7 +155,9 @@ vi.mock("../../editor", async () => ({
     editorDefaultValues.values.push(defaultValue);
     editorQuickActionMenu.last = quickActionMenu;
     editorUploadSignal.notify = onUploadingChange;
-    const valueRef = useRef(defaultValue ?? "");
+    const initialValue = value ?? defaultValue ?? "";
+    const valueRef = useRef(initialValue);
+    const [editorValue, setEditorValue] = useState(initialValue);
     // Mirrors the real editor's `uploading` node attrs: the placeholder exists
     // from before the await until the upload settles, `hasActiveUploads` reads
     // it synchronously, and the host is told through onUploadingChange.
@@ -170,11 +174,17 @@ vi.mock("../../editor", async () => ({
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+    useEffect(() => {
+      if (value === undefined || value === valueRef.current) return;
+      valueRef.current = value;
+      setEditorValue(value);
+    }, [value]);
 
     useImperativeHandle(ref, () => ({
       getMarkdown: () => valueRef.current,
       clearContent: () => {
         valueRef.current = "";
+        setEditorValue("");
       },
       focus: () => { focusCalls.focused += 1; },
       focusAtCoords: () => {},
@@ -186,6 +196,7 @@ vi.mock("../../editor", async () => ({
           const result = await onUploadFile?.(file, `mock-upload-${++mockUploadIdSeq}`);
           if (!result || destroyedRef.current) return;
           valueRef.current = `${valueRef.current}\n${result.url}`.trim();
+          setEditorValue(valueRef.current);
           onUpdate?.(valueRef.current);
         } finally {
           inFlightRef.current -= 1;
@@ -205,6 +216,7 @@ vi.mock("../../editor", async () => ({
         insertMarkdownSpy(md);
         if (destroyedRef.current || !insertMarkdownBehavior.succeed) return false;
         valueRef.current = `${valueRef.current}\n\n${md}`.trim();
+        setEditorValue(valueRef.current);
         onUpdate?.(valueRef.current);
         return true;
       },
@@ -213,10 +225,11 @@ vi.mock("../../editor", async () => ({
     return (
       <textarea
         data-testid="editor"
-        defaultValue={defaultValue}
+        value={editorValue}
         placeholder={placeholder}
         onChange={(event) => {
           valueRef.current = event.target.value;
+          setEditorValue(event.target.value);
           onUpdate?.(event.target.value);
         }}
         onKeyDown={(event) => {
@@ -1185,5 +1198,60 @@ describe("CommentInput voice memo", () => {
     // Same capability gate as the chat composer.
     renderCommentInput();
     expect(screen.queryByRole("button", { name: "voice-memo" })).toBeNull();
+  });
+});
+
+describe.each(["reply", "description"])("annotations in %s drafts", (source) => {
+  const draftKey = source === "reply" ? "reply:issue-1:comment-1" as const : "new:issue-1" as const;
+  const renderAnnotatedComposer = (onSubmit: Parameters<typeof renderCommentInput>[0]) => source === "reply"
+    ? renderReplyInput({ draftKey: "reply:issue-1:comment-1", onSubmit }) : renderCommentInput(onSubmit);
+  const annotation = { id: "a", sourceCommentId: "agent-source", sourceActorName: "Emacs", quote: "Selected text", note: "Please revise", start: 0, prefix: "", suffix: "" };
+
+  it("sends an annotation-only draft once without requiring a mounted editor", async () => {
+    useCommentDraftStore.getState().addAnnotation(draftKey, annotation);
+    const onSubmit = vi.fn().mockResolvedValue("reply-new");
+    renderAnnotatedComposer(onSubmit);
+    expect(screen.queryByTestId("editor")).not.toBeInTheDocument();
+    const send = screen.getByRole("button", { name: "Send" });
+    fireEvent.click(send);
+    fireEvent.click(send);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0]?.[0]).toContain("> Selected text");
+    expect(onSubmit.mock.calls[0]?.[0]).toContain("Please revise");
+    await waitFor(() => expect(useCommentDraftStore.getState().getAnnotations(draftKey)).toHaveLength(0));
+  });
+
+  it("sends annotations above the composer body with a divider", async () => {
+    useCommentDraftStore.getState().setDraft(draftKey, "Overall reply");
+    useCommentDraftStore.getState().addAnnotation(draftKey, annotation);
+    const onSubmit = vi.fn().mockResolvedValue("reply-new");
+    renderAnnotatedComposer(onSubmit);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0]?.[0]).toBe("> Selected text\n\nPlease revise\n\n---\n\nOverall reply");
+  });
+
+  it("ignores empty selections and keeps saved annotations on send failure", async () => {
+    useCommentDraftStore.getState().addAnnotation(draftKey, { ...annotation, note: "" });
+    const onSubmit = vi.fn().mockResolvedValue(false);
+    renderAnnotatedComposer(onSubmit);
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /1 annotation/ })).not.toBeInTheDocument();
+    act(() => { useCommentDraftStore.getState().addAnnotation(draftKey, { ...annotation, note: "New note" }); });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(useCommentDraftStore.getState().getAnnotations(draftKey)[0]?.note).toBe("New note");
+  });
+
+  it("retains new annotations collected while a send is pending", async () => {
+    useCommentDraftStore.getState().addAnnotation(draftKey, annotation);
+    let accept!: (id: string) => void;
+    const onSubmit = vi.fn(() => new Promise<string>((resolve) => { accept = resolve; }));
+    renderAnnotatedComposer(onSubmit);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    act(() => { useCommentDraftStore.getState().addAnnotation(draftKey, { ...annotation, id: "b", quote: "Another point" }); });
+    await act(async () => accept("reply-new"));
+    expect(useCommentDraftStore.getState().getAnnotations(draftKey)).toHaveLength(2);
   });
 });

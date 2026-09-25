@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
@@ -25,8 +26,23 @@ type telegramChannel struct {
 	botUsername string
 	api         *botAPI
 	handler     channel.InboundHandler
-	logger      *slog.Logger
+	// onApproval decides an inline approval button press and returns the
+	// sentence to show the clicker as a toast. Nil leaves the buttons inert.
+	onApproval ApprovalClickHandler
+	logger     *slog.Logger
+	// recent buffers the group messages this loop has seen so an @-mention can
+	// carry the surrounding conversation (see recent_context.go). Nil disables.
+	recent *recentContextBuffer
 }
+
+// ApprovalClickHandler settles the ask an inline approval button names. appID
+// is this bot's id (the installation routing key); userID is the clicker's
+// Telegram user id. The returned sentence is shown to the clicker.
+type ApprovalClickHandler func(ctx context.Context, appID, userID, data string) string
+
+// ApprovalCallbackPrefix opens the callback_data of every button this adapter
+// answers. Anything else is left alone: another feature may add its own.
+const ApprovalCallbackPrefix = "decide|"
 
 // pollRetryDelay spaces retries after a transient getUpdates failure inside
 // one Connect attempt before giving the error to the Supervisor's backoff.
@@ -90,7 +106,7 @@ func (c *telegramChannel) Connect(ctx context.Context) error {
 			if !sleepCtx(ctx, pollRetryDelay) {
 				return nil
 			}
-			return fmt.Errorf("telegram: getUpdates: %w", err)
+			continue
 		}
 		for _, u := range updates {
 			if u.UpdateID >= offset {
@@ -112,10 +128,15 @@ func (c *telegramChannel) Connect(ctx context.Context) error {
 // duplicates). Product drops return nil. Unsupported media in a private chat,
 // or explicitly addressed to the bot in a group, gets a courteous notice.
 func (c *telegramChannel) dispatch(ctx context.Context, u Update) error {
-	msg, ok := inboundFromUpdate(u, c.botID, c.botUsername)
+	if u.CallbackQuery != nil {
+		c.handleCallback(ctx, u.CallbackQuery)
+		return nil
+	}
+	msg, ok := inboundFromUpdateWithContext(u, c.botID, c.botUsername, c.recent)
 	if !ok {
 		return nil
 	}
+	c.recordRecent(u.Message, msg)
 	if msg.Type != channel.MsgTypeText {
 		if msg.Source.ChatType == channel.ChatTypeP2P || msg.AddressedToBot {
 			c.notifyUnsupported(ctx, u)
@@ -130,6 +151,50 @@ func (c *telegramChannel) dispatch(ctx context.Context, u Update) error {
 		return err
 	}
 	return nil
+}
+
+// handleCallback answers an inline approval button press: decide, tell the
+// clicker in a toast, and rewrite the message that carried the buttons so the
+// outcome is visible to the whole chat and nothing clickable is left behind.
+//
+// Never returns an error: a click that cannot be settled is a product outcome
+// the clicker reads, not an infrastructure failure that should tear down the
+// polling loop and re-deliver the update.
+func (c *telegramChannel) handleCallback(ctx context.Context, q *CallbackQuery) {
+	if q.From == nil || !strings.HasPrefix(q.Data, ApprovalCallbackPrefix) {
+		return
+	}
+	reply := "Multica is not accepting button clicks on this bot."
+	if c.onApproval != nil {
+		reply = c.onApproval(ctx, strconv.FormatInt(c.botID, 10), strconv.FormatInt(q.From.ID, 10), q.Data)
+	}
+	if err := c.api.AnswerCallbackQuery(ctx, q.ID, reply); err != nil {
+		c.logger.WarnContext(ctx, "telegram: answerCallbackQuery failed", "error", err)
+	}
+	if q.Message == nil {
+		return
+	}
+	if err := c.api.EditMessageText(ctx, editMessageTextParams{
+		ChatID: q.Message.Chat.ID, MessageID: q.Message.MessageID, Text: q.Message.Text + "\n\n" + reply,
+	}); err != nil {
+		c.logger.DebugContext(ctx, "telegram: approval message not updated", "error", err)
+	}
+}
+
+// recordRecent buffers a human group message after it has been translated,
+// so the window an @-mention reads never contains the mention itself. Runs
+// for every group message the loop sees — addressed or not, text or media —
+// because the next @-mention wants the conversation as members saw it. p2p
+// messages are never buffered: a 1:1 chat is already one continuous session.
+func (c *telegramChannel) recordRecent(m *Message, msg channel.InboundMessage) {
+	if c.recent == nil || m == nil || msg.Source.ChatType != channel.ChatTypeGroup {
+		return
+	}
+	var threadID int64
+	if m.IsTopicMessage {
+		threadID = m.MessageThreadID
+	}
+	c.recent.Record(m.Chat.ID, threadID, recentEntryFromMessage(m))
 }
 
 const (
@@ -211,6 +276,15 @@ type ChannelDeps struct {
 	// HTTPClient overrides the polling client (tests). Nil uses a default with
 	// a timeout sized for long polling.
 	HTTPClient *http.Client
+	// OnApprovalClick settles an inline approval button press. Nil leaves the
+	// buttons inert (the clicker is told so).
+	OnApprovalClick ApprovalClickHandler
+	// RecentContextSize caps how many preceding group messages each polling
+	// loop buffers per chat/topic and inlines as a <recent_context> block when
+	// a member @-mentions the bot. <=0 disables the feature; the production
+	// wiring sets DefaultRecentContextSize. Mirrors
+	// lark.InboundEnricherConfig.RecentContextSize.
+	RecentContextSize int
 }
 
 // RegisterTelegram registers the per-installation Telegram Factory so the
@@ -247,7 +321,9 @@ func newTelegramFactory(deps ChannelDeps) channel.Factory {
 			botUsername: ic.BotUsername,
 			api:         newBotAPI(deps.APIBase, token, deps.HTTPClient),
 			handler:     cfg.Handler,
+			onApproval:  deps.OnApprovalClick,
 			logger:      logger,
+			recent:      newRecentContextBuffer(deps.RecentContextSize),
 		}, nil
 	}
 }

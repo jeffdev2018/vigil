@@ -1,6 +1,9 @@
 "use client";
 
-import { issueColumnCategory, issueStatusCategory, statusCategoryOfKey } from "@multica/core/issues";
+import {
+  issueStatusCategory,
+  statusColumnKeys,
+} from "@multica/core/issues";
 import { memo, useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   DndContext,
@@ -25,7 +28,6 @@ import type {
   Issue,
   IssueAssigneeType,
   IssueStatus,
-  IssueStatusCategory,
   IssueTableGroupDescriptor,
   Project,
   UpdateIssueRequest,
@@ -37,6 +39,7 @@ import { getMoveAnchors } from "../utils/drag-utils";
 import type { SwimlaneGrouping } from "@multica/core/issues/stores/view-store";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useWorkspaceId } from "@multica/core/hooks";
+import type { IssueStatusCatalog } from "@multica/core/issue-statuses";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { childrenByParentsOptions, issueKeys } from "@multica/core/issues/queries";
@@ -47,7 +50,7 @@ import {
   DropdownMenuItem,
 } from "@multica/ui/components/ui/dropdown-menu";
 import { sortIssues } from "../utils/sort";
-import { ALL_STATUSES, STATUS_CONFIG } from "@multica/core/issues/config";
+import { BUILT_IN_STATUS_ORDER, STATUS_CONFIG } from "@multica/core/issues/config";
 import { DraggableBoardCard, BoardCardContent } from "./board-card";
 import { StatusIcon } from "./status-icon";
 import { Button } from "@multica/ui/components/ui/button";
@@ -244,7 +247,7 @@ interface LaneGroup {
   /** Exact server count; legacy builders leave this undefined and use the
    * loaded cell window as before. */
   total?: number;
-  /** Opaque compound row keys by status. */
+  /** Opaque compound row keys by concrete status. */
   serverCellKeys?: Partial<Record<IssueStatus, string>>;
 }
 
@@ -607,7 +610,7 @@ function SwimLaneViewImpl({
   issues,
   unfilteredIssues,
   activeFilters: activeFiltersProp,
-  visibleStatuses = ALL_STATUSES,
+  visibleStatuses = BUILT_IN_STATUS_ORDER,
   hiddenStatuses = [],
   onMoveIssue,
   childProgressMap = EMPTY_PROGRESS_MAP,
@@ -627,8 +630,8 @@ function SwimLaneViewImpl({
    */
   unfilteredIssues?: Issue[];
   activeFilters?: Omit<IssueFilters, "statusFilters">;
-  visibleStatuses?: IssueStatusCategory[];
-  hiddenStatuses?: IssueStatusCategory[];
+  visibleStatuses?: IssueStatus[];
+  hiddenStatuses?: IssueStatus[];
   onMoveIssue: (
     issueId: string,
     updates: SwimLaneMoveUpdates,
@@ -652,7 +655,11 @@ function SwimLaneViewImpl({
   const swimlaneOrder = swimlaneOrders[swimlaneGrouping];
 
   const wsId = useWorkspaceId();
-  const { categoryOf } = useIssueStatuses(wsId);
+  const statusCatalog = useIssueStatuses(wsId);
+  const { categoryOf, entryOf } = statusCatalog;
+  // Board order for `sort=status`, archived included: an issue can still sit
+  // on an archived status and has to rank with the rest (MUL-7379).
+  const statusSortOrder = useMemo(() => statusColumnKeys(statusCatalog, true), [statusCatalog]);
 
   const activeFilters = useMemo(() => ({
     // Status is enforced by visible-column rendering, not by filterIssues
@@ -670,6 +677,10 @@ function SwimLaneViewImpl({
     includeNoProject: activeFiltersProp?.includeNoProject ?? false,
     goalFilters: activeFiltersProp?.goalFilters ?? [],
     projectGoalIds: activeFiltersProp?.projectGoalIds,
+    projectStatusFilters: activeFiltersProp?.projectStatusFilters ?? [],
+    // Needed to evaluate the project-status predicate: an Issue only carries
+    // `project_id`. Absent → the predicate is a no-op, never match-none.
+    projectStatusById: activeFiltersProp?.projectStatusById,
     labelFilters: activeFiltersProp?.labelFilters ?? [],
     // Carry the "Show sub-issues" toggle through to the extra-children merge
     // path (see `filterIssues(extra, activeFilters)` below); otherwise batch /
@@ -687,13 +698,8 @@ function SwimLaneViewImpl({
 
   const laneSourceIssues = unfilteredIssues ?? issues;
 
-  // Re-impose canonical status order (ALL_STATUSES) on whatever the controller
-  // marked visible, so columns — including `cancelled`, ordered last — render
-  // in lifecycle order.
-  const sortedStatuses = useMemo(
-    () => ALL_STATUSES.filter((s) => visibleStatuses.includes(s)),
-    [visibleStatuses],
-  );
+  // The controller supplies exact status keys in catalog order.
+  const sortedStatuses = visibleStatuses;
 
   const laneLabels = useMemo(
     () => ({
@@ -725,7 +731,15 @@ function SwimLaneViewImpl({
       if (progress && progress.total > 0) consider(issue.id);
     }
     return Array.from(ids).sort();
-  }, [groupBranches?.enabled, swimlaneGrouping, issues, childProgressMap]); // eslint-disable-line react-hooks/exhaustive-deps
+    // wsId and qc are included on purpose, not omitted: useQueryClient()'s
+    // qc is referentially stable across renders, and wsId only changes on a
+    // full workspace switch (full remount) — but consider() above keys the
+    // cache lookup on both, so a silent workspace change without a
+    // recompute here would check the NEW workspace's ids against the OLD
+    // workspace's cache. Listing them costs nothing (they never actually
+    // change without wsId already forcing a remount) and keeps this memo
+    // honest about its real inputs instead of an unexplained eslint-disable.
+  }, [groupBranches?.enabled, swimlaneGrouping, issues, childProgressMap, wsId, qc]);
 
   const { data: batchChildrenMap } = useQuery(
     childrenByParentsOptions(wsId, batchParentIds, qc),
@@ -871,7 +885,7 @@ function SwimLaneViewImpl({
         : null;
 
     const issueSource = swimlaneGrouping === "parent" ? mergedIssues : issues;
-    const sorted = sortIssues(issueSource, sortBy, sortDirection);
+    const sorted = sortIssues(issueSource, sortBy, sortDirection, statusSortOrder);
     for (const issue of sorted) {
       let placed = false;
       for (const lane of laneGroups) {
@@ -888,10 +902,8 @@ function SwimLaneViewImpl({
             placed = true;
             break;
           }
-          // Cells are CATEGORIES: a custom status belongs to the column it
-          // behaves as, and keying the cell by the raw status key dropped
-          // those cards out of the grid entirely (MUL-6409).
-          const status = issueColumnCategory(issue);
+          // Cell identity is the exact status key.
+          const status = issue.status;
           if (result[lane.key]?.[status]) {
             result[lane.key]![status]!.push(issue.id);
             placed = true;
@@ -902,14 +914,14 @@ function SwimLaneViewImpl({
       // Parent grouping: a child whose parent isn't a header here falls
       // into the orphan fallback so it doesn't silently disappear.
       if (!placed && orphanLane && issue.parent_issue_id !== null) {
-        const status = issueColumnCategory(issue);
+        const status = issue.status;
         if (result[orphanLane.key]?.[status]) {
           result[orphanLane.key]![status]!.push(issue.id);
         }
       }
     }
     return result;
-  }, [issues, mergedIssues, laneGroups, sortedStatuses, sortBy, sortDirection, headerIssueIds, swimlaneGrouping]);
+  }, [issues, mergedIssues, laneGroups, sortedStatuses, sortBy, sortDirection, statusSortOrder, headerIssueIds, swimlaneGrouping]);
 
   const laneByKey = useMemo(() => {
     const map = new Map<string, LaneGroup>();
@@ -935,24 +947,23 @@ function SwimLaneViewImpl({
   // parent gets promoted to a lane header and the count for that status
   // drops by 1. Tracked as a follow-up.
   const statusTotals = useMemo(() => {
-    // Columns are CATEGORIES, so totals bucket by category: a custom status
-    // contributes to the column it behaves as, never to a column of its own.
+    // Each concrete status has its own column and count.
     if (groupBranches?.enabled) {
-      const totals = new Map<IssueStatusCategory, number>();
+      const totals = new Map<IssueStatus, number>();
       for (const lane of groupBranches.descriptors) {
         for (const cell of lane.secondary_groups ?? []) {
           if (cell.value.kind !== "status") continue;
-          const category = categoryOf(cell.value.status as IssueStatus);
-          totals.set(category, (totals.get(category) ?? 0) + cell.count);
+          const status = cell.value.status as IssueStatus;
+          totals.set(status, (totals.get(status) ?? 0) + cell.count);
         }
       }
       return totals;
     }
-    const totals = new Map<IssueStatusCategory, number>();
+    const totals = new Map<IssueStatus, number>();
     for (const issue of laneSourceIssues) {
       if (headerIssueIds.has(issue.id)) continue;
-      const category = categoryOf(issue.status);
-      totals.set(category, (totals.get(category) ?? 0) + 1);
+      const status = issue.status;
+      totals.set(status, (totals.get(status) ?? 0) + 1);
     }
     return totals;
   }, [groupBranches, laneSourceIssues, headerIssueIds, categoryOf]);
@@ -1067,6 +1078,7 @@ function SwimLaneViewImpl({
         const activeCell = findCellIn(prev, cellSet, activeId);
         const overCell = findCellIn(prev, cellSet, overId);
         if (!activeCell || !overCell) return prev;
+        if (issueMapRef.current.get(activeId)?.status !== overCell.status && entryOf(overCell.status)?.archived_at) return prev;
         if (
           activeCell.laneKey === overCell.laneKey &&
           activeCell.status === overCell.status
@@ -1141,7 +1153,7 @@ function SwimLaneViewImpl({
         };
       });
     },
-    [cellSet, laneByKey],
+    [cellSet, laneByKey, entryOf],
   );
 
   const handleDragEnd = useCallback(
@@ -1272,15 +1284,17 @@ function SwimLaneViewImpl({
         return;
       }
 
-      // The cell names a CATEGORY, so "already here" is a category question.
+      if (currentIssue?.status !== finalOverCell.status && entryOf(finalOverCell.status)?.archived_at) {
+        reset();
+        return;
+      }
+
+      // Cell membership is the exact status key.
       const staysInCell =
         currentIssue !== undefined &&
-        issueColumnCategory(currentIssue) === finalOverCell.status;
-      // ...and a card already here on a CUSTOM status keeps it: writing the
-      // cell's canonical key would rewrite `awaiting_response` to `in_review`
-      // — a real status change, which starts an agent run (MUL-6409).
-      const keepsStatus =
-        staysInCell && currentIssue?.status !== finalOverCell.status;
+        currentIssue.status === finalOverCell.status;
+      // Moving within a status must not emit a redundant status mutation.
+      const keepsStatus = staysInCell;
       if (
         currentIssue &&
         targetLane.matches(currentIssue) &&
@@ -1295,7 +1309,11 @@ function SwimLaneViewImpl({
         activeId,
         {
           ...targetLane.moveUpdates,
-          ...(keepsStatus ? {} : { status: finalOverCell.status as IssueStatus }),
+          ...(keepsStatus
+            ? {}
+            : {
+                status: finalOverCell.status as IssueStatus,
+              }),
           position: newPosition,
           ...getMoveAnchors(finalIds, activeId),
         },
@@ -1305,7 +1323,7 @@ function SwimLaneViewImpl({
         },
       );
     },
-    [cells, cellSet, laneByKey, laneGroups, onMoveIssue, swimlaneGrouping, viewStoreApi],
+    [cells, cellSet, laneByKey, laneGroups, onMoveIssue, swimlaneGrouping, viewStoreApi, entryOf],
   );
 
   // Grid template: one column per status, fixed width COLUMN_WIDTH, gap COLUMN_GAP.
@@ -1387,6 +1405,7 @@ function SwimLaneViewImpl({
         paths={paths}
         projectId={projectId}
         onCreateIssue={onCreateIssue}
+        statusCatalog={statusCatalog}
         groupPagination={groupBranches?.pagination}
       />
     </div>
@@ -1416,7 +1435,7 @@ function SwimLaneViewImpl({
         <div className="sticky top-0 z-10 mb-2 bg-background/95 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/75">
           <div style={gridStyle}>
             {sortedStatuses.map((status) => {
-              const cfg = STATUS_CONFIG[statusCategoryOfKey(status)];
+              const cfg = STATUS_CONFIG[categoryOf(status)];
               const total = statusTotals.get(status) ?? 0;
               return (
                 <div
@@ -1523,7 +1542,7 @@ function SwimLaneViewImpl({
 
       <DragOverlay dropAnimation={null}>
         {activeIssue ? (
-          <div className="w-[280px] rotate-2 scale-105 cursor-grabbing opacity-90 shadow-lg shadow-black/10">
+          <div className="w-[280px] rotate-2 scale-105 cursor-grabbing opacity-90 shadow-floating">
             <BoardCardContent
               issue={activeIssue}
               childProgress={childProgressMap.get(activeIssue.id)}
@@ -1569,6 +1588,7 @@ function DraggableSwimLane({
   projectId,
   onCreateIssue,
   groupPagination,
+  statusCatalog,
 }: {
   lane: LaneGroup;
   grouping: SwimlaneGrouping;
@@ -1584,6 +1604,7 @@ function DraggableSwimLane({
   projectId?: string;
   onCreateIssue?: (defaults: IssueCreateDefaults) => void;
   groupPagination?: Record<string, IssueGroupPageState>;
+  statusCatalog: IssueStatusCatalog;
 }) {
   const { t } = useT("issues");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -1635,6 +1656,8 @@ function DraggableSwimLane({
           {lane.parentIssue && (
             <StatusIcon
               status={lane.parentIssue.status}
+              color={statusCatalog.colorOf(lane.parentIssue.status)}
+              icon={statusCatalog.iconOf(lane.parentIssue.status)}
               category={issueStatusCategory(lane.parentIssue) ?? undefined}
               className="size-3.5"
             />
@@ -1687,6 +1710,7 @@ function DraggableSwimLane({
                 childProgressMap={childProgressMap}
                 projectMap={projectMap}
                 status={status}
+                statusCatalog={statusCatalog}
                 lane={lane}
                 projectId={projectId}
                 onCreateIssue={onCreateIssue}
@@ -1717,6 +1741,7 @@ function SwimLaneCell({
   onCreateIssue,
   readOnly = false,
   page,
+  statusCatalog,
 }: {
   cellId: string;
   issueIds: string[];
@@ -1735,6 +1760,7 @@ function SwimLaneCell({
    */
   readOnly?: boolean;
   page?: IssueGroupPageState;
+  statusCatalog: IssueStatusCatalog;
 }) {
   // The orphan cell stays enabled in the collision graph so that drops
   // onto its whitespace area are absorbed here instead of falling through
@@ -1743,9 +1769,11 @@ function SwimLaneCell({
   const { setNodeRef, isOver: droppableIsOver } = useDroppable({ id: cId });
   // Never show the hover highlight on a readOnly cell — the guards will
   // reject the drop, so visual confirmation would be misleading.
-  const isOver = readOnly ? false : droppableIsOver;
   const { t } = useT("issues");
-  const cfg = STATUS_CONFIG[statusCategoryOfKey(status)];
+  const { categoryOf, entryOf } = statusCatalog;
+  const archived = !!entryOf(status)?.archived_at;
+  const isOver = !readOnly && !archived && droppableIsOver;
+  const cfg = STATUS_CONFIG[categoryOf(status)];
 
   const resolvedIssues = useMemo(
     () =>
@@ -1757,7 +1785,10 @@ function SwimLaneCell({
   );
 
   const handleAdd = useCallback(() => {
-    const data: IssueCreateDefaults = { status, ...lane.moveUpdates };
+    const data: IssueCreateDefaults = {
+      status: status,
+      ...lane.moveUpdates,
+    };
     // Per-page project override takes precedence (e.g. Project Detail
     // pre-fills its own project id regardless of grouping).
     if (projectId) data.project_id = projectId;
@@ -1768,7 +1799,7 @@ function SwimLaneCell({
     <div className={`flex min-h-[120px] flex-col rounded-xl ${cfg?.columnBg ?? "bg-muted/40"} p-2`}>
       <div
         ref={setNodeRef}
-        className={`flex-1 space-y-2 rounded-lg p-1 transition-colors ${
+        className={`flex-1 space-y-2 rounded-sm p-1 transition-colors ${
           isOver ? "bg-accent/60" : ""
         }`}
       >
@@ -1803,7 +1834,7 @@ function SwimLaneCell({
       {/* One of these per lane×status cell (~170 on a real swimlane) —
           eagerly mounted tooltip roots here were the single largest slice
           of swimlane mount cost. */}
-      {!readOnly && onCreateIssue && (
+      {!readOnly && !archived && onCreateIssue && (
         <DeferredTooltip
           content={t(($) => $.board.add_issue_tooltip)}
           trigger={
@@ -1828,8 +1859,8 @@ function SwimLaneHiddenColumnsPanel({
   hiddenStatuses,
   statusTotals,
 }: {
-  hiddenStatuses: IssueStatusCategory[];
-  statusTotals: Map<IssueStatusCategory, number>;
+  hiddenStatuses: IssueStatus[];
+  statusTotals: Map<IssueStatus, number>;
 }) {
   return (
     <HiddenColumnsPanel

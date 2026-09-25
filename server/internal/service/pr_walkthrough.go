@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // Narrative pull request walkthrough (F05 / JEF-16).
@@ -187,7 +189,7 @@ func isPrWalkthroughKind(kind string) bool {
 func clip(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if len(s) > max {
-		return s[:max]
+		return util.TruncateUTF8Bytes(s, max)
 	}
 	return s
 }

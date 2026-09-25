@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -38,7 +39,9 @@ func SCIMBearerOnly(queries *db.Queries) func(http.Handler) http.Handler {
 				writeSCIMError(w, http.StatusUnauthorized, "invalid SCIM token")
 				return
 			}
-			_ = queries.TouchScimToken(r.Context(), row.ID)
+			if err := queries.TouchScimToken(r.Context(), row.ID); err != nil {
+				slog.Warn("scim: last-used stamp failed", "token_id", uuidToString(row.ID), "error", err)
+			}
 			r.Header.Set("X-Workspace-ID", uuidToString(row.WorkspaceID))
 			r.Header.Set("X-Scim-Token-ID", uuidToString(row.ID))
 			next.ServeHTTP(w, r)

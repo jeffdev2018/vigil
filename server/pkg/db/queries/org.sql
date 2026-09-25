@@ -115,7 +115,7 @@ WHERE i.workspace_id = $1 AND i.project_id = $2 AND q.status IN ('completed', 'f
 ORDER BY q.created_at DESC LIMIT 1;
 
 -- name: GetLatestOrgRoutingForIssue :one
-SELECT * FROM org_flow WHERE issue_id = $1 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1;
+SELECT * FROM org_flow WHERE workspace_id = $1 AND issue_id = $2 AND kind IN ('routing', 'escalation') ORDER BY created_at DESC LIMIT 1;
 
 -- name: SetOrgOfferStatus :exec
 UPDATE org_offer SET status = $2 WHERE id = $1;

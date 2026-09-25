@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { usdFromTicks } from "./cockpit";
 
 // Contest (K72): a rival model challenges an agent output with numbered
 // objections, the author answers each, a human gives the verdict.
@@ -90,11 +91,15 @@ export function contestIsLive(c: Pick<Contest, "status">): boolean {
   return c.status === "running" || c.status === "answering";
 }
 
+// No refetchInterval: contest:updated WS events (JEF-301) invalidate this
+// query on every status change, and useRealtimeSync's reconnect handler
+// re-invalidates the whole contest prefix to recover events missed while
+// disconnected. contestIsLive is kept — callers (live-state badges) still
+// need it even though the query itself no longer polls off it.
 export function issueContestsOptions(wsId: string, issueId: string) {
   return queryOptions({
     queryKey: contestKeys.issue(wsId, issueId),
     queryFn: () => api.listContests({ issue_id: issueId }),
-    refetchInterval: (q) => ((q.state.data ?? []).some(contestIsLive) ? 10_000 : false),
   });
 }
 
@@ -102,7 +107,6 @@ export function targetContestsOptions(wsId: string, targetType: ContestTargetTyp
   return queryOptions({
     queryKey: contestKeys.target(wsId, targetType, targetId),
     queryFn: () => api.listContests({ target_type: targetType, target_id: targetId }),
-    refetchInterval: (q) => ((q.state.data ?? []).some(contestIsLive) ? 10_000 : false),
   });
 }
 
@@ -149,7 +153,7 @@ export function pairContestRows(c: Pick<Contest, "objections" | "answers">): { o
   return c.objections.map((o) => ({ objection: o, answer: byN.get(o.n) ?? null }));
 }
 
-/** USD from cost ticks (1 tick = 1e-6 USD), two decimals. */
+/** USD from cost ticks (1 tick = 1e-10 USD, see usdFromTicks), two decimals. */
 export function contestCostUsd(ticks: number): string {
-  return (ticks / 1_000_000).toFixed(2);
+  return (usdFromTicks(ticks) ?? 0).toFixed(2);
 }

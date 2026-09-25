@@ -83,3 +83,63 @@ func TestWhySearchIndexesFindsLinksAndForgets(t *testing.T) {
 		t.Fatal("a deleted comment must leave the index")
 	}
 }
+
+// ReindexWhy batches each source type's upserts into one statement instead
+// of one UpsertWhyChunk call per row; this pins several comments, each on
+// its own issue with distinct content, through one reindex call so a
+// batching bug that zips one comment's content or issue link onto another
+// (an unnest array misalignment) fails this test instead of shipping
+// silently.
+func TestReindexWhyBatchesMultipleCommentsWithoutMixingContent(t *testing.T) {
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM decision_search_chunk WHERE workspace_id = $1`, testWorkspaceID)
+	})
+	type fixture struct {
+		issue, comment, needle string
+	}
+	fixtures := make([]fixture, 0, 3)
+	for i, phrase := range []string{
+		"Alpha decided to cache the catalog response for ninety seconds.",
+		"Bravo decided to retry the webhook delivery with backoff.",
+		"Charlie decided to shard the audit log by workspace id.",
+	} {
+		issue := dbfx.Issue(t, "why batch issue")
+		commentID := postCommentForTriggerPreviewTest(t, issue, map[string]any{"content": phrase})
+		fixtures = append(fixtures, fixture{issue: issue, comment: commentID, needle: phrase})
+		_ = i
+	}
+
+	var reindexed struct {
+		Indexed map[string]int `json:"indexed"`
+	}
+	testutil.Call(t, inboxWorkspaceHandler(testHandler.ReindexWhy),
+		testutil.WithHeaders(newRequest(http.MethodPost, "/api/search/why/reindex", nil), "X-Workspace-ID", testWorkspaceID)).Want(http.StatusOK).JSON(&reindexed)
+	if reindexed.Indexed["comment"] < 3 {
+		t.Fatalf("reindex = %+v, want at least the 3 fixture comments", reindexed.Indexed)
+	}
+
+	for _, f := range fixtures {
+		var out struct {
+			Results []WhySearchResult `json:"results"`
+		}
+		// A distinctive word from ONE comment's content must find THAT
+		// comment, linked to THAT comment's own issue -- not another
+		// fixture's, which is what a misaligned batch would produce.
+		q := ""
+		switch f.needle[0] {
+		case 'A':
+			q = "ninety+seconds+cache"
+		case 'B':
+			q = "webhook+backoff+retry"
+		case 'C':
+			q = "shard+audit+log"
+		}
+		whySearch(t, q).Want(http.StatusOK).JSON(&out)
+		if len(out.Results) == 0 || out.Results[0].SourceType != "comment" || out.Results[0].SourceID != f.comment {
+			t.Fatalf("query %q must find comment %s first, got %+v", q, f.comment, out.Results)
+		}
+		if out.Results[0].IssueID == nil || *out.Results[0].IssueID != f.issue {
+			t.Fatalf("comment %s must link to its own issue %s, got %+v", f.comment, f.issue, out.Results[0])
+		}
+	}
+}

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { orgIsLive, orgMermaid, orgModelLabel } from "./queries";
+import { orgIsLive, orgMermaid } from "./queries";
 
 function stubFetch(body: unknown, status = 200) {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })));
@@ -34,7 +34,6 @@ describe("org client and helpers", () => {
     expect(src).toContain(`u_a_b["Le 'chef' (1)"]`);
     expect(src).toContain("u_c -->|reports to| u_a_b");
     expect(src).toContain(`u_c["C ⟨owner network⟩ ⏸"]`);
-    expect(orgModelLabel("market")).toBe("Internal market");
     expect(orgIsLive({ status: "paused" })).toBe(false);
   });
 });

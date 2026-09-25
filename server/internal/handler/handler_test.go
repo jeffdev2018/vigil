@@ -2228,6 +2228,50 @@ func TestSendCodeRateLimit(t *testing.T) {
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("SendCode (second): expected 429, got %d: %s", w.Code, w.Body.String())
 	}
+
+	// The body must carry a stable code, not just an English sentence, so
+	// clients can render a translated message instead of the server's raw
+	// text (UX audit: auth errors leaking untranslated to the login screen).
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["code"] != authCodeRateLimited {
+		t.Fatalf("SendCode (second): expected code %q, got %q (body: %v)", authCodeRateLimited, resp["code"], resp)
+	}
+}
+
+func TestVerifyCodeInvalidReturnsErrorCode(t *testing.T) {
+	const email = "verify-code-invalid-test@multica.ai"
+	ctx := context.Background()
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM verification_code WHERE email = $1`, email)
+	})
+
+	w := httptest.NewRecorder()
+	var buf bytes.Buffer
+	json.NewEncoder(&buf).Encode(map[string]string{"email": email})
+	req := httptest.NewRequest("POST", "/auth/send-code", &buf)
+	req.Header.Set("Content-Type", "application/json")
+	testHandler.SendCode(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("SendCode: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Wrong code: the response must carry the stable code_invalid code, not
+	// just the raw English sentence, so the client can translate it.
+	w = httptest.NewRecorder()
+	buf.Reset()
+	json.NewEncoder(&buf).Encode(map[string]string{"email": email, "code": "000000"})
+	req = httptest.NewRequest("POST", "/auth/verify-code", &buf)
+	req.Header.Set("Content-Type", "application/json")
+	testHandler.VerifyCode(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("VerifyCode: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]string
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["code"] != authCodeInvalid {
+		t.Fatalf("VerifyCode: expected code %q, got %q (body: %v)", authCodeInvalid, resp["code"], resp)
+	}
 }
 
 func TestVerifyCode(t *testing.T) {

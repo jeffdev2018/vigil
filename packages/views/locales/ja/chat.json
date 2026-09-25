@@ -2,6 +2,7 @@
   "page": {
     "title": "チャット",
     "select_prompt": "会話を選ぶか、＋ で新規作成してください",
+    "archive_failed": "会話をアーカイブできませんでした",
     "agent_link_no_access": "このエージェントとチャットする権限がありません。"
   },
   "fab": {
@@ -23,6 +24,7 @@
     "send_failed_toast": "メッセージを送信できませんでした",
     "send_blocked_toast": "メッセージは送信されませんでした — このエージェントを使用する権限がありません",
     "runtime_required_toast": "メッセージは送信されませんでした — 先にこのエージェントのランタイムを設定してください",
+    "runtime_access_denied_toast": "メッセージは送信されませんでした — このエージェントはプライベートランタイムで実行できません。ランタイムを公開にするか、所有者が利用できるランタイムへエージェントを再設定/コピーしてください",
     "attachment_bind_failed_toast": "メッセージは送信されましたが、ファイルを添付できませんでした。しばらくしてからもう一度お試しください。",
     "add_tooltip": "追加",
     "upload_file": "画像・ファイル",
@@ -30,7 +32,8 @@
     "change_project_context": "プロジェクトコンテキストを変更",
     "remove_project_context": "プロジェクトコンテキストを削除",
     "no_projects": "プロジェクトがまだありません",
-    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です"
+    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です",
+    "run_notice": "送信すると {{name}} の実行が始まります。数分かかる場合があります。"
   },
   "queue": {
     "title_other": "キュー内のメッセージ {{count}} 件",
@@ -56,6 +59,7 @@
       "timeout": "処理に時間がかかりすぎたため、完了前に停止しました。もう一度お試しいただくか、リクエストを分けてみてください。",
       "codex_semantic_inactivity": "エージェントが応答しなくなり、完了前に停止しました。もう一度お試しください。",
       "runtime_offline": "エージェントは現在オフラインのため、返信できませんでした。オンラインに戻ってから再度お試しください。",
+      "runtime_access_denied": "このエージェントはプライベートランタイムで実行できないため、返信できませんでした。ランタイムを公開にするか、所有者が利用できるランタイムへエージェントを再設定/コピーしてください。",
       "runtime_recovery": "完了する前にエージェントが再起動しました。もう一度お試しください。",
       "manual": "この返信はキャンセルされました。",
       "skill_bundle_unavailable": "エージェントの skill をダウンロードできず、返信を開始できませんでした。多くの場合はネットワークの問題です。もう一度お試しください。",
@@ -243,7 +247,8 @@
     "rename": "名前を変更",
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
-    "unarchive": "アーカイブを解除"
+    "unarchive": "アーカイブを解除",
+    "more_actions_aria": "その他の操作"
   },
   "voice": {
     "start": "音声でメッセージを入力",
@@ -254,7 +259,10 @@
     "error_not_configured": "このサーバーでは文字起こしが設定されていません。",
     "error_failed": "録音を文字起こしできませんでした。",
     "listen": "読み上げ",
-    "stop_listening": "読み上げを停止"
+    "stop_listening": "読み上げを停止",
+    "conversation_start": "会話モード",
+    "conversation_stop": "会話を終了",
+    "conversation_transcribing": "文字起こし中…"
   },
   "participants": {
     "add": "メンバーを追加",
@@ -265,5 +273,8 @@
     "typing_name": "{{name}} が入力中…",
     "typing_count": "{{count}} 人が入力中…",
     "author_badge": "{{name}} が送信"
+  },
+  "approvals": {
+    "strip_title_other": "承認待ち {{count}}件"
   }
 }

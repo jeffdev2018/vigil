@@ -1,18 +1,23 @@
 "use client";
 
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { StatusIcon } from "../../issues/components";
 import {
   IssueAgentActivityIndicator,
 } from "../../issues/components/issue-agent-activity-indicator";
 import { ActorAvatar } from "../../common/actor-avatar";
-import { Archive, ArchiveRestore } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2 } from "lucide-react";
 import type { InboxItem } from "@multica/core/types";
 import type { InboxView } from "./inbox-view";
 import { InboxDetailLabel, useTypeLabels } from "./inbox-detail-label";
 import {
   getInboxDisplayTitle,
   isAutopilotQuotaNotice,
+  isApprovalAskType,
+  findMatchingApproval,
 } from "./inbox-display";
 import { useInboxContextMenu } from "./inbox-context-menu";
 import { useStatusLabel } from "../../issues/utils/status-label";
@@ -21,6 +26,75 @@ import { handleRowActivationKey } from "../../common/row-actions-menu";
 import { useT } from "../../i18n";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { resolveClickIntent, useIntentNavigate } from "../../navigation";
+import { approvalKeys, type ApprovalItem } from "@multica/core/approvals";
+import { useRespondIssueDecision } from "@multica/core/issues/decisions";
+import { useAnswerIssueGoal } from "@multica/core/issues/goal-loop";
+import { useDecideIssueTransitionRequest } from "@multica/core/issue-transitions";
+import { Button } from "@multica/ui/components/ui/button";
+
+/**
+ * Inline approvals (OS plan, chantier 3): the first two options of a
+ * matching pending ask, decidable right from the row — no need to open it.
+ * Only mounted when the row already has a decidable ask with options (see
+ * the call site below), so its mutation hooks never run for an ordinary row.
+ */
+function ApprovalQuickActions({ item, approval }: { item: InboxItem; approval: ApprovalItem }) {
+  const { t } = useT("inbox");
+  const qc = useQueryClient();
+  const wsId = item.workspace_id;
+  const respond = useRespondIssueDecision(wsId);
+  const decideTransition = useDecideIssueTransitionRequest(wsId, approval.issue.id);
+  const answerGoal = useAnswerIssueGoal(wsId, approval.issue.id);
+  const busy = respond.isPending || decideTransition.isPending || answerGoal.isPending;
+  const options = approval.options.slice(0, 2);
+  // Which option is in flight, so the spinner lands on the button the user
+  // actually pressed. `busy` alone only knows that *something* is pending,
+  // which is why both buttons used to grey out with no sign of progress —
+  // and answering an agent is exactly the moment to show the request left.
+  const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
+
+  const decide = (optionId: string, optionLabel: string) => {
+    setPendingOptionId(optionId);
+    const callbacks = {
+      onError: () => toast.error(t(($) => $.list.approval_action_failed)),
+      onSettled: () => {
+        setPendingOptionId(null);
+        qc.invalidateQueries({ queryKey: approvalKeys.all(wsId) });
+      },
+    };
+    if (approval.source === "transition") {
+      decideTransition.mutate({ requestId: approval.id, decision: optionId === "approve" ? "approve" : "reject" }, callbacks);
+    } else if (approval.source === "goal_question") {
+      answerGoal.mutate(optionLabel, callbacks);
+    } else {
+      respond.mutate({ issueId: approval.issue.id, decisionId: approval.id, answer: { option_id: optionId } }, callbacks);
+    }
+  };
+
+  return (
+    <div className="flex shrink-0 items-center gap-1" data-testid="approval-quick-actions">
+      {options.map((o) => (
+        <Button
+          key={o.id}
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-6 px-2 text-caption"
+          disabled={busy}
+          onClick={(e) => {
+            e.stopPropagation();
+            decide(o.id, o.label);
+          }}
+        >
+          {busy && pendingOptionId === o.id ? (
+            <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+          ) : null}
+          {o.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 // Hook returning a localized relative-time formatter — the i18n equivalent
 // of the previous static `timeAgo` function. Returning a function (rather
@@ -45,6 +119,7 @@ export function InboxListItem({
   isSelected,
   onClick,
   onAction,
+  approvals = [],
 }: {
   item: InboxItem;
   view: InboxView;
@@ -53,13 +128,18 @@ export function InboxListItem({
   // Archive in the main list, unarchive in the archived one — the row action is
   // always the reversal of the current view, so the two lists share this row.
   onAction: () => void;
+  // Inline approvals (OS plan, chantier 3): the workspace's pending asks, so
+  // a decision/transition/goal-question row can offer quick decide buttons.
+  approvals?: ApprovalItem[];
 }) {
   const { t } = useT("inbox");
+  const matchedApproval = isApprovalAskType(item.type) ? findMatchingApproval(item, approvals) : null;
+  const showApprovalQuickActions = !!matchedApproval && matchedApproval.can_decide && matchedApproval.options.length > 0;
   const timeAgo = useTimeAgo();
   const typeLabels = useTypeLabels();
   // Inbox is a cross-workspace surface, so the catalog is read against the
   // item's OWN workspace rather than the route's. (MUL-6243)
-  const { categoryOf: statusCategoryOf, colorOf: statusColorOf } =
+  const { categoryOf: statusCategoryOf, colorOf: statusColorOf, iconOf: statusIconOf } =
     useIssueStatuses(item.workspace_id);
   const statusLabelOf = useStatusLabel(item.workspace_id);
   const openContextMenu = useInboxContextMenu();
@@ -150,6 +230,9 @@ export function InboxListItem({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {showApprovalQuickActions && matchedApproval ? (
+              <ApprovalQuickActions item={item} approval={matchedApproval} />
+            ) : null}
             {/* Pointer-only affordance: revealed on hover, and on keyboard
                 focus anywhere in the row so it is reachable by Tab. Touch has
                 neither, so it stays hidden on a pointer that cannot hover and
@@ -162,7 +245,7 @@ export function InboxListItem({
                 e.stopPropagation();
                 onAction();
               }}
-              className="hidden rounded p-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring [@media(hover:hover)]:group-hover:inline-flex [@media(hover:hover)]:group-focus-within:inline-flex"
+              className="hidden rounded-xs p-0.5 text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring [@media(hover:hover)]:group-hover:inline-flex [@media(hover:hover)]:group-focus-within:inline-flex"
             >
               <ActionIcon className="h-3.5 w-3.5" />
             </button>
@@ -180,6 +263,7 @@ export function InboxListItem({
                   status={item.issue_status}
                   category={statusCategoryOf(item.issue_status)}
                   color={statusColor}
+                  icon={item.issue_status ? statusIconOf(item.issue_status) : null}
                   className="h-3.5 w-3.5 shrink-0"
                 />
               </span>

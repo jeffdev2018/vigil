@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -37,10 +38,12 @@ func (s *BudgetService) NotifyBudgetChange(ctx context.Context, workspaceID pgty
 func (s *BudgetService) notifyPolicyThreshold(ctx context.Context, policy db.BudgetPolicy) {
 	start, end, err := budgetPeriodBounds(policy.Period, s.now())
 	if err != nil {
+		slog.Warn("budget notification skipped", "policy_id", util.UUIDToString(policy.ID), "error", err)
 		return
 	}
 	tx, err := s.TxStarter.Begin(ctx)
 	if err != nil {
+		slog.Warn("budget notification skipped", "policy_id", util.UUIDToString(policy.ID), "error", err)
 		return
 	}
 	defer tx.Rollback(ctx)
@@ -54,6 +57,7 @@ func (s *BudgetService) notifyPolicyThreshold(ctx context.Context, policy db.Bud
 		return
 	}
 	if err != nil {
+		slog.Warn("budget notification skipped", "policy_id", util.UUIDToString(policy.ID), "error", err)
 		return
 	}
 	total := period.SpentUsdTicks + period.ReservedUsdTicks
@@ -82,6 +86,7 @@ func (s *BudgetService) notifyPolicyThreshold(ctx context.Context, policy db.Bud
 		return
 	}
 	if err != nil {
+		slog.Warn("budget notification skipped", "policy_id", util.UUIDToString(policy.ID), "error", err)
 		return
 	}
 	details, _ := json.Marshal(map[string]any{
@@ -108,6 +113,7 @@ func (s *BudgetService) notifyPolicyThreshold(ctx context.Context, policy db.Bud
 			ActorType: pgtype.Text{String: "system", Valid: true}, Details: details,
 		})
 		if err != nil {
+			slog.Warn("budget notification skipped", "policy_id", util.UUIDToString(policy.ID), "error", err)
 			return
 		}
 		items = append(items, item)

@@ -1,10 +1,23 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RuntimePool } from "@multica/core/runtimes/pools";
 import type { AgentRuntime } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
+
+// Opens a Select's popup by its trigger accessible name (scoped to `within`
+// when given) and clicks the option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  scope: { getByRole: typeof screen.getByRole },
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(scope.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
 
 // Client parsing and list helpers: packages/core/runtimes/pools.test.ts.
 
@@ -54,7 +67,8 @@ describe("RuntimePoolsSetting", () => {
     expect(await screen.findByText("Codex (host)")).toBeTruthy();
     expect(screen.getByText("2 agents")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Move Claude (host) up"));
-    fireEvent.change(screen.getByLabelText("Degraded runtime for main"), { target: { value: "c" } });
+    const user = userEvent.setup();
+    await pickOption(user, screen, "Degraded runtime for main", "Local (ollama)");
     fireEvent.click(screen.getByRole("button", { name: "Save pool" }));
     expect(state.save).toHaveBeenCalledWith({ id: "p1", input: { name: "main", runtime_ids: ["b", "a"], degraded_runtime_id: "c" } }, expect.anything());
   });
@@ -65,7 +79,8 @@ describe("RuntimePoolsSetting", () => {
     const cards = screen.getAllByTestId("runtime-pool-card");
     const fresh = cards[cards.length - 1] as HTMLElement;
     fireEvent.change(fresh.querySelector("input") as HTMLInputElement, { target: { value: "backup" } });
-    fireEvent.change(fresh.querySelector("select") as HTMLSelectElement, { target: { value: "c" } });
+    const user = userEvent.setup();
+    await pickOption(user, within(fresh), "Add a runtime…", "Local (ollama)");
     fireEvent.click(screen.getByRole("button", { name: "Save pool" }));
     expect(state.save).toHaveBeenCalledWith({ input: { name: "backup", runtime_ids: ["c"], degraded_runtime_id: null } }, expect.anything());
     fireEvent.click(screen.getByLabelText("Delete pool main"));

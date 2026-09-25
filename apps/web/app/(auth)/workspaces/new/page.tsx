@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
+import { AuthRecoveryPage } from "@multica/views/auth";
 import { paths } from "@multica/core/paths";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
 import { CliInstallInstructions, OnboardingFlow } from "@multica/views/onboarding";
@@ -23,6 +24,7 @@ export default function Page() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const authStatus = useAuthStore((s) => s.status);
   const { data: wsList = [] } = useQuery({
     ...workspaceListOptions(),
     enabled: !!user,
@@ -32,6 +34,7 @@ export default function Page() {
     if (!isLoading && !user) router.replace(paths.login());
   }, [isLoading, user, router]);
 
+  if (authStatus === "recovering") return <AuthRecoveryPage />;
   if (isLoading || !user) return null;
 
   // Cancel goes to the root path — the workspace layout redirects from there

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FlaskRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,9 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import {
   Table,
   TableBody,
@@ -35,14 +38,16 @@ import {
   useCreateEvalSuite,
   useRunBenchmark,
   useRunEvalSuite,
+  useBenchmarkPolicySearch,
   type BenchmarkCandidate,
   type BenchmarkRun,
   type EvalRun,
   type EvalRunCaseStatus,
-  type EvalRunStatus,
   type EvalSuite,
 } from "@multica/core/eval";
 import { useT, useTimeAgo } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
+import { formatUsd } from "../../runtimes/utils";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -61,12 +66,7 @@ import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
  * benchmarks bugfix routing, not routing.
  */
 
-const RUN_STATUSES: EvalRunStatus[] = ["running", "completed", "failed"];
 const CASE_STATUSES: EvalRunCaseStatus[] = ["pending", "passed", "failed", "infra_failed"];
-
-function isRunStatus(value: string): value is EvalRunStatus {
-  return (RUN_STATUSES as string[]).includes(value);
-}
 
 function isCaseStatus(value: string): value is EvalRunCaseStatus {
   return (CASE_STATUSES as string[]).includes(value);
@@ -77,8 +77,6 @@ const TONE_CLASS = {
   warning: "text-warning",
   destructive: "text-destructive",
 } as const;
-
-const SELECT_CLASS = "rounded-md border border-input bg-transparent px-2 py-1 text-caption";
 
 /** Which inline form a suite row has open, if any. */
 type SuiteFormKind = "run" | "benchmark";
@@ -146,6 +144,15 @@ export function EvalLabTab() {
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
+          ) : suitesQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="eval-suites-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.suites_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void suitesQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
           ) : suites.length === 0 ? (
             <div className="px-4 py-8 text-center" data-testid="eval-suites-empty">
               <FlaskRound className="mx-auto h-5 w-5 text-muted-foreground" aria-hidden="true" />
@@ -181,10 +188,21 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.new_suite_description)}
       >
         <SettingsCard className="p-4">
-          {cases.length === 0 ? (
+          {casesQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 py-4 text-center" data-testid="eval-cases-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.cases_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void casesQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : cases.length === 0 ? (
+            // The Suites card above already says how to get a first case; this
+            // section explains what will appear here instead of repeating it.
             <div className="py-4 text-center" data-testid="eval-cases-empty">
-              <p className="text-body font-medium">{t(($) => $.eval_lab.cases_empty_title)}</p>
-              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.cases_empty_hint)}</p>
+              <p className="text-body font-medium">{t(($) => $.eval_lab.new_suite_waiting_title)}</p>
+              <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.eval_lab.new_suite_waiting_hint)}</p>
             </div>
           ) : (
             <form className="space-y-3" onSubmit={handleCreate} data-testid="eval-suite-form">
@@ -234,7 +252,16 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.history_description)}
       >
         <SettingsCard>
-          {runs.length === 0 ? (
+          {runsQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="eval-runs-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.history_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void runsQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : runs.length === 0 ? (
             <p className="px-4 py-8 text-center text-caption text-muted-foreground" data-testid="eval-runs-empty">
               {t(($) => $.eval_lab.history_empty)}
             </p>
@@ -265,7 +292,16 @@ export function EvalLabTab() {
         description={t(($) => $.eval_lab.benchmark_description)}
       >
         <SettingsCard>
-          {benchmarks.length === 0 ? (
+          {benchmarksQuery.isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center" data-testid="benchmark-runs-error">
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.eval_lab.benchmark_load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void benchmarksQuery.refetch()}>
+                {t(($) => $.eval_lab.retry)}
+              </Button>
+            </div>
+          ) : benchmarks.length === 0 ? (
             <p className="px-4 py-8 text-center text-caption text-muted-foreground" data-testid="benchmark-runs-empty">
               {t(($) => $.eval_lab.benchmark_empty)}
             </p>
@@ -290,21 +326,27 @@ export function EvalLabTab() {
               </TableBody>
             </Table>
           )}
+          {!benchmarksQuery.isError && benchmarks.length > 0 ? (
+            <BenchmarkPolicySearchPanel
+              wsId={wsId}
+              // The server takes at most 100 runs; the list is newest first.
+              runIds={benchmarks.slice(0, 100).map((run) => run.id)}
+            />
+          ) : null}
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function EvalRunStatusBadge({ status }: { status: string }) {
   const { t } = useT("settings");
-  const known = isRunStatus(status);
-  const variant = !known || status === "failed" ? "destructive" : status === "completed" ? "secondary" : "outline";
-  return (
-    <Badge variant={variant} data-testid="eval-run-status" data-status={status}>
-      {known ? t(($) => $.eval_lab.status[status]) : t(($) => $.eval_lab.status_unknown)}
-    </Badge>
-  );
+  const config: StatusBadgeConfig = {
+    running: { tone: "warning", label: t(($) => $.eval_lab.status.running) },
+    completed: { tone: "success", label: t(($) => $.eval_lab.status.completed) },
+    failed: { tone: "destructive", label: t(($) => $.eval_lab.status.failed) },
+  };
+  return <StatusBadge status={status} config={config} data-testid="eval-run-status" />;
 }
 
 function Score({ score }: { score: number | null }) {
@@ -426,35 +468,47 @@ function RunSuiteForm({
 
   return (
     <form className="flex w-full flex-wrap items-center gap-2" onSubmit={submit} data-testid="eval-run-form">
-      <select
-        aria-label={t(($) => $.eval_lab.agent)}
-        className={SELECT_CLASS}
+      <Select
+        items={[
+          { value: "", label: t(($) => $.eval_lab.pick_agent) },
+          ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+        ]}
         value={agentId}
-        onChange={(event) => {
-          setAgentId(event.target.value);
+        onValueChange={(value) => {
+          setAgentId(value ?? "");
           setVersionId("");
         }}
       >
-        <option value="">{t(($) => $.eval_lab.pick_agent)}</option>
-        {agents.map((agent) => (
-          <option key={agent.id} value={agent.id}>{agent.name}</option>
-        ))}
-      </select>
-      <select
-        aria-label={t(($) => $.eval_lab.version)}
-        className={SELECT_CLASS}
+        <SelectTrigger aria-label={t(($) => $.eval_lab.agent)} size="sm"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t(($) => $.eval_lab.pick_agent)}</SelectItem>
+          {agents.map((agent) => (
+            <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={[
+          { value: "", label: t(($) => $.eval_lab.pick_version) },
+          ...versions.map((version) => ({
+            value: version.id,
+            label: `${t(($) => $.eval_lab.version_label, { number: version.version_number })}${version.note ? ` — ${version.note}` : ""}`,
+          })),
+        ]}
         value={versionId}
-        disabled={agentId === ""}
-        onChange={(event) => setVersionId(event.target.value)}
+        onValueChange={(value) => setVersionId(value ?? "")}
       >
-        <option value="">{t(($) => $.eval_lab.pick_version)}</option>
-        {versions.map((version) => (
-          <option key={version.id} value={version.id}>
-            {t(($) => $.eval_lab.version_label, { number: version.version_number })}
-            {version.note ? ` — ${version.note}` : ""}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger aria-label={t(($) => $.eval_lab.version)} size="sm" disabled={agentId === ""}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">{t(($) => $.eval_lab.pick_version)}</SelectItem>
+          {versions.map((version) => (
+            <SelectItem key={version.id} value={version.id}>
+              {t(($) => $.eval_lab.version_label, { number: version.version_number })}
+              {version.note ? ` — ${version.note}` : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button type="submit" size="sm" disabled={agentId === "" || versionId === "" || runSuite.isPending}>
         {t(($) => $.eval_lab.run)}
       </Button>
@@ -494,7 +548,7 @@ function RunRow({
         <TableCell className="font-mono">
           {t(($) => $.eval_lab.version_label, { number: run.agent_version_number })}
         </TableCell>
-        <TableCell><StatusBadge status={run.status} /></TableCell>
+        <TableCell><EvalRunStatusBadge status={run.status} /></TableCell>
         <TableCell><Score score={run.score} /></TableCell>
         <TableCell className="text-muted-foreground">
           {run.started_at ? timeAgo(run.started_at) : "—"}
@@ -652,52 +706,76 @@ function BenchmarkSuiteForm({
   return (
     <form className="w-full space-y-2" onSubmit={submit} data-testid="eval-benchmark-form">
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label={t(($) => $.eval_lab.agent)}
-          className={SELECT_CLASS}
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.pick_agent) },
+            ...agents.map((agent) => ({ value: agent.id, label: agent.name })),
+          ]}
           value={agentId}
-          onChange={(event) => {
-            setAgentId(event.target.value);
+          onValueChange={(value) => {
+            setAgentId(value ?? "");
             setVersionId("");
           }}
         >
-          <option value="">{t(($) => $.eval_lab.pick_agent)}</option>
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>{agent.name}</option>
-          ))}
-        </select>
-        <select
-          aria-label={t(($) => $.eval_lab.version)}
-          className={SELECT_CLASS}
+          <SelectTrigger aria-label={t(($) => $.eval_lab.agent)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.pick_agent)}</SelectItem>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.pick_version) },
+            ...versions.map((version) => ({
+              value: version.id,
+              label: `${t(($) => $.eval_lab.version_label, { number: version.version_number })}${version.note ? ` — ${version.note}` : ""}`,
+            })),
+          ]}
           value={versionId}
-          disabled={agentId === ""}
-          onChange={(event) => setVersionId(event.target.value)}
+          onValueChange={(value) => setVersionId(value ?? "")}
         >
-          <option value="">{t(($) => $.eval_lab.pick_version)}</option>
-          {versions.map((version) => (
-            <option key={version.id} value={version.id}>
-              {t(($) => $.eval_lab.version_label, { number: version.version_number })}
-              {version.note ? ` — ${version.note}` : ""}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={t(($) => $.eval_lab.baseline)}
-          className={SELECT_CLASS}
-          value={baselineRunId}
-          onChange={(event) => setBaselineRunId(event.target.value)}
-        >
-          <option value="">{t(($) => $.eval_lab.no_baseline)}</option>
-          {baselines.map((run) => (
-            <option key={run.id} value={run.id}>
-              {t(($) => $.eval_lab.baseline_option, {
+          <SelectTrigger aria-label={t(($) => $.eval_lab.version)} size="sm" disabled={agentId === ""}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.pick_version)}</SelectItem>
+            {versions.map((version) => (
+              <SelectItem key={version.id} value={version.id}>
+                {t(($) => $.eval_lab.version_label, { number: version.version_number })}
+                {version.note ? ` — ${version.note}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.eval_lab.no_baseline) },
+            ...baselines.map((run) => ({
+              value: run.id,
+              label: t(($) => $.eval_lab.baseline_option, {
                 runtime: run.runtime_name || run.runtime_id.slice(0, 8),
                 model: run.model || t(($) => $.eval_lab.default_model),
                 score: run.score ?? 0,
-              })}
-            </option>
-          ))}
-        </select>
+              }),
+            })),
+          ]}
+          value={baselineRunId}
+          onValueChange={(value) => setBaselineRunId(value ?? "")}
+        >
+          <SelectTrigger aria-label={t(($) => $.eval_lab.baseline)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.eval_lab.no_baseline)}</SelectItem>
+            {baselines.map((run) => (
+              <SelectItem key={run.id} value={run.id}>
+                {t(($) => $.eval_lab.baseline_option, {
+                  runtime: run.runtime_name || run.runtime_id.slice(0, 8),
+                  model: run.model || t(($) => $.eval_lab.default_model),
+                  score: run.score ?? 0,
+                })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <fieldset className="space-y-1.5">
@@ -706,17 +784,24 @@ function BenchmarkSuiteForm({
         </legend>
         {candidates.map((candidate, index) => (
           <div key={index} className="flex flex-wrap items-center gap-2" data-testid="benchmark-candidate">
-            <select
-              aria-label={t(($) => $.eval_lab.candidate_runtime, { n: index + 1 })}
-              className={SELECT_CLASS}
+            <Select
+              items={[
+                { value: "", label: t(($) => $.eval_lab.pick_runtime) },
+                ...runtimes.map((runtime) => ({ value: runtime.id, label: runtimeDisplayLabel(runtime) })),
+              ]}
               value={candidate.runtime_id}
-              onChange={(event) => patchCandidate(index, { runtime_id: event.target.value })}
+              onValueChange={(value) => patchCandidate(index, { runtime_id: value ?? "" })}
             >
-              <option value="">{t(($) => $.eval_lab.pick_runtime)}</option>
-              {runtimes.map((runtime) => (
-                <option key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</option>
-              ))}
-            </select>
+              <SelectTrigger aria-label={t(($) => $.eval_lab.candidate_runtime, { n: index + 1 })} size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.eval_lab.pick_runtime)}</SelectItem>
+                {runtimes.map((runtime) => (
+                  <SelectItem key={runtime.id} value={runtime.id}>{runtimeDisplayLabel(runtime)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               aria-label={t(($) => $.eval_lab.candidate_model, { n: index + 1 })}
               className="h-7 w-44 text-caption"
@@ -770,6 +855,104 @@ function Delta({ delta }: { delta: number | null }) {
   );
 }
 
+/**
+ * Routing policy search (JEF-276): the server replays the router's scoring over
+ * the listed benchmark runs and reports the weights that would have picked
+ * best. It is a report only — nothing is applied — and the panel says so.
+ */
+function BenchmarkPolicySearchPanel({ wsId, runIds }: { wsId: string; runIds: string[] }) {
+  const { t } = useT("settings");
+  const search = useBenchmarkPolicySearch(wsId);
+  const result = search.data;
+  // null is the parse fallback: the answer was unreadable, which is a failure.
+  const failed = search.isError || result === null;
+  const empty = result != null && result.baseline.scored_classes === 0 && result.winner.scored_classes === 0;
+  const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+  const cost = (usd: number | null) => (usd != null ? formatUsd(usd) : "—");
+
+  return (
+    <div className="space-y-3 border-t p-4" data-testid="benchmark-policy-search">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-body font-medium">{t(($) => $.eval_lab.policy_search_title)}</p>
+          <p className="text-caption text-muted-foreground">{t(($) => $.eval_lab.policy_search_hint)}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={search.isPending}
+          onClick={() => search.mutate({ runs: runIds })}
+        >
+          {search.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+          {t(($) => $.eval_lab.policy_search_action)}
+        </Button>
+      </div>
+      {failed ? (
+        <p role="alert" className="text-caption text-destructive">
+          {t(($) => $.eval_lab.policy_search_failed)}
+        </p>
+      ) : empty ? (
+        <p className="text-caption text-muted-foreground" data-testid="policy-search-empty">
+          {t(($) => $.eval_lab.policy_search_empty)}
+        </p>
+      ) : result ? (
+        <div className="space-y-2" data-testid="policy-search-result">
+          <p className="text-caption font-medium">
+            {result.improved === true
+              ? t(($) => $.eval_lab.policy_search_improved)
+              : t(($) => $.eval_lab.policy_search_unchanged)}
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead />
+                <TableHead className="text-right">{t(($) => $.eval_lab.policy_current)}</TableHead>
+                <TableHead className="text-right">{t(($) => $.eval_lab.policy_proposed)}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="tabular-nums">
+              <PolicyRow label={t(($) => $.eval_lab.policy_pass_rate)} current={pct(result.baseline.passed_rate)} proposed={pct(result.winner.passed_rate)} />
+              <PolicyRow
+                label={t(($) => $.eval_lab.policy_gap)}
+                current="—"
+                proposed={
+                  <PassRateGap gap={Math.round((result.winner.passed_rate - result.baseline.passed_rate) * 100)} />
+                }
+              />
+              <PolicyRow label={t(($) => $.eval_lab.policy_avg_cost)} current={cost(result.baseline.avg_cost_usd)} proposed={cost(result.winner.avg_cost_usd)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_cost_weight)} current={String(result.baseline.policy.cost_weight)} proposed={String(result.winner.policy.cost_weight)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_duration_weight)} current={String(result.baseline.policy.duration_weight)} proposed={String(result.winner.policy.duration_weight)} />
+              <PolicyRow label={t(($) => $.eval_lab.policy_min_samples)} current={String(result.baseline.policy.min_samples)} proposed={String(result.winner.policy.min_samples)} />
+            </TableBody>
+          </Table>
+          <p className="text-caption text-muted-foreground" data-testid="policy-search-not-applied">
+            {t(($) => $.eval_lab.policy_search_not_applied)}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PolicyRow({ label, current, proposed }: { label: string; current: string; proposed: ReactNode }) {
+  return (
+    <TableRow>
+      <TableCell className="text-muted-foreground">{label}</TableCell>
+      <TableCell className="text-right">{current}</TableCell>
+      <TableCell className="text-right font-medium">{proposed}</TableCell>
+    </TableRow>
+  );
+}
+
+function PassRateGap({ gap }: { gap: number }) {
+  const { t } = useT("settings");
+  return (
+    <span className={`font-mono ${TONE_CLASS[benchmarkDeltaTone(gap)]}`} data-testid="policy-search-gap">
+      {t(($) => $.eval_lab.policy_gap_value, { gap: gap > 0 ? `+${gap}` : String(gap) })}
+    </span>
+  );
+}
+
 function BenchmarkRow({ run, timeAgo }: { run: BenchmarkRun; timeAgo: (date: string) => string }) {
   const { t } = useT("settings");
   const classLabel = useClassLabel();
@@ -785,7 +968,7 @@ function BenchmarkRow({ run, timeAgo }: { run: BenchmarkRun; timeAgo: (date: str
       <TableCell className="font-mono">
         {t(($) => $.eval_lab.version_label, { number: run.agent_version_number })}
       </TableCell>
-      <TableCell><StatusBadge status={run.status} /></TableCell>
+      <TableCell><EvalRunStatusBadge status={run.status} /></TableCell>
       <TableCell><Score score={run.score} /></TableCell>
       <TableCell>
         {perClass.length === 0 ? (

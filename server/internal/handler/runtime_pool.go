@@ -185,7 +185,12 @@ func (h *Handler) DeleteRuntimePool(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if n, err := h.Queries.CountAgentsUsingRuntimePool(r.Context(), pgtype.UUID{Bytes: pool.ID.Bytes, Valid: true}); err != nil || n > 0 {
+	n, err := h.Queries.CountAgentsUsingRuntimePool(r.Context(), pgtype.UUID{Bytes: pool.ID.Bytes, Valid: true})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check runtime pool usage")
+		return
+	}
+	if n > 0 {
 		writeError(w, http.StatusConflict, "agents still target this pool; move them first")
 		return
 	}

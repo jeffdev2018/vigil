@@ -288,3 +288,53 @@ describe("proxy root and locale handling", () => {
     ).toBe("zh-Hans");
   });
 });
+
+// Pages are rendered by Next, not by the Go router whose CSP middleware
+// (server/internal/middleware/csp.go) only covers the API it serves.
+describe("proxy security headers on pages", () => {
+  it.each(["/", "/login", "/acme/issues", "/acme/attachments/a-1/preview"])(
+    "sets anti-framing and hardening headers on %s",
+    (path) => {
+      withoutRuntimeUpstreams(() => {
+        const res = proxy(makeRequest(path));
+
+        const csp = res.headers.get("content-security-policy") ?? "";
+        expect(csp).toContain("frame-ancestors 'self'");
+        expect(csp).toContain("object-src 'none'");
+        expect(csp).toContain("base-uri 'self'");
+        expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+        expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+        expect(res.headers.get("referrer-policy")).toBe(
+          "strict-origin-when-cross-origin",
+        );
+      });
+    },
+  );
+
+  // Inline Next bootstrap scripts and sandboxed srcdoc previews (which inherit
+  // the embedding page's CSP) must keep running.
+  it("does not restrict script, style or connect sources", () => {
+    withoutRuntimeUpstreams(() => {
+      const csp =
+        proxy(makeRequest("/acme/issues")).headers.get(
+          "content-security-policy",
+        ) ?? "";
+
+      for (const directive of ["default-src", "script-src", "style-src", "connect-src"]) {
+        expect(csp).not.toContain(directive);
+      }
+    });
+  });
+
+  it.each(["/api/config", "/v1/context", "/uploads/a.png", "/auth/google", "/health"])(
+    "leaves backend responses on %s to the API's own headers",
+    (path) => {
+      withoutRuntimeUpstreams(() => {
+        const res = proxy(makeRequest(path));
+
+        expect(res.headers.get("content-security-policy")).toBeNull();
+        expect(res.headers.get("x-frame-options")).toBeNull();
+      });
+    },
+  );
+});

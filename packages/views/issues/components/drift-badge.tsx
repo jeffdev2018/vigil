@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Repeat } from "lucide-react";
-import { useWorkspaceId } from "@multica/core/hooks";
 import { issueRunsOptions } from "@multica/core/issues/handoff";
 import { useT } from "../../i18n";
 
@@ -10,10 +9,15 @@ import { useT } from "../../i18n";
  * Drift detection (K40): the exact reason the latest run was stopped for
  * going in circles, on the issue itself, not only in logs. Renders nothing
  * while no run drifted.
+ *
+ * issueRunsOptions is not workspace-scoped (its query key is issueId
+ * only), so there is nothing here for a workspace id to do — dropped the
+ * effectless `useWorkspaceId()` call this used to make. Actually scoping
+ * the query key by workspace is a root-cause fix at
+ * packages/core/issues/handoff.ts (issueKeys.tasks), out of scope here.
  */
 export function DriftBadge({ issueId }: { issueId: string }) {
   const { t } = useT("issues");
-  useWorkspaceId();
   const { data: runs = [] } = useQuery(issueRunsOptions(issueId));
   const drifted = runs.find((r) => r.drift_reason === "repeated_action" || r.drift_reason === "file_reread_loop");
   if (!drifted) return null;

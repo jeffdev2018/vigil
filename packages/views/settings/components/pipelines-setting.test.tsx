@@ -1,20 +1,38 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Pipeline } from "@multica/core/pipelines";
 import { renderWithI18n } from "../../test/i18n";
 
+// Opens a Select's popup by its trigger accessible name and clicks the
+// option whose accessible name matches.
+async function pickOption(
+  user: ReturnType<typeof userEvent.setup>,
+  triggerName: string,
+  optionName: string | RegExp,
+) {
+  await user.click(screen.getByRole("combobox", { name: triggerName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 // Parsing and stage states: packages/core/pipelines/pipeline-run.test.ts.
 
-const state = vi.hoisted(() => ({ pipelines: [] as Pipeline[], save: vi.fn(), remove: vi.fn() }));
+const state = vi.hoisted(() => ({ pipelines: [] as Pipeline[], save: vi.fn(), remove: vi.fn(), fail: false }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@multica/core/workspace/queries", () => ({ agentListOptions: () => ({ queryKey: ["agents"], queryFn: async () => [{ id: "a1", name: "Planner" }, { id: "a2", name: "Builder" }] }) }));
 vi.mock("@multica/core/pipelines", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/pipelines")>()),
-  pipelinesOptions: () => ({ queryKey: ["pipelines"], queryFn: async () => state.pipelines }),
+  pipelinesOptions: () => ({
+    queryKey: ["pipelines"],
+    queryFn: async () => {
+      if (state.fail) throw new Error("network down");
+      return state.pipelines;
+    },
+  }),
   pipelineSquadsOptions: () => ({ queryKey: ["squads"], queryFn: async () => [{ id: "q1", name: "Core squad" }] }),
   useSavePipeline: () => ({ mutate: state.save, isPending: false }),
   useDeletePipeline: () => ({ mutate: state.remove, isPending: false }),
@@ -35,6 +53,7 @@ beforeEach(() => {
   state.pipelines = [];
   state.save.mockReset();
   state.remove.mockReset();
+  state.fail = false;
 });
 
 describe("PipelinesSetting", () => {
@@ -42,7 +61,8 @@ describe("PipelinesSetting", () => {
     render();
     fireEvent.click(await screen.findByRole("button", { name: "Start from the triage → review template" }));
     fireEvent.change(screen.getByLabelText("Pipeline name"), { target: { value: "Delivery" } });
-    fireEvent.change(screen.getByLabelText("Executor of stage 3"), { target: { value: "squad:q1" } });
+    const user = userEvent.setup();
+    await pickOption(user, "Executor of stage 3", "Squad Core squad");
     fireEvent.click(screen.getByRole("button", { name: "Save pipeline" }));
     expect(state.save).toHaveBeenCalledTimes(1);
     const call = state.save.mock.calls[0]?.[0] as { input: { name: string; stages: { name: string; executor_type: string; requires_human_gate: boolean }[] } };
@@ -64,5 +84,17 @@ describe("PipelinesSetting", () => {
     fireEvent.change(screen.getByLabelText("Pipeline name"), { target: { value: "Delivery v2" } });
     fireEvent.click(screen.getByRole("button", { name: "Save pipeline" }));
     expect(state.save).toHaveBeenCalledWith({ id: "p1", input: { name: "Delivery v2" } }, expect.anything());
+  });
+
+  // P3 audit finding: pipelines defaulted to `[]` on a failed fetch,
+  // indistinguishable from "no pipelines configured yet" — which also
+  // offered "New pipeline" over a workspace whose real list just failed to
+  // load, inviting a silent duplicate.
+  it("shows a retry-able error instead of the empty/new-pipeline state when the fetch fails", async () => {
+    state.fail = true;
+    render();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load pipelines");
+    expect(screen.queryByRole("button", { name: "New pipeline" })).toBeNull();
   });
 });

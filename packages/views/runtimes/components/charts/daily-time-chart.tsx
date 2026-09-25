@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -11,13 +12,23 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@multica/ui/components/ui/chart";
+import { useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
 
-// Single-series bar — total daily run time in seconds. The y-axis tick
-// formatter and tooltip both use the same `formatDuration` so the user
-// reads the same unit ladder (h / m / s) everywhere.
-const timeChartConfig = {
-  totalSeconds: { label: "Run time", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+/**
+ * Single-series bar — total daily run time in seconds. The y-axis tick
+ * formatter and tooltip both use the same `formatDuration` so the user
+ * reads the same unit ladder (h / m / s) everywhere.
+ */
+export function useTimeChartConfig(): ChartConfig {
+  const { t } = useT("runtimes");
+  return useMemo(
+    () => ({
+      totalSeconds: { label: t(($) => $.charts.time_run_time), color: "var(--chart-1)" },
+    }),
+    [t],
+  );
+}
 
 export interface DailyTimeData {
   date: string;
@@ -36,6 +47,7 @@ export function DailyTimeChart({
   formatY: (seconds: number) => string;
   formatTooltip: (seconds: number) => string;
 }) {
+  const timeChartConfig = useTimeChartConfig();
   return (
     <ChartContainer config={timeChartConfig} className="aspect-[3/1] w-full">
       <BarChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
@@ -59,8 +71,8 @@ export function DailyTimeChart({
             <ChartTooltipContent
               formatter={(value, name) =>
                 typeof value === "number"
-                  ? `${formatTooltip(value)} ${name}`
-                  : `${value} ${name}`
+                  ? `${formatTooltip(value)} ${labelOf(timeChartConfig, name)}`
+                  : `${value} ${labelOf(timeChartConfig, name)}`
               }
             />
           }

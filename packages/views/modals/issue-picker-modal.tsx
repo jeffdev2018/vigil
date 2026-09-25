@@ -1,6 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { issueStatusCategory } from "@multica/core/issues";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Issue } from "@multica/core/types";
 import { api } from "@multica/core/api";
@@ -16,6 +20,13 @@ import {
 import { StatusIcon } from "../issues/components/status-icon";
 import { useT } from "../i18n";
 
+/** Issues offered before the user types, under a heading. */
+export interface IssuePickerSuggestionGroup {
+  key: string;
+  heading: string;
+  issues: Issue[];
+}
+
 interface IssuePickerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,6 +34,13 @@ interface IssuePickerModalProps {
   description: string;
   excludeIds: string[];
   onSelect: (issue: Issue) => void;
+  /** Optional node between the search input and the list — e.g. a type
+   * selector for relation picking (R01). */
+  above?: ReactNode;
+  /** Shown while the query is empty; groups without issues are skipped. */
+  suggestions?: IssuePickerSuggestionGroup[];
+  /** Drops issues from results and suggestions alike; excludeIds always applies. */
+  isSelectable?: (issue: Issue) => boolean;
 }
 
 export function IssuePickerModal({
@@ -32,13 +50,24 @@ export function IssuePickerModal({
   description,
   excludeIds,
   onSelect,
+  above,
+  suggestions,
+  isSelectable,
 }: IssuePickerModalProps) {
   const { t } = useT("modals");
+  const { colorOf, iconOf } = useIssueStatuses(useWorkspaceId());
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const abortRef = useRef<AbortController>(undefined);
+  const selectable = useCallback(
+    (issue: Issue) => !excludeIds.includes(issue.id) && (isSelectable?.(issue) ?? true),
+    [excludeIds, isSelectable],
+  );
+  const suggestionGroups = (suggestions ?? [])
+    .map((group) => ({ ...group, issues: group.issues.filter(selectable) }))
+    .filter((group) => group.issues.length > 0);
 
   useEffect(() => {
     if (!open) {
@@ -47,6 +76,17 @@ export function IssuePickerModal({
       setIsLoading(false);
     }
   }, [open]);
+
+  // The debounce timer and its in-flight request outlive a single render —
+  // an unmount mid-debounce (modal closed via its own onOpenChange, or the
+  // whole tree torn down) otherwise left the timer armed and the fetch
+  // running against a component no longer there to receive the result.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const search = useCallback(
     (q: string) => {
@@ -71,7 +111,7 @@ export function IssuePickerModal({
             signal: controller.signal,
           });
           if (!controller.signal.aborted) {
-            setResults(res.issues.filter((i) => !excludeIds.includes(i.id)));
+            setResults(res.issues.filter(selectable));
             setIsLoading(false);
           }
         } catch {
@@ -81,7 +121,28 @@ export function IssuePickerModal({
         }
       }, 300);
     },
-    [excludeIds],
+    [selectable],
+  );
+
+  const row = (issue: Issue) => (
+    <CommandItem
+      key={issue.id}
+      value={issue.id}
+      onSelect={() => {
+        onSelect(issue);
+        onOpenChange(false);
+      }}
+    >
+      <StatusIcon
+        status={issue.status}
+        color={colorOf(issue.status)}
+        icon={iconOf(issue.status)}
+        category={issueStatusCategory(issue) ?? undefined}
+        className="h-3.5 w-3.5 shrink-0"
+      />
+      <span className="text-muted-foreground shrink-0">{issue.identifier}</span>
+      <span className="truncate">{issue.title}</span>
+    </CommandItem>
   );
 
   return (
@@ -100,6 +161,7 @@ export function IssuePickerModal({
             search(v);
           }}
         />
+        {above}
         <CommandList>
           {isLoading && (
             <div className="py-6 text-center text-body text-muted-foreground">
@@ -109,33 +171,18 @@ export function IssuePickerModal({
           {!isLoading && query.trim() && results.length === 0 && (
             <CommandEmpty>{t(($) => $.issue_picker.no_results)}</CommandEmpty>
           )}
-          {!isLoading && !query.trim() && (
+          {!isLoading && !query.trim() && suggestionGroups.length === 0 && (
             <div className="py-6 text-center text-body text-muted-foreground">
               {t(($) => $.issue_picker.prompt_to_search)}
             </div>
           )}
-          {results.length > 0 && (
-            <CommandGroup>
-              {results.map((issue) => (
-                <CommandItem
-                  key={issue.id}
-                  value={issue.id}
-                  onSelect={() => {
-                    onSelect(issue);
-                    onOpenChange(false);
-                  }}
-                >
-                  <StatusIcon
-                    status={issue.status}
-                    category={issueStatusCategory(issue) ?? undefined}
-                    className="h-3.5 w-3.5 shrink-0"
-                  />
-                  <span className="text-muted-foreground shrink-0">{issue.identifier}</span>
-                  <span className="truncate">{issue.title}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
+          {!isLoading && !query.trim() &&
+            suggestionGroups.map((group) => (
+              <CommandGroup key={group.key} heading={group.heading}>
+                {group.issues.map(row)}
+              </CommandGroup>
+            ))}
+          {results.length > 0 && <CommandGroup>{results.map(row)}</CommandGroup>}
         </CommandList>
       </Command>
     </CommandDialog>

@@ -93,7 +93,7 @@ export const CELESTIAL_WORKSPACE_NAMES = [
       "zh-Hans": "火卫二",
       ja: "ダイモス",
       ko: "데이모스",
-      fr: "Deimos",
+      fr: "Déimos",
     },
   },
   {

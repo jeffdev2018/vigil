@@ -270,11 +270,7 @@ func (h *Handler) ListBenchmarks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list benchmarks")
 		return
 	}
-	runs := make([]BenchmarkRunResponse, 0, len(rows))
-	for _, run := range rows {
-		runs = append(runs, h.benchmarkRunToResponse(r.Context(), run))
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": h.benchmarkRunsToResponses(r.Context(), rows)})
 }
 
 // GetEvalSuiteCorpus — GET /api/eval-suites/{id}/corpus. What the suite is
@@ -366,9 +362,23 @@ func (h *Handler) BenchmarkPolicySearch(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusUnprocessableEntity, "none of those runs is a benchmark of this workspace")
 		return
 	}
+	runIDs := make([]pgtype.UUID, len(runs))
+	for i, run := range runs {
+		runIDs[i] = run.ID
+	}
+	caseRows, err := h.Queries.ListEvalRunCasesByRunIDs(r.Context(), runIDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to read the benchmark run cases")
+		return
+	}
+	casesByRun := map[string][]db.ListEvalRunCasesRow{}
+	for _, row := range caseRows {
+		key := uuidToString(row.RunID)
+		casesByRun[key] = append(casesByRun[key], db.ListEvalRunCasesRow(row))
+	}
 	results := []service.BenchmarkClassResult{}
 	for _, run := range runs {
-		results = append(results, h.benchmarkClassResults(r.Context(), run)...)
+		results = append(results, benchmarkClassResults(run, casesByRun[uuidToString(run.ID)])...)
 	}
 	search := service.BenchmarkPolicySearch(results)
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(wsUUID))
@@ -381,12 +391,7 @@ func (h *Handler) BenchmarkPolicySearch(w http.ResponseWriter, r *http.Request) 
 // benchmarkClassResults turns one benchmark run into the per-class candidate
 // records the policy search scores. Only settled, measured cases count: a
 // pending case has no verdict and an infrastructure failure measured nothing.
-func (h *Handler) benchmarkClassResults(ctx context.Context, run db.EvalRun) []service.BenchmarkClassResult {
-	rows, err := h.Queries.ListEvalRunCases(ctx, run.ID)
-	if err != nil {
-		slog.Warn("benchmark: list run cases failed", "run_id", uuidToString(run.ID), "error", err)
-		return nil
-	}
+func benchmarkClassResults(run db.EvalRun, rows []db.ListEvalRunCasesRow) []service.BenchmarkClassResult {
 	type bucket struct {
 		cases, passed          int
 		costTicks, costCases   int64
@@ -440,23 +445,101 @@ func (h *Handler) benchmarkClassResults(ctx context.Context, run db.EvalRun) []s
 
 // benchmarkRunToResponse adds the pin, the per-class breakdown and the delta
 // against the baseline run to the ordinary eval run payload.
+// benchmarkRunToResponse resolves everything for one run with single-row
+// queries: used by CreateBenchmark, whose loop is already bounded by
+// benchmarkMaxCandidates (8) and writes a fresh run per iteration, so there is
+// no page to batch. ListBenchmarks lists many existing runs instead and uses
+// the batched benchmarkRunsToResponses.
 func (h *Handler) benchmarkRunToResponse(ctx context.Context, run db.EvalRun) BenchmarkRunResponse {
 	rows, err := h.Queries.ListEvalRunCases(ctx, run.ID)
 	if err != nil {
 		slog.Warn("benchmark: list run cases failed", "run_id", uuidToString(run.ID), "error", err)
 	}
+	evalResp := h.evalRunResponseFrom(ctx, run, rows)
+	runtimeName := ""
+	if run.RuntimeID.Valid {
+		if runtime, err := h.Queries.GetAgentRuntime(ctx, run.RuntimeID); err == nil {
+			runtimeName = runtime.Name
+		}
+	}
+	var baseline db.EvalRun
+	hasBaseline := false
+	if run.BaselineRunID.Valid && run.Score.Valid {
+		if prior, err := h.Queries.GetEvalRun(ctx, run.BaselineRunID); err == nil {
+			baseline, hasBaseline = prior, true
+		}
+	}
+	return benchmarkRunResponseFromLookup(run, rows, evalResp, runtimeName, baseline, hasBaseline)
+}
+
+// benchmarkRunsToResponses is the list variant of benchmarkRunToResponse: it
+// batches the per-run lookups (cases, suite, version, runtime, baseline) into
+// one query each instead of up to five per run.
+func (h *Handler) benchmarkRunsToResponses(ctx context.Context, runs []db.EvalRun) []BenchmarkRunResponse {
+	casesByRun, suiteNameByID, versionsByID := h.evalRunLookupsFor(ctx, runs)
+
+	runtimeIDs := make([]pgtype.UUID, 0, len(runs))
+	baselineIDs := make([]pgtype.UUID, 0, len(runs))
+	for _, run := range runs {
+		if run.RuntimeID.Valid {
+			runtimeIDs = append(runtimeIDs, run.RuntimeID)
+		}
+		if run.BaselineRunID.Valid && run.Score.Valid {
+			baselineIDs = append(baselineIDs, run.BaselineRunID)
+		}
+	}
+	runtimeNameByID := map[string]string{}
+	if len(runtimeIDs) > 0 {
+		if runtimes, err := h.Queries.GetAgentRuntimes(ctx, runtimeIDs); err != nil {
+			slog.Warn("benchmark: batch get runtimes failed", "error", err)
+		} else {
+			for _, rt := range runtimes {
+				runtimeNameByID[uuidToString(rt.ID)] = rt.Name
+			}
+		}
+	}
+	baselineByID := map[string]db.EvalRun{}
+	if len(baselineIDs) > 0 {
+		if baselines, err := h.Queries.GetEvalRunsByIDs(ctx, baselineIDs); err != nil {
+			slog.Warn("benchmark: batch get baseline runs failed", "error", err)
+		} else {
+			for _, b := range baselines {
+				baselineByID[uuidToString(b.ID)] = b
+			}
+		}
+	}
+
+	out := make([]BenchmarkRunResponse, 0, len(runs))
+	for _, run := range runs {
+		rows := casesByRun[uuidToString(run.ID)]
+		evalResp := evalRunResponseFromLookup(run, rows, suiteNameByID, versionsByID)
+		runtimeName := ""
+		if run.RuntimeID.Valid {
+			runtimeName = runtimeNameByID[uuidToString(run.RuntimeID)]
+		}
+		baseline, hasBaseline := db.EvalRun{}, false
+		if run.BaselineRunID.Valid && run.Score.Valid {
+			baseline, hasBaseline = baselineByID[uuidToString(run.BaselineRunID)]
+		}
+		out = append(out, benchmarkRunResponseFromLookup(run, rows, evalResp, runtimeName, baseline, hasBaseline))
+	}
+	return out
+}
+
+// benchmarkRunResponseFromLookup adds the pin, the per-class breakdown and
+// the delta against the baseline run to an eval run response already built
+// (single-run in benchmarkRunToResponse, batched in benchmarkRunsToResponses).
+// hasBaseline mirrors GetEvalRun's err == nil check; baseline is the zero
+// value when there is none.
+func benchmarkRunResponseFromLookup(run db.EvalRun, rows []db.ListEvalRunCasesRow, evalResp EvalRunResponse, runtimeName string, baseline db.EvalRun, hasBaseline bool) BenchmarkRunResponse {
 	out := BenchmarkRunResponse{
-		EvalRunResponse: h.evalRunResponseFrom(ctx, run, rows),
+		EvalRunResponse: evalResp,
 		Benchmark:       run.Benchmark,
 		RuntimeID:       uuidToString(run.RuntimeID),
 		Model:           run.Model,
 		BaselineRunID:   uuidToPtr(run.BaselineRunID),
 		PerClass:        map[string]BenchmarkClassBreakdown{},
-	}
-	if run.RuntimeID.Valid {
-		if runtime, err := h.Queries.GetAgentRuntime(ctx, run.RuntimeID); err == nil {
-			out.RuntimeName = runtime.Name
-		}
+		RuntimeName:     runtimeName,
 	}
 	type acc struct {
 		cases, passed, scored int
@@ -506,11 +589,9 @@ func (h *Handler) benchmarkRunToResponse(ctx context.Context, run db.EvalRun) Be
 		}
 		out.PerClass[class] = entry
 	}
-	if run.BaselineRunID.Valid && run.Score.Valid {
-		if prior, err := h.Queries.GetEvalRun(ctx, run.BaselineRunID); err == nil && prior.Score.Valid {
-			delta := run.Score.Int32 - prior.Score.Int32
-			out.DeltaScore = &delta
-		}
+	if run.BaselineRunID.Valid && run.Score.Valid && hasBaseline && baseline.Score.Valid {
+		delta := run.Score.Int32 - baseline.Score.Int32
+		out.DeltaScore = &delta
 	}
 	return out
 }

@@ -13,7 +13,9 @@
       "assignee": "담당",
       "trigger": "트리거",
       "next_run": "다음 실행",
-      "created": "생성일"
+      "created": "생성일",
+      "select_all": "모든 자동화 선택",
+      "select_autopilot": "{{name}} 선택"
     },
     "last_run_empty": "--",
     "empty": {
@@ -28,8 +30,8 @@
     "active": "활성",
     "paused": "일시 중지",
     "paused_runtime_required": "일시 중지됨 — 담당 에이전트에 런타임이 필요합니다",
-    "paused_failure_rate": "일시 중지됨 — 실행 실패가 너무 많습니다",
-    "archived": "보관됨"
+    "archived": "보관됨",
+    "paused_failure_rate": "일시 중지됨 — 실행 실패가 너무 많습니다"
   },
   "execution_mode": {
     "create_issue": "이슈 생성",
@@ -72,7 +74,6 @@
     "pause_aria": "오토파일럿 일시 중지",
     "activate_aria": "오토파일럿 활성화",
     "paused_runtime_required": "담당 에이전트의 런타임이 없어 자동화가 일시 중지되었습니다. 런타임을 연결한 후 다시 활성화하세요.",
-    "paused_failure_rate": "최근 실행 실패가 너무 많아 자동으로 일시 중지되었습니다. 실패 원인을 조사해 해결한 뒤 이 오토파일럿을 다시 활성화하세요.",
     "bind_runtime": "런타임 연결",
     "edit": "수정",
     "run_now": "지금 실행",
@@ -82,6 +83,7 @@
     "run_blocked_invocation_not_allowed": "실행되지 않음 — 이 오토파일럿의 에이전트를 사용할 권한이 없습니다",
     "run_blocked_runtime_offline": "실행되지 않음 — 에이전트의 런타임이 오프라인입니다",
     "run_blocked_agent_runtime_required": "실행되지 않음 — 에이전트에 런타임이 없습니다. 실행하려면 런타임을 연결하세요",
+    "run_blocked_runtime_access_denied": "실행되지 않음 — 에이전트가 비공개 런타임에서 실행할 수 없습니다. 런타임을 공개로 변경하거나 에이전트를 다시 연결/복사하세요",
     "run_blocked_target_unavailable": "실행되지 않음 — 에이전트를 사용할 수 없습니다",
     "run_blocked_attribution": "실행되지 않음 — 실행의 책임 구성원을 확인할 수 없습니다",
     "run_blocked_already_active": "실행되지 않음 — 최근 실행이 이미 이 건을 처리했습니다",
@@ -114,6 +116,7 @@
       "confirm": "삭제",
       "deleting": "삭제하는 중..."
     },
+    "paused_failure_rate": "최근 실행 실패가 너무 많아 자동으로 일시 중지되었습니다. 실패 원인을 조사해 해결한 뒤 이 오토파일럿을 다시 활성화하세요.",
     "load_more": "더 보기",
     "loading_more": "불러오는 중...",
     "showing_count": "{{total}}개 중 {{shown}}개"
@@ -173,8 +176,6 @@
   },
   "trigger_row": {
     "disabled_badge": "비활성",
-    "enable_aria": "트리거 활성화",
-    "edit_trigger": "트리거 편집",
     "deprecated_badge": "지원 중단",
     "next_label": "다음: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -184,6 +185,7 @@
     "copy_url": "URL 복사",
     "url_copied": "Webhook URL을 복사했습니다",
     "url_copy_failed": "URL을 복사하지 못했습니다",
+    "edit_schedule": "일정 수정",
     "rotate_url": "URL 재발급",
     "rotate_confirm_title": "Webhook URL 재발급",
     "rotate_confirm_description": "현재 URL은 즉시 동작을 멈춥니다. 이 URL을 호출하는 외부 시스템은 새 URL로 업데이트해야 합니다. 계속할까요?",
@@ -194,16 +196,18 @@
     "toast_rotate_failed": "URL을 재발급하지 못했습니다",
     "toast_deleted": "트리거를 삭제했습니다",
     "toast_delete_failed": "트리거를 삭제하지 못했습니다",
-    "toast_enabled": "트리거를 활성화했습니다",
-    "toast_disabled": "트리거를 비활성화했습니다",
-    "toast_toggle_failed": "트리거를 업데이트하지 못했습니다",
     "delete_dialog": {
       "title": "트리거 삭제",
       "description": "이 트리거가 제거되고 오토파일럿은 이 일정으로 더 이상 실행되지 않습니다. 이 작업은 되돌릴 수 없습니다.",
       "cancel": "취소",
       "confirm": "삭제",
       "deleting": "삭제하는 중..."
-    }
+    },
+    "enable_aria": "트리거 활성화",
+    "edit_trigger": "트리거 편집",
+    "toast_enabled": "트리거를 활성화했습니다",
+    "toast_disabled": "트리거를 비활성화했습니다",
+    "toast_toggle_failed": "트리거를 업데이트하지 못했습니다"
   },
   "deliveries": {
     "section_title": "Webhook 전달",
@@ -218,16 +222,6 @@
       "rejected": "거부됨",
       "ignored": "무시됨",
       "failed": "실패함"
-    },
-    "reason": {
-      "trigger_disabled": "트리거 비활성화됨",
-      "autopilot_paused": "오토파일럿 일시 중지",
-      "autopilot_archived": "오토파일럿 보관됨",
-      "event_filtered": "이벤트 필터에서 제외됨",
-      "criteria_not_matched": "조건에 맞지 않음",
-      "quota_exceeded": "실행 한도 도달",
-      "invalid_signature": "서명이 올바르지 않음",
-      "missing_signature": "서명 없음"
     },
     "signature": {
       "not_required": "서명 없음",
@@ -248,10 +242,10 @@
       "content_type": "Content-Type",
       "replayed_from": "재실행 원본",
       "error_label": "오류",
-      "reason_label": "사유",
       "raw_body": "원본 본문",
       "selected_headers": "헤더",
-      "response_body": "응답 본문"
+      "response_body": "응답 본문",
+      "reason_label": "사유"
     },
     "replay": {
       "action": "재실행",
@@ -261,49 +255,17 @@
       "disabled_invalid_signature": "서명이 유효하지 않아 재실행할 수 없습니다",
       "disabled_rejected": "거부된 전달은 재실행할 수 없습니다",
       "disabled_queued": "아직 대기 중입니다. 처리된 후 재실행하세요"
+    },
+    "reason": {
+      "trigger_disabled": "트리거 비활성화됨",
+      "autopilot_paused": "오토파일럿 일시 중지",
+      "autopilot_archived": "오토파일럿 보관됨",
+      "event_filtered": "이벤트 필터에서 제외됨",
+      "criteria_not_matched": "조건에 맞지 않음",
+      "quota_exceeded": "실행 한도 도달",
+      "invalid_signature": "서명이 올바르지 않음",
+      "missing_signature": "서명 없음"
     }
-  },
-  "dry_run": {
-    "open": "샘플 이벤트로 테스트",
-    "title": "샘플 이벤트로 테스트",
-    "description": "이 페이로드를 전체 전달 판정(필터, 라우팅 기준, 일시중지 상태, 실행 한도)에 그대로 통과시킵니다. 전달도 실행도 기록되지 않습니다.",
-    "sample_label": "샘플",
-    "payload_label": "이벤트 페이로드 (JSON)",
-    "run": "드라이런 실행",
-    "running": "실행 중...",
-    "replay_action": "드라이런으로 재생",
-    "invalid_json": "잘못된 JSON: {{message}}",
-    "invalid_shape": "페이로드는 JSON 객체 또는 배열이어야 합니다.",
-    "verdict_would_run": "이 이벤트는 오토파일럿을 실행합니다",
-    "verdict_blocked": "이 이벤트는 오토파일럿을 실행하지 않습니다",
-    "verdict_unreadable": "판정 결과를 읽을 수 없습니다",
-    "matched_filters": "일치한 필터:",
-    "toast_failed": "드라이런에 실패했습니다"
-  },
-  "next_runs": {
-    "label": "다음 실행",
-    "loading": "불러오는 중...",
-    "unavailable": "다음 실행을 가져올 수 없습니다",
-    "never": "이 일정은 다시 실행되지 않습니다.",
-    "blocked": "실행되지 않음: {{reason}}",
-    "blocked_unknown": "차단됨",
-    "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
-  },
-  "signing_secret": {
-    "label": "서명 시크릿",
-    "hint": "설정하면 모든 전달에 X-Hub-Signature-256: sha256=<이 시크릿을 키로 한 원본 본문의 HMAC-SHA256 16진값>이 필요합니다. 서명이 없거나 잘못된 전달은 401로 거부됩니다.",
-    "not_configured": "서명 시크릿 없음 — 웹훅 URL만으로 인증합니다.",
-    "configured": "설정됨(끝 {{hint}}).",
-    "shown_once": "지금 복사하세요. 한 번만 표시됩니다.",
-    "generate": "서명 시크릿 생성",
-    "rotate": "서명 시크릿 교체",
-    "clear": "삭제",
-    "copy": "시크릿 복사",
-    "copied": "서명 시크릿을 복사했습니다",
-    "copy_failed": "복사하지 못했습니다",
-    "toast_rotated": "서명 시크릿을 갱신했습니다 — 발신 측을 다시 설정해야 합니다",
-    "toast_cleared": "서명 시크릿을 삭제했습니다",
-    "toast_failed": "서명 시크릿 갱신에 실패했습니다"
   },
   "add_trigger_dialog": {
     "title": "트리거 추가",
@@ -321,8 +283,13 @@
   },
   "edit_trigger_dialog": {
     "title": "트리거 편집",
+    "label_field": "라벨(선택 사항)",
+    "label_placeholder": "예: 평일 오전",
+    "enabled_label": "활성화",
     "submit": "트리거 저장",
     "submitting": "저장 중...",
+    "toast_updated": "일정을 수정했습니다",
+    "toast_update_failed": "일정 수정에 실패했습니다",
     "toast_saved": "트리거를 업데이트했습니다",
     "toast_save_failed": "트리거를 업데이트하지 못했습니다"
   },
@@ -386,7 +353,7 @@
     "event_filter_add": "추가",
     "event_filter_remove_label": "필터 제거",
     "event_filter_hint": "이 이벤트와 일치하는 Webhook만 처리합니다. 비워 두면 모두 허용합니다.",
-    "schedule_disabled_reason": "이 오토파일럿에는 여러 일정이 있습니다. 상세 페이지에서 수정하세요.",
+    "schedule_multiple_notice": "이 오토파일럿에는 일정이 {{count}}개 있습니다. 이 대화상자를 닫고 아래 '트리거'에서 각각 수정하세요.",
     "schedule_empty": "일정이 없습니다. 이 오토파일럿은 수동으로 실행할 때만 동작합니다.",
     "schedule_add": "일정 추가",
     "error_title_required": "오토파일럿 이름을 입력하세요.",
@@ -401,6 +368,7 @@
         "description": "이슈를 만들지 않고 조용히 실행합니다"
       }
     },
+    "schedule_disabled_reason": "이 오토파일럿에는 여러 일정이 있습니다. 상세 페이지에서 수정하세요.",
     "event_criteria_label": "다음 경우에만 실행…",
     "event_criteria_placeholder": "예: 프로덕션 배포 실패, 또는 결제를 건드리는 풀 리퀘스트",
     "event_criteria_hint": "이 오토파일럿을 실행해야 하는 이벤트를 직접 설명하세요. 각 전달은 이 설명에 대해 관대하게 판단되며, 애매하면 실행됩니다. 비워 두면 이벤트 필터만 적용됩니다.",
@@ -539,8 +507,100 @@
       "warning": "이 작업은 되돌릴 수 없습니다.",
       "cancel": "취소",
       "confirm": "영구 삭제",
-      "deleting": "삭제 중…"
-    }
+      "deleting": "삭제 중…",
+      "partial": "{{succeeded}}개 삭제, {{failed}}개 실패."
+    },
+    "status_partial": "{{succeeded}}개 업데이트, {{failed}}개 실패."
+  },
+  "wakeups": {
+    "title": "작업 깨우기",
+    "scope": "범위",
+    "issue": "작업",
+    "trigger": "트리거",
+    "next": "깨우기 상태",
+    "enabled": "활성화",
+    "all_triggers": "모든 트리거",
+    "event": "이벤트",
+    "at": "일회성",
+    "recurring": "반복",
+    "all_agents": "모든 에이전트",
+    "search": "작업 또는 에이전트 검색",
+    "search_action": "검색",
+    "running": "실행 중",
+    "active_runs": "진행 중인 실행 {{count}}개",
+    "issue_closed": "종료된 작업",
+    "read_only": "생성자 또는 워크스페이스 관리자만 관리할 수 있습니다",
+    "select_row": "{{issue}}, {{agent}} 선택",
+    "select_page": "이 페이지의 활성 항목 선택",
+    "load_error": "깨우기를 불러오지 못했습니다",
+    "loading": "불러오는 중…",
+    "empty": "깨우기 규칙이 없습니다",
+    "selected": "{{count}}개 선택됨",
+    "disable_selected": "선택 항목 끄기",
+    "clear": "선택 해제",
+    "results": "{{page}}페이지 · {{count}}개",
+    "previous": "이전",
+    "next_page": "다음",
+    "confirm_title": "깨우기 {{count}}개를 끄시겠습니까?",
+    "confirm_body": "이후 깨우기를 중지하고 아직 에이전트에게 전달되지 않은 대기 중 실행을 취소합니다. 전달된 실행은 계속되며 실행 로그에서 중지할 수 있습니다.",
+    "cancel": "취소",
+    "confirm": "끄기",
+    "disabling": "끄는 중…",
+    "batch_result": "꺼짐: {{succeeded}}개. 실패: {{failed}}개.",
+    "scopes": {
+      "active": "깨우기 대기 또는 실행 중",
+      "all": "전체",
+      "disabled": "꺼짐",
+      "ended": "종료됨"
+    },
+    "target_agent": "깨울 에이전트",
+    "wakeup_run": "깨운 후 실행",
+    "empty_filtered": "일치하는 깨우기가 없습니다",
+    "clear_filters": "필터 지우기",
+    "batch_success": "깨우기 규칙 {{count}}개를 껐습니다",
+    "batch_partial": "{{succeeded}}개를 껐고 {{failed}}개는 실패했습니다. 실패 항목은 선택된 상태로 남아 다시 시도할 수 있습니다."
+  },
+  "dry_run": {
+    "open": "샘플 이벤트로 테스트",
+    "title": "샘플 이벤트로 테스트",
+    "description": "이 페이로드를 전체 전달 판정(필터, 라우팅 기준, 일시중지 상태, 실행 한도)에 그대로 통과시킵니다. 전달도 실행도 기록되지 않습니다.",
+    "sample_label": "샘플",
+    "payload_label": "이벤트 페이로드 (JSON)",
+    "run": "드라이런 실행",
+    "running": "실행 중...",
+    "replay_action": "드라이런으로 재생",
+    "invalid_json": "잘못된 JSON: {{message}}",
+    "invalid_shape": "페이로드는 JSON 객체 또는 배열이어야 합니다.",
+    "verdict_would_run": "이 이벤트는 오토파일럿을 실행합니다",
+    "verdict_blocked": "이 이벤트는 오토파일럿을 실행하지 않습니다",
+    "verdict_unreadable": "판정 결과를 읽을 수 없습니다",
+    "matched_filters": "일치한 필터:",
+    "toast_failed": "드라이런에 실패했습니다"
+  },
+  "next_runs": {
+    "label": "다음 실행",
+    "loading": "불러오는 중...",
+    "unavailable": "다음 실행을 가져올 수 없습니다",
+    "never": "이 일정은 다시 실행되지 않습니다.",
+    "blocked": "실행되지 않음: {{reason}}",
+    "blocked_unknown": "차단됨",
+    "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
+  },
+  "signing_secret": {
+    "label": "서명 시크릿",
+    "hint": "설정하면 모든 전달에 X-Hub-Signature-256: sha256=<이 시크릿을 키로 한 원본 본문의 HMAC-SHA256 16진값>이 필요합니다. 서명이 없거나 잘못된 전달은 401로 거부됩니다.",
+    "not_configured": "서명 시크릿 없음 — 웹훅 URL만으로 인증합니다.",
+    "configured": "설정됨(끝 {{hint}}).",
+    "shown_once": "지금 복사하세요. 한 번만 표시됩니다.",
+    "generate": "서명 시크릿 생성",
+    "rotate": "서명 시크릿 교체",
+    "clear": "삭제",
+    "copy": "시크릿 복사",
+    "copied": "서명 시크릿을 복사했습니다",
+    "copy_failed": "복사하지 못했습니다",
+    "toast_rotated": "서명 시크릿을 갱신했습니다 — 발신 측을 다시 설정해야 합니다",
+    "toast_cleared": "서명 시크릿을 삭제했습니다",
+    "toast_failed": "서명 시크릿 갱신에 실패했습니다"
   },
   "daemon_import": {
     "open": "DAEMON.md 가져오기",
@@ -583,10 +643,37 @@
   "memory": {
     "section_title": "메모리",
     "export_button": "DAEMON.md 내보내기",
+    "export_failed": "DAEMON.md 내보내기에 실패했습니다.",
     "empty_title": "아직 메모리가 없습니다",
     "empty_hint": "이 데몬의 실행이 다음 실행에 필요한 내용을 기록합니다.",
     "updated_at": "업데이트 {{at}}",
     "last_run": "마지막 실행 {{at}}",
     "read_only": "실행이 기록하며 여기서는 수정할 수 없습니다"
+  },
+  "from_sentence": {
+    "action": "문장으로 만들기",
+    "title": "문장으로 오토파일럿 만들기",
+    "description": "무엇을 언제 해야 하는지 적으세요. 모델이 일정을 제안하고, 생성 전에 확인할 수 있습니다.",
+    "sentence_label": "입력 문장",
+    "sentence_placeholder": "매주 월요일 9시에 열린 이슈를 정리해서 올려줘.",
+    "draft": "문장 해석하기",
+    "draft_failed": "문장을 해석하지 못했습니다",
+    "no_model": "구성된 모델이 없습니다. 일정을 직접 작성하세요.",
+    "write_yourself": "수동 양식 열기",
+    "back": "문장 다시 쓰기",
+    "field_title": "제목",
+    "field_cron": "cron 식",
+    "field_timezone": "시간대",
+    "field_prompt": "에이전트 지시문",
+    "field_mode": "실행 모드",
+    "field_issue_title": "실행마다 만들 이슈 제목",
+    "field_assignee": "에이전트",
+    "assignee_placeholder": "어떤 에이전트가 실행하나요?",
+    "next_runs": "다음 실행",
+    "create_paused": "일시중지 상태로 생성",
+    "create_active": "생성 후 활성화",
+    "created_paused": "오토파일럿을 일시중지 상태로 만들었습니다",
+    "created_active": "오토파일럿을 만들고 활성화했습니다",
+    "create_failed": "오토파일럿을 만들지 못했습니다"
   }
 }

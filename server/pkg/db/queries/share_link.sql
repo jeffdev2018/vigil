@@ -48,7 +48,7 @@ UPDATE workspace_share_link
 SET is_active = false
 WHERE workspace_id = $1 AND is_active = true;
 
--- name: RevokeShareLink :exec
+-- name: RevokeShareLink :execrows
 UPDATE workspace_share_link
 SET is_active = false
 WHERE id = $1 AND workspace_id = $2;

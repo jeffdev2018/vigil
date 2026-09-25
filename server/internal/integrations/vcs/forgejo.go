@@ -321,3 +321,46 @@ func (p forgejoProvider) MergePullRequest(ctx context.Context, instanceURL, toke
 	}
 	return MergeResult{}, fmt.Errorf("forgejo merge: status %d", status)
 }
+
+// CreatePullRequest: POST /api/v1/repos/{owner}/{repo}/pulls with
+// {title, head, base, body}. An empty base is simply omitted — the platform
+// then targets the repository's default branch. 409 means a PR for that head
+// already exists; the caller treats the push as the deliverable and reports
+// the detail, not a hard failure.
+func (p forgejoProvider) CreatePullRequest(ctx context.Context, instanceURL, token, owner, repo string, in CreatePullRequestInput) (CreatedPullRequest, error) {
+	endpoint := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls", NormalizeInstanceURL(instanceURL), url.PathEscape(owner), url.PathEscape(repo))
+	payload := map[string]string{"title": in.Title, "head": in.Head, "body": in.Body}
+	if in.Base != "" {
+		payload["base"] = in.Base
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(raw)))
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return CreatedPullRequest{}, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return CreatedPullRequest{}, ErrUnauthorized
+	}
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return CreatedPullRequest{}, fmt.Errorf("forgejo create pull: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var created struct {
+		Number  int    `json:"number"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		return CreatedPullRequest{}, fmt.Errorf("forgejo create pull: decode: %w", err)
+	}
+	return CreatedPullRequest{HTMLURL: created.HTMLURL, Number: created.Number}, nil
+}

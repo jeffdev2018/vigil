@@ -58,7 +58,9 @@ import {
   type Squad,
 } from "@multica/core/types";
 import { ActorAvatar } from "../common/actor-avatar";
+import { AgentRunDetails } from "../agents/components/agent-run-details";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
+import { InfoBanner } from "../common/info-banner";
 import { ProjectPicker } from "../projects/components/project-picker";
 import { DueDatePicker, PriorityIcon, PriorityPicker } from "../issues/components";
 import { canAssignAgent } from "../issues/components/pickers/assignee-picker";
@@ -219,18 +221,18 @@ export function AgentCreatePanel({
 
   const seedActor = useCallback((): ActorSelection | null => {
     // Caller-provided seed wins (e.g. shell pre-seeds with `agent_id` /
-    // `squad_id`), then the persisted agent draft, the last successful pick,
-    // and finally the first visible agent.
+    // `squad_id`), then the persisted agent draft and the last successful
+    // pick — every seed is a choice the user made. There is deliberately no
+    // "first visible agent" fallback: submitting starts a real, billed run,
+    // so an agent nobody picked must never be one Enter away (audit UX,
+    // sept. 2026).
     const dataAgent = data?.agent_id as string | undefined;
     const dataSquad = data?.squad_id as string | undefined;
     return (
       resolveActor("agent", dataAgent) ||
       resolveActor("squad", dataSquad) ||
       resolveActor(draft.agent.actorType, draft.agent.actorId) ||
-      resolveActor(lastActorType, lastActorId) ||
-      (visibleAgents[0]
-        ? ({ type: "agent", id: visibleAgents[0].id } as const)
-        : null)
+      resolveActor(lastActorType, lastActorId)
     );
   }, [
     resolveActor,
@@ -240,7 +242,6 @@ export function AgentCreatePanel({
     draft.agent.actorId,
     lastActorType,
     lastActorId,
-    visibleAgents,
   ]);
 
   const [actor, setActor] = useState<ActorSelection | null>(() => seedActor());
@@ -595,6 +596,11 @@ export function AgentCreatePanel({
     const carry: Record<string, unknown> = {};
     if (parentIssueId) carry.parent_issue_id = parentIssueId;
     if (parentIssueIdentifier) carry.parent_issue_identifier = parentIssueIdentifier;
+    // Agent mode cannot plan into a cycle; the seed rides back to manual mode
+    // while the project it belongs to is still picked.
+    if (typeof data?.cycle_id === "string" && data.project_id === projectId) {
+      Object.assign(carry, { project_id: projectId, cycle_id: data.cycle_id });
+    }
     onSwitchMode?.(Object.keys(carry).length > 0 ? carry : null);
   };
 
@@ -667,15 +673,28 @@ export function AgentCreatePanel({
           />
         </div>
 
+        {/* What pressing Create does, before it is pressed: which agent will
+            run, where, and roughly what a run of it costs. */}
+        {selectedAgent && (
+          <div
+            role="note"
+            data-testid="agent-create-run-notice"
+            className="mx-5 mb-2 shrink-0 space-y-0.5 rounded-md bg-muted/50 px-3 py-2 text-caption"
+          >
+            <p>{t(($) => $.create_issue.agent.run_notice, { name: selectedAgent.name })}</p>
+            <AgentRunDetails agentId={selectedAgent.id} className="block text-muted-foreground" />
+          </div>
+        )}
+
         {selectedAgent && versionBlocked && (
-          <div className="mx-5 mb-2 shrink-0 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-caption text-amber-700 dark:text-amber-300">
+          <InfoBanner role="warning" compact className="mx-5 mb-2 shrink-0">
             {versionCheck.state === "missing"
               ? t(($) => $.create_issue.agent.version_missing, { min: versionCheck.min })
               : t(($) => $.create_issue.agent.version_below, {
                   current: versionCheck.current,
                   min: versionCheck.min,
                 })}
-          </div>
+          </InfoBanner>
         )}
 
         {/* Prompt — same rich editor Advanced uses, so paste/drop images,
@@ -866,7 +885,7 @@ export function AgentCreatePanel({
               onSelect={(file) => editorRef.current?.uploadFile(file)}
             />
             {keepOpen && sentCount > 0 && (
-              <span className="text-caption text-emerald-600 dark:text-emerald-400">
+              <span className="text-caption text-success-strong">
                 {t(($) => $.create_issue.agent.sent_count, { count: sentCount })}
               </span>
             )}
@@ -905,7 +924,10 @@ export function AgentCreatePanel({
             }
             className={cn(
               "justify-self-end min-w-28",
-              justSent && "!bg-emerald-600 !text-white",
+              // --success-foreground, not text-white: --success is a bright
+              // pop color in dark mode (by design), so a fixed white fails
+              // AA there (3.05:1) even though it passes in light mode.
+              justSent && "!bg-success !text-success-foreground",
             )}
           >
             {submitting ? t(($) => $.create_issue.agent.sending) : gate.uploading ? t(($) => $.create_issue.agent.uploading) : justSent ? (

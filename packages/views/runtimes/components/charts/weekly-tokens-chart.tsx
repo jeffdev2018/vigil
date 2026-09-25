@@ -10,22 +10,19 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import { formatTokens, type WeeklyTokenData } from "../../utils";
 import { useLocale, useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
+import { useTokenStackConfig } from "./daily-tokens-chart";
 
 // Mirror of DailyTokensChart's four-segment stack — same series and colours
-// keep the Weekly view legible as a coarser cut of the Daily one.
-export const weeklyTokenStackConfig = {
-  input: { label: "Input", color: "var(--chart-1)" },
-  output: { label: "Output", color: "var(--chart-2)" },
-  cacheRead: { label: "Cache read", color: "var(--chart-4)" },
-  cacheWrite: { label: "Cache write", color: "var(--chart-3)" },
-} satisfies ChartConfig;
+// keep the Weekly view legible as a coarser cut of the Daily one. Shares
+// useTokenStackConfig with the daily chart rather than a parallel copy.
 
 export function WeeklyTokensChart({ data }: { data: WeeklyTokenData[] }) {
   const { t } = useT("runtimes");
+  const weeklyTokenStackConfig = useTokenStackConfig();
   const locale = useLocale();
   return (
     <ChartContainer config={weeklyTokenStackConfig} className="aspect-[3/1] w-full">
@@ -61,8 +58,8 @@ export function WeeklyTokensChart({ data }: { data: WeeklyTokenData[] }) {
               }}
               formatter={(value, name) =>
                 typeof value === "number"
-                  ? `${formatTokens(value)} ${name}`
-                  : `${value} ${name}`
+                  ? `${formatTokens(value)} ${labelOf(weeklyTokenStackConfig, name)}`
+                  : `${value} ${labelOf(weeklyTokenStackConfig, name)}`
               }
               footer={(payload) => {
                 const total = payload.reduce(

@@ -248,6 +248,59 @@ export interface GetAutopilotResponse {
   collaborators?: AutopilotCollaborator[];
 }
 
+// Autopilots from a sentence (OS plan, vague B): the model turns plain words
+// into a schedule, then the autopilot is filed paused behind a Decision Card.
+// Server source of truth: server/internal/handler/autopilot_draft.go.
+export interface AutopilotDraft {
+  title: string;
+  /** 5-field cron: minute hour day-of-month month day-of-week. */
+  cron_expression: string;
+  /** IANA timezone. */
+  timezone: string;
+  /** The instruction the agent follows at each run. */
+  description: string;
+  execution_mode: AutopilotExecutionMode;
+  issue_title_template?: string;
+  /** One sentence on how the model read the schedule. */
+  reason: string;
+  /** The next three firings, RFC 3339. */
+  next_runs: string[];
+  model?: string;
+}
+
+export interface DraftAutopilotInput {
+  text: string;
+  timezone?: string;
+}
+
+export interface ProposeAutopilotInput {
+  /** Drafted server-side when title or cron_expression is missing. */
+  text?: string;
+  title?: string;
+  cron_expression?: string;
+  timezone?: string;
+  description?: string;
+  execution_mode?: AutopilotExecutionMode;
+  issue_title_template?: string;
+  assignee_id?: string;
+  project_id?: string;
+  /** The issue the Decision Card goes on. No issue, no card. */
+  issue_id?: string;
+  /**
+   * Members only (403 for a run): create the autopilot active with its
+   * schedule enabled and file no Decision Card. A run proposes, a person
+   * decides — so an agent asking for this is refused, not silently downgraded.
+   */
+  activate?: boolean;
+}
+
+export interface AutopilotProposalResponse {
+  /** Always created with status "paused" and its schedule disabled. */
+  autopilot: Autopilot;
+  decision_id: string | null;
+  next_runs: string[];
+}
+
 export interface ListAutopilotRunsResponse {
   runs: AutopilotRun[];
   total: number;

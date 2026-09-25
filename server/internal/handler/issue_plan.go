@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -153,6 +155,9 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -180,7 +185,11 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Steps = normalized
-	steps, _ := json.Marshal(req.Steps)
+	steps, err := json.Marshal(req.Steps)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode steps")
+		return
+	}
 
 	workspaceID := uuidToString(issue.WorkspaceID)
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
@@ -286,7 +295,7 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		if len(f.Detail) > planFindingMaxBytes {
-			f.Detail = f.Detail[:planFindingMaxBytes]
+			f.Detail = util.TruncateUTF8Bytes(f.Detail, planFindingMaxBytes)
 		}
 		switch f.Severity {
 		case "critical":
@@ -301,7 +310,11 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 			// Unknown severity stays in the findings as data; it counts nowhere.
 		}
 	}
-	findings, _ := json.Marshal(req.Findings)
+	findings, err := json.Marshal(req.Findings)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode findings")
+		return
+	}
 
 	ctx := r.Context()
 	existing, err := h.Queries.GetPlanVerificationByTask(ctx, runID)
@@ -339,10 +352,15 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 // publishIssueAuxChanged bumps the issue revision and emits issue:updated so
 // clients admit the event and refetch the plan and its verifications.
 func (h *Handler) publishIssueAuxChanged(r *http.Request, issue db.Issue, actorType, actorID string) {
-	ctx := r.Context()
+	h.publishIssueAuxChangedCtx(r.Context(), issue, actorType, actorID)
+}
+
+// publishIssueAuxChangedCtx is publishIssueAuxChanged for callers with no
+// request: an approval settled from a chat button, a background sweep.
+func (h *Handler) publishIssueAuxChangedCtx(ctx context.Context, issue db.Issue, actorType, actorID string) {
 	fresh, err := h.Queries.TouchIssueRevision(ctx, issue.ID)
 	if err != nil {
-		slog.Warn("touch issue revision failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+		slog.Warn("touch issue revision failed", "error", err, "issue_id", uuidToString(issue.ID))
 		return
 	}
 	resp := issueToResponse(fresh, h.getIssuePrefix(ctx, fresh.WorkspaceID))

@@ -7,6 +7,12 @@ import { GlobalShortcuts } from "./global-shortcuts";
 // GlobalShortcuts pulls workspace paths and the sidebar/chat stores at render
 // time; none of that is exercised by the history chords, so stub them to keep
 // the test focused on the back/forward wiring and free of provider setup.
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  // The `c` shortcut reads a loaded cycle from the cache; these suites mount
+  // without a QueryClientProvider.
+  useQueryClient: () => ({ getQueriesData: () => [] }),
+}));
 vi.mock("@multica/ui/components/ui/sidebar", () => ({
   useSidebar: () => ({ toggleSidebar: vi.fn() }),
 }));

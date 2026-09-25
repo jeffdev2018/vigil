@@ -112,6 +112,9 @@ func (h *Handler) RequestIssueRunRevert(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -381,7 +384,7 @@ func (h *Handler) ReportWorktreeRevertResult(w http.ResponseWriter, r *http.Requ
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

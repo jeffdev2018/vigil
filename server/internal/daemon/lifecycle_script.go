@@ -87,7 +87,9 @@ func formatLifecycleOutput(out []byte) string {
 		return ""
 	}
 	if len(trimmed) > lifecycleOutputLimit {
-		trimmed = "…" + trimmed[len(trimmed)-lifecycleOutputLimit:]
+		// A byte-offset cut through the tail can land mid-rune; ToValidUTF8
+		// drops that leftover partial sequence instead of emitting it mangled.
+		trimmed = "…" + strings.ToValidUTF8(trimmed[len(trimmed)-lifecycleOutputLimit:], "")
 	}
 	return "\n\n" + trimmed
 }

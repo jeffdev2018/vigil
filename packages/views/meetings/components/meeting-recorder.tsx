@@ -42,7 +42,7 @@ export function RecordingDot({ live = true }: { live?: boolean }) {
     <span
       aria-hidden="true"
       className={cn(
-        "size-2 shrink-0 rounded-full bg-red-500",
+        "size-2 shrink-0 rounded-full bg-destructive",
         live && "animate-pulse",
       )}
     />

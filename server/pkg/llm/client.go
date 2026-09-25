@@ -36,6 +36,43 @@
 // TestDocumentedConsumersAreTheOnlyCallers fails until a new call site is
 // reflected here.
 //
+//   - Agent consult — server/internal/handler/consult.go. Answers one
+//     synchronous question a running task's own agent asks mid-run via
+//     POST /api/consult. The calling task chooses the question and an
+//     optional free-form context, which may hold repository or file content
+//     it has access to; the server bounds both (4000 bytes for the question,
+//     32 KiB head+tail for the context) so the caller cannot decide how much
+//     leaves the deployment. Capped at 50 consults per task per day.
+//   - Agent duel arbiter — server/internal/handler/agent_duel.go. Compares
+//     two candidate runs on the same issue. Sends the issue title and
+//     description (no dedicated bound at this call site), each
+//     candidate's cost, duration, tool-call and message counts, and a
+//     4000-character tail of each candidate's text-message transcript
+//     (tool results excluded).
+//   - Agent memory extraction — server/internal/service/agent_memory_extract.go.
+//     Sends a completed run's issue title and final output (bounded at 6000
+//     runes, head+tail) plus the agent's existing memory facts, and asks for
+//     durable repo/workflow conventions. The prompt forbids secrets and
+//     ephemeral task details.
+//   - Autopilot draft — server/internal/handler/autopilot_draft.go. Turns a
+//     typed sentence into a scheduled automation. Sends the sentence
+//     (capped at 2000 runes), the workspace's default timezone and today's
+//     date.
+//   - Brain capture triage — server/internal/handler/brain_capture.go.
+//     Files a raw capture into the workspace's shared notes. Sends the
+//     capture's kind, title hint, URL, content (capped at 6000 bytes) and
+//     up to 5 candidate existing notes (id, title, a 240-byte excerpt each)
+//     for merge/duplicate detection.
+//   - Brain embeddings — server/internal/service/brain_embedding.go. The
+//     other consumer of the /embeddings surface (see the shared semantic
+//     repo index below). Embeds up to 64 note passages per call (6000-byte
+//     bodies) to index the workspace's Brain notes for ranked search, and
+//     embeds the search query text (also capped at 6000 bytes). Off unless
+//     MULTICA_LLM_EMBEDDING_MODEL is set.
+//   - Business rule compiler — server/internal/handler/business_rule.go.
+//     Compiles an owner/admin-authored rule (capped at 2000 characters at
+//     the API boundary) plus the fixed field catalog for the chosen attach
+//     point into a predicate. No workspace record content is sent.
 //   - Chat auto-titling — server/internal/handler/chat_title.go. Sends the
 //     first user message of a new chat session, verbatim and uncapped.
 //     Attachments are never included.
@@ -44,23 +81,145 @@
 //     Sends the tail of the conversation: up to 6 messages, the reply being
 //     answered capped at 3000 runes (2000 head + 1000 tail) and each older
 //     message at 800.
+//   - Contest adversarial review — server/internal/handler/contest.go.
+//     Plays devil's advocate on another agent's or service's output when
+//     the challenger is the internal model rather than a full agent run.
+//     Sends the contested material (a run's result, a plan, a triage
+//     verdict, or a meeting summary/transcript) capped at 20000 bytes.
+//   - Decision record extraction — server/internal/handler/decision_record.go.
+//     After a run is accepted, extracts up to 5 technical decisions it
+//     stated. Sends the run's text messages only (tool results excluded),
+//     tail-kept within a 30000-character budget.
+//   - Goal loop judge, no decision endpoint configured —
+//     server/internal/service/goal_loop.go. Judges, with no tools, whether
+//     a run's closing status satisfies its issue's goal; the fallback path
+//     used when the deployment has no decision endpoint (pkg/decisions, a
+//     separate HTTP client with its own base URL and key) configured.
+//     Sends the issue title, the goal text (capped at 6000 runes), the
+//     description (head+tail at 6000 runes), acceptance criteria JSON
+//     (capped at 4000 characters), up to 20 evidence lines from earlier
+//     runs in the chain (300 characters each), and the closing status
+//     (capped at 4000 characters).
+//   - Goal loop judge prose — server/internal/service/goal_loop_decision.go.
+//     Once a separate decision endpoint (pkg/decisions, its own HTTP
+//     client with its own base URL and key) has ruled whether the goal is
+//     met, this call receives that verdict already decided and only
+//     phrases it for the team. Sends the issue title, the goal text
+//     (capped at 6000 runes) and the run's closing status (capped at 4000
+//     characters). The description, acceptance criteria and evidence go
+//     only to the decision endpoint, never through this client.
+//   - Insight natural-language query translator —
+//     server/internal/insight/translate.go. Turns a typed question about
+//     the workspace's data into a structured analytics query, never SQL.
+//     Sends the question verbatim and the workspace's vocabulary (status
+//     keys, and project/label/issue-type/property names and ids) built
+//     into the system prompt; retries once with the compiler's own
+//     rejection reason quoted back. Completion capped at 900 tokens.
 //   - Issue scoping assistant — server/internal/handler/issue_scoping.go.
 //     Sends the raw text a member typed to draft an issue (capped at 8000
 //     runes) and the target project's title and description. Nothing else
 //     from the workspace.
+//   - Meeting summary — server/internal/handler/meeting.go. Sends a
+//     meeting's transcript, capped at 60000 bytes (head only), and asks
+//     for a short summary and up to 15 action items with verbatim
+//     evidence.
+//   - Morning briefing narration — server/internal/handler/briefing_digest.go.
+//     Narrates the daily briefing for chat delivery. Sends up to 25 items
+//     per section (merged, awaiting review, blocked), each an issue
+//     identifier, title, status and a blocked reason capped at 240 runes.
+//     Completion capped at 220 tokens.
+//   - Native agent context compaction —
+//     server/internal/service/native_compact.go. Runs inside the native
+//     agent runtime below. Once the running conversation is estimated over
+//     48000 tokens, sends the whole transcript so far (brief plus
+//     accumulated tool results) with an instruction to summarize what it
+//     did, learned and still has to do, with no tools; the turns behind
+//     the summary are then dropped. Below that but past 24000 tokens, tool
+//     results older than the last 2 turns are trimmed locally, without a
+//     model call, to a stub carrying the first 240 bytes of the original.
+//   - Native agent runtime — server/internal/service/native_agent.go. A
+//     tool-calling agent that runs in-process in this server (issue,
+//     chat, autopilot and quick-create tasks, and their sub-agents) — a
+//     different path from the daemon-subprocess one described above. It
+//     can read and write issues, comments, Brain notes, calendar entries,
+//     sub-issues and doctrine reports through its own tools. Every turn
+//     sends the agent's system prompt (workspace doctrine and enabled
+//     skills included), a brief capped at roughly 4096 estimated tokens
+//     holding the issue title, status, priority, description (head+tail
+//     clamped at 6144 bytes), up to 3 predecessor run summaries (1000
+//     characters each) and up to 20 recent comments (2000 bytes each,
+//     newest first until the budget runs out), and the conversation so
+//     far: every earlier turn's text plus every tool result, each tool
+//     result capped at 8 KB. See native_compact.go above for what happens
+//     once that history outgrows its own budget. Every workspace record
+//     is fenced with <data> markers and the system prompt tells the model
+//     to treat it as data, never as instructions to follow.
+//   - Postmortem drafting — server/internal/service/postmortem.go. After a
+//     run fails or costs over threshold, drafts summary/root-cause/impact/
+//     preventive-rules. Sends the issue title, failure reason, last error
+//     (capped at 600 runes), and a transcript tail bounded at 8000 runes
+//     across at most 60 messages. The prompt forbids secrets, credentials,
+//     tokens and file contents.
+//   - Run confidence rationale —
+//     server/internal/service/run_confidence_decision.go. Used only when a
+//     decision endpoint scored the run and the score landed below the
+//     workspace threshold, which is when a person will read the line. Sends
+//     the issue title, the already-decided score, the reviewer verdict when
+//     one exists, and the same 4000-byte head+tail excerpt of the run's final
+//     output, and asks for one sentence of at most 280 characters. Above the
+//     threshold it is not called at all.
+//   - Run confidence scoring — server/internal/service/run_confidence.go.
+//     After a run completes, self-assesses delivery confidence. Sends the
+//     issue title, the run's final output (capped at 4000 runes,
+//     head+tail) and any cross-review verdict already on record. The
+//     prompt forbids secrets, credentials, tokens, file contents and
+//     personal data in the rationale.
+//   - Run-group judge — server/internal/handler/run_group_judge.go.
+//     Compares the attempts of a race and names a winner. Sends the issue
+//     title and description (no dedicated bound at this call site) and,
+//     per attempt, its status, runtime, model, summed cost, duration,
+//     diff stat, and its unified diff truncated to 8 KB.
 //   - Shared semantic repo index — server/internal/service/repo_index.go (K47).
 //     The only consumer of the /embeddings surface. Sends the body of code
 //     chunks the daemon extracted from repositories the workspace explicitly
 //     opted in to, plus the issue title/description excerpt used as the search
 //     query at claim time. Off unless MULTICA_LLM_EMBEDDING_MODEL is set — with
 //     it empty the index is lexical and this layer sends no code anywhere.
-//   - Agent memory extraction — server/internal/service/agent_memory_extract.go.
-//     Sends a completed run's issue title and final output (bounded at 6000
-//     runes, head+tail) plus the agent's existing memory facts, and asks for
-//     durable repo/workflow conventions. The prompt forbids secrets and
-//     ephemeral task details.
+//   - Skill distillation — server/internal/service/skill_distillation.go.
+//     After a run completes, distills a reusable technique into a
+//     workspace skill. Sends the issue title and the run's final output
+//     (capped at 6000 runes, head+tail). The prompt forbids secrets,
+//     credentials, tokens, file contents, personal data and ephemeral
+//     task details (issue numbers, branch names, PR links, dates).
+//   - Skill miner — server/internal/handler/skill_miner.go. Distills a
+//     recurring human correction pattern into a draft skill. Sends each
+//     correction's content, redacted for known secret patterns (AWS,
+//     GitHub, GitLab, Slack, API keys and similar) and capped at 600
+//     characters, plus the issue title capped at 80 characters. The
+//     prompt forbids names, emails, secrets and issue identifiers in the
+//     output.
+//   - Standup/retro narrative — server/internal/handler/standup.go.
+//     Narrates the weekly retro. Sends aggregated run counts by status,
+//     median run duration, up to 10 failed runs (issue identifier and
+//     title, status, minutes, error capped at 240 runes) and per-agent
+//     scorecards. No transcript or comment content.
+//   - Voice-dictated issue draft —
+//     server/internal/handler/issue_from_voice.go. Turns a phone dictation
+//     into an editable issue draft. Sends the transcript (capped at 4000
+//     runes) and the workspace's existing label names.
+//   - Webhook event routing classifier —
+//     server/internal/handler/autopilot_webhook_routing.go. Decides
+//     whether an inbound webhook delivery is plausibly relevant to an
+//     automation's owner-written criteria. Sends the event name, provider,
+//     the raw delivery payload (capped at 6000 bytes, from the third-party
+//     sender) and the criteria text verbatim.
+//   - Workspace Brain curation —
+//     server/internal/service/workspace_note_curation.go. A daily pass
+//     plans deduplication, retitling, tagging and archival across a
+//     workspace's notes. Sends up to 60 notes (title, tags, pinned flag,
+//     updated time, and body capped at 1200 characters each).
 //
-// All three consumers send private user or run content, which is why an
+// Most of these send private user or run content, which is why an
 // unconfigured deployment making zero upstream requests is a contract rather
 // than a side effect: New with no API key and no base URL returns a disabled
 // client whose every call fails with ErrNotConfigured before an HTTP request
@@ -237,6 +396,7 @@ type RetryBudget struct {
 // the underlying SDK client holds no per-request state.
 type Client struct {
 	sdk            openai.Client
+	baseURL        string
 	defaultModel   string
 	embeddingModel string
 	enabled        bool
@@ -281,6 +441,7 @@ func New(cfg Config) *Client {
 
 	return &Client{
 		sdk:            openai.NewClient(opts...),
+		baseURL:        strings.TrimSpace(cfg.BaseURL),
 		defaultModel:   defaultModel,
 		embeddingModel: strings.TrimSpace(cfg.EmbeddingModel),
 		// A deployment is "configured" if it gave us either a key or a base
@@ -303,8 +464,23 @@ func (c *Client) RetryBudget() RetryBudget {
 // Handlers use this to short-circuit with a 503 before doing any work.
 func (c *Client) Enabled() bool { return c != nil && c.enabled }
 
+// BaseURL returns the configured OpenAI-compatible gateway URL (may be empty
+// when the SDK default applies). The native LLM fuse (N13) keys cooldowns by
+// this value so one provider's outage does not freeze every other gateway.
+func (c *Client) BaseURL() string {
+	if c == nil {
+		return ""
+	}
+	return c.baseURL
+}
+
 // DefaultModel returns the effective default model (never empty).
-func (c *Client) DefaultModel() string { return c.defaultModel }
+func (c *Client) DefaultModel() string {
+	if c == nil {
+		return FallbackModel
+	}
+	return c.defaultModel
+}
 
 // applyDefaultModel fills in the default model when the caller left it blank.
 func (c *Client) applyDefaultModel(params *openai.ChatCompletionNewParams) {
@@ -398,8 +574,24 @@ func (c *Client) GenerateText(ctx context.Context, model, systemPrompt, userProm
 // maxCompletionTokens apply only when positive; zero leaves the corresponding
 // upstream default in place. Model empty -> the configured default.
 func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, error) {
+	content, _, err := c.GenerateJSONWithUsage(ctx, model, systemPrompt, userPrompt, temperature, maxCompletionTokens)
+	return content, err
+}
+
+// Usage carries the token counts of one generation. Zero values mean the
+// upstream did not report them — callers treat that as "not reported", never
+// as a genuine zero-cost call.
+type Usage struct {
+	InputTokens  int64
+	OutputTokens int64
+}
+
+// GenerateJSONWithUsage is GenerateJSON plus the upstream's token accounting,
+// for callers that persist per-call costs (JEF-12 consult). Behavior is
+// identical otherwise; an upstream that omits usage yields a zero Usage.
+func (c *Client) GenerateJSONWithUsage(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, Usage, error) {
 	if !c.Enabled() {
-		return "", ErrNotConfigured
+		return "", Usage{}, ErrNotConfigured
 	}
 
 	messages := make([]openai.ChatCompletionMessageParamUnion, 0, 2)
@@ -459,7 +651,7 @@ func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userProm
 			break
 		}
 		if compatibilityRetries >= 2 {
-			return "", err
+			return "", Usage{}, err
 		}
 
 		switch {
@@ -469,20 +661,23 @@ func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userProm
 		case params.ReasoningEffort != "" && isUnsupportedParameter(err, "reasoning_effort"):
 			params.ReasoningEffort = ""
 		default:
-			return "", err
+			return "", Usage{}, err
 		}
 	}
 	if len(completion.Choices) == 0 {
-		return "", errors.New("llm: upstream returned no choices")
+		return "", Usage{}, errors.New("llm: upstream returned no choices")
 	}
 	choice := completion.Choices[0]
 	if choice.FinishReason == "length" {
-		return "", errors.New("llm: upstream reached the max completion token limit before producing complete JSON")
+		return "", Usage{}, errors.New("llm: upstream reached the max completion token limit before producing complete JSON")
 	}
 	if strings.TrimSpace(choice.Message.Content) == "" {
-		return "", errors.New("llm: upstream returned empty JSON content")
+		return "", Usage{}, errors.New("llm: upstream returned empty JSON content")
 	}
-	return choice.Message.Content, nil
+	return choice.Message.Content, Usage{
+		InputTokens:  completion.Usage.PromptTokens,
+		OutputTokens: completion.Usage.CompletionTokens,
+	}, nil
 }
 
 func isUnsupportedParameter(err error, parameter string) bool {

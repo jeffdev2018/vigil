@@ -209,7 +209,14 @@ export function ChatSessionHeader({
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon-sm" className="text-muted-foreground" />}
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              aria-label={t(($) => $.header.more_actions_aria)}
+            />
+          }
         >
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>

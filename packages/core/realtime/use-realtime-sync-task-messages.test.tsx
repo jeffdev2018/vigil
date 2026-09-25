@@ -128,24 +128,23 @@ describe("useRealtimeSync — task:message fanout guards (MUL-6396)", () => {
     // Mounting registers the cache entry immediately; the queryFn above has
     // not resolved yet. A frame landing in that window must still be kept.
     handler(msg(HELD_TASK, 1));
-    vi.advanceTimersByTime(FLUSH_MS);
 
     expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([1]);
     release();
   });
 
-  it("coalesces a burst into a single cache write", () => {
+  it("writes a burst's first frame immediately and coalesces its tail", () => {
     const handler = mount();
     const release = holdTimeline(HELD_TASK);
     const writes = vi.spyOn(qc, "setQueryData");
 
     for (let seq = 1; seq <= 5; seq++) handler(msg(HELD_TASK, seq));
-    // Nothing is written until the window closes.
-    expect(writes).not.toHaveBeenCalled();
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([1]);
 
     vi.advanceTimersByTime(FLUSH_MS);
 
-    expect(writes).toHaveBeenCalledTimes(1);
+    expect(writes).toHaveBeenCalledTimes(2);
     expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([1, 2, 3, 4, 5]);
     release();
   });
@@ -179,9 +178,8 @@ describe("useRealtimeSync — task:message fanout guards (MUL-6396)", () => {
     const release = holdTimeline(HELD_TASK);
     await vi.waitFor(() => expect(listTaskMessages).toHaveBeenCalled());
 
-    // Live frame arrives and flushes while the request is still open.
+    // The leading-edge live frame lands while the request is still open.
     handler(msg(HELD_TASK, 2, { content: "live" }));
-    vi.advanceTimersByTime(FLUSH_MS);
     expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([2]);
 
     // The response was snapshotted before seq 2 was persisted.
@@ -208,8 +206,10 @@ describe("useRealtimeSync — task:message fanout guards (MUL-6396)", () => {
     const release = holdTimeline(HELD_TASK);
     await vi.waitFor(() => expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([1]));
 
-    // Frame batched while the entry is still held, then the viewer closes.
+    // The leading edge writes immediately. The second frame is batched while
+    // the entry is still held, then the viewer closes.
     handler(msg(HELD_TASK, 2, { content: "live" }));
+    handler(msg(HELD_TASK, 3, { content: "batched tail" }));
     release();
 
     // GC lands first (50ms), flush second (100ms).
@@ -318,5 +318,36 @@ describe("useRealtimeSync — task:message carrying a run plan (F04)", () => {
     handler(msg(HELD_TASK, 5, { type: "text", content: "not a plan" }));
 
     expect(cachedPlan(qc)).toBeUndefined();
+  });
+
+  // task:message also stamps last_activity_at as proof of life (F02),
+  // throttled to a 5s resolution. The write-level throttle alone still let
+  // every chunk pay a getQueriesData + findIndex scan of every open task
+  // list; the call itself must be throttled too.
+  it("skips the run-activity scan entirely while under the 5s throttle window", () => {
+    // A task id not touched by any other test in this file: the throttle map
+    // is module-scoped (deliberately, so it survives across events), so a
+    // shared id would leak a stamp from another test's fake clock.
+    const RUN_ACTIVITY_TASK = "33333333-3333-4333-8333-333333333333";
+    const handler = mountWithRuns([run({ id: RUN_ACTIVITY_TASK, last_activity_at: null })]);
+    const scan = vi.spyOn(qc, "getQueriesData");
+
+    handler(msg(RUN_ACTIVITY_TASK, 1, { type: "text", content: "chunk 1" }));
+    const firstStamp = qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at;
+    expect(firstStamp).toBeTruthy();
+    expect(scan).toHaveBeenCalledTimes(1);
+
+    // A second chunk arriving immediately after (same run streaming fast)
+    // must not scan again: the throttle is checked before the loop, not
+    // just before the write inside it.
+    handler(msg(RUN_ACTIVITY_TASK, 2, { type: "text", content: "chunk 2" }));
+    expect(scan).toHaveBeenCalledTimes(1);
+    expect(qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at).toBe(firstStamp);
+
+    // Past the window, the next chunk scans and stamps again.
+    vi.advanceTimersByTime(5_001);
+    handler(msg(RUN_ACTIVITY_TASK, 3, { type: "text", content: "chunk 3" }));
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.last_activity_at).not.toBe(firstStamp);
   });
 });

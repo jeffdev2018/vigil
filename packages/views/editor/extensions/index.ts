@@ -298,6 +298,11 @@ export function createEditorExtensions(
       return true;
     }),
     createBlurShortcutExtension(),
-    createFileUploadExtension(options.onUploadFileRef!, options.pasteAsFileThresholdRef),
+    // `onUploadFileRef.current` is only read lazily, inside a paste handler —
+    // force-unwrapping an omitted ref (upload-less editors, e.g. an agent
+    // system-prompt composer) didn't crash here, but threw the first time
+    // someone pasted a file into one. A stable no-op ref keeps that path a
+    // silent no-op, matching the option's documented default.
+    createFileUploadExtension(options.onUploadFileRef ?? { current: undefined }, options.pasteAsFileThresholdRef),
   ];
 }

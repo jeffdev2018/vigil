@@ -41,9 +41,6 @@
     "link_copied": "Link copied",
     "copy_link_failed": "Failed to copy link",
     "canvas_label": "Image canvas. Drag to pan, scroll to zoom, double-click to toggle actual size.",
-    "previous": "Previous image",
-    "next": "Next image",
-    "sequence_position": "{{index}} / {{total}}",
     "unavailable": "That image is no longer available — skipped it."
   },
   "canvas": {
@@ -54,6 +51,7 @@
   },
   "attachment": {
     "download_failed": "Couldn't fetch a download link. Try again in a moment.",
+    "preview_fallback_title": "HTML attachment",
     "preview": "Preview",
     "preview_loading": "Loading preview…",
     "preview_failed": "Couldn't load preview",
@@ -61,7 +59,10 @@
     "preview_unsupported": "This file type can't be previewed.",
     "close": "Close",
     "open_in_new_tab": "Open in new tab",
-    "remove": "Remove attachment"
+    "remove": "Remove attachment",
+    "previous": "Previous",
+    "next": "Next",
+    "sequence_position": "{{index}} / {{total}}"
   },
   "link_hover": {
     "copy_link": "Copy link",
@@ -80,7 +81,8 @@
     "group_current": "Current page",
     "group_recent": "Recently viewed",
     "group_search": "Search results",
-    "group_cancelled": "Cancelled"
+    "group_cancelled": "Cancelled",
+    "note_not_found": "Note not found"
   },
   "slash_command": {
     "no_skills_configured": "No skills configured",
@@ -113,6 +115,7 @@
   "mermaid": {
     "diagram_label": "Mermaid diagram",
     "render_error": "Unable to render Mermaid diagram.",
+    "render_error_detail": "Failed to render the diagram.",
     "rendering": "Rendering diagram…",
     "viewer_title": "Diagram",
     "canvas_label": "Diagram canvas. Drag to pan, scroll to zoom.",

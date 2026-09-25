@@ -10,24 +10,21 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import type { WeeklyCostStackData } from "../../utils";
 import { useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
+import { useCostStackConfig } from "./daily-cost-chart";
 
 // Same four-segment stack as DailyCostChart — keeping series, colours, and
 // ordering identical so the user reads "Weekly" as a coarser cut of the same
 // chart, not a different chart. Partial-week bars render at half-opacity so
 // "this week is in progress" is visually obvious without a separate legend.
-export const weeklyCostStackConfig = {
-  input: { label: "Input", color: "var(--chart-1)" },
-  output: { label: "Output", color: "var(--chart-2)" },
-  cacheRead: { label: "Cache read", color: "var(--chart-4)" },
-  cacheWrite: { label: "Cache write", color: "var(--chart-3)" },
-} satisfies ChartConfig;
+// Shares useCostStackConfig with the daily chart rather than a parallel copy.
 
 export function WeeklyCostChart({ data }: { data: WeeklyCostStackData[] }) {
   const { t } = useT("runtimes");
+  const weeklyCostStackConfig = useCostStackConfig();
   return (
     <ChartContainer config={weeklyCostStackConfig} className="aspect-[3/1] w-full">
       <BarChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
@@ -62,8 +59,8 @@ export function WeeklyCostChart({ data }: { data: WeeklyCostStackData[] }) {
               }}
               formatter={(value, name) =>
                 typeof value === "number"
-                  ? `$${value.toFixed(2)} ${name}`
-                  : `${value} ${name}`
+                  ? `$${value.toFixed(2)} ${labelOf(weeklyCostStackConfig, name)}`
+                  : `${value} ${labelOf(weeklyCostStackConfig, name)}`
               }
               footer={(payload) => {
                 const total = payload.reduce(

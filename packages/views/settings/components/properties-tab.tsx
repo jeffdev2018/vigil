@@ -130,7 +130,7 @@ export function PropertiesTab() {
   const currentMember = members.find((m) => m.user_id === user?.id) ?? null;
   const canManage = currentMember?.role === "owner" || currentMember?.role === "admin";
 
-  const { data: properties = [], isLoading } = useQuery(propertyListOptions(wsId, true));
+  const { data: properties = [], isLoading, isError, refetch } = useQuery(propertyListOptions(wsId, true));
   const update = useUpdateProperty();
 
   const activeCount = useMemo(
@@ -203,6 +203,15 @@ export function PropertiesTab() {
           {isLoading ? (
             <div className="px-4 py-12 text-center text-body text-muted-foreground">
               {t(($) => $.properties.loading)}
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+              <p role="alert" className="text-body text-destructive">
+                {t(($) => $.properties.load_error)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                {t(($) => $.properties.retry)}
+              </Button>
             </div>
           ) : visible.length === 0 ? (
             <div className="px-4 py-12 text-center">
@@ -506,7 +515,10 @@ function PropertyEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Options are unbounded, so the form is the part that has to give:
+          header and footer stay put and the fields scroll, keeping "Save
+          property" clickable no matter how many options are on the draft. */}
+      <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {property
@@ -517,7 +529,9 @@ function PropertyEditorDialog({
             {t(($) => $.properties.editor.admin_hint)}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-5 py-2">
+        {/* -mx-1/px-1 keeps the 3px focus ring of an edge-to-edge input from
+            being clipped by the scroll container. */}
+        <div className="-mx-1 min-h-0 flex-1 space-y-5 overflow-y-auto px-1 py-2">
           <div className="grid grid-cols-[4.25rem_minmax(0,1fr)_10rem] gap-3">
             <div className="space-y-2">
               <FieldLabel>{t(($) => $.properties.editor.icon)}</FieldLabel>
@@ -799,6 +813,7 @@ function TypeScopeSelector({
       <button
         type="button"
         onClick={() => onChange([])}
+        aria-pressed={isGlobal}
         className="flex w-full items-center gap-2 border-b border-surface-border px-2 py-1.5 text-caption transition-colors hover:bg-accent/50"
       >
         <Checkbox checked={isGlobal} aria-hidden tabIndex={-1} />
@@ -812,6 +827,7 @@ function TypeScopeSelector({
             key={entry.key}
             type="button"
             onClick={() => toggle(entry.key)}
+            aria-pressed={value.includes(entry.key)}
             className="flex w-full items-center gap-2 rounded px-1 py-1 text-caption transition-colors hover:bg-accent/50"
           >
             <Checkbox checked={value.includes(entry.key)} aria-hidden tabIndex={-1} />

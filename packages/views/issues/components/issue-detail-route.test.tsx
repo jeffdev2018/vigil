@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, renderHook, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, waitFor } from "@testing-library/react";
+import { I18nProvider } from "@multica/core/i18n/react";
+import enCommon from "../../locales/en/common.json";
+import enIssues from "../../locales/en/issues.json";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { setApiInstance } from "@multica/core/api";
@@ -175,6 +178,30 @@ describe("IssueDetailRoute with an identifier that names no issue", () => {
 
     // A failed resolve must never rewrite the URL.
     expect(replace).not.toHaveBeenCalled();
+    qc.clear();
+  });
+});
+
+describe("IssueDetailRoute when the issue could not be loaded", () => {
+  // Regression (audit): a network drop while opening MUL-83 said the issue did
+  // not exist. No answer is not a 404: say so and offer a retry.
+  it("offers a retry instead of claiming the issue does not exist", async () => {
+    const getIssue = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    setApiInstance({ getIssue } as unknown as ApiClient);
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+
+    const { findByText, queryByText, getByRole } = render(
+      <QueryClientProvider client={qc}>
+        <I18nProvider locale="en" resources={{ en: { common: enCommon, issues: enIssues } }}>
+          {wrapper({ children: <IssueDetailRoute routeId="TRS-134" /> })}
+        </I18nProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await findByText("Couldn't load this page")).toBeTruthy();
+    expect(queryByText("This issue does not exist or has been deleted in this workspace.")).toBeNull();
+    fireEvent.click(getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(getIssue).toHaveBeenCalledTimes(2));
     qc.clear();
   });
 });

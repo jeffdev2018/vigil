@@ -50,6 +50,18 @@ interface ConfigState {
   // (F02). Server-driven so MULTICA_RUN_UNRESPONSIVE_AFTER applies everywhere;
   // the default matches the server's.
   runUnresponsiveAfterSeconds: number;
+  // Whether this deployment has a configured model for the browser-based
+  // native runtime (OS plan, chantier 5). Absent/false on servers without
+  // MULTICA_LLM_API_KEY set — the onboarding native-runtime card stays
+  // disabled and the getting-started checklist hides the native row.
+  nativeRuntimeAvailable: boolean;
+  // Whether POST /api/issues atomically persists custom-property values.
+  // Older servers silently drop the field, so absent must fail closed.
+  issueCreatePropertiesSupported: boolean;
+  // Whether deleting a comment keeps its replies (#8296). Older servers
+  // deleted the replies too, so absent must fail closed: the client then
+  // promises nothing about replies and uses the legacy delete route.
+  commentDeleteKeepRepliesSupported: boolean;
   setCdnConfig: (config: { cdnDomain: string; cdnSigned?: boolean }) => void;
   setAuthConfig: (config: {
     allowSignup: boolean;
@@ -69,6 +81,9 @@ interface ConfigState {
   setMeetingRealtimeAvailable: (available?: boolean) => void;
   setTtsAvailable: (available?: boolean) => void;
   setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
+  setNativeRuntimeAvailable: (available?: boolean) => void;
+  setIssueCreatePropertiesSupported: (supported?: boolean) => void;
+  setCommentDeleteKeepRepliesSupported: (supported?: boolean) => void;
 }
 
 
@@ -89,6 +104,9 @@ export const configStore = createStore<ConfigState>((set) => ({
   meetingRealtimeAvailable: false,
   ttsAvailable: false,
   runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
+  nativeRuntimeAvailable: false,
+  issueCreatePropertiesSupported: false,
+  commentDeleteKeepRepliesSupported: false,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
     allowSignup,
@@ -116,6 +134,12 @@ export const configStore = createStore<ConfigState>((set) => ({
           ? seconds
           : DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
     }),
+  setNativeRuntimeAvailable: (available = false) =>
+    set({ nativeRuntimeAvailable: available === true }),
+  setIssueCreatePropertiesSupported: (supported = false) =>
+    set({ issueCreatePropertiesSupported: supported === true }),
+  setCommentDeleteKeepRepliesSupported: (supported = false) =>
+    set({ commentDeleteKeepRepliesSupported: supported === true }),
 }));
 
 export function useConfigStore(): ConfigState;

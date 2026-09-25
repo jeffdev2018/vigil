@@ -68,13 +68,15 @@ func TestPostHogClient_Batching(t *testing.T) {
 }
 
 func TestPostHogClient_DropsWhenFull(t *testing.T) {
-	// Handler blocks so batches never flush — queue will fill up.
-	block := make(chan struct{})
+	// Hold the first request so the worker is observably busy before filling the
+	// queue. Releasing it during cleanup avoids paying the client's flush timeout.
+	started := make(chan struct{})
+	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-block
+		close(started)
+		<-release
 	}))
 	defer srv.Close()
-	defer close(block)
 
 	c := NewPostHogClient(PostHogConfig{
 		APIKey:     "test-key",
@@ -83,15 +85,22 @@ func TestPostHogClient_DropsWhenFull(t *testing.T) {
 		BatchSize:  1,
 		FlushEvery: time.Hour,
 	})
-	defer c.Close()
+	defer func() {
+		close(release)
+		c.Close()
+	}()
 
-	// First event may be consumed by the worker (which is now blocked in send).
-	// Next events will sit in the queue (cap=2) until it's full and then drop.
-	for i := 0; i < 20; i++ {
+	// The first event is consumed by the worker and blocks in the handler. Two
+	// more fill the queue, so the final capture must be dropped.
+	c.Capture(Event{Name: "spam", DistinctID: "u"})
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start the first request")
+	}
+	for i := 0; i < 3; i++ {
 		c.Capture(Event{Name: "spam", DistinctID: "u"})
 	}
-	// Give the worker a chance to pick up at least one.
-	time.Sleep(50 * time.Millisecond)
 	if c.dropped.Load() == 0 {
 		t.Fatalf("expected some drops when queue saturated")
 	}
@@ -109,5 +118,59 @@ func TestEmailDomain(t *testing.T) {
 		if got := emailDomain(in); got != want {
 			t.Errorf("emailDomain(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+type panicOnceTransport struct {
+	mu     sync.Mutex
+	calls  int
+	events int
+}
+
+func (p *panicOnceTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	if p.calls == 1 {
+		panic("boom")
+	}
+	var payload capturePayload
+	_ = json.NewDecoder(r.Body).Decode(&payload)
+	p.events += len(payload.Batch)
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(http.NoBody), Request: r}, nil
+}
+
+// A panic while shipping a batch must not crash the process (the test binary
+// here) nor stop the flush worker: later events are still delivered.
+func TestPostHogClient_SendPanicRestartsWorker(t *testing.T) {
+	transport := &panicOnceTransport{}
+	c := NewPostHogClient(PostHogConfig{
+		APIKey:     "test-key",
+		Host:       "http://posthog.invalid",
+		BatchSize:  1,
+		FlushEvery: time.Hour,
+		HTTPClient: &http.Client{Transport: transport},
+	})
+	c.Capture(Event{Name: "first", DistinctID: "u1"})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		transport.mu.Lock()
+		calls := transport.calls
+		transport.mu.Unlock()
+		if calls >= 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first batch was never sent")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	c.Capture(Event{Name: "second", DistinctID: "u1"})
+	c.Close()
+
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
+	if transport.events != 1 {
+		t.Fatalf("delivered %d events after the panic, want 1", transport.events)
 	}
 }

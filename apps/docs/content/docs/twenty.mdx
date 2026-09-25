@@ -1,0 +1,57 @@
+---
+title: Twenty CRM
+description: Connect a Twenty instance — agents get the CRM's own MCP server, CRM events land in triage, accepted items link back to the record, and members are paired by email.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+[Twenty](https://twenty.com) is an open-source CRM. Connected to a workspace, it becomes part of the team's work in four ways:
+
+- **Agents work in the CRM.** Every agent run carries Twenty's own [MCP](/mcp-server) server, named `twenty`, with the workspace's API key. An agent can search people and companies, update an opportunity or file a note without a plugin or a copied key.
+- **CRM events reach the triage queue.** Twenty's webhooks (a person created, an opportunity moving stage, …) become [triage](/triage) items with the record linked and the changed fields listed. A human decides what becomes an issue.
+- **Accepted items link back.** When an item from the CRM is accepted, Multica files a Task on the record (`Vigil ONE-42: <title>`, linking the issue), so the CRM shows the work that came out of it.
+- **One identity across both.** Workspace members are paired with Twenty's members by email. Sign both products into the same identity provider (the workspace SSO in **Settings → Security**) and a person is the same person on each side; the pairing is visible in Settings.
+
+Multica talks to Twenty through its public REST, GraphQL, webhook and MCP interfaces; nothing runs inside Twenty.
+
+## Connect a workspace
+
+A workspace owner or admin connects it under **Settings → Integrations → Twenty CRM**:
+
+1. In Twenty, create an API key (**Settings → APIs & Webhooks**). The key acts with the permissions of the workspace member who created it; a dedicated member for Multica keeps the audit trail readable.
+2. In Multica, paste the instance URL (`https://crm.example.com`, or `https://api.twenty.com` for Twenty Cloud) and the key.
+3. Choose the events to receive and whether agents may use the CRM. The defaults subscribe to opportunities (all operations), new people, new companies and new tasks, and expose the CRM to agents.
+4. Connect. Multica validates the key against the instance, stores it encrypted, registers the webhook in Twenty and shows the connection: instance, status, events, MCP endpoint, and the inbound path.
+
+The API key and the webhook secret are stored encrypted at rest with `MULTICA_TWENTY_SECRET_KEY`. Neither is ever shown again; **Check connection** re-validates the key and records the outcome, and a refused key marks the connection in error until it is reconnected.
+
+<Callout title="Self-hosting">
+The integration is off until the operator sets `MULTICA_TWENTY_SECRET_KEY` (see [Environment variables](/environment-variables)). Twenty delivers webhooks to `MULTICA_PUBLIC_URL`; without it the connection still serves agents, and the settings page shows the inbound path so the subscription can be registered by hand in Twenty.
+</Callout>
+
+## What agents get
+
+With **Expose to agents** on, every run in the workspace starts with Twenty's MCP server mounted next to the Multica tools. Twenty's server is dynamic: the agent first lists the catalogue, then executes one of its tools (`find_many_people`, `update_one_opportunity`, …). The built-in platform skill tells agents to read before writing, to name every record they changed in their closing status, and never to paste keys or record dumps into comments.
+
+Turning the exposure off removes the server from the next run; runs already in flight keep theirs. Nothing about the agent's trust dial changes: a CRM write is an external action Twenty performs with the key's permissions, so give the key a member whose rights match what you want agents to be able to do.
+
+## Events in triage
+
+Each delivery is checked before it is admitted: the token in the webhook path names the workspace, the HMAC signature (`X-Twenty-Webhook-Signature` over `${timestamp}:${body}` with the secret Twenty minted for the subscription) proves the sender, and a timestamp older than five minutes is refused. Unsigned or wrongly signed deliveries are rejected and count against the sender's rate limit.
+
+Admitted events become pending items titled `Twenty · Opportunity updated: Acme renewal`, with the record link, the changed fields and a short summary in the body; the raw event stays on the item. The source is gated like [email intake](/triage#email-intake): a human accepts, dismisses or merges. Event patterns use Twenty's `object.operation` form with wildcards (`opportunity.*`, `*.created`, `person.updated`); changing the list re-registers the subscription in Twenty with the same inbound address.
+
+Accepting an item creates the issue as usual and files the backlink Task on the record in the background; a CRM that is down does not block the accept.
+
+## Members
+
+**Settings → Integrations → Twenty CRM → Members** lists every workspace member with the Twenty member of the same email, and the Twenty members with no counterpart here. The pairing is by email only: there is no account to create on either side. With the same identity provider configured on both products, a person signs in once and is recognised on both.
+
+## Disconnect
+
+Disconnecting deletes the webhook subscription in Twenty, revokes the inbound token and forgets the key. Items already in the queue and issues already created keep their history; Tasks already filed in Twenty stay there.
+
+## Next steps
+
+- [MCP server](/mcp-server) — how a Multica workspace itself is an MCP server, and what the agent's catalogue looks like next to Twenty's.
+- [Triage](/triage) — the queue the CRM events land in.

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -173,6 +174,68 @@ func TestEpicApplyRollsBackWhenADependencyIsRefused(t *testing.T) {
 		projectID, epicKindTickets).Scan(&applied)
 	if applied != nil {
 		t.Errorf("a refused apply recorded %s as applied; a replay would then skip issues that do not exist", *applied)
+	}
+}
+
+// TestEpicApplyAuditsAnOrphanedIssueWhenRollbackDeleteFails guards a real gap:
+// applyEpicTickets' rollback closure only slog.Warned when the compensating
+// DeleteIssue itself failed, with no further recovery — an operator had no
+// way to find the orphaned issue short of grepping logs. A BEFORE DELETE
+// trigger forces the same failure the compensating delete would hit in
+// production (DB blip, FK from another table), and the test asserts an audit
+// row records the orphan.
+func TestEpicApplyAuditsAnOrphanedIssueWhenRollbackDeleteFails(t *testing.T) {
+	ctx := context.Background()
+	projectID := epicProject(t)
+	writeAndApprove(t, projectID, epicKindPRD, "# PRD", nil)
+	writeAndApprove(t, projectID, epicKindTechPlan, "# Plan", nil)
+	writeAndApprove(t, projectID, epicKindWireframe, "# Wireframe", nil)
+	writeAndApprove(t, projectID, epicKindTickets, "# Tickets", map[string]any{
+		"tickets": []map[string]any{
+			ticket("T1", "First", "T2"),
+			ticket("T2", "Second", "T1"), // cycle: forces rollback() after both issues exist
+		},
+	})
+
+	const functionName = "epic_rollback_delete_fail_fn"
+	const triggerName = "epic_rollback_delete_fail_trg"
+	if _, err := testPool.Exec(ctx, `
+CREATE OR REPLACE FUNCTION `+functionName+`() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	IF OLD.project_id = '`+projectID+`' THEN
+		RAISE EXCEPTION 'forced rollback delete failure';
+	END IF;
+	RETURN OLD;
+END;
+$$;`); err != nil {
+		t.Fatalf("install failure function: %v", err)
+	}
+	if _, err := testPool.Exec(ctx, `
+CREATE TRIGGER `+triggerName+`
+BEFORE DELETE ON issue
+FOR EACH ROW EXECUTE FUNCTION `+functionName+`();`); err != nil {
+		t.Fatalf("install failure trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DROP TRIGGER IF EXISTS `+triggerName+` ON issue`)
+		testPool.Exec(ctx, `DROP FUNCTION IF EXISTS `+functionName+`()`)
+	})
+
+	applyEpicStep(t, projectID, epicKindTickets).Want(http.StatusConflict)
+
+	// The compensating delete failed, so the created issues are still there
+	// (that part of the bug is pre-existing and out of scope here) — but an
+	// audit row must now exist so an operator can find them.
+	var issues int
+	dbfx.QueryRow(t, `SELECT count(*) FROM issue WHERE project_id = $1 AND parent_issue_id IS NOT NULL`, projectID).Scan(&issues)
+	if issues != 2 {
+		t.Fatalf("expected the forced trigger to keep both orphaned issues, got %d", issues)
+	}
+	var orphanAudits int
+	dbfx.QueryRow(t, `SELECT count(*) FROM audit_log_entry WHERE action = $1 AND entity_type = 'issue' AND details->>'reason' = 'rollback_delete_failed' AND entity_id IN (SELECT id FROM issue WHERE project_id = $2)`,
+		AuditEpicStepFailed, projectID).Scan(&orphanAudits)
+	if orphanAudits != 2 {
+		t.Fatalf("orphan audit rows = %d, want 2 (one per issue rollback could not delete)", orphanAudits)
 	}
 }
 

@@ -35,6 +35,9 @@
     "hide_findings": "指摘を隠す",
     "cost": "コスト {{cost}}",
     "open_run": "批評の実行を開く",
-    "empty": "この課題にはまだ批評レビューがありません。"
+    "empty": "この課題にはまだ批評レビューがありません。",
+    "severity_bug": "バグ",
+    "severity_warning": "警告",
+    "severity_info": "情報"
   }
 }

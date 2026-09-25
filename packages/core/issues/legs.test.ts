@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { legRoleLabelKey, workflowRootOf } from "./legs";
+import { legRoleLabelKey, unknownCostLegs, workflowRootOf } from "./legs";
 
 // Per-leg accounting (JEF-274). Canonical layer for the pure helpers and for
 // the endpoint's tolerance: the views suite mounts the summary, it does not
@@ -21,9 +23,20 @@ const client = () => new ApiClient("https://api.example.test");
 
 describe("legRoleLabelKey", () => {
   it("keeps every role the server can send", () => {
-    for (const role of ["draft", "retry", "fallback", "rerun", "review", "critique", "answer", "revision", "watchdog", "duel", "fanout", "shard", "eval", "escalation"]) {
+    for (const role of ["draft", "retry", "fallback", "rerun", "review", "critique", "answer", "revision", "watchdog", "duel", "fanout", "shard", "eval", "escalation", "continuation", "subagent"]) {
       expect(legRoleLabelKey(role)).toBe(role);
     }
+  });
+
+  // The Go constants are the source of truth: a role stamped by the server
+  // but missing here renders as a generic "Leg" badge.
+  it("knows every leg role the server declares", () => {
+    const dir = fileURLToPath(new URL("../../../server/internal/service/", import.meta.url));
+    const roles = readdirSync(dir)
+      .filter((f) => f.endsWith(".go") && !f.endsWith("_test.go"))
+      .flatMap((f) => [...readFileSync(dir + f, "utf8").matchAll(/\bLegRole\w+\s*=\s*"([^"]+)"/g)].map((m) => m[1]!));
+    expect(roles.length).toBeGreaterThan(10);
+    expect(roles.filter((role) => legRoleLabelKey(role) !== role)).toEqual([]);
   });
 
   // A newer backend can add a producer this client has never heard of. The
@@ -44,6 +57,18 @@ describe("workflowRootOf", () => {
     expect(workflowRootOf({ id: "t2", leg_role: "review", workflow_root_task_id: "t1" })).toBe("t1");
     // A stamped root carries a role but no root pointer: it IS the root.
     expect(workflowRootOf({ id: "t3", leg_role: "duel" })).toBe("t3");
+  });
+});
+
+describe("unknownCostLegs", () => {
+  // "$0.00 au total" beside "Coût indisponible" on the same issue (audit UX,
+  // sept. 2026): a zero total is only a figure when no leg is unknown.
+  it("trusts the server count, and treats an older backend's zero total as unknown", () => {
+    const totals = { legs: 3, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 };
+    expect(unknownCostLegs({ ...totals, unknown_cost_legs: 1 })).toBe(1);
+    expect(unknownCostLegs({ ...totals, unknown_cost_legs: 0 })).toBe(0);
+    expect(unknownCostLegs(totals)).toBe(3);
+    expect(unknownCostLegs({ ...totals, cost_usd_ticks: 10 })).toBe(0);
   });
 });
 
@@ -82,5 +107,12 @@ describe("getTaskLegs", () => {
     expect(r.legs[0]?.leg_role).toBe("");
     expect(r.legs[1]?.cost_usd_ticks).toBe(0);
     expect(r.totals.legs).toBe(0);
+  });
+
+  it("drops a malformed unknown-cost count instead of trusting it", async () => {
+    stubFetch({ root_task_id: "t1", legs: [{ task_id: "t1", cost_known: "no" }], totals: { legs: 1, unknown_cost_legs: "many" } });
+    const r = await client().getTaskLegs("t1");
+    expect(r.legs[0]?.cost_known).toBeUndefined();
+    expect(r.totals.unknown_cost_legs).toBeUndefined();
   });
 });

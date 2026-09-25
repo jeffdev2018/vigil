@@ -31,6 +31,8 @@ func (e *requestError) Error() string {
 	return fmt.Sprintf("%s %s returned %d: %s", e.Method, e.Path, e.StatusCode, e.Body)
 }
 
+var errInvalidResponseBody = errors.New("invalid response body")
+
 // isWorkspaceNotFoundError returns true if the error is a 404 with "workspace not found" body.
 func isWorkspaceNotFoundError(err error) bool {
 	var reqErr *requestError
@@ -211,8 +213,10 @@ func daemonCommonCapabilities() []string {
 		protocol.DaemonCapabilityRPCV1,
 		protocol.DaemonCapabilityPlatformSkillV1,
 		protocol.DaemonCapabilityWorktreeRevertV1,
+		protocol.DaemonCapabilityBranchActionV1,
 		protocol.DaemonCapabilityRunPreviewV1,
 		protocol.DaemonCapabilityMemoryEvaluationV1,
+		protocol.DaemonCapabilityCheckoutKeepsWorkV1,
 	}
 }
 
@@ -258,6 +262,46 @@ func (c *Client) ResolveRemoteMCPCredential(ctx context.Context, daemonToken, ta
 		headers.Set(response.CredentialHeader, response.Credential)
 	}
 	return headers, nil
+}
+
+// ErrPluginMCPCallRefused marks a BeginPluginMCPCall refusal (rate limit or
+// open circuit breaker) so the broker can distinguish "the server said no,
+// refuse this call locally" from an ordinary transport error, which is
+// something else's job to retry.
+var ErrPluginMCPCallRefused = errors.New("plugin mcp call refused")
+
+// BeginPluginMCPCall gates an agent-triggered MCP tools/call before the
+// broker proxies it straight to the plugin's own MCP server. That proxy never
+// touches the server, so without this call the rate limit, circuit breaker
+// and invocation log the http hook path already gets would never see an
+// MCP-transport call at all (contributionID must carry the `plugin:` prefix —
+// see remotemcp.PluginContributionPrefix).
+func (c *Client) BeginPluginMCPCall(ctx context.Context, daemonToken, taskID, contributionID string) error {
+	path := fmt.Sprintf("/api/daemon/tasks/%s/plugin-mcp/%s/calls",
+		url.PathEscape(taskID), url.PathEscape(contributionID))
+	if err := c.postJSONWithToken(ctx, path, daemonToken, map[string]any{}, nil); err != nil {
+		var reqErr *requestError
+		if errors.As(err, &reqErr) && (reqErr.StatusCode == http.StatusTooManyRequests || reqErr.StatusCode == http.StatusServiceUnavailable) {
+			return fmt.Errorf("%w: %s", ErrPluginMCPCallRefused, reqErr.Error())
+		}
+		return err
+	}
+	return nil
+}
+
+// ReportPluginMCPCall records how a BeginPluginMCPCall-admitted call actually
+// finished, so a failing MCP server trips the same circuit breaker an http
+// hook would. Best-effort from the daemon's side: the tool call already
+// happened either way, and a failure to report it must not surface as a
+// second tool error.
+func (c *Client) ReportPluginMCPCall(ctx context.Context, daemonToken, taskID, contributionID, result string, latencyMs int, errText string) {
+	path := fmt.Sprintf("/api/daemon/tasks/%s/plugin-mcp/%s/calls",
+		url.PathEscape(taskID), url.PathEscape(contributionID))
+	body := map[string]any{"result": result, "latency_ms": latencyMs}
+	if errText != "" {
+		body["error"] = errText
+	}
+	_ = c.postJSONWithToken(ctx, path, daemonToken, body, nil)
 }
 
 // batchClaimRequestTimeout is the short, request-scoped deadline for the
@@ -436,21 +480,105 @@ func (c *Client) ExtendTaskPrepareLease(ctx context.Context, runtimeID, taskID s
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/tasks/%s/prepare-lease", runtimeID, taskID), map[string]any{}, nil)
 }
 
-// StartTask transitions the task to running and reports the confinement
-// decision (K10): the mode the claim requested, the mode actually in effect
-// and, when they differ, why the daemon degraded it.
-func (c *Client) StartTask(ctx context.Context, taskID, sandboxRequested, sandboxMode, sandboxReason string) error {
+type TaskSupplement struct {
+	CommentID  string `json:"comment_id"`
+	AuthorName string `json:"author_name"`
+	Content    string `json:"content"`
+}
+
+func (c *Client) ClaimTaskSupplement(ctx context.Context, taskID string) (*TaskSupplement, error) {
+	var supplement TaskSupplement
+	if err := c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/supplements/claim", taskID), map[string]any{}, &supplement); err != nil {
+		return nil, err
+	}
+	if supplement.CommentID == "" {
+		return nil, nil
+	}
+	return &supplement, nil
+}
+
+func (c *Client) AckTaskSupplement(ctx context.Context, taskID, commentID string, delivered bool, errText string) error {
+	return c.postJSONWithRetry(ctx,
+		fmt.Sprintf("/api/daemon/tasks/%s/supplements/%s/ack", taskID, commentID),
+		map[string]any{"delivered": delivered, "error": errText}, nil,
+		[]time.Duration{0, 100 * time.Millisecond, 300 * time.Millisecond})
+}
+
+// startTaskRetrySchedule allows two short reconnects without the terminal
+// callbacks' 124s backoff. The whole start has a 30s budget (not 3 x the HTTP
+// client's 30s timeout). Preparation keeps renewing its 45s lease every 15s
+// throughout requests and backoff; its own deadline can end this sooner.
+// runTask calls this once. Task-level retries are separate executions, with
+// fresh claims, and cannot reuse this acknowledgement.
+var startTaskRetrySchedule = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+const (
+	startTaskTimeout = 30 * time.Second
+	// Start responses can include an issue snapshot alongside the capability.
+	maxStartTaskResponseBytes = 1 << 20
+)
+
+var errStartClaimRejected = errors.New("task start claim rejected")
+
+// StartTask transitions the task to running: it reports the confinement
+// decision (K10) — the mode the claim requested, the mode actually in effect
+// and, when they differ, why the daemon degraded it — and negotiates the
+// task supplement capability for this exact run. It returns whether the
+// server committed the capability.
+func (c *Client) StartTask(ctx context.Context, task Task, sandboxRequested, sandboxMode, sandboxReason string, capabilities ...string) (bool, error) {
 	if sandboxRequested == "" {
 		sandboxRequested = "none"
 	}
 	if sandboxMode == "" {
 		sandboxMode = "none"
 	}
-	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/start", taskID), map[string]any{
+	var negotiated bool
+	var decodeResponse responseDecoder = func(r io.Reader) error {
+		data, err := io.ReadAll(io.LimitReader(r, maxStartTaskResponseBytes+1))
+		if err != nil {
+			return err
+		}
+		if len(data) > maxStartTaskResponseBytes {
+			return fmt.Errorf("%w: task start exceeds %d bytes", errInvalidResponseBody, maxStartTaskResponseBytes)
+		}
+		var response struct {
+			SupplementCapability string `json:"supplement_capability"`
+		}
+		// Empty acknowledgements start the task without negotiating supplements.
+		// Invalid JSON fails without retrying; transport read failures can retry.
+		if len(data) != 0 {
+			if err := json.Unmarshal(data, &response); err != nil {
+				return fmt.Errorf("%w: task start: %w", errInvalidResponseBody, err)
+			}
+		}
+		negotiated = response.SupplementCapability == protocol.DaemonCapabilityTaskSupplementV1
+		return nil
+	}
+	path := fmt.Sprintf("/api/daemon/tasks/%s/start", task.ID)
+	body := map[string]any{
 		"sandbox_requested": sandboxRequested,
 		"sandbox_mode":      sandboxMode,
 		"sandbox_reason":    sandboxReason,
-	}, nil)
+		"capabilities":      capabilities,
+	}
+	if !task.StartClaimSupported {
+		// Old servers have no safe replay contract. Preserve one attempt.
+		err := c.postJSON(ctx, path, body, decodeResponse)
+		return err == nil && negotiated, err
+	}
+	if task.RuntimeID == "" || task.DispatchedAt == "" {
+		return false, fmt.Errorf("start task: claim is missing runtime_id or dispatched_at")
+	}
+	ctx, cancel := context.WithTimeout(ctx, startTaskTimeout)
+	defer cancel()
+	body["runtime_id"] = task.RuntimeID
+	body["dispatched_at"] = task.DispatchedAt
+	err := c.postJSONWithRetry(ctx, path, body, decodeResponse, startTaskRetrySchedule)
+	var reqErr *requestError
+	if errors.As(err, &reqErr) && reqErr.StatusCode == http.StatusConflict {
+		return false, fmt.Errorf("%w: %w", errStartClaimRejected, err)
+	}
+	return err == nil && negotiated, err
 }
 
 // MarkTaskWaitingLocalDirectory parks a freshly-dispatched task in the
@@ -565,12 +693,22 @@ func (c *Client) ReportProgress(ctx context.Context, taskID, summary string, ste
 
 // TaskMessageData represents a single agent execution message for batch reporting.
 type TaskMessageData struct {
+	// CallID is an opaque tool-call identity scoped to one backend execution.
+	CallID  string         `json:"call_id,omitempty"`
 	Seq     int            `json:"seq"`
 	Type    string         `json:"type"`
 	Tool    string         `json:"tool,omitempty"`
 	Content string         `json:"content,omitempty"`
 	Input   map[string]any `json:"input,omitempty"`
 	Output  string         `json:"output,omitempty"`
+	// CreatedAt is when the daemon observed the event, before the 500ms report
+	// batch. Without it, every row in one batch gets the same database time.
+	CreatedAt time.Time `json:"created_at"`
+	// OutputTruncated reports whether Output dropped bytes to fit the preview
+	// budget. Tri-state on purpose: nil means this daemon did not measure it,
+	// which an older installed daemon talking to a newer server cannot say any
+	// other way, and which the server must not record as "complete".
+	OutputTruncated *bool `json:"output_truncated,omitempty"`
 }
 
 func (c *Client) ReportTaskMessages(ctx context.Context, taskID string, messages []TaskMessageData) error {
@@ -595,6 +733,10 @@ func addDiffFields(body map[string]any, diff *runDiff) {
 }
 
 func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
+	return c.completeTaskWithRetrySchedule(ctx, taskID, output, branchName, sessionID, workDir, sessionRolloutMissing, retiredSessionID, durableWorkDir, checkpointSHA, diff, defaultTerminalRetrySchedule)
+}
+
+func (c *Client) completeTaskWithRetrySchedule(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff, schedule []time.Duration) error {
 	body := map[string]any{"output": output}
 	addDiffFields(body, diff)
 	if branchName != "" {
@@ -618,7 +760,7 @@ func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, s
 	if checkpointSHA != "" {
 		body["checkpoint_sha"] = checkpointSHA
 	}
-	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/complete", taskID), body, nil, defaultTerminalRetrySchedule)
+	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/complete", taskID), body, nil, schedule)
 }
 
 func (c *Client) ReportTaskUsage(ctx context.Context, taskID string, usage []TaskUsageEntry) error {
@@ -631,6 +773,10 @@ func (c *Client) ReportTaskUsage(ctx context.Context, taskID string, usage []Tas
 }
 
 func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
+	return c.failTaskWithRetrySchedule(ctx, taskID, errMsg, sessionID, workDir, branchName, failureReason, sessionRolloutMissing, retiredSessionID, durableWorkDir, checkpointSHA, diff, defaultTerminalRetrySchedule)
+}
+
+func (c *Client) failTaskWithRetrySchedule(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff, schedule []time.Duration) error {
 	body := map[string]any{"error": errMsg}
 	addDiffFields(body, diff)
 	if sessionID != "" {
@@ -662,7 +808,7 @@ func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDi
 	if checkpointSHA != "" {
 		body["checkpoint_sha"] = checkpointSHA
 	}
-	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/fail", taskID), body, nil, defaultTerminalRetrySchedule)
+	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/fail", taskID), body, nil, schedule)
 }
 
 // PinTaskSession persists the agent's session_id and work_dir on the task
@@ -726,6 +872,7 @@ type (
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 	PendingWorktreeRevert   = protocol.DaemonHeartbeatPendingWorktreeRevert
+	PendingBranchAction     = protocol.DaemonHeartbeatPendingBranchAction
 )
 
 // SendHeartbeat beats for one runtime. `skipped` is the machine's
@@ -792,6 +939,12 @@ func (c *Client) ReportLocalSkillListResult(ctx context.Context, runtimeID, requ
 // ReportWorktreeRevertResult tells the server whether the branch went back.
 func (c *Client) ReportWorktreeRevertResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/worktree-revert/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportBranchActionResult tells the server whether the run branch was pushed
+// (promote) or deleted (discard).
+func (c *Client) ReportBranchActionResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/branch-action/%s/result", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillImportResult sends a runtime-local-skill bundle back to the server.
@@ -901,8 +1054,14 @@ func (c *Client) usesLegacyWorkspaceEndpoint() bool {
 }
 
 // IssueGCStatus holds the minimal issue info returned by the GC check endpoint.
+//
+// Category is the issue's lifecycle (unstarted/started/done/closed) and is what
+// GC decides on. Status is the legacy seven-value enum, still populated by the
+// server for installed daemons and used here only when Category is absent —
+// a server predating MUL-7364 — or unrecognized. See issueGCLifecycle in gc.go.
 type IssueGCStatus struct {
 	Status    string    `json:"status"`
+	Category  string    `json:"category,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
@@ -914,6 +1073,7 @@ type IssueGCCheckResult struct {
 	ID        string    `json:"id"`
 	Found     bool      `json:"found"`
 	Status    string    `json:"status,omitempty"`
+	Category  string    `json:"category,omitempty"`
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	Err       error     `json:"-"`
 }
@@ -982,6 +1142,7 @@ func (c *Client) getLegacyIssueGCChecks(ctx context.Context, issueIDs []string) 
 			ID:        issueID,
 			Found:     true,
 			Status:    status.Status,
+			Category:  status.Category,
 			UpdatedAt: status.UpdatedAt,
 		}
 	}
@@ -1058,6 +1219,19 @@ func (c *Client) GetTaskGCCheck(ctx context.Context, taskID string) (*TaskGCStat
 // must be refused with an explanation (MUL-6164).
 const RuntimeOfflineCodeNotExecutable = "not_executable"
 
+// RuntimeOfflineCodeDshProfile marks a runtime taken offline because the DSH
+// runtime profile it depends on is not installed. Like not_executable it is not
+// something waiting fixes on its own — a human installs a bundle, or configures
+// the daemon to — so work for it is refused with an explanation rather than
+// queued forever. The exception is an install the daemon is running right now,
+// which Installing states explicitly.
+//
+// Only an ABSENT profile reaches this code. A profile that is present but
+// answers with a protocol this daemon does not drive never takes a live runtime
+// offline at all: the daemon can be the stale side of that skew, so it reports
+// the incompatibility and leaves the runtime alone.
+const RuntimeOfflineCodeDshProfile = "dsh_profile"
+
 // RuntimeOfflineReason is why a runtime went offline, in the form clients can
 // act on: a stable code they switch on and localize, and the command that
 // repairs the install. Prose stays in Detail for logs — never as the thing a
@@ -1066,6 +1240,12 @@ type RuntimeOfflineReason struct {
 	Code   string                  `json:"code"`
 	Detail string                  `json:"detail,omitempty"`
 	Repair *agent.ExecFormatRepair `json:"repair,omitempty"`
+	// Installing reports that the daemon has an automatic install in flight for
+	// this runtime. It is the difference between "a human has to act" and "this
+	// comes back by itself", which the server cannot infer from the code alone:
+	// without it, a successful install that is still running would look exactly
+	// like a machine waiting on an operator who was never going to be told.
+	Installing bool `json:"installing,omitempty"`
 }
 
 // Deregister takes runtimes offline. reasons is optional and keyed by runtime
@@ -1111,8 +1291,8 @@ func (c *Client) GetWorkspaceRepos(ctx context.Context, workspaceID string) (*Wo
 }
 
 // RuntimeProfile mirrors the server's workspace custom runtime profile
-// (MUL-3284). protocol_family is the provider used for task routing (it
-// selects the agent backend), while command_name is the actual executable
+// (MUL-3284). runtime_type selects the compatibility target, while
+// protocol_family identifies its execution backend. command_name is the executable
 // the daemon resolves on PATH and launches. fixed_args are launch arguments
 // every agent on this runtime inherits.
 type RuntimeProfile struct {
@@ -1120,6 +1300,7 @@ type RuntimeProfile struct {
 	WorkspaceID    string   `json:"workspace_id"`
 	DisplayName    string   `json:"display_name"`
 	ProtocolFamily string   `json:"protocol_family"`
+	RuntimeType    string   `json:"runtime_type"`
 	CommandName    string   `json:"command_name"`
 	Description    *string  `json:"description"`
 	FixedArgs      []string `json:"fixed_args"`
@@ -1189,15 +1370,15 @@ var retrySleep = func(ctx context.Context, d time.Duration) error {
 // resolve on retry: connection / TLS / I/O errors at the transport layer
 // (including client timeouts surfacing as context.DeadlineExceeded inside
 // http.Client.Do), 5xx server responses, and 408/429 rate-limit-style 4xx
-// codes. Other 4xx codes are treated as permanent — retrying a 400 (bad
-// body) or 404 (task not found) only burns time.
+// codes. Response validation errors marked with errInvalidResponseBody and
+// other 4xx codes are permanent.
 //
 // The caller is responsible for separately bailing on parent-context
 // cancellation; this predicate cannot distinguish "the daemon is shutting
 // down" from "the HTTP client timed out a single attempt" because both
 // reach here as context errors wrapped by net/http.
 func isTransientError(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, errInvalidResponseBody) {
 		return false
 	}
 	var reqErr *requestError
@@ -1265,9 +1446,14 @@ func (c *Client) postJSON(ctx context.Context, path string, reqBody any, respBod
 	return c.postJSONVia(ctx, c.client, path, reqBody, respBody)
 }
 
+// responseDecoder customizes successful-response decoding inside each attempt.
+type responseDecoder func(io.Reader) error
+
 // postJSONVia is postJSON over an explicit http.Client. Callers pick the client
 // to control the timeout regime: c.client (fixed 30s) for control-plane calls,
 // c.bundleClient (deadline from ctx) for large skill-bundle downloads.
+// respBody can be a JSON destination or a responseDecoder that decodes a
+// successful response inside each attempt, before retry decisions are made.
 func (c *Client) postJSONVia(ctx context.Context, httpClient *http.Client, path string, reqBody any, respBody any) error {
 	return c.postJSONViaObserved(ctx, httpClient, path, reqBody, respBody, nil)
 }
@@ -1310,6 +1496,9 @@ func (c *Client) postJSONViaObserved(ctx context.Context, httpClient *http.Clien
 	if respBody == nil {
 		io.Copy(io.Discard, respReader)
 		return nil
+	}
+	if decode, ok := respBody.(responseDecoder); ok {
+		return decode(respReader)
 	}
 	return json.NewDecoder(respReader).Decode(respBody)
 }

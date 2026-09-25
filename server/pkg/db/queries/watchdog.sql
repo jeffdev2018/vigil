@@ -40,6 +40,11 @@ SELECT * FROM watchdog_verdict WHERE id = $1 AND workspace_id = $2;
 -- name: GetWatchdogVerdictByDecision :one
 SELECT * FROM watchdog_verdict WHERE decision_id = $1;
 
+-- name: GetWatchdogVerdictsByDecisionIDs :many
+-- Batch variant of GetWatchdogVerdictByDecision for ListApprovals'
+-- decisionKind, which resolves this once per decision on the feed.
+SELECT * FROM watchdog_verdict WHERE decision_id = ANY(sqlc.arg('decision_ids')::uuid[]);
+
 -- name: GetWatchdogVerdictByTask :one
 SELECT * FROM watchdog_verdict WHERE task_id = $1 ORDER BY created_at DESC LIMIT 1;
 

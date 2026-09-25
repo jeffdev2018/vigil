@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/integrations/ghdiff"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -140,8 +141,7 @@ func (h *Handler) PutPrWalkthroughSettings(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
-	if err != nil {
+	if _, err := h.Queries.GetWorkspace(r.Context(), wsUUID); err != nil {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
@@ -156,7 +156,7 @@ func (h *Handler) PutPrWalkthroughSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	if err := h.savePrWalkthroughSettings(r.Context(), wsUUID, ws.Settings, req); err != nil {
+	if err := h.savePrWalkthroughSettings(r.Context(), wsUUID, req); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save the pull request walkthrough settings")
 		return
 	}
@@ -166,18 +166,15 @@ func (h *Handler) PutPrWalkthroughSettings(w http.ResponseWriter, r *http.Reques
 }
 
 // savePrWalkthroughSettings writes the block back into the workspace settings
-// blob, preserving every other key.
-func (h *Handler) savePrWalkthroughSettings(ctx context.Context, wsID pgtype.UUID, current []byte, cfg service.PrWalkthroughSettings) error {
-	settings := map[string]any{}
-	if len(current) > 0 {
-		_ = json.Unmarshal(current, &settings)
-	}
-	settings["pr_walkthrough"] = cfg
-	raw, err := json.Marshal(settings)
+// blob. Merged server-side (MergeWorkspaceSettings): a read-modify-write of
+// the whole blob lost the writes of any concurrent settings PUT on a
+// different key.
+func (h *Handler) savePrWalkthroughSettings(ctx context.Context, wsID pgtype.UUID, cfg service.PrWalkthroughSettings) error {
+	raw, err := json.Marshal(map[string]any{"pr_walkthrough": cfg})
 	if err != nil {
 		return err
 	}
-	_, err = h.Queries.UpdateWorkspace(ctx, db.UpdateWorkspaceParams{ID: wsID, Settings: raw})
+	_, err = h.Queries.MergeWorkspaceSettings(ctx, db.MergeWorkspaceSettingsParams{ID: wsID, Settings: raw})
 	return err
 }
 
@@ -530,7 +527,7 @@ func (h *Handler) failPrWalkthrough(ctx context.Context, row db.PrWalkthrough, r
 func clipWalkthroughError(reason string) string {
 	reason = strings.TrimSpace(reason)
 	if len(reason) > 1000 {
-		return reason[:1000]
+		return util.TruncateUTF8Bytes(reason, 1000)
 	}
 	return reason
 }

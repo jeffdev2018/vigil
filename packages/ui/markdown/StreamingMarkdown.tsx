@@ -155,8 +155,18 @@ const MemoizedBlock = React.memo(
     )
   },
   (prev, next) => {
-    // Only re-render if content actually changed
-    return prev.content === next.content && prev.mode === next.mode && prev.className === next.className
+    // Only re-render if content actually changed. Callback/prop identity
+    // matters too: a memoized block whose parent recreates onUrlClick etc.
+    // every render would otherwise keep a stale closure past this check.
+    return (
+      prev.content === next.content &&
+      prev.mode === next.mode &&
+      prev.className === next.className &&
+      prev.onUrlClick === next.onUrlClick &&
+      prev.onFileClick === next.onFileClick &&
+      prev.renderMention === next.renderMention &&
+      prev.cdnDomain === next.cdnDomain
+    )
   }
 )
 MemoizedBlock.displayName = 'MemoizedBlock'

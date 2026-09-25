@@ -24,12 +24,12 @@ describe("ContestSetting", () => {
         <ContestSetting canEdit />
       </QueryClientProvider>,
     );
-    const docs = (await screen.findByLabelText("Docs")) as HTMLInputElement;
-    await waitFor(() => expect(docs.checked).toBe(true));
+    const docs = await screen.findByRole("checkbox", { name: "Docs" });
+    await waitFor(() => expect(docs).toHaveAttribute("aria-checked", "true"));
     await waitFor(() => expect(screen.getByRole("switch", { name: "Plans" }).getAttribute("aria-checked")).toBe("false"));
     fireEvent.click(screen.getByRole("switch", { name: "Plans" }));
     expect(state.save).toHaveBeenCalledWith(expect.objectContaining({ targets: expect.objectContaining({ plan: true, task_result: true }) }), expect.anything());
-    fireEvent.click(screen.getByLabelText("Core"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Core" }));
     expect(state.save).toHaveBeenLastCalledWith(expect.objectContaining({ opt_out_project_ids: ["p2", "p1"] }), expect.anything());
   });
 });

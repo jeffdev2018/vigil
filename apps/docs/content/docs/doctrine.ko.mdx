@@ -1,0 +1,82 @@
+---
+title: 규범
+description: 워크스페이스 오너가 모든 에이전트를 위해 쓰는 단 하나의 통치 문서 — 버전으로 관리되고, 선택적으로 두 번째 오너가 검토하며, 모든 브리프에 주입되고, 작업이 규칙과 충돌하면 보고할 수 있습니다.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+**규범**은 워크스페이스의 상시 규칙입니다. 여기서 에이전트가 무엇을 해도 되고 무엇을 하면 안 되는지, 작업은 어떻게 전달되는지, 사람 없이는 결코 일어나지 않는 일은 무엇인지. 워크스페이스 오너가 쓰는 하나의 문서가 모든 에이전트의 브리프에 주입됩니다. 워크스페이스 컨텍스트가 성장한 형태 — 버전으로 관리되고, 검토할 수 있고, 인용할 수 있습니다.
+
+## 어디에 나타나나요
+
+모든 실행의 브리프는 이슈나 코멘트보다 앞에서, `## Workspace Doctrine (revision N)` 제목으로 규범 전문을 담습니다. 채팅 실행, 이슈 실행, 자동화 실행, 빠른 생성 실행 — 같은 본문, 같은 리비전입니다.
+
+브리프의 다른 블록은 모두 데이터입니다 — 이슈 본문, 코멘트, Brain 노트, CRM 레코드. 에이전트가 *읽어 보는* 것들입니다. 규범은 그 반대로, 지시 그 자체이며 브리프도 그렇게 명시합니다. 규범은 **모든 기록보다 우선**합니다. 코멘트가 규범이 금지한 일을 허가할 수는 없고, 규범과 어긋나는 노트는 예외가 아니라 낡은 노트입니다. 규범과 나란히 서는 것은 에이전트 자신의 [지시문](/agents#에이전트-설정)뿐입니다.
+
+규범이 뒤집지 못하는 것은 플랫폼 자체의 거부입니다 — 워크스페이스가 금지한 [상태 전환](/issues), 임계값을 넘는 지출, 승인 게이트. 그것들은 그대로 유효합니다.
+
+## 작성하기
+
+**설정 → 규범**에 편집기, 리비전 번호, 이력이 있습니다. 발행은 워크스페이스 `owner`와 `admin`이 하고, 열람은 모든 멤버가 할 수 있습니다. 상한은 **32 000 바이트** — 브리프가 규범을 통째로 실어 나르므로, 몇 페이지를 넘긴 규범은 모든 실행에서 비용을 치르고 있는 셈입니다.
+
+발행에는 본인이 읽은 리비전(`expected_revision`)이 필요합니다. 작성하는 동안 다른 사람이 발행했다면, 쓰기는 병합되지 않고 거부됩니다. 다시 읽고 나서 다시 발행하세요.
+
+<Callout title="문은 둘, 원장은 하나">
+`multica workspace update --context`는 지금도 동작하며 뒷문이 아닙니다. 같은 원장을 지나 같은 감사 기록을 남기며 규범 리비전을 발행합니다.
+</Callout>
+
+## 두 번째 검토자
+
+**설정 → 규범 → 두 번째 검토자 필수**를 켜면 발행이 제안으로 바뀝니다. 본문은 라이브가 되지 않고 **보류 중**으로 기록되며, 다른 오너와 관리자에게 `doctrine_review` 인박스 항목이 도착하고 그중 한 사람이 승인하거나 거절합니다. 승인되면 라이브 리비전이 되고, 거절되면 규범은 그대로 남으며 검토자의 메모가 기록에 남습니다.
+
+오너나 관리자가 한 명뿐인 워크스페이스는 스스로 승인합니다 — 그렇지 않으면 이 설정을 켠 순간 규범이 얼어붙기 때문입니다. 보류 중인 제안은 한 번에 하나뿐입니다. 다음을 발행하기 전에 승인하거나 거절하세요.
+
+## 이력, 차이, 복원
+
+모든 버전이 보존됩니다. 본문, 쓴 사람, 메모, 검토한 사람, 그리고 `active` / `pending` / `rejected` / `superseded` 중 무엇인지. 이력은 최신 순으로 페이징됩니다.
+
+**차이**는 임의의 두 버전을 줄 단위로 비교합니다 — 추가, 삭제, 그대로. 상대를 지정하지 않고 물으면, 보류 중이거나 거절된 제안은 라이브 규범과 비교되고, 활성화된 리비전은 그 직전 리비전과 비교됩니다.
+
+**복원**은 과거 리비전의 본문을 *새로운* 리비전으로 다시 발행합니다(어느 리비전에서 왔는지는 원장에 남습니다). 다른 발행과 같은 검토 정책을 거치며, 제자리에서 고쳐 쓰이는 것은 없습니다.
+
+## 보고 — 규칙을 따를 수 없을 때
+
+벽에 부딪힌 에이전트는 임의로 해석을 만들지 않고, 조용히 작업을 계속하지도 않습니다. **규범 보고**를 제출합니다.
+
+| 종류 | 뜻 |
+| --- | --- |
+| `refusal` | 규칙을 어기지 않고는 작업을 끝낼 수 없다. |
+| `conflict` | 두 규칙이 함께 적용되는데 둘 다 따를 수는 없다. |
+| `ambiguity` | 규칙은 있지만 행동하기에는 내용이 부족하다. |
+
+보고에는 요약, 선택적으로 문제가 된 구절의 인용, 그것이 나온 실행과 이슈, 그리고 **에이전트가 따르고 있던 리비전**이 담깁니다. 나중에 규범이 수정되어도 보고는 당시 본문에 대해 정확하게 읽힙니다. 멤버도 제출할 수 있습니다.
+
+각 보고는 `doctrine_report` 인박스 항목과 푸시로 모든 오너와 관리자에게 도착합니다. 오너는 그것을 **확인**(실제 문제이며 처리 중)하거나 **기각**(규범은 쓰인 대로 옳다)하며, 어느 쪽이든 메모를 답니다. 보고 자체는 아무것도 바꾸지 않습니다. 통치 문서에 사람의 판단이 필요하다는 신호이지, 그 실행에서 규칙을 면제받는 수단이 아닙니다.
+
+## 도구와 CLI
+
+- 네이티브 런타임: `report_doctrine_conflict` — 실행의 효과적 예산 밖에 있어서, 예산을 다 쓴 실행도 규칙에 막혔다고 말할 수 있습니다.
+- MCP: `vigil_doctrine`(액션 `get`, `versions`, `report`). 발행, 승인, 복원은 의도적으로 노출되지 않습니다 — 실행이 자신을 구속하는 규칙을 다시 쓸 수는 없습니다.
+- CLI: `multica doctrine show | publish | history | diff | approve | reject | restore | report | reports | acknowledge | dismiss`.
+
+```bash
+multica doctrine show
+multica doctrine publish --file DOCTRINE.md --expected-revision 7 --note "adds the release rule"
+multica doctrine diff <version-id>
+multica doctrine reports --status open
+```
+
+## API
+
+- `GET /api/workspace/doctrine` → 본문, 리비전, `byte_limit`, `require_review`, `can_publish`, 보류 중인 버전, 미처리 보고 수.
+- `PUT /api/workspace/doctrine {content, expected_revision, note?}` → `200` 발행, `202` 검토 보류, `409` 낡았거나 제안이 이미 보류 중.
+- `GET /api/workspace/doctrine/versions?cursor&limit`, `GET .../versions/{id}`, `GET .../versions/{id}/diff?against={id}`.
+- `POST .../versions/{id}/approve | reject | restore`.
+- `GET .../reports?status=open|acknowledged|dismissed|all`, `POST .../reports {kind, summary, passage?, issue_id?}`, `POST .../reports/{id}/acknowledge | dismiss`.
+- 감사 액션 `doctrine.published`, `proposed`, `approved`, `rejected`, `reported`, `report_resolved`. 인박스 타입 `doctrine_review`와 `doctrine_report`. `doctrine:changed` 이벤트가 열려 있는 페이지를 최신으로 유지합니다.
+
+## 다음 단계
+
+- [에이전트](/agents) — 규범과 나란히 서는 지시문.
+- [Brain](/brain) — 공유 노트. 규범이 이보다 우선합니다.
+- [MCP 서버](/mcp-server) — 외부 클라이언트에서 `vigil_doctrine` 도구 사용하기.

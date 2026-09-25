@@ -313,6 +313,242 @@ func piEventStreamScriptWithExit(events []string, exitCode int) string {
 	return b.String()
 }
 
+func newPiTestBackend(t *testing.T, script string, turnErrorGrace time.Duration) *piBackend {
+	t.Helper()
+	fakePath := filepath.Join(t.TempDir(), "pi")
+	writeTestExecutable(t, fakePath, []byte(script))
+
+	backend, err := New("pi", Config{ExecutablePath: fakePath, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("new pi backend: %v", err)
+	}
+	pi, ok := backend.(*piBackend)
+	if !ok {
+		t.Fatalf("New(pi) returned %T, want *piBackend", backend)
+	}
+	pi.turnErrorGrace = turnErrorGrace
+	return pi
+}
+
+func waitPiResult(t *testing.T, session *Session, timeout time.Duration) Result {
+	t.Helper()
+	select {
+	case result, ok := <-session.Result:
+		if !ok {
+			t.Fatal("result channel closed without a value")
+		}
+		return result
+	case <-time.After(timeout):
+		t.Fatal("timeout waiting for Pi result")
+		return Result{}
+	}
+}
+
+func TestPiExecutePreservesTurnErrorWhenCancelled(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	const providerError = "OpenAI API error (413): Failed to buffer the request body: length limit exceeded"
+	script := piEventStreamScript([]string{
+		`{"type":"agent_start"}`,
+		`{"type":"turn_start"}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","stopReason":"error","errorMessage":"` + providerError + `"}}`,
+		`{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","delta":"post-error activity"}}`,
+	}) + "exec sleep 300\n"
+	backend := newPiTestBackend(t, script, time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	session, err := backend.Execute(ctx, "prompt-ignored", ExecOptions{
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for msg := range session.Messages {
+		if msg.Type == MessageThinking && msg.Content == "post-error activity" {
+			cancel()
+			break
+		}
+	}
+
+	result := waitPiResult(t, session, 5*time.Second)
+	if result.Status != "failed" {
+		t.Fatalf("status = %q, want failed (error=%q)", result.Status, result.Error)
+	}
+	if result.Error != providerError {
+		t.Fatalf("error = %q, want original provider error %q", result.Error, providerError)
+	}
+}
+
+func TestPiExecuteCancellationWithoutTurnErrorKeepsAbortedResult(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	script := piEventStreamScript([]string{`{"type":"agent_start"}`}) + "exec sleep 300\n"
+	backend := newPiTestBackend(t, script, 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	session, err := backend.Execute(ctx, "prompt-ignored", ExecOptions{
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	for msg := range session.Messages {
+		if msg.Type == MessageStatus {
+			cancel()
+			break
+		}
+	}
+
+	result := waitPiResult(t, session, 5*time.Second)
+	if result.Status != "aborted" || result.Error != "execution cancelled" {
+		t.Fatalf("result = %+v, want the existing no-error cancellation result", result)
+	}
+}
+
+func TestPiExecuteEndsSilentTurnErrorAfterGraceOnce(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	const providerError = "OpenAI API error (413): request body too large"
+	const grace = 80 * time.Millisecond
+	script := piEventStreamScript([]string{
+		`{"type":"agent_start"}`,
+		`{"type":"turn_start"}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","stopReason":"error","errorMessage":"` + providerError + `"}}`,
+		`{"type":"agent_end","messages":[],"willRetry":false}`,
+	}) + "exec sleep 300\n"
+	backend := newPiTestBackend(t, script, grace)
+
+	started := time.Now()
+	session, err := backend.Execute(context.Background(), "prompt-ignored", ExecOptions{
+		Timeout:         15 * time.Second,
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	result := waitPiResult(t, session, 20*time.Second)
+	if result.Status != "failed" || result.Error != providerError {
+		t.Fatalf("result = %+v, want one failed result with the provider error", result)
+	}
+	for msg := range session.Messages {
+		if msg.Type == MessageError {
+			t.Fatalf("turn-error grace emitted an error message and would refresh the daemon watchdog: %+v", msg)
+		}
+	}
+	if elapsed := time.Since(started); elapsed < grace/2 || elapsed > 10*time.Second {
+		t.Fatalf("error grace ended after %s, want approximately %s", elapsed, grace)
+	}
+	if _, ok := <-session.Result; ok {
+		t.Fatal("result channel produced more than one terminal result")
+	}
+}
+
+func TestPiExecuteTurnErrorActivityAndRetryRecoveryCancelTimer(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	const grace = 100 * time.Millisecond
+	script := "#!/bin/sh\n" +
+		"cat > /dev/null\n" +
+		`printf '%s\n' '{"type":"agent_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_end","message":{"role":"assistant","model":"test","stopReason":"error","errorMessage":"temporary provider error"}}'` + "\n" +
+		"sleep 0.06\n" +
+		`printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","delta":"retrying"}}'` + "\n" +
+		"sleep 0.06\n" +
+		`printf '%s\n' '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":1}'` + "\n" +
+		"sleep 0.15\n" +
+		`printf '%s\n' '{"type":"turn_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"recovered"}}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_end","message":{"role":"assistant","model":"test"}}'` + "\n"
+	backend := newPiTestBackend(t, script, grace)
+
+	session, err := backend.Execute(context.Background(), "prompt-ignored", ExecOptions{
+		Timeout:         15 * time.Second,
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	result := waitPiResult(t, session, 20*time.Second)
+	if result.Status != "completed" || result.Output != "recovered" || result.Error != "" {
+		t.Fatalf("result = %+v, want successful recovered turn", result)
+	}
+}
+
+func TestPiExecuteTurnErrorGraceWaitsForInFlightTool(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	const grace = 60 * time.Millisecond
+	script := "#!/bin/sh\n" +
+		"cat > /dev/null\n" +
+		`printf '%s\n' '{"type":"turn_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"tool_execution_start","toolCallId":"call-1","toolName":"bash","args":{}}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_end","message":{"role":"assistant","model":"test","stopReason":"error","errorMessage":"temporary provider error"}}'` + "\n" +
+		"sleep 0.15\n" +
+		`printf '%s\n' '{"type":"tool_execution_end","toolCallId":"call-1","toolName":"bash","result":"ok"}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"done"}}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_end","message":{"role":"assistant","model":"test"}}'` + "\n"
+	backend := newPiTestBackend(t, script, grace)
+
+	session, err := backend.Execute(context.Background(), "prompt-ignored", ExecOptions{
+		Timeout:         15 * time.Second,
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	result := waitPiResult(t, session, 20*time.Second)
+	if result.Status != "completed" || result.Output != "done" {
+		t.Fatalf("result = %+v, want tool completion and recovered turn", result)
+	}
+}
+
+func TestPiExecuteNormalSilenceDoesNotArmTurnErrorGrace(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	const grace = 50 * time.Millisecond
+	script := "#!/bin/sh\n" +
+		"cat > /dev/null\n" +
+		`printf '%s\n' '{"type":"agent_start"}'` + "\n" +
+		"sleep 0.15\n" +
+		`printf '%s\n' '{"type":"turn_start"}'` + "\n" +
+		`printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"healthy"}}'` + "\n" +
+		`printf '%s\n' '{"type":"turn_end","message":{"role":"assistant","model":"test"}}'` + "\n"
+	backend := newPiTestBackend(t, script, grace)
+
+	session, err := backend.Execute(context.Background(), "prompt-ignored", ExecOptions{
+		Timeout:         15 * time.Second,
+		ResumeSessionID: filepath.Join(t.TempDir(), "session.jsonl"),
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	result := waitPiResult(t, session, 20*time.Second)
+	if result.Status != "completed" || result.Output != "healthy" {
+		t.Fatalf("result = %+v, want normal silent run to complete", result)
+	}
+}
+
 // TestPiExecuteRetainsOnlyLastTurnOutput verifies turn_start resets the
 // output buffer so Result.Output keeps only the final turn's text.
 func TestPiExecuteRetainsOnlyLastTurnOutput(t *testing.T) {
@@ -577,6 +813,78 @@ func TestFlushPiTextBufferKeepsUnmatchedToolPrefixes(t *testing.T) {
 		if got != want {
 			t.Fatalf("unexpected flushed text: %q, want %q", got, want)
 		}
+	}
+}
+
+// Prose that merely contains "call:" or "response:" is not tool markup. It
+// used to hold every later delta of the turn in the buffer, because the same
+// failed match was retried at the same position on each new delta.
+func TestDrainPiTextBufferDoesNotStallOnProseToolPrefix(t *testing.T) {
+	chunks := []string{"she said, call: the police", " and then", " response: none", " the end"}
+	var buf strings.Builder
+	var got strings.Builder
+	for _, chunk := range chunks {
+		got.WriteString(drainPiTextBuffer(&buf, chunk))
+	}
+	if want := strings.Join(chunks, ""); got.String() != want {
+		t.Fatalf("streamed text before flush = %q, want %q", got.String(), want)
+	}
+	// Real markup after such prose is still stripped.
+	buf.Reset()
+	got.Reset()
+	got.WriteString(drainPiTextBuffer(&buf, `call: me, then call:bash{command:<|"|>ls<|"|>} done`))
+	got.WriteString(flushPiTextBuffer(&buf))
+	if got.String() != "call: me, then  done" {
+		t.Fatalf("mixed prose and markup = %q", got.String())
+	}
+	if out := stripPiToolCallMarkup(`call: me, then call:bash{command:<|"|>ls<|"|>} done`); out != "call: me, then  done" {
+		t.Fatalf("stripPiToolCallMarkup = %q", out)
+	}
+}
+
+// Text a turn left pending in the buffer (an unterminated markup-looking
+// fragment) must reach the message stream when the next turn starts, not be
+// dropped by the turn reset.
+func TestPiExecuteFlushesPendingTextAtTurnStart(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fixture is POSIX-only")
+	}
+
+	events := []string{
+		`{"type":"agent_start"}`,
+		`{"type":"turn_start"}`,
+		`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"see call:bash{unterminated"}}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","usage":{"input":1,"output":1}}}`,
+		`{"type":"turn_start"}`,
+		`{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"final"}}`,
+		`{"type":"turn_end","message":{"role":"assistant","model":"test","usage":{"input":1,"output":1}}}`,
+	}
+	fakePath := filepath.Join(t.TempDir(), "pi")
+	writeTestExecutable(t, fakePath, []byte(piEventStreamScript(events)))
+
+	backend, err := New("pi", Config{ExecutablePath: fakePath, Logger: slog.Default()})
+	if err != nil {
+		t.Fatalf("new pi backend: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	session, err := backend.Execute(ctx, "prompt-ignored", ExecOptions{Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var streamed strings.Builder
+	for msg := range session.Messages {
+		if msg.Type == MessageText {
+			streamed.WriteString(msg.Content)
+		}
+	}
+	result := <-session.Result
+	if result.Status != "completed" || result.Output != "final" {
+		t.Fatalf("result = %+v, want completed with the last turn only", result)
+	}
+	if streamed.String() != "see call:bash{unterminatedfinal" {
+		t.Fatalf("streamed text = %q, want the first turn's pending text kept", streamed.String())
 	}
 }
 

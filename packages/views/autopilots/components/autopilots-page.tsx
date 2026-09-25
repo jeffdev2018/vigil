@@ -13,6 +13,7 @@ import {
   Pause,
   Plus,
   Shield,
+  Sparkles,
   Webhook,
   Zap,
 } from "lucide-react";
@@ -44,7 +45,15 @@ import {
   type ListGridSortDirection,
 } from "@multica/ui/components/ui/list-grid";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { useRowLink } from "../../navigation";
+import { AppLink, rowLinkInteractiveProps, useRowLink } from "../../navigation";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@multica/ui/components/ui/tabs";
+import { WorkspaceWakeups } from "./workspace-wakeups";
+import { useNavigation } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatInTimeZone } from "../../common/format-in-time-zone";
 import {
@@ -53,6 +62,7 @@ import {
   CollectionPageState,
 } from "../../layout/collection-page";
 import { AutopilotDialog } from "./autopilot-dialog";
+import { AutopilotDraftDialog } from "./autopilot-draft-dialog";
 import { AutopilotListToolbar, actorFilterValue } from "./autopilot-list-toolbar";
 import {
   AutopilotBatchToolbar,
@@ -139,7 +149,10 @@ interface AutopilotTemplate {
   schedule: Pick<ScheduleConfig, "time" | "days">;
 }
 
-const WEEKDAYS: ScheduleConfig["days"] = { kind: "weekly", daysOfWeek: [1, 2, 3, 4, 5] };
+const WEEKDAYS: ScheduleConfig["days"] = {
+  kind: "weekly",
+  daysOfWeek: [1, 2, 3, 4, 5],
+};
 const MONDAY: ScheduleConfig["days"] = { kind: "weekly", daysOfWeek: [1] };
 
 const TEMPLATES: AutopilotTemplate[] = [
@@ -210,11 +223,16 @@ const TEMPLATES: AutopilotTemplate[] = [
 // Cells
 // ---------------------------------------------------------------------------
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -222,12 +240,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -258,19 +279,36 @@ function pausedTitle(
   }
 }
 
-function NameCell({ autopilot }: { autopilot: Autopilot }) {
+function NameCell({
+  autopilot,
+  rowHref,
+}: {
+  autopilot: Autopilot;
+  rowHref: string;
+}) {
   const { t } = useT("autopilots");
   return (
     <ListGridCell className="gap-1.5">
-      <span className="min-w-0 truncate text-body font-medium">
+      {/* The row's click/auxclick handlers are a mouse convenience on a plain
+          <div> (see ui list-grid + views useRowLink): the keyboard path, "open
+          in new tab" and the browser context menu all come from this anchor.
+          `rowLinkInteractiveProps` stops the event from reaching the row, so
+          web's native modifier-click is not doubled by the row's own
+          window.open fallback. */}
+      <AppLink
+        href={rowHref}
+        newTabTitle={autopilot.title}
+        {...rowLinkInteractiveProps}
+        className="min-w-0 truncate text-body font-medium"
+      >
         {autopilot.title}
-      </span>
+      </AppLink>
       {/* Paused marker: in the "all" scope active and paused rows mix, so a
           paused automation needs an inline signal. */}
       {autopilot.status === "paused" && (
         <span
           title={pausedTitle(t, autopilot.pause_reason ?? null)}
-          className="flex shrink-0 items-center text-amber-500"
+          className="flex shrink-0 items-center text-warning"
         >
           <Pause className="size-3" />
         </span>
@@ -342,13 +380,13 @@ function runStatusDotClass(status: string | null | undefined): string {
   switch (status) {
     case "completed":
     case "issue_created":
-      return "bg-emerald-500";
+      return "bg-success";
     case "failed":
-      return "bg-red-500";
+      return "bg-destructive";
     case "skipped":
-      return "bg-amber-500";
+      return "bg-warning";
     case "running":
-      return "bg-blue-500";
+      return "bg-info";
     default:
       return "bg-muted-foreground/40";
   }
@@ -376,7 +414,11 @@ function LastRunCell({ autopilot }: { autopilot: Autopilot }) {
   return (
     <ListGridCell className="hidden gap-1.5 @2xl:flex">
       <span
-        title={knownStatus ? t(($) => $.run_status[knownStatus]) : status ?? undefined}
+        title={
+          knownStatus
+            ? t(($) => $.run_status[knownStatus])
+            : (status ?? undefined)
+        }
         className={`size-1.5 shrink-0 rounded-full ${runStatusDotClass(status)}`}
       />
       <span className="whitespace-nowrap text-caption tabular-nums text-muted-foreground">
@@ -411,7 +453,9 @@ function ModeCell({ autopilot }: { autopilot: Autopilot }) {
       : mode;
   return (
     <ListGridCell className="hidden @2xl:flex">
-      <span className="truncate text-caption text-muted-foreground">{label}</span>
+      <span className="truncate text-caption text-muted-foreground">
+        {label}
+      </span>
     </ListGridCell>
   );
 }
@@ -463,11 +507,12 @@ function AutopilotListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.page.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -613,6 +658,9 @@ function LoadingSkeleton() {
 // ---------------------------------------------------------------------------
 
 export function AutopilotsPage() {
+  const navigation = useNavigation();
+  const tab =
+    navigation.searchParams.get("tab") === "wakeups" ? "wakeups" : "autopilots";
   const { t } = useT("autopilots");
   const locale = useLocale();
   const wsId = useWorkspaceId();
@@ -623,9 +671,13 @@ export function AutopilotsPage() {
     isLoading,
     error: listError,
     refetch: refetchList,
-  } = useQuery(autopilotListOptions(wsId));
+  } = useQuery({
+    ...autopilotListOptions(wsId),
+    enabled: !!wsId && tab === "autopilots",
+  });
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] =
     useState<AutopilotTemplate | null>(null);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
@@ -694,7 +746,10 @@ export function AutopilotsPage() {
       ) {
         return false;
       }
-      if (filters.modes.length > 0 && !filters.modes.includes(a.execution_mode)) {
+      if (
+        filters.modes.length > 0 &&
+        !filters.modes.includes(a.execution_mode)
+      ) {
         return false;
       }
       if (
@@ -766,9 +821,7 @@ export function AutopilotsPage() {
   const lastVirtual = virtualItems[virtualItems.length - 1];
   const virtualPadding = {
     top: firstVirtual ? firstVirtual.start : 0,
-    bottom: lastVirtual
-      ? rowVirtualizer.getTotalSize() - lastVirtual.end
-      : 0,
+    bottom: lastVirtual ? rowVirtualizer.getTotalSize() - lastVirtual.end : 0,
   };
 
   const totalCount = autopilots.length;
@@ -777,222 +830,283 @@ export function AutopilotsPage() {
   return (
     // relative: positioning anchor for the batch toolbar (page-centered,
     // not viewport-centered).
-    <div className="relative flex flex-1 min-h-0 flex-col">
+    <Tabs
+      className="relative flex flex-1 min-h-0 flex-col gap-0"
+      value={tab}
+      onValueChange={(value) => {
+        const params = new URLSearchParams(navigation.searchParams);
+        if (value === "wakeups") params.set("tab", "wakeups");
+        else params.delete("tab");
+        navigation.replace(
+          `${navigation.pathname}${params.size ? `?${params}` : ""}${navigation.hash}`,
+        );
+      }}
+    >
       {/* Header */}
       <CollectionPageHeader
         icon={Zap}
         title={t(($) => $.page.title)}
-        count={totalCount}
+        count={tab === "autopilots" ? totalCount : undefined}
         actions={
-          <CollectionPageHeaderAction
-            icon={Plus}
-            label={t(($) => $.page.new_autopilot)}
-            onClick={() => openCreate()}
-          />
+          tab === "autopilots" && (
+            <div className="flex items-center gap-2">
+              {/* Say what you want in plain words; the model answers a schedule.
+                  Sits beside the manual form, which is also where a workspace
+                  with no model configured lands. */}
+              <CollectionPageHeaderAction
+                icon={Sparkles}
+                label={t(($) => $.from_sentence.action)}
+                onClick={() => setDraftOpen(true)}
+              />
+              <CollectionPageHeaderAction
+                icon={Plus}
+                label={t(($) => $.page.new_autopilot)}
+                onClick={() => openCreate()}
+              />
+            </div>
+          )
         }
       />
 
-      {listError ? (
-        <CollectionPageState
-          role="alert"
-          tone="destructive"
-          icon={AlertCircle}
-          title={
-            listError instanceof Error ? listError.message : String(listError)
-          }
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => refetchList()}
-            >
-              {t(($) => $.page.retry)}
-            </Button>
-          }
-        />
-      ) : isLoading ? (
-        <div className="flex-1 overflow-y-auto @container">
-          <LoadingSkeleton />
-        </div>
-      ) : showEmpty ? (
-        <div className="flex flex-col items-center px-5 py-16">
-          <Zap className="mb-3 h-10 w-10 text-faint-foreground" />
-          <p className="text-body text-muted-foreground">
-            {t(($) => $.page.empty.title)}
-          </p>
-          <p className="mb-6 mt-1 text-caption text-muted-foreground">
-            {t(($) => $.page.empty.hint)}
-          </p>
-          <div className="grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {TEMPLATES.map((tpl) => {
-              const Icon = tpl.icon;
-              return (
-                <button
-                  key={tpl.id}
-                  type="button"
-                  className="flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent/40"
-                  onClick={() => openCreate(tpl)}
-                >
-                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="text-body font-medium">
-                      {t(($) => $.templates[tpl.id].title)}
-                    </div>
-                    <div className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
-                      {t(($) => $.templates[tpl.id].summary)}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="mt-4"
-            onClick={() => openCreate()}
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            {t(($) => $.page.start_blank)}
-          </Button>
-        </div>
-      ) : (
-        <>
-          <AutopilotListToolbar
-            scope={scope}
-            onScopeChange={setScope}
-            scopeCounts={scopeCounts}
-            filters={filters}
-            onToggleFilter={toggleFilter}
-            onClearFilters={clearFilters}
-            sortField={sortField}
-            sortDirection={sortDirection}
-            onSortFieldChange={handleSortFieldSelect}
-            onSortDirectionChange={setSortDirection}
-            hiddenColumns={hiddenColumns}
-            onToggleColumn={toggleColumn}
-            allRows={scopeRows}
-            visibleCount={rows.length}
-          />
-          <div
-            ref={listScrollRef}
-            className="min-h-0 flex-1 overflow-auto @container"
-          >
-            <ListGrid
-              className={`${GRID_COLS} @2xl:min-w-[var(--apc-minw)]`}
-              style={columnTrackVars(isColVisible)}
-            >
-              <AutopilotListHeader
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-                allSelected={allSelected}
-                someSelected={someSelected}
-                onToggleAll={handleToggleAll}
-                isColVisible={isColVisible}
-              />
-              <ListGridBody
-                style={{
-                  paddingTop: virtualPadding.top,
-                  paddingBottom:
-                    virtualPadding.bottom + LIST_GRID_BOTTOM_CLEARANCE,
-                }}
+      <div className="shrink-0 border-b px-4 py-1">
+        <TabsList variant="line" aria-label={t(($) => $.page.title)}>
+          <TabsTrigger value="autopilots">{t(($) => $.page.title)}</TabsTrigger>
+          <TabsTrigger value="wakeups">{t(($) => $.wakeups.title)}</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent
+        value="wakeups"
+        className="flex min-h-0 flex-col data-hidden:hidden"
+      >
+        <WorkspaceWakeups key={wsId} />
+      </TabsContent>
+      <TabsContent
+        value="autopilots"
+        className="flex min-h-0 flex-col data-hidden:hidden"
+      >
+        {listError ? (
+          <CollectionPageState
+            role="alert"
+            tone="destructive"
+            icon={AlertCircle}
+            title={
+              listError instanceof Error ? listError.message : String(listError)
+            }
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => refetchList()}
               >
-                {rows.length === 0 && (
-                  <div className="col-span-full py-16 text-center text-body text-muted-foreground">
-                    {t(($) => $.page.no_matches)}
-                  </div>
-                )}
-                {virtualItems.map((vi) => {
-                  const autopilot = rows[vi.index];
-                  if (!autopilot) return null;
-                  return (
-                    <ListGridRow
-                      key={autopilot.id}
-                      className={`cursor-pointer ${
-                        selectedIds.has(autopilot.id) ? "bg-accent/30" : ""
-                      }`}
-                      {...rowLink(wsPaths.autopilotDetail(autopilot.id), autopilot.title)}
-                    >
-                      <CheckboxCell
-                        checked={selectedIds.has(autopilot.id)}
-                        onToggle={() => toggleSelected(autopilot.id)}
-                      />
-                      <NameCell autopilot={autopilot} />
-                      {isColVisible("assignee") ? (
-                        <AssigneeCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="px-0" />
-                      )}
-                      {isColVisible("trigger") ? (
-                        <TriggerCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("lastRun") ? (
-                        <LastRunCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("nextRun") ? (
-                        <NextRunCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("mode") ? (
-                        <ModeCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("creator") ? (
-                        <CreatorCell autopilot={autopilot} />
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      {isColVisible("created") ? (
-                        <ListGridCell className="hidden whitespace-nowrap text-caption tabular-nums text-muted-foreground @2xl:flex">
-                          {new Date(autopilot.created_at).toLocaleDateString(locale)}
-                        </ListGridCell>
-                      ) : (
-                        <ListGridCell className="hidden px-0 @2xl:flex" />
-                      )}
-                      <ListGridCell className="justify-end px-0">
-                        <AutopilotRowActions row={autopilot} />
-                      </ListGridCell>
-                    </ListGridRow>
-                  );
-                })}
-              </ListGridBody>
-            </ListGrid>
+                {t(($) => $.page.retry)}
+              </Button>
+            }
+          />
+        ) : isLoading ? (
+          <div className="flex-1 overflow-y-auto @container">
+            <LoadingSkeleton />
           </div>
-        </>
-      )}
+        ) : showEmpty ? (
+          <div className="flex flex-col items-center px-5 py-16">
+            <Zap className="mb-3 h-10 w-10 text-faint-foreground" />
+            <p className="text-body text-muted-foreground">
+              {t(($) => $.page.empty.title)}
+            </p>
+            <p className="mb-6 mt-1 text-caption text-muted-foreground">
+              {t(($) => $.page.empty.hint)}
+            </p>
+            <div className="grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {TEMPLATES.map((tpl) => {
+                const Icon = tpl.icon;
+                return (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    className="flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent/40"
+                    onClick={() => openCreate(tpl)}
+                  >
+                    <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <div className="text-body font-medium">
+                        {t(($) => $.templates[tpl.id].title)}
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
+                        {t(($) => $.templates[tpl.id].summary)}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4"
+              onClick={() => openCreate()}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              {t(($) => $.page.start_blank)}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <AutopilotListToolbar
+              scope={scope}
+              onScopeChange={setScope}
+              scopeCounts={scopeCounts}
+              filters={filters}
+              onToggleFilter={toggleFilter}
+              onClearFilters={clearFilters}
+              sortField={sortField}
+              sortDirection={sortDirection}
+              onSortFieldChange={handleSortFieldSelect}
+              onSortDirectionChange={setSortDirection}
+              hiddenColumns={hiddenColumns}
+              onToggleColumn={toggleColumn}
+              allRows={scopeRows}
+              visibleCount={rows.length}
+            />
+            <div
+              ref={listScrollRef}
+              className="min-h-0 flex-1 overflow-auto @container"
+            >
+              <ListGrid
+                className={`${GRID_COLS} @2xl:min-w-[var(--apc-minw)]`}
+                style={columnTrackVars(isColVisible)}
+              >
+                <AutopilotListHeader
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  allSelected={allSelected}
+                  someSelected={someSelected}
+                  onToggleAll={handleToggleAll}
+                  isColVisible={isColVisible}
+                />
+                <ListGridBody
+                  style={{
+                    paddingTop: virtualPadding.top,
+                    paddingBottom:
+                      virtualPadding.bottom + LIST_GRID_BOTTOM_CLEARANCE,
+                  }}
+                >
+                  {rows.length === 0 && (
+                    <div className="col-span-full py-16 text-center text-body text-muted-foreground">
+                      {t(($) => $.page.no_matches)}
+                    </div>
+                  )}
+                  {virtualItems.map((vi) => {
+                    const autopilot = rows[vi.index];
+                    if (!autopilot) return null;
+                    return (
+                      <ListGridRow
+                        key={autopilot.id}
+                        className={`cursor-pointer ${
+                          selectedIds.has(autopilot.id) ? "bg-accent/30" : ""
+                        }`}
+                        {...rowLink(
+                          wsPaths.autopilotDetail(autopilot.id),
+                          autopilot.title,
+                        )}
+                      >
+                        <CheckboxCell
+                          checked={selectedIds.has(autopilot.id)}
+                          label={t(($) => $.page.table.select_autopilot, {
+                            name: autopilot.title,
+                          })}
+                          onToggle={() => toggleSelected(autopilot.id)}
+                        />
+                        <NameCell
+                          autopilot={autopilot}
+                          rowHref={wsPaths.autopilotDetail(autopilot.id)}
+                        />
+                        {isColVisible("assignee") ? (
+                          <AssigneeCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="px-0" />
+                        )}
+                        {isColVisible("trigger") ? (
+                          <TriggerCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        {isColVisible("lastRun") ? (
+                          <LastRunCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        {isColVisible("nextRun") ? (
+                          <NextRunCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        {isColVisible("mode") ? (
+                          <ModeCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        {isColVisible("creator") ? (
+                          <CreatorCell autopilot={autopilot} />
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        {isColVisible("created") ? (
+                          <ListGridCell className="hidden whitespace-nowrap text-caption tabular-nums text-muted-foreground @2xl:flex">
+                            {new Date(autopilot.created_at).toLocaleDateString(
+                              locale,
+                            )}
+                          </ListGridCell>
+                        ) : (
+                          <ListGridCell className="hidden px-0 @2xl:flex" />
+                        )}
+                        <ListGridCell className="justify-end px-0">
+                          <AutopilotRowActions row={autopilot} />
+                        </ListGridCell>
+                      </ListGridRow>
+                    );
+                  })}
+                </ListGridBody>
+              </ListGrid>
+            </div>
+          </>
+        )}
 
-      <AutopilotBatchToolbar
-        rows={selectedRows}
-        onClear={() => setSelectedIds(new Set())}
-      />
-
-      {createOpen && (
-        <AutopilotDialog
-          mode="create"
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          initial={
-            selectedTemplate
-              ? {
-                  // Template title pulls from i18n so the user-visible default
-                  // matches their locale, while the prompt body stays raw EN
-                  // since it's injected directly into the agent task.
-                  title: t(($) => $.templates[selectedTemplate.id].title),
-                  description: selectedTemplate.prompt,
-                }
-              : undefined
-          }
-          initialSchedule={selectedTemplate ? selectedTemplate.schedule : undefined}
+        <AutopilotBatchToolbar
+          rows={selectedRows}
+          onClear={() => setSelectedIds(new Set())}
         />
-      )}
-    </div>
+
+        {draftOpen && (
+          <AutopilotDraftDialog
+            open={draftOpen}
+            onOpenChange={setDraftOpen}
+            onWriteYourself={() => openCreate()}
+          />
+        )}
+
+        {createOpen && (
+          <AutopilotDialog
+            mode="create"
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            initial={
+              selectedTemplate
+                ? {
+                    // Template title pulls from i18n so the user-visible default
+                    // matches their locale, while the prompt body stays raw EN
+                    // since it's injected directly into the agent task.
+                    title: t(($) => $.templates[selectedTemplate.id].title),
+                    description: selectedTemplate.prompt,
+                  }
+                : undefined
+            }
+            initialSchedule={
+              selectedTemplate ? selectedTemplate.schedule : undefined
+            }
+          />
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }

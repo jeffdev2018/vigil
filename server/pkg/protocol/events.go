@@ -29,6 +29,11 @@ const (
 	EventAgentCreated  = "agent:created"
 	EventAgentArchived = "agent:archived"
 	EventAgentRestored = "agent:restored"
+	// EventAgentUpdated (JEF-301) fires when the agent's trust dial mode
+	// changes (SetAgentTrustMode); payload: {agent: AgentResponse}, same
+	// shape as the other agent:* broadcasts, so clients can invalidate/patch
+	// their cached agent from it without a refetch.
+	EventAgentUpdated = "agent:updated"
 
 	// Task events (server <-> daemon).
 	// Each event maps to a status transition on agent_task_queue. Front-end
@@ -73,9 +78,42 @@ const (
 	// workspace_note:deleted fires on a permanent delete.
 	EventWorkspaceNoteCreated = "workspace_note:created"
 	EventWorkspaceNoteUpdated = "workspace_note:updated"
-	EventWorkspaceNoteDeleted = "workspace_note:deleted"
+	// EventBrainCaptureChanged fires when a capture is created, transcribed,
+	// suggested, organized, discarded or reopened (payload: capture_id, status, change).
+	EventBrainCaptureChanged = "brain_capture:changed"
+	// EventFollowupChanged fires when a follow-up (deferred wake-up of an
+	// issue\'s agent) is scheduled or cancelled (payload: issue_id, followup_id, change).
+	EventFollowupChanged = "followup:changed"
+	// EventIssueRecurrenceChanged fires when a recurrence rule is created,
+	// updated or cleared on an issue (payload: issue_id, recurrence_id, change).
+	EventIssueRecurrenceChanged = "issue_recurrence:changed"
+	EventWorkspaceNoteDeleted   = "workspace_note:deleted"
 
 	// Inbox events
+	// Inline approvals (OS plan, chantier 3): something a human is asked to
+	// decide appeared or was settled. Workspace-wide, issue-scoped payload:
+	// {source: decision|transition|goal_question, id, issue_id, kind, outcome?}.
+	// Personal inbox items still carry the ask to each recipient.
+	// EventRunHaltChanged (fleet page): the kill switch or the halt setting
+	// flipped; payload {run_halt, cancelled?}.
+	EventRunHaltChanged = "run_halt:changed"
+
+	// EventCalendarChanged (native calendar): an event was created, moved,
+	// answered, scheduled or cancelled; payload {event_id, issue_id, status}.
+	EventCalendarChanged = "calendar:changed"
+
+	// EventDoctrineChanged (workspace doctrine): a revision was published,
+	// proposed or reviewed, or a report was filed or resolved. Clients
+	// refetch the doctrine and its reports.
+	EventDoctrineChanged = "doctrine:changed"
+
+	// EventPackChanged (packs): a pack was installed, upgraded or removed.
+	// Clients refetch the catalogue and the installed list.
+	EventPackChanged = "pack:changed"
+
+	EventApprovalAsked   = "approval:asked"
+	EventApprovalDecided = "approval:decided"
+
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"
 	EventInboxUnread        = "inbox:unread"
@@ -169,6 +207,27 @@ const (
 	EventProjectResourceUpdated = "project_resource:updated"
 	EventProjectResourceDeleted = "project_resource:deleted"
 
+	// Goal events (JEF-301). Workspace-scoped, like the project events above;
+	// payload: {goal: GoalResponse} for created/updated, {goal_id} for
+	// deleted.
+	EventGoalCreated = "goal:created"
+	EventGoalUpdated = "goal:updated"
+	EventGoalDeleted = "goal:deleted"
+
+	// Issue view events (JEF-301). Fired only for the shared write paths
+	// (create/update/delete of the view definition itself); per-user view-bar
+	// preferences (issue_view_preference.go) are private state keyed by user
+	// id and are never broadcast. Payload: {issue_view: IssueViewResponse}
+	// for created/updated, {issue_view_id} for deleted.
+	EventIssueViewCreated = "issue_view:created"
+	EventIssueViewUpdated = "issue_view:updated"
+	EventIssueViewDeleted = "issue_view:deleted"
+
+	// EventDecisionCreated (JEF-301) fires once per decision record stored,
+	// from either the manual API (CreateIssueDecisions) or LLM extraction
+	// (extractDecisionsWith). Payload: {decision: DecisionRecordResponse}.
+	EventDecisionCreated = "decision:created"
+
 	// Label events
 	EventLabelCreated       = "label:created"
 	EventLabelUpdated       = "label:updated"
@@ -228,12 +287,13 @@ const (
 	EventSquadDeleted = "squad:deleted"
 
 	// Daemon events
-	EventDaemonHeartbeat              = "daemon:heartbeat"
-	EventDaemonHeartbeatAck           = "daemon:heartbeat_ack"
-	EventDaemonRegister               = "daemon:register"
-	EventDaemonTaskAvailable          = "daemon:task_available"
-	EventDaemonRuntimeProfilesChanged = "daemon:runtime_profiles_changed"
-	EventDaemonWorkspacesChanged      = "daemon:workspaces_changed"
+	EventDaemonHeartbeat               = "daemon:heartbeat"
+	EventDaemonHeartbeatAck            = "daemon:heartbeat_ack"
+	EventDaemonRegister                = "daemon:register"
+	EventDaemonTaskAvailable           = "daemon:task_available"
+	EventDaemonTaskSupplementAvailable = "daemon:task_supplement_available"
+	EventDaemonRuntimeProfilesChanged  = "daemon:runtime_profiles_changed"
+	EventDaemonWorkspacesChanged       = "daemon:workspaces_changed"
 	// EventDaemonPendingWork is a runtime-scoped hint that a heartbeat-carried
 	// request (model discovery, capability discovery, or local-skill import) is
 	// queued for that runtime. Without it the daemon only learns about the
@@ -243,6 +303,12 @@ const (
 	// itself: the daemon still pulls the request through the normal heartbeat
 	// claim, so a lost or duplicated hint is harmless.
 	EventDaemonPendingWork = "daemon:pending_work"
+	// EventDaemonRunHaltChanged is a workspace-scoped hint that the workspace
+	// halt flipped (JEF-257). The daemon reacts by reconciling immediately so
+	// in-flight task watchers re-poll their control status sub-second instead
+	// of on the 5s poll; the poll remains the fallback for daemons that do not
+	// know this frame.
+	EventDaemonRunHaltChanged = "daemon:run_halt_changed"
 	// Generic daemon→server request/response over the WebSocket control
 	// connection (MUL-4257). The daemon sends EventDaemonRPCRequest with a
 	// correlation id + method + body; the server replies EventDaemonRPCResponse

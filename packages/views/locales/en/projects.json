@@ -17,7 +17,8 @@
     "no_matches": "No projects match",
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
-    "clear_selection": "Clear selection"
+    "clear_selection": "Clear selection",
+    "pin_partial": "Pinned {{succeeded}}, {{failed}} failed"
   },
   "table": {
     "name": "Name",
@@ -26,7 +27,9 @@
     "progress": "Progress",
     "lead": "Lead",
     "created": "Created",
-    "issues": "Issues"
+    "issues": "Issues",
+    "select_project": "Select {{name}}",
+    "select_all": "Select all projects"
   },
   "status": {
     "planned": "Planned",
@@ -75,13 +78,14 @@
     "description_placeholder": "Add description...",
     "description_hint": "Shared with agents as context for every run in this project.",
     "empty_issues_title": "No issues linked",
-    "empty_issues_hint": "Create a new issue or assign existing ones to this project.",
+    "empty_issues_hint": "You can also add existing issues to this project.",
     "empty_issues_new_button": "New Issue",
     "no_issues_yet": "No issues yet",
     "toast_link_copied": "Link copied",
     "toast_project_deleted": "Project deleted",
     "toast_move_issue_failed": "Failed to move issue",
-    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate."
+    "progress_hint": "Includes completed and cancelled issues; this is not a delivery rate.",
+    "more_actions_aria": "More actions"
   },
   "resources": {
     "section_header": "Resources",
@@ -101,16 +105,12 @@
     "add_local_directory_button": "Add local directory",
     "local_daemon_offline_hint": "Start the local daemon to attach a directory on this machine.",
     "local_daemon_already_attached_hint": "This machine already has a local directory attached. Remove it before adding another.",
-    "local_rename_tooltip": "Rename",
-    "local_rename_label": "Local directory label",
     "local_no_daemon_tooltip": "Local daemon isn't reporting an ID yet — the agent can't open this directory.",
     "local_other_machine_tooltip": "Only available on the machine that registered this directory.",
     "chat_hint_prefix": "Agent will work in-place at",
     "chat_hint_worktree_prefix": "Agent will work in an isolated worktree of",
     "chat_hint_worktree_note": "Your working copy stays untouched — each run hands its work back as an agent/… branch.",
     "toast_local_attached": "Local directory attached",
-    "toast_local_renamed": "Renamed",
-    "toast_local_rename_failed": "Failed to rename",
     "toast_local_pick_failed": "Failed to pick directory",
     "toast_local_already_attached": "This directory is already attached to the project on this machine.",
     "toast_local_daemon_already_attached": "This machine already has a local directory attached to this project. Remove it before adding another.",
@@ -138,6 +138,28 @@
     "toast_local_mode_updated": "Execution mode updated",
     "toast_local_mode_update_failed": "Could not update the execution mode",
     "mode_badge_in_place": "Direct",
+    "ref_label": "Starting branch",
+    "ref_placeholder": "main",
+    "ref_hint": "Tasks start from this branch and open their pull requests against it. Leave empty to use the repository's default branch.",
+    "ref_error_too_long": "Use at most 255 characters.",
+    "ref_error_characters": "A git ref can't contain spaces or any of ~ ^ : ? * [ \\",
+    "ref_error_format": "Not a valid branch, tag, or commit.",
+    "ref_dialog_title": "Which branch should tasks work on?",
+    "ref_dialog_description": "New tasks in this project check out this branch and open their pull requests against it. Work already underway keeps the branch it started on.",
+    "ref_cancel": "Cancel",
+    "ref_save": "Save",
+    "ref_edit_tooltip": "Change the branch tasks work on",
+    "ref_badge_tooltip": "Tasks start from {{ref}} and deliver back to it.",
+    "toast_ref_updated": "Branch updated",
+    "toast_ref_cleared": "Back to the default branch",
+    "toast_ref_update_failed": "Could not update the branch",
+    "ref_error_commit": "That's a commit, not a branch. Tasks deliver back to the branch they start from — for a one-off revision, pass --ref to multica repo checkout.",
+    "ref_default_label": "Default branch",
+    "ref_default_tooltip": "No branch set — tasks use whatever the repository's default branch is at the time.",
+    "local_rename_tooltip": "Rename",
+    "local_rename_label": "Local directory label",
+    "toast_local_renamed": "Renamed",
+    "toast_local_rename_failed": "Failed to rename",
     "lifecycle_description": "Optional commands for this worktree. Each is run directly — no shell — so the first word is the program and the rest are its arguments.",
     "lifecycle_setup_label": "Setup",
     "lifecycle_setup_hint": "pnpm install",
@@ -151,7 +173,8 @@
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",
     "confirm": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "partial": "Deleted {{succeeded}}, {{failed}} failed"
   },
   "picker": {
     "no_project": "No project",
@@ -224,6 +247,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "The rule could not be saved"
   },
+  "sandbox_policy": {
+    "section": "Sandbox policy",
+    "description": "Restrict agent runs in this project: which network hosts they may reach, and whether they may read sensitive files. Workspace, project and issue policies combine, and the most restrictive wins.",
+    "capability_hint": "Allowlist and no-network modes need a container-capable runtime: runs on runtimes without that capability are refused and fail over (fail-closed).",
+    "network": "Network access",
+    "mode": {
+      "unrestricted": "Unrestricted",
+      "allowlist": "Allowlist",
+      "none": "No network"
+    },
+    "hint": {
+      "unrestricted": "Runs may reach any host.",
+      "allowlist": "Only the listed hosts and the platform defaults are reachable.",
+      "none": "No network egress beyond what the platform needs."
+    },
+    "hosts_label": "Allowed hosts",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "One host per line. The platform defaults stay reachable.",
+    "block_sensitive": "Block sensitive files",
+    "block_sensitive_help": "Agents must not read .env files (best effort).",
+    "effective": "Effective for this project: {{mode}}",
+    "effective_blocked": "sensitive files blocked",
+    "effective_inherited": "inherited from the workspace default",
+    "empty": "No project policy: the workspace default applies.",
+    "save": "Save policy",
+    "saving": "Saving...",
+    "reset": "Reset to workspace default",
+    "toast_saved": "Sandbox policy saved",
+    "toast_reset": "Sandbox policy reset to the workspace default",
+    "failed": "The sandbox policy could not be saved",
+    "load_failed": "The sandbox policy could not be loaded"
+  },
   "members": {
     "section": "Members and roles",
     "description": "Roles here only restrict: a member or agent never gets more in this project than its workspace role allows.",
@@ -239,7 +294,12 @@
     "agent": "agent",
     "updated": "Role updated",
     "update_failed": "Failed to update the role",
-    "read_only": "Only workspace owners, admins and project admins can change roles."
+    "read_only": "Only workspace owners, admins and project admins can change roles.",
+    "roles": {
+      "viewer": "Viewer",
+      "contributor": "Contributor",
+      "admin": "Admin"
+    }
   },
   "review": {
     "section": "Agent review",

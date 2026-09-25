@@ -208,6 +208,47 @@ func (q *Queries) GetAgentVersionAt(ctx context.Context, arg GetAgentVersionAtPa
 	return i, err
 }
 
+const getAgentVersionsByIDs = `-- name: GetAgentVersionsByIDs :many
+SELECT id, workspace_id, agent_id, version_number, instructions, model, skill_ids, tool_config, note, created_by_type, created_by_id, created_at FROM agent_version WHERE id = ANY($1::uuid[])
+`
+
+// Batch variant of GetAgentVersion for ListEvalRuns/ListBenchmarks, which
+// otherwise resolve one pinned version per run on the page. Filtered by id
+// only (versions are globally unique); the caller re-checks agent_id against
+// the owning run the same way GetAgentVersion's WHERE clause does.
+func (q *Queries) GetAgentVersionsByIDs(ctx context.Context, ids []pgtype.UUID) ([]AgentVersion, error) {
+	rows, err := q.db.Query(ctx, getAgentVersionsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentVersion{}
+	for rows.Next() {
+		var i AgentVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.VersionNumber,
+			&i.Instructions,
+			&i.Model,
+			&i.SkillIds,
+			&i.ToolConfig,
+			&i.Note,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLatestAgentVersion = `-- name: GetLatestAgentVersion :one
 SELECT id, workspace_id, agent_id, version_number, instructions, model, skill_ids, tool_config, note, created_by_type, created_by_id, created_at FROM agent_version WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1
 `

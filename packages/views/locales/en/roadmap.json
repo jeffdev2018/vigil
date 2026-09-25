@@ -1,0 +1,30 @@
+{
+  "page": {
+    "title": "Roadmap",
+    "tab_timeline": "Timeline",
+    "tab_graph": "Dependencies",
+    "loading": "Loading roadmap",
+    "load_error": "Could not load the roadmap",
+    "empty_projects": "No projects yet",
+    "empty_projects_description": "Create a project with a start date and a due date and it will appear on the timeline.",
+    "empty_scheduled": "Nothing scheduled",
+    "empty_scheduled_description": "No project has a start or due date yet.",
+    "unscheduled": "Unscheduled projects"
+  },
+  "timeline": {
+    "progress": "{{percent}}% done",
+    "today": "Today"
+  },
+  "graph": {
+    "project": "Project",
+    "pick_project": "Pick a project to see its dependency graph.",
+    "loading_issues": "Loading issues",
+    "empty_issues": "This project has no scheduled issues",
+    "no_edges": "No dependencies between these issues yet.",
+    "legend": {
+      "blocks": "blocks",
+      "related": "related",
+      "duplicate": "duplicate"
+    }
+  }
+}

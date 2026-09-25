@@ -156,7 +156,14 @@ export function ZoomCanvas({
     (node: HTMLDivElement | null) => {
       if (canvasRef) canvasRef.current = node;
       canvas.setViewportNode(node);
-      if (node && autoFocus) node.focus({ preventScroll: true });
+      if (node && autoFocus) {
+        // This focus is for the keyboard controls, not a reader tabbing in —
+        // marked so the stylesheet drops the ring until focus leaves (see
+        // zoom-canvas.css). On a full-window surface the ring framed the
+        // whole stage.
+        node.dataset.autofocused = "";
+        node.focus({ preventScroll: true });
+      }
     },
     // The method, not the whole `canvas` object: only setViewportNode is read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +185,9 @@ export function ZoomCanvas({
       onPointerCancel={canvas.handlePointerUp}
       onDoubleClick={canvas.handleDoubleClick}
       onKeyDown={canvas.handleKeyDown}
+      onBlur={(e) => {
+        delete e.currentTarget.dataset.autofocused;
+      }}
     >
       <div
         className={cn(

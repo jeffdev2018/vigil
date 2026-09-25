@@ -52,6 +52,19 @@ export function MentionView({ node }: NodeViewProps) {
     );
   }
 
+  // Note citation (JEF-417 / B06): an agent-authored `[text](mention://note/
+  // <uuid>)` loaded into the editor (e.g. editing an existing comment) must
+  // round-trip without corrupting the label. No picker inserts this node
+  // type, so unlike issue/project it never needs a navigable chip here — just
+  // the same "no @ prefix" rule the markdown side already applies.
+  if (type === "note") {
+    return (
+      <NodeViewWrapper as="span" className="inline">
+        <span className="mention">{label ?? id}</span>
+      </NodeViewWrapper>
+    );
+  }
+
   return (
     <NodeViewWrapper as="span" className="inline">
       <span className="mention">@{label ?? id}</span>

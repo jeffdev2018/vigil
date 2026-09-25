@@ -136,19 +136,37 @@ func (h *Handler) evalRunToResponse(ctx context.Context, run db.EvalRun) EvalRun
 
 // evalRunResponseFrom is the same payload built from cases the caller already
 // holds, so a reader that needs the rows for its own aggregation (the
-// benchmark breakdown, JEF-276) does not load them a second time.
+// benchmark breakdown, JEF-276) does not load them a second time. It resolves
+// the suite name and pinned version with one query each; a page of many runs
+// should use evalRunsToResponses instead, which batches both across the page.
 func (h *Handler) evalRunResponseFrom(ctx context.Context, run db.EvalRun, rows []db.ListEvalRunCasesRow) EvalRunResponse {
+	suiteNameByID := map[string]string{}
+	if suite, err := h.Queries.GetEvalSuite(ctx, run.SuiteID); err == nil {
+		suiteNameByID[uuidToString(suite.ID)] = suite.Name
+	}
+	versionsByID := map[string]db.AgentVersion{}
+	if run.AgentVersionID.Valid {
+		if version, err := h.Queries.GetAgentVersion(ctx, db.GetAgentVersionParams{ID: run.AgentVersionID, AgentID: run.AgentID}); err == nil {
+			versionsByID[uuidToString(version.ID)] = version
+		}
+	}
+	return evalRunResponseFromLookup(run, rows, suiteNameByID, versionsByID)
+}
+
+// evalRunResponseFromLookup builds one run's response from case rows and
+// page-level lookups already resolved (evalRunLookupsFor batches them for a
+// whole page; evalRunResponseFrom resolves them for a single run). Pure: no
+// I/O, so it is safe to call once per run in a loop.
+func evalRunResponseFromLookup(run db.EvalRun, rows []db.ListEvalRunCasesRow, suiteNameByID map[string]string, versionsByID map[string]db.AgentVersion) EvalRunResponse {
 	out := EvalRunResponse{
 		ID: uuidToString(run.ID), WorkspaceID: uuidToString(run.WorkspaceID), SuiteID: uuidToString(run.SuiteID),
 		AgentID: uuidToString(run.AgentID), AgentVersionID: uuidToPtr(run.AgentVersionID), Status: run.Status,
 		Score: int4ToPtr(run.Score), StartedBy: uuidToPtr(run.StartedBy), StartedAt: timestampToString(run.StartedAt),
 		CompletedAt: timestampToPtr(run.CompletedAt), Cases: []EvalRunCaseResponse{},
 	}
-	if suite, err := h.Queries.GetEvalSuite(ctx, run.SuiteID); err == nil {
-		out.SuiteName = suite.Name
-	}
+	out.SuiteName = suiteNameByID[uuidToString(run.SuiteID)]
 	if run.AgentVersionID.Valid {
-		if version, err := h.Queries.GetAgentVersion(ctx, db.GetAgentVersionParams{ID: run.AgentVersionID, AgentID: run.AgentID}); err == nil {
+		if version, ok := versionsByID[uuidToString(run.AgentVersionID)]; ok && version.AgentID == run.AgentID {
 			out.AgentVersionNumber = version.VersionNumber
 		}
 	}
@@ -161,12 +179,80 @@ func (h *Handler) evalRunResponseFrom(ctx context.Context, run db.EvalRun, rows 
 	return out
 }
 
+// evalRunLookupsFor batches, for a whole page of runs, what evalRunResponseFrom
+// otherwise resolves per run: every run's cases (ListEvalRunCases -> one
+// ListEvalRunCasesByRunIDs call), every suite name (GetEvalSuite -> one
+// GetEvalSuitesByIDs call) and every pinned version (GetAgentVersion -> one
+// GetAgentVersionsByIDs call). Used by evalRunsToResponses and
+// benchmarkRunsToResponses.
+func (h *Handler) evalRunLookupsFor(ctx context.Context, runs []db.EvalRun) (casesByRun map[string][]db.ListEvalRunCasesRow, suiteNameByID map[string]string, versionsByID map[string]db.AgentVersion) {
+	runIDs := make([]pgtype.UUID, len(runs))
+	suiteIDs := make([]pgtype.UUID, 0, len(runs))
+	versionIDs := make([]pgtype.UUID, 0, len(runs))
+	for i, run := range runs {
+		runIDs[i] = run.ID
+		suiteIDs = append(suiteIDs, run.SuiteID)
+		if run.AgentVersionID.Valid {
+			versionIDs = append(versionIDs, run.AgentVersionID)
+		}
+	}
+
+	casesByRun = map[string][]db.ListEvalRunCasesRow{}
+	if len(runIDs) > 0 {
+		if rows, err := h.Queries.ListEvalRunCasesByRunIDs(ctx, runIDs); err != nil {
+			slog.Warn("eval: batch list run cases failed", "error", err)
+		} else {
+			for _, row := range rows {
+				key := uuidToString(row.RunID)
+				casesByRun[key] = append(casesByRun[key], db.ListEvalRunCasesRow(row))
+			}
+		}
+	}
+
+	suiteNameByID = map[string]string{}
+	if len(suiteIDs) > 0 {
+		if suites, err := h.Queries.GetEvalSuitesByIDs(ctx, suiteIDs); err != nil {
+			slog.Warn("eval: batch get suites failed", "error", err)
+		} else {
+			for _, s := range suites {
+				suiteNameByID[uuidToString(s.ID)] = s.Name
+			}
+		}
+	}
+
+	versionsByID = map[string]db.AgentVersion{}
+	if len(versionIDs) > 0 {
+		if versions, err := h.Queries.GetAgentVersionsByIDs(ctx, versionIDs); err != nil {
+			slog.Warn("eval: batch get agent versions failed", "error", err)
+		} else {
+			for _, v := range versions {
+				versionsByID[uuidToString(v.ID)] = v
+			}
+		}
+	}
+	return casesByRun, suiteNameByID, versionsByID
+}
+
+// evalRunsToResponses is the list variant of evalRunToResponse: it batches
+// the per-run lookups into one query each instead of up to three per run.
+func (h *Handler) evalRunsToResponses(ctx context.Context, runs []db.EvalRun) []EvalRunResponse {
+	casesByRun, suiteNameByID, versionsByID := h.evalRunLookupsFor(ctx, runs)
+	out := make([]EvalRunResponse, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, evalRunResponseFromLookup(run, casesByRun[uuidToString(run.ID)], suiteNameByID, versionsByID))
+	}
+	return out
+}
+
 // PromoteIssueToEvalCase — POST /api/issues/{id}/promote-to-eval-case.
 // The proofs are what makes a case reusable: an issue with an unproved
 // criterion has no reference answer to measure a replay against.
 func (h *Handler) PromoteIssueToEvalCase(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	userID, ok := requireUserID(w, r)
@@ -310,11 +396,7 @@ func (h *Handler) ListEvalRuns(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list eval runs")
 		return
 	}
-	runs := make([]EvalRunResponse, 0, len(rows))
-	for _, run := range rows {
-		runs = append(runs, h.evalRunToResponse(r.Context(), run))
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": runs})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": h.evalRunsToResponses(r.Context(), rows)})
 }
 
 // evalWorkspaceFromURL resolves the workspace of a workspace-scoped eval
@@ -499,7 +581,7 @@ func (h *Handler) startEvalCase(r *http.Request, run db.EvalRun, c db.EvalCase, 
 	}
 	raw, err := json.Marshal(stripped)
 	if err == nil {
-		if _, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: res.Issue.ID, AcceptanceCriteria: raw}); err != nil {
+		if _, err := h.Queries.UpdateIssueAcceptanceCriteria(r.Context(), db.UpdateIssueAcceptanceCriteriaParams{ID: res.Issue.ID, AcceptanceCriteria: raw, WorkspaceID: res.Issue.WorkspaceID}); err != nil {
 			slog.Warn("eval: write replay criteria failed", "issue_id", uuidToString(res.Issue.ID), "error", err)
 		}
 	}

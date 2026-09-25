@@ -71,7 +71,7 @@ export function BuilderSetup({
     <main className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-10">
       <div className="w-full max-w-xl">
         {banner}
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
+        <div className="rounded-xl border bg-card p-6 shadow-surface">
         <span className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <MessageSquare className="size-5" />
         </span>
@@ -176,9 +176,6 @@ export function BuilderConversation({
           <h2 className="truncate text-body font-semibold">
             {t(($) => $.creation_studio.builder.chat_title)}
           </h2>
-          <p className="truncate text-caption text-muted-foreground">
-            {t(($) => $.creation_studio.builder.chat_hint)}
-          </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 text-caption text-muted-foreground">
           <span

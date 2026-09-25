@@ -16,7 +16,8 @@
     "delete": "削除",
     "no_matches": "該当するプロジェクトはありません",
     "selected_other": "{{count}} 件選択中",
-    "clear_selection": "選択を解除"
+    "clear_selection": "選択を解除",
+    "pin_partial": "{{succeeded}} 件ピン留め、{{failed}} 件失敗"
   },
   "table": {
     "name": "名前",
@@ -25,7 +26,9 @@
     "progress": "進捗",
     "lead": "リード",
     "created": "作成日",
-    "issues": "課題数"
+    "issues": "タスク数",
+    "select_project": "{{name}} を選択",
+    "select_all": "すべてのプロジェクトを選択"
   },
   "status": {
     "planned": "計画中",
@@ -73,14 +76,15 @@
     "no_due_date": "期限なし",
     "description_placeholder": "説明を追加...",
     "description_hint": "このプロジェクトのすべての実行で、コンテキストとしてエージェントに共有されます。",
-    "empty_issues_title": "リンクされた課題はありません",
-    "empty_issues_hint": "新しい課題を作成するか、既存の課題をこのプロジェクトに割り当ててください。",
-    "empty_issues_new_button": "新規課題",
-    "no_issues_yet": "課題はまだありません",
+    "empty_issues_title": "リンクされたタスクはありません",
+    "empty_issues_hint": "既存のタスクをこのプロジェクトに追加することもできます。",
+    "empty_issues_new_button": "新規タスク",
+    "no_issues_yet": "タスクはまだありません",
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
-    "toast_move_issue_failed": "課題を移動できませんでした",
-    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。"
+    "toast_move_issue_failed": "タスクを移動できませんでした",
+    "progress_hint": "完了とキャンセルを含みます。納品率ではありません。",
+    "more_actions_aria": "その他の操作"
   },
   "resources": {
     "section_header": "リソース",
@@ -100,16 +104,12 @@
     "add_local_directory_button": "ローカルディレクトリを追加",
     "local_daemon_offline_hint": "このマシンのディレクトリを添付するには、ローカルデーモンを起動してください。",
     "local_daemon_already_attached_hint": "このマシンにはすでにローカルディレクトリが添付されています。新しく追加するには、先に既存のものを削除してください。",
-    "local_rename_tooltip": "名前を変更",
-    "local_rename_label": "ローカルディレクトリのラベル",
     "local_no_daemon_tooltip": "ローカルデーモンがまだ ID を報告していないため、エージェントはこのディレクトリを開けません。",
     "local_other_machine_tooltip": "このディレクトリを登録したマシンでのみ利用できます。",
     "chat_hint_prefix": "エージェントは次の場所で直接作業します:",
     "chat_hint_worktree_prefix": "エージェントは次のリポジトリの独立した worktree で作業します:",
     "chat_hint_worktree_note": "作業コピーは変更されません。各実行の成果は agent/… ブランチとして返されます。",
     "toast_local_attached": "ローカルディレクトリを添付しました",
-    "toast_local_renamed": "名前を変更しました",
-    "toast_local_rename_failed": "名前を変更できませんでした",
     "toast_local_pick_failed": "ディレクトリを選択できませんでした",
     "toast_local_already_attached": "このディレクトリはすでにこのマシンのプロジェクトに添付されています。",
     "toast_local_daemon_already_attached": "このマシンにはすでにこのプロジェクトのローカルディレクトリが添付されています。新しく追加するには、先に既存のものを削除してください。",
@@ -137,6 +137,28 @@
     "toast_local_mode_updated": "実行モードを更新しました",
     "toast_local_mode_update_failed": "実行モードを更新できませんでした",
     "mode_badge_in_place": "直接",
+    "ref_label": "起点ブランチ",
+    "ref_placeholder": "main",
+    "ref_hint": "タスクはこのブランチから開始し、プルリクエストもここへ作成します。空欄の場合はリポジトリのデフォルトブランチを使用します。",
+    "ref_error_too_long": "255 文字以内で入力してください。",
+    "ref_error_characters": "git ref にスペースや ~ ^ : ? * [ \\ は使用できません",
+    "ref_error_format": "有効なブランチ、タグ、コミットではありません。",
+    "ref_dialog_title": "タスクはどのブランチで作業しますか？",
+    "ref_dialog_description": "このプロジェクトで新しく開始するタスクはこのブランチをチェックアウトし、プルリクエストもここへ作成します。進行中の作業は開始時のブランチのままです。",
+    "ref_cancel": "キャンセル",
+    "ref_save": "保存",
+    "ref_edit_tooltip": "タスクが作業するブランチを変更",
+    "ref_badge_tooltip": "タスクは {{ref}} から開始し、このブランチへ成果を返します。",
+    "toast_ref_updated": "ブランチを更新しました",
+    "toast_ref_cleared": "デフォルトブランチに戻しました",
+    "toast_ref_update_failed": "ブランチを更新できませんでした",
+    "ref_error_commit": "これはコミットであり、ブランチではありません。タスクは開始したブランチへ成果を返します。特定のリビジョンだけが必要な場合は multica repo checkout --ref を使ってください。",
+    "ref_default_label": "デフォルトブランチ",
+    "ref_default_tooltip": "ブランチ未設定 — タスクはその時点のリポジトリのデフォルトブランチを使用します。",
+    "local_rename_tooltip": "名前を変更",
+    "local_rename_label": "ローカルディレクトリのラベル",
+    "toast_local_renamed": "名前を変更しました",
+    "toast_local_rename_failed": "名前を変更できませんでした",
     "lifecycle_description": "このワークツリー用の任意のコマンド。シェルを介さず直接実行されるため、最初の語がプログラム、残りがその引数になります。",
     "lifecycle_setup_label": "セットアップ",
     "lifecycle_setup_hint": "pnpm install",
@@ -148,9 +170,10 @@
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",
-    "description": "プロジェクトが削除されます。課題は削除されませんが、リンクが解除されます。",
+    "description": "プロジェクトが削除されます。タスクは削除されませんが、リンクが解除されます。",
     "confirm": "削除",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "partial": "{{succeeded}} 件削除、{{failed}} 件失敗"
   },
   "picker": {
     "no_project": "プロジェクトなし",
@@ -222,6 +245,38 @@
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "ルールを保存できませんでした"
   },
+  "sandbox_policy": {
+    "section": "サンドボックスポリシー",
+    "description": "このプロジェクトでのエージェント実行を制限します: 到達可能なネットワークホストと、機密ファイルの読み取り可否。ワークスペース・プロジェクト・課題のポリシーは組み合わされ、最も厳しいものが適用されます。",
+    "capability_hint": "許可リストとネットワークなしのモードにはコンテナ対応ランタイムが必要です。その能力のないランタイムでの実行は拒否され、フェイルオーバーします (フェイルクローズ)。",
+    "network": "ネットワークアクセス",
+    "mode": {
+      "unrestricted": "制限なし",
+      "allowlist": "許可リスト",
+      "none": "ネットワークなし"
+    },
+    "hint": {
+      "unrestricted": "任意のホストに到達できます。",
+      "allowlist": "リストされたホストとプラットフォーム既定のホストのみ到達可能です。",
+      "none": "プラットフォームが必要とするもの以外のネットワーク egress はありません。"
+    },
+    "hosts_label": "許可するホスト",
+    "hosts_placeholder": "api.github.com\nregistry.npmjs.org",
+    "hosts_help": "1 行に 1 ホスト。プラットフォーム既定のホストは常に到達可能です。",
+    "block_sensitive": "機密ファイルをブロック",
+    "block_sensitive_help": "エージェントは .env ファイルを読んではいけません (ベストエフォート)。",
+    "effective": "このプロジェクトの実効値: {{mode}}",
+    "effective_blocked": "機密ファイルはブロック中",
+    "effective_inherited": "ワークスペース既定から継承",
+    "empty": "プロジェクトのポリシーはありません: ワークスペース既定が適用されます。",
+    "save": "ポリシーを保存",
+    "saving": "保存中...",
+    "reset": "ワークスペース既定に戻す",
+    "toast_saved": "サンドボックスポリシーを保存しました",
+    "toast_reset": "サンドボックスポリシーをワークスペース既定に戻しました",
+    "failed": "サンドボックスポリシーを保存できませんでした",
+    "load_failed": "サンドボックスポリシーを読み込めませんでした"
+  },
   "members": {
     "section": "メンバーとロール",
     "description": "ここでのロールは制限のみ行います。メンバーやエージェントがこのプロジェクトでワークスペースのロール以上の権限を得ることはありません。",
@@ -237,7 +292,12 @@
     "agent": "エージェント",
     "updated": "ロールを更新しました",
     "update_failed": "ロールの更新に失敗しました",
-    "read_only": "ロールを変更できるのはワークスペースのオーナー、管理者、プロジェクトの admin だけです。"
+    "read_only": "ロールを変更できるのはワークスペースのオーナー、管理者、プロジェクトの admin だけです。",
+    "roles": {
+      "viewer": "閲覧者",
+      "contributor": "寄稿者",
+      "admin": "管理者"
+    }
   },
   "review": {
     "section": "エージェントレビュー",

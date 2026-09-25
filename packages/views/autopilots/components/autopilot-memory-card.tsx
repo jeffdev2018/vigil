@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Brain, Download } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@multica/core/api";
 import { autopilotMemoryOptions, hasAutopilotMemory } from "@multica/core/autopilots";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -28,15 +29,21 @@ export function AutopilotMemoryCard({
   const { data, isLoading } = useQuery(autopilotMemoryOptions(wsId, autopilotId));
 
   const handleExport = async () => {
-    // Browsers cannot be handed a string; the markdown becomes a blob URL that
-    // is revoked as soon as the click is dispatched.
-    const markdown = await api.exportDaemon(autopilotId);
-    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "DAEMON.md";
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      // Browsers cannot be handed a string; the markdown becomes a blob URL
+      // that is revoked as soon as the click is dispatched.
+      const markdown = await api.exportDaemon(autopilotId);
+      const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "DAEMON.md";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message ? err.message : t(($) => $.memory.export_failed),
+      );
+    }
   };
 
   return (

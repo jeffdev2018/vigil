@@ -15,6 +15,9 @@ export {
   issueStatusCategory,
   statusCategoryOfKey,
   statusFilterColumns,
+  visibleStatusKeys,
+  statusColumnKeys,
   type StatusFilterColumnsResult,
   normalizeStatusPatch,
 } from "./status-category";
+export * from "./wakeups";

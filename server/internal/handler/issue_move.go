@@ -42,7 +42,7 @@ func (h *Handler) MoveIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "failed to read request body")
 		return

@@ -10,6 +10,13 @@ import { mirrorLinksOptions, useCreateMirrorLink, useDeleteMirrorLink } from "@m
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
 
 /**
@@ -102,17 +109,24 @@ export function ProjectMirrorsSection({ projectId }: { projectId: string }) {
           )}
 
           <form className="flex flex-wrap items-center gap-2 px-2" onSubmit={submit}>
-            <select
-              aria-label={t(($) => $.mirrors.target)}
-              className="h-8 min-w-40 rounded-md border bg-background px-2 text-caption"
+            <Select
+              items={[
+                { value: "", label: t(($) => $.mirrors.target_placeholder) },
+                ...targets.map((p) => ({ value: p.id, label: p.title })),
+              ]}
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onValueChange={(value) => value !== null && setTarget(value)}
             >
-              <option value="">{t(($) => $.mirrors.target_placeholder)}</option>
-              {targets.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
+              <SelectTrigger size="sm" className="min-w-40" aria-label={t(($) => $.mirrors.target)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.mirrors.target_placeholder)}</SelectItem>
+                {targets.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               aria-label={t(($) => $.mirrors.trigger_label)}
               placeholder={t(($) => $.mirrors.trigger_placeholder)}

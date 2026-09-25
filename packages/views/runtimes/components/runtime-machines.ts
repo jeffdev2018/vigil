@@ -54,6 +54,34 @@ interface RuntimeMachineOptions {
    * Desktop sets this; web omits it.
    */
   ensureLocalMachine?: boolean;
+  /**
+   * Translates the cloud-provider fallback title used when a cloud machine
+   * has reported no device info and carries no shared custom name — the one
+   * case machineTitle() cannot itself render in the viewer's language (this
+   * file has no `t()`). Optional so callers that never show `machine.title`
+   * as prose (drop-downs keying off `id`, pickers, etc.) aren't forced
+   * through i18n; those fall back to the untranslated `"${provider} cloud"`
+   * this always returned. Real display surfaces (runtimes-page.tsx,
+   * runtime-detail-page.tsx) pass `(provider) => t($ => $.machine.metrics
+   * .cloud_worker_named, { provider: capitalize(provider) })`.
+   */
+  cloudMachineTitle?: (provider: string) => string;
+  /**
+   * Translated title for the synthesized placeholder machine (see
+   * `ensureLocalMachine` above) when no OS-reported `localMachineName` is
+   * available. Same optionality rationale as `cloudMachineTitle`: callers
+   * that never render `machine.title` as prose aren't forced through i18n.
+   * Falls back to the untranslated `"This machine"` this always returned.
+   */
+  localMachineTitle?: string;
+  /**
+   * Translated title for a machine machineTitle() otherwise cannot name —
+   * no shared custom name, no local override, no device name, and (for a
+   * non-cloud runtime) no daemon id to shorten. Same optionality rationale
+   * as `cloudMachineTitle`. Falls back to the untranslated `"Unknown
+   * machine"` this always returned.
+   */
+  unknownMachineTitle?: string;
 }
 
 interface RuntimeMachineDraft {
@@ -131,7 +159,7 @@ function placeholderLocalMachine(
   return {
     id: daemonId ? `local:${daemonId}` : "local:placeholder",
     daemonId,
-    title: options.localMachineName ?? "This machine",
+    title: options.localMachineName ?? options.localMachineTitle ?? "This machine",
     subtitle: null,
     deviceInfo: null,
     cliVersion: null,
@@ -217,14 +245,11 @@ function finalizeRuntimeMachine(
   const title = machineTitle(runtimes, {
     isCurrent,
     localMachineName: options.localMachineName,
+    cloudMachineTitle: options.cloudMachineTitle,
+    unknownMachineTitle: options.unknownMachineTitle,
   });
   const deviceInfo = first ? formatDeviceInfo(first.device_info ?? null) : null;
-  const subtitle = machineSubtitle({
-    title,
-    deviceInfo,
-    daemonId: draft.daemonId,
-    mode: draft.mode,
-  });
+  const subtitle = machineSubtitle({ title, deviceInfo });
   const healthByRuntime = runtimes.map((runtime) =>
     deriveRuntimeHealth(runtime, options.now),
   );
@@ -302,7 +327,12 @@ export function sharedCustomName(runtimes: AgentRuntime[]): string | null {
 
 function machineTitle(
   runtimes: AgentRuntime[],
-  options: { isCurrent: boolean; localMachineName?: string | null },
+  options: {
+    isCurrent: boolean;
+    localMachineName?: string | null;
+    cloudMachineTitle?: (provider: string) => string;
+    unknownMachineTitle?: string;
+  },
 ): string {
   // An explicit user-set machine name wins over everything, including the
   // OS-reported local machine name.
@@ -313,33 +343,32 @@ function machineTitle(
     return options.localMachineName;
   }
 
+  const unknown = options.unknownMachineTitle ?? "Unknown machine";
   const first = runtimes[0];
-  if (!first) return "Unknown machine";
+  if (!first) return unknown;
 
   const deviceName = runtimeDeviceName(first);
   if (deviceName) return deviceName;
 
   if (first.runtime_mode === "cloud") {
-    return `${capitalize(first.provider)} cloud`;
+    return options.cloudMachineTitle
+      ? options.cloudMachineTitle(first.provider)
+      : `${capitalize(first.provider)} cloud`;
   }
-  return first.daemon_id ? shortDaemonId(first.daemon_id) : "Unknown machine";
+  return first.daemon_id ? shortDaemonId(first.daemon_id) : unknown;
 }
 
+// Null when the device reported nothing readable: the row then shows a
+// translated "Local daemon" / "Cloud worker" and keeps the daemon id for
+// hover only, instead of a truncated identifier as the subtitle.
 function machineSubtitle({
   title,
   deviceInfo,
-  daemonId,
-  mode,
 }: {
   title: string;
   deviceInfo: string | null;
-  daemonId: string | null;
-  mode: AgentRuntime["runtime_mode"];
 }): string | null {
-  const compact = compactDeviceInfo(deviceInfo, title);
-  if (compact) return compact;
-  if (daemonId) return `daemon ${shortDaemonId(daemonId)}`;
-  return mode === "cloud" ? "Cloud worker" : null;
+  return compactDeviceInfo(deviceInfo, title);
 }
 
 function compactDeviceInfo(
@@ -415,7 +444,7 @@ function shortDaemonId(daemonId: string): string {
   return daemonId.length > 12 ? `${daemonId.slice(0, 8)}...` : daemonId;
 }
 
-function capitalize(value: string): string {
+export function capitalize(value: string): string {
   if (!value) return "Runtime";
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }

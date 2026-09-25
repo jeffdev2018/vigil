@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY idx_workspace_note_embedding_ws ON workspace_note_embedding (workspace_id);

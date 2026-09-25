@@ -12,12 +12,15 @@ import type { Workspace, WorkspaceMcpServer } from "../types";
 import {
   useCreateWorkspace,
   useDeleteWorkspace,
+  useLeaveWorkspace,
   useUpdateWorkspaceMcpServer,
 } from "./mutations";
 import { agentMcpServersOptions, workspaceKeys } from "./queries";
 import {
   isWorkspaceDeletePending,
+  isWorkspaceLeavePending,
   unmarkWorkspaceDeletePending,
+  unmarkWorkspaceLeavePending,
 } from "./pending-delete";
 
 function createWrapper(qc: QueryClient) {
@@ -237,6 +240,94 @@ describe("useDeleteWorkspace", () => {
       await expect(result.current.mutateAsync("ws-2")).rejects.toThrow("boom");
     });
     expect(isWorkspaceDeletePending("ws-2")).toBe(false);
+  });
+});
+
+describe("useLeaveWorkspace", () => {
+  let qc: QueryClient;
+  let leaveWorkspace: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
+
+  const seedList = () => {
+    qc.setQueryData<Workspace[]>(workspaceKeys.list(), [
+      makeWorkspace("ws-1", "keep-me"),
+      makeWorkspace("ws-2", "leave-me"),
+    ]);
+  };
+
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    leaveWorkspace = vi.fn().mockResolvedValue(undefined);
+    setApiInstance({ leaveWorkspace } as unknown as ApiClient);
+  });
+
+  afterEach(() => {
+    qc.clear();
+    unmarkWorkspaceLeavePending("ws-2");
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  // Without the marker the server's echo of OUR OWN leave reaches the
+  // realtime `member:removed` handler, which relocates the whole page in
+  // parallel with the flow's navigation and refetch.
+  it("marks the leave as self-initiated while it is in flight", async () => {
+    seedList();
+    let resolveLeave!: () => void;
+    leaveWorkspace.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveLeave = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() => useLeaveWorkspace(), {
+      wrapper: createWrapper(qc),
+    });
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.mutateAsync("ws-2");
+    });
+    await waitFor(() => expect(isWorkspaceLeavePending("ws-2")).toBe(true));
+
+    // No optimistic removal: the caller navigates only once this resolves.
+    expect(
+      (qc.getQueryData<Workspace[]>(workspaceKeys.list()) ?? []).map((w) => w.id),
+    ).toEqual(["ws-1", "ws-2"]);
+
+    await act(async () => {
+      resolveLeave();
+      await pending;
+    });
+  });
+
+  it("clears the left workspace's storage on success only", async () => {
+    seedList();
+    defaultStorage.setItem("multica_issue_draft:leave-me", "draft");
+    const { result } = renderHook(() => useLeaveWorkspace(), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync("ws-2");
+    });
+    expect(defaultStorage.getItem("multica_issue_draft:leave-me")).toBeNull();
+  });
+
+  it("lifts the marker and keeps storage when the leave fails", async () => {
+    seedList();
+    defaultStorage.setItem("multica_issue_draft:leave-me", "draft");
+    leaveWorkspace.mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useLeaveWorkspace(), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync("ws-2")).rejects.toThrow("boom");
+    });
+
+    // Still a member: a removal decided elsewhere must reach the handler.
+    expect(isWorkspaceLeavePending("ws-2")).toBe(false);
+    expect(defaultStorage.getItem("multica_issue_draft:leave-me")).toBe("draft");
   });
 });
 

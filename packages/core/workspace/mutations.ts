@@ -6,7 +6,9 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { workspaceKeys } from "./queries";
 import {
   markWorkspaceDeletePending,
+  markWorkspaceLeavePending,
   unmarkWorkspaceDeletePending,
+  unmarkWorkspaceLeavePending,
 } from "./pending-delete";
 
 export function useCreateWorkspace() {
@@ -20,6 +22,8 @@ export function useCreateWorkspace() {
       issue_prefix?: string;
       /** Seed the new workspace from a saved template run (K76). */
       template_run_id?: string;
+      /** Seed the new workspace from a catalogue pack (packs, vague B). */
+      pack_id?: string;
     }) => api.createWorkspace(data),
     // Seed the workspace list cache BEFORE callers navigate to /{newWs.slug}/issues.
     // The destination [workspaceSlug]/layout queries by slug from this cache;
@@ -46,6 +50,30 @@ export function useLeaveWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (workspaceId: string) => api.leaveWorkspace(workspaceId),
+    // Same shape as useDeleteWorkspace: no optimistic removal, the caller
+    // awaits this mutation and only navigates on success.
+    onMutate: (workspaceId) => {
+      // Mark the leave as self-initiated so the realtime `member:removed`
+      // handler no-ops instead of racing this flow's navigation with its own
+      // full-page relocate. See pending-delete.ts for lifetime rules.
+      markWorkspaceLeavePending(workspaceId);
+      const slug = qc
+        .getQueryData<Workspace[]>(workspaceKeys.list())
+        ?.find((w) => w.id === workspaceId)?.slug;
+      return { slug };
+    },
+    // The realtime handler used to own this cleanup; now that it skips our
+    // own leave, the flow has to clear the left workspace's persisted
+    // `${key}:${slug}` namespace itself. Success only — a failed leave means
+    // we are still a member and our drafts/view state must survive.
+    onSuccess: (_data, _workspaceId, ctx) => {
+      if (ctx?.slug) clearWorkspaceStorage(defaultStorage, ctx.slug);
+    },
+    // We are still a member after a failed leave, so a later removal decided
+    // elsewhere must reach the realtime handler again.
+    onError: (_err, workspaceId) => {
+      unmarkWorkspaceLeavePending(workspaceId);
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: workspaceKeys.list() });
     },
@@ -148,6 +176,30 @@ function useAgentMcpMutation<TVariables>(
     mutationFn,
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["agents", agentId, "mcp-servers"] }),
+  });
+}
+
+/**
+ * Attaches a library server to whichever agent the caller picks, for the tools
+ * catalogue page where the agent is chosen per click rather than fixed by the
+ * screen (JEF-426). `useAddAgentMcpServer` stays the hook for an agent's own
+ * settings tab, where the agent IS the screen.
+ *
+ * The workspace library listing carries each server's agent count, so it is
+ * invalidated alongside the agent's own binding list.
+ */
+export function useAttachMcpServerToAgent(wsId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, serverId }: { agentId: string; serverId: string }) =>
+      api.addAgentMcpServer(agentId, serverId),
+    onSettled: (_data, _error, { agentId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["agents", agentId, "mcp-servers"],
+        }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.mcpServers(wsId) }),
+      ]),
   });
 }
 

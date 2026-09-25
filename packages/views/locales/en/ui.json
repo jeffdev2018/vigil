@@ -1,8 +1,13 @@
 {
   "attach_file": "Attach file",
   "toggle_sidebar": "Toggle left sidebar",
+  "mobile_sidebar_title": "Sidebar",
+  "mobile_sidebar_description": "Displays the mobile sidebar.",
   "copy_code": "Copy code",
   "plain_text": "plain text",
+  "add_reaction": "Add reaction",
+  "loading": "Loading...",
+  "more_emojis": "More emojis...",
   "error_boundary": {
     "title": "Something went wrong displaying this section.",
     "description": "An unexpected error occurred.",

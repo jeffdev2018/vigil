@@ -1,8 +1,18 @@
 import type { ChatSession } from "./chat";
+import type { Label } from "./label";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
-export type AgentRuntimeMode = "local" | "cloud";
+/**
+ * "native" (OS plan, chantier 5) is a workspace-level runtime that runs in
+ * the browser server-side — no daemon, no CLI install. One row is
+ * provisioned per workspace when the server has a configured model
+ * (`native_runtime_available` in `/api/config`), so it behaves like any
+ * other `RuntimeDevice` to the rest of the frontend (selectable in
+ * `MikaRuntimeChoice`, listed by `GET /api/runtimes`) — only onboarding
+ * treats it specially, as the no-install fast path.
+ */
+export type AgentRuntimeMode = "local" | "cloud" | "native";
 
 // ---------------------------------------------------------------------------
 // Smart runtime routing (JEF-237)
@@ -314,6 +324,12 @@ export const RUNTIME_PROFILE_PROTOCOL_FAMILIES = [
 export type RuntimeProtocolFamily =
   (typeof RUNTIME_PROFILE_PROTOCOL_FAMILIES)[number];
 
+export const RUNTIME_PROFILE_RUNTIME_TYPES = [
+  ...RUNTIME_PROFILE_PROTOCOL_FAMILIES,
+  "omp",
+] as const;
+export type RuntimeProfileType = (typeof RUNTIME_PROFILE_RUNTIME_TYPES)[number];
+
 // Profile visibility mirrors RuntimeVisibility's vocabulary but uses the
 // workspace/private axis the server documents for profiles.
 export type RuntimeProfileVisibility = "workspace" | "private";
@@ -323,6 +339,7 @@ export interface RuntimeProfile {
   workspace_id: string;
   display_name: string;
   protocol_family: RuntimeProtocolFamily;
+  runtime_type?: RuntimeProfileType;
   command_name: string;
   description: string | null;
   fixed_args: string[];
@@ -333,12 +350,14 @@ export interface RuntimeProfile {
   updated_at: string;
 }
 
-// POST body. `protocol_family` is required and immutable after creation.
+// POST body. runtime_type is the immutable compatibility target; the server
+// derives protocol_family. Older clients may still send protocol_family alone.
 // Optional fields are omitted entirely when unset (never sent as null/empty)
 // so the server applies its own defaults.
 export interface CreateRuntimeProfileRequest {
   display_name: string;
-  protocol_family: RuntimeProtocolFamily;
+  protocol_family?: RuntimeProtocolFamily;
+  runtime_type?: RuntimeProfileType;
   command_name: string;
   description?: string;
   fixed_args?: string[];
@@ -379,6 +398,10 @@ export interface AgentActivityBucket {
   bucket_at: string;
   task_count: number;
   failed_count: number;
+  // task_count = completed_count + failed_count + cancelled_count; the
+  // back-end always reports all three.
+  completed_count: number;
+  cancelled_count: number;
 }
 
 // 30-day total run count per agent, drives the Agents-list RUNS column.
@@ -463,8 +486,16 @@ export type TaskStatus =
   | "cancelled"
   /** Pause, steer, resume (K19): stopped at a safe boundary, waiting for a human. */
   | "paused";
+/** Point-in-time identity of the actor that cancelled a run. */
+export interface TaskCancellationActor {
+  /** Open wire value; current servers emit member, agent, or system. */
+  type: string;
+  id?: string;
+  name?: string;
+}
 
 export interface AgentTask {
+  wakeup_id?: string;
   id: string;
   agent_id: string;
   runtime_id: string;
@@ -523,6 +554,10 @@ export interface AgentTask {
   checkpointed_at?: string | null;
   /** Issue router (K27): risk level, pool and escalation behind this run. */
   routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
+  /** The input comment was edited or deleted, invalidating this run. */
+  cancelled_by_comment_change?: boolean;
+  /** Present on cancellations recorded by a backend with actor provenance. */
+  cancelled_by?: TaskCancellationActor;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -549,6 +584,12 @@ export interface AgentTask {
    * trigger/coalesced union; an explicitly empty array is still authoritative.
    */
   delivered_comment_ids?: string[];
+  /** Exact run-scoped live-input capability negotiated at this task's start. */
+  supplement_capability?: string;
+  /** Ordinary historical comments explicitly bound to this run, in send order. */
+  supplement_comment_ids?: string[];
+  /** Server-side invocation verdict for the current member and this agent. */
+  can_supplement?: boolean;
   /**
    * Canonical short description of what triggered this task — snapshot
    * taken at creation time. For comment-triggered tasks it's the
@@ -559,9 +600,9 @@ export interface AgentTask {
    */
   trigger_summary?: string;
   /**
-   * Server-computed source discriminator used by the activity row to label
-   * tasks that have no linked issue (so e.g. quick-create tasks render
-   * with a meaningful title instead of falling through to "Untracked").
+   * Server-computed source discriminator used by task surfaces. Quick-create
+   * remains quick_create after its result issue is linked, so consumers can
+   * distinguish creation work from later direct runs on that issue.
    */
   kind?: "comment" | "autopilot" | "chat" | "quick_create" | "direct";
   /**
@@ -625,6 +666,20 @@ export interface AgentTask {
    * rather than disabling it, so absence and `false` mean the same thing.
    */
   revertable?: boolean;
+  /**
+   * Worktree branch lifecycle (JEF-255): where this run's branch stands after
+   * the run ended. `promoted_at` marks a branch the user chose to push and
+   * open a pull request from (`promote_pr_url` is that PR's URL, "" when the
+   * daemon could not report one); `discarded_at` marks a branch+worktree the
+   * user chose to delete. `pending_branch_action` is the promote/discard the
+   * daemon is executing right now — while set, no new branch action is
+   * accepted (409 run_branch_action_pending). All absent on servers that
+   * predate the feature, which reads as "no action taken, none in flight".
+   */
+  promoted_at?: string | null;
+  discarded_at?: string | null;
+  promote_pr_url?: string;
+  pending_branch_action?: "" | "promote" | "discard";
   /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
@@ -1172,10 +1227,12 @@ export interface SkillSummary {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-	/** Present only when returned from an agent-scoped assignment endpoint. */
-	enabled?: boolean;
+  /** Present only when returned from an agent-scoped assignment endpoint. */
+  enabled?: boolean;
   /** Skill Miner (K58): a draft waits for a human before any agent gets it. */
   status?: "draft" | "published" | (string & {});
+  /** Present on workspace skill lists after a backend that bulk-attaches labels. */
+  labels?: Label[];
 }
 
 export interface Skill extends SkillSummary {
@@ -1240,6 +1297,11 @@ export interface IssueUsageSummary {
   uncosted_output_tokens?: number;
   uncosted_cache_read_tokens?: number;
   uncosted_cache_write_tokens?: number;
+  // Coverage fields are optional for compatibility with older backends.
+  // task_count remains the legacy count of runs represented by usage rows.
+  terminal_task_count?: number;
+  metered_task_count?: number;
+  unreported_task_count?: number;
   task_count: number;
 }
 
@@ -1362,6 +1424,10 @@ export interface DashboardAgentRunTime {
   agent_id: string;
   total_seconds: number;
   task_count: number;
+  // Optional for compatibility with backends predating usage-coverage
+  // reporting. Consumers can still identify the fully-unreported case when
+  // this is absent by checking whether the agent has any usage rows.
+  metered_task_count?: number;
   failed_count: number;
   // Runs the user stopped mid-flight. Disjoint from `failed_count`, and
   // both are subsets of `task_count` — the succeeded count is the
@@ -1705,6 +1771,13 @@ export interface ScorecardTotals {
   runs_no_intervention: number;
   cost_usd_ticks_total: number;
   low_sample: boolean;
+}
+
+/** GET /api/agents/{id}/cost-estimate — mean priced cost of recent runs; null = unknown. */
+export interface AgentCostEstimate {
+  agent_id: string;
+  sample_runs: number;
+  avg_cost_usd_ticks: number | null;
 }
 
 export interface AgentScorecard {

@@ -187,6 +187,14 @@ func TestChatSessionParticipantCanReadButNotReshape(t *testing.T) {
 			map[string]any{"title": "hijacked"}), peerUserID),
 		"sessionId", sessionID)
 	testutil.Call(t, testHandler.UpdateChatSession, renameReq).Want(http.StatusForbidden)
+
+	// pinned_at lives on the shared session row: pinning reorders the
+	// creator's list, so it is the creator's call too.
+	pinReq := testutil.WithURLParams(
+		asWorkspaceMember(t, newRequest("PATCH", "/api/chat/sessions/"+sessionID+"/pin",
+			map[string]any{"pinned": true}), peerUserID),
+		"sessionId", sessionID)
+	testutil.Call(t, testHandler.SetChatSessionPinned, pinReq).Want(http.StatusForbidden)
 }
 
 func TestChatSessionParticipantSelfLeave(t *testing.T) {

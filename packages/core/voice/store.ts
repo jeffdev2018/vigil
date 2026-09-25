@@ -101,9 +101,10 @@ export const useVoiceStore = create<VoiceState>()(
 
 /**
  * BCP 47 tag for SpeechSynthesis and for the transcriber, from the voice
- * preference and the app locale. `null` means "let the provider decide" — only
- * reachable from "auto" with a locale the product has no tag for, where
- * guessing would be worse than not saying.
+ * preference and the app locale. Always returns a real tag: an "auto"
+ * preference resolving to a locale the product has no mapping for falls back
+ * to "en-US" (or keeps a regioned tag like "en-GB" as-is) rather than an
+ * unspeakable bare code.
  */
 export function resolveVoiceLocale(
   preference: VoiceLanguage,

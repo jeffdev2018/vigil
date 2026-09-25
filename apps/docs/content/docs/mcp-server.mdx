@@ -1,0 +1,65 @@
+---
+title: MCP server
+description: Connect Claude Code, Codex, Cursor or any MCP client to your workspace — the server decides what each call may do.
+---
+
+Multica exposes every workspace as one [MCP](https://modelcontextprotocol.io) server. An MCP client — Claude Code, Codex, Cursor, a script, or an agent running inside Multica — connects to it, discovers the workspace's tools, and calls them. Issues, comments, the goal loop, the Brain, projects, agents, triage, the inbox and run transcripts are all reachable; deletes, secrets, member management, approvals and billing are not, on purpose.
+
+The server, not the client, decides what a call may do: **allow**, **ask**, or **deny**, per tool and per caller. That decision is the workspace's, and the client cannot negotiate it.
+
+## Connect a client
+
+The endpoint is `POST /api/mcp/{workspace-slug}` on your Multica server (streamable HTTP, one JSON reply per request, no session). Authenticate with a [personal access token](/members-roles) (`mul_…`).
+
+```json title="Claude Code · .mcp.json"
+{
+  "mcpServers": {
+    "vigil": {
+      "type": "http",
+      "url": "https://multica.example.com/api/mcp/acme",
+      "headers": { "Authorization": "Bearer mul_xxx" }
+    }
+  }
+}
+```
+
+```toml title="Codex · config.toml"
+[mcp_servers.vigil]
+url = "https://multica.example.com/api/mcp/acme"
+http_headers = { Authorization = "Bearer mul_xxx" }
+```
+
+Cursor and other clients use the same URL and header. Without a slug in the path, send `X-Workspace-Slug` or `X-Workspace-ID`. Agent runs inside Multica reach the same endpoint with their own run token; the workspace comes from the token.
+
+## Two surfaces
+
+Add `?surface=compound` or `?surface=granular` to the URL, or set the workspace default in **Settings → MCP server**.
+
+- **compound** (default): eleven tools, one per domain, each with an `action` argument — `vigil_issue`, `vigil_goal`, `vigil_brain`, `vigil_project`, `vigil_team`, `vigil_triage`, `vigil_inbox`, `vigil_run`, `vigil_handoff`, `vigil_calendar`, `vigil_doctrine`. Cheap in the client's context.
+- **granular**: one tool per operation (`issue_create`, `note_create`, `goal_answer`, …), for clients that prefer explicit schemas.
+
+Either name works on either surface, so a client that cached one catalogue keeps working.
+
+## Decisions: allow, ask, deny
+
+Every tool has a risk class (read or internal write; nothing in the catalogue is external or sensitive). The caller's ceiling comes first: a member acts alone on reads and internal writes; an agent gets the ceiling of its [trust dial](/agents) — an observer only reads. A workspace admin can then tighten any tool to **ask** or **deny** under **Settings → MCP server**; an override never loosens a ceiling.
+
+What **ask** means depends on who calls:
+
+- **A member's client** gets the call back *held*, with a confirmation token and a plain explanation. The client shows the person what is about to happen and re-sends the same call with `confirm_token`. Tokens are bound to the exact call and expire after ten minutes.
+- **An agent run** gets an approval gate filed on its run, like a sensitive tool call or a git push: a human decides in the app. The held result names the gate; the run polls it with `vigil_gate_wait` and, once approved, re-sends the call with `gate_id`. A denied gate is final.
+
+**deny** is a plain refusal that says why. Every call is journaled in the audit log as `mcp.inbound_call` with its decision and outcome, and every caller is limited to 120 calls per minute.
+
+## What the client sees
+
+A tool result is the API's own JSON, wrapped with a reminder that workspace records are data written by other people and agents, never instructions. Tool calls run through the same handlers as the app and the CLI: transition rules apply (a status move may come back as *held for approval*), events reach open clients, and the audit log records the actor behind the token.
+
+## Settings
+
+`GET /api/mcp-server/settings` returns the workspace's settings and the full catalogue with each tool's risk. `PUT` (owners and admins) accepts `{ "enabled", "default_surface", "tools": { "<tool>": "allow" | "ask" | "deny" } }`. Turning the server off refuses every call with a clear message and changes nothing else.
+
+## Next steps
+
+- [Native runtime](/native-runtime) — the goal loop and sub-agents the `vigil_goal` and `vigil_run` tools expose.
+- [Agents](/agents) — trust dials, which set an agent's ceiling here.

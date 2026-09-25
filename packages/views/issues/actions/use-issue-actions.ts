@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { Issue, UpdateIssueRequest } from "@multica/core/types";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
+import type { IssueDependencyType } from "@multica/core/types";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useModalStore } from "@multica/core/modals";
 import { useUpdateIssue } from "@multica/core/issues/mutations";
@@ -29,11 +30,13 @@ export interface UseIssueActionsResult {
   openInNewTab: () => void;
   togglePin: () => void;
   copyLink: () => Promise<void>;
+  copyCommentLink: (commentId: string) => Promise<void>;
   openCreateSubIssue: () => void;
   openSetParent: () => void;
   removeParent: () => void;
   openAddChild: () => void;
-  openAddDependency: (type: "blocks" | "blocked_by") => void;
+  openAddDependency: (type?: IssueDependencyType) => void;
+  openMarkDuplicate: () => void;
   openDeleteConfirm: (opts?: { onDeletedFallbackPath?: string }) => void;
 }
 
@@ -177,6 +180,26 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
     }
   }, [paths, issueId, issueIdentifier, navigation, t]);
 
+  // Built during render so `copyCommentLink` depends on this string alone:
+  // `paths` is rebuilt on every render, and the handler is passed to every
+  // memoized comment card, so depending on it would re-render all of them on
+  // any unrelated page update. Identifier form for the same reason as `copyLink`.
+  const issueShareUrl = issueId
+    ? navigation.getShareableUrl(paths.issueDetail(issueIdentifier || issueId))
+    : null;
+  const copyCommentLink = useCallback(async (commentId: string) => {
+    if (!issueShareUrl) return;
+    // The `#comment-…` fragment is the deep-link anchor `IssueDetailRoute`
+    // resolves via `parseCommentHighlightHash`; dropping it would downgrade the
+    // link to the whole issue.
+    const url = `${issueShareUrl}#comment-${commentId}`;
+    if (await copyText(url)) {
+      toast.success(t(($) => $.comment.link_copied));
+    } else {
+      toast.error(t(($) => $.comment.link_copy_failed));
+    }
+  }, [issueShareUrl, t]);
+
   const openCreateSubIssue = useCallback(() => {
     if (!issueId) return;
     openModal("create-issue", {
@@ -206,6 +229,11 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
   const openSetParent = useCallback(() => {
     if (!issueId) return;
     openModal("issue-set-parent", { issueId });
+  }, [openModal, issueId]);
+
+  const openMarkDuplicate = useCallback(() => {
+    if (!issueId) return;
+    openModal("issue-mark-duplicate", { issueId });
   }, [openModal, issueId]);
 
   // Detach from the parent and promote to a standalone issue. Reversible
@@ -258,9 +286,9 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
   }, [openModal, issueId]);
 
   const openAddDependency = useCallback(
-    (type: "blocks" | "blocked_by") => {
+    (type?: IssueDependencyType) => {
       if (!issueId) return;
-      openModal("issue-add-dependency", { issueId, type });
+      openModal("issue-add-dependency", type ? { issueId, type } : { issueId });
     },
     [openModal, issueId],
   );
@@ -283,11 +311,13 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
     openInNewTab,
     togglePin,
     copyLink,
+    copyCommentLink,
     openCreateSubIssue,
     openSetParent,
     removeParent,
     openAddChild,
     openAddDependency,
+    openMarkDuplicate,
     openDeleteConfirm,
   };
 }

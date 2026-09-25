@@ -10,9 +10,10 @@ import (
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
 
-// The producer half of F11: the daemon measures an attempt's diff and the
-// /complete callback is where it lands. Everything downstream (the compare
-// view's stat, its "truncated" badge) reads the two columns written here.
+// The producer half of F11/JEF-255: the daemon measures a run's diff and the
+// /complete and /fail callbacks are where it lands. Everything downstream (the
+// compare view's stat, its "truncated" badge, the run-diff endpoint) reads the
+// two columns written here.
 
 // completeWithDiff drives the real /complete handler for taskID with an
 // optional diff payload.
@@ -133,22 +134,31 @@ func TestCompleteTaskRecordsTruncatedAttemptDiff(t *testing.T) {
 	}
 }
 
-// A run outside a group has no column in any compare view, so a diff on its
-// callback is ignored rather than written.
-func TestCompleteTaskIgnoresDiffOutsideARunGroup(t *testing.T) {
+// JEF-255: every terminal run carries its diff, not just racing attempts — the
+// run-diff endpoint serves it for any run, so a diff on an ordinary run's
+// callback is recorded, not ignored.
+func TestCompleteTaskRecordsDiffOutsideARunGroup(t *testing.T) {
 	fx := testutil.New(testPool, testWorkspaceID, testUserID)
 	issueID := fx.Issue(t, "ordinary run sending a diff")
 	taskID := seedAttempt(t, fx, "diff-ungrouped", "", issueID)
 
+	patch := "diff --git a/a.txt b/a.txt\n"
 	completeWithDiff(t, taskID, map[string]any{
 		"output":       "done",
 		"diff_stat":    map[string]any{"files": 1, "insertions": 1, "deletions": 0},
-		"diff_unified": "diff --git a/a.txt b/a.txt\n",
+		"diff_unified": patch,
 	})
 
 	stat, unified := readTaskDiff(t, fx, taskID)
-	if len(stat) != 0 || unified != nil {
-		t.Errorf("ungrouped task got diff_stat=%q diff_unified=%v, want both untouched", stat, unified)
+	var got map[string]int
+	if err := json.Unmarshal(stat, &got); err != nil {
+		t.Fatalf("decode diff_stat %q: %v", stat, err)
+	}
+	if got["files"] != 1 || got["insertions"] != 1 {
+		t.Errorf("diff_stat = %v, want files 1 / insertions 1", got)
+	}
+	if unified == nil || *unified != patch {
+		t.Errorf("diff_unified = %v, want the patch verbatim", unified)
 	}
 }
 
@@ -185,27 +195,36 @@ func TestFailTaskRecordsRunGroupAttemptDiff(t *testing.T) {
 	}
 }
 
-// A run outside a group has no compare-view column, so a diff on its /fail
-// callback is ignored rather than written — same rule as /complete.
-func TestFailTaskIgnoresDiffOutsideARunGroup(t *testing.T) {
+// JEF-255: an ordinary failed run's diff lands exactly like an attempt's —
+// same rule as /complete.
+func TestFailTaskRecordsDiffOutsideARunGroup(t *testing.T) {
 	fx := testutil.New(testPool, testWorkspaceID, testUserID)
 	issueID := fx.Issue(t, "ordinary failed run sending a diff")
 	taskID := seedAttempt(t, fx, "diff-ungrouped-fail", "", issueID)
 
+	patch := "diff --git a/a.txt b/a.txt\n"
 	failWithDiff(t, taskID, map[string]any{
 		"error":        "agent crashed mid-run",
 		"diff_stat":    map[string]any{"files": 1, "insertions": 1, "deletions": 0},
-		"diff_unified": "diff --git a/a.txt b/a.txt\n",
+		"diff_unified": patch,
 	})
 
 	stat, unified := readTaskDiff(t, fx, taskID)
-	if len(stat) != 0 || unified != nil {
-		t.Errorf("ungrouped task got diff_stat=%q diff_unified=%v, want both untouched", stat, unified)
+	var got map[string]int
+	if err := json.Unmarshal(stat, &got); err != nil {
+		t.Fatalf("decode diff_stat %q: %v", stat, err)
+	}
+	if got["files"] != 1 || got["insertions"] != 1 {
+		t.Errorf("diff_stat = %v, want files 1 / insertions 1", got)
+	}
+	if unified == nil || *unified != patch {
+		t.Errorf("diff_unified = %v, want the patch verbatim", unified)
 	}
 }
 
-// The claim payload is the daemon's only signal that a task is an attempt:
-// without run_group_id on the wire it never measures a diff at all.
+// run_group_id on the claim wire still marks the task as an attempt for the
+// daemon (attempt bookkeeping); since JEF-255 the diff no longer depends on it
+// — every terminal run with a branch is measured.
 func TestClaimResponseCarriesRunGroupID(t *testing.T) {
 	fx := testutil.New(testPool, testWorkspaceID, testUserID)
 	issueID := fx.Issue(t, "claim payload names the group")

@@ -1,0 +1,464 @@
+[
+  {
+    "id": "q01",
+    "lang": "fr",
+    "kind": "keyword",
+    "query": "fenêtre de gel",
+    "relevant": [
+      "deploy-procedure-current"
+    ]
+  },
+  {
+    "id": "q02",
+    "lang": "fr",
+    "kind": "keyword",
+    "query": "Cabinet Ferrand",
+    "relevant": [
+      "supplier-contact-legal"
+    ]
+  },
+  {
+    "id": "q03",
+    "lang": "fr",
+    "kind": "keyword",
+    "query": "TonerExpress",
+    "relevant": [
+      "printer-vendor-b",
+      "vendor-print-decision"
+    ]
+  },
+  {
+    "id": "q04",
+    "lang": "fr",
+    "kind": "keyword",
+    "query": "quota réduit de tickets",
+    "relevant": [
+      "onboarding-support"
+    ]
+  },
+  {
+    "id": "q05",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Un correctif de sécurité peut-il être déployé un vendredi soir malgré la fenêtre de gel habituelle ?",
+    "relevant": [
+      "deploy-procedure-current"
+    ]
+  },
+  {
+    "id": "q06",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Quel est notre fournisseur actuel d'imprimantes ?",
+    "relevant": [
+      "printer-vendor-a",
+      "vendor-print-decision"
+    ]
+  },
+  {
+    "id": "q07",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Est-ce qu'on peut travailler depuis l'étranger ?",
+    "relevant": [
+      "hr-remote-work-policy"
+    ]
+  },
+  {
+    "id": "q08",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Qu'est-ce qui se passe si mon compte est bloqué après plusieurs tentatives de connexion ratées ?",
+    "relevant": [
+      "support-macro-account-lockout"
+    ]
+  },
+  {
+    "id": "q09",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Est-ce qu'on va sortir une application mobile cette année ?",
+    "relevant": [
+      "product-decision-mobile-app"
+    ]
+  },
+  {
+    "id": "q10",
+    "lang": "fr",
+    "kind": "natural",
+    "query": "Quel est le rapport entre la revue trimestrielle des accès et la réponse à un incident de sécurité ?",
+    "relevant": [
+      "security-incident-response",
+      "security-access-review"
+    ]
+  },
+  {
+    "id": "q11",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "query": "Est-ce qu'on peut appeler deux fois de suite la même facture payée sans risque de double paiement côté fournisseur ?",
+    "relevant": [
+      "billing-webhook-current"
+    ],
+    "crosslang": true
+  },
+  {
+    "id": "q12",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "query": "Quelles sont les règles pour se faire rembourser des frais professionnels ?",
+    "relevant": [
+      "hr-expense-cn"
+    ],
+    "crosslang": true
+  },
+  {
+    "id": "q13",
+    "lang": "fr",
+    "kind": "paraphrase",
+    "query": "Que doit-on faire avant de signer un nouveau contrat important avec un prestataire ?",
+    "relevant": [
+      "supplier-contact-legal"
+    ]
+  },
+  {
+    "id": "q14",
+    "lang": "fr",
+    "kind": "accent",
+    "query": "quelle est la politique de securite ?",
+    "relevant": [
+      "security-incident-response"
+    ]
+  },
+  {
+    "id": "q15",
+    "lang": "fr",
+    "kind": "accent",
+    "query": "combien de jours de conges par an ?",
+    "relevant": [
+      "leave-policy-fr"
+    ]
+  },
+  {
+    "id": "q16",
+    "lang": "fr",
+    "kind": "accent",
+    "query": "quelle est la procedure de deploiement standard ?",
+    "relevant": [
+      "deploy-procedure-current"
+    ]
+  },
+  {
+    "id": "q17",
+    "lang": "fr",
+    "kind": "accent",
+    "query": "date d'echeance du renouvellement du certificat SSL",
+    "relevant": [
+      "runbook-ssl-renewal"
+    ]
+  },
+  {
+    "id": "q18",
+    "lang": "fr",
+    "kind": "accent",
+    "query": "comment reinitialiser un mot de passe client ?",
+    "relevant": [
+      "support-macro-password-reset"
+    ]
+  },
+  {
+    "id": "q19",
+    "lang": "fr",
+    "kind": "identifier",
+    "query": "à quoi sert le fichier /etc/nginx/conf.d/api.conf ?",
+    "relevant": [
+      "runbook-ssl-renewal"
+    ]
+  },
+  {
+    "id": "q20",
+    "lang": "fr",
+    "kind": "identifier",
+    "query": "c'est quoi le ticket SUP-1042 ?",
+    "relevant": [
+      "sql-index-invoice",
+      "apac-support-team-notes"
+    ]
+  },
+  {
+    "id": "q21",
+    "lang": "en",
+    "kind": "keyword",
+    "query": "grandfathering",
+    "relevant": [
+      "product-decision-pricing"
+    ]
+  },
+  {
+    "id": "q22",
+    "lang": "en",
+    "kind": "keyword",
+    "query": "point-in-time recovery",
+    "relevant": [
+      "runbook-database-restore"
+    ]
+  },
+  {
+    "id": "q23",
+    "lang": "en",
+    "kind": "keyword",
+    "query": "PayLoop",
+    "relevant": [
+      "billing-webhook-current"
+    ]
+  },
+  {
+    "id": "q24",
+    "lang": "en",
+    "kind": "keyword",
+    "query": "bulk issue import",
+    "relevant": [
+      "api-versioning-v2",
+      "changelog-v2140"
+    ]
+  },
+  {
+    "id": "q25",
+    "lang": "en",
+    "kind": "natural",
+    "query": "Who do I contact when a PayLoop integration problem is more than a routine reconciliation discrepancy?",
+    "relevant": [
+      "billing-webhook-current"
+    ]
+  },
+  {
+    "id": "q26",
+    "lang": "en",
+    "kind": "natural",
+    "query": "What happens if a database restore fails a second time with the same backup?",
+    "relevant": [
+      "runbook-database-restore"
+    ]
+  },
+  {
+    "id": "q27",
+    "lang": "en",
+    "kind": "natural",
+    "query": "Which roadmap meeting first flagged pricing rigidity as something to revisit?",
+    "relevant": [
+      "product-decision-pricing",
+      "meeting-notes-roadmap-q3"
+    ]
+  },
+  {
+    "id": "q28",
+    "lang": "en",
+    "kind": "natural",
+    "query": "What should a reviewer do when a pull request touches the database, beyond just reading the diff?",
+    "relevant": [
+      "coding-conventions-backend"
+    ]
+  },
+  {
+    "id": "q29",
+    "lang": "en",
+    "kind": "natural",
+    "query": "Did Coralis send a mass email to every affected customer after the August billing webhook outage?",
+    "relevant": [
+      "incident-postmortem-aug"
+    ]
+  },
+  {
+    "id": "q30",
+    "lang": "en",
+    "kind": "natural",
+    "query": "How long does a deprecated API field keep working before it can actually be removed?",
+    "relevant": [
+      "api-versioning-v2"
+    ]
+  },
+  {
+    "id": "q31",
+    "lang": "en",
+    "kind": "paraphrase",
+    "query": "Is it fine to push a new release right before the weekend if nothing urgent is going on?",
+    "relevant": [
+      "deploy-procedure-current"
+    ],
+    "crosslang": true
+  },
+  {
+    "id": "q32",
+    "lang": "en",
+    "kind": "paraphrase",
+    "query": "If the vendor sends the same billing notification twice, could a customer end up charged twice?",
+    "relevant": [
+      "billing-webhook-current"
+    ]
+  },
+  {
+    "id": "q33",
+    "lang": "en",
+    "kind": "identifier",
+    "query": "What does BILLING_WEBHOOK_SECRET_NAME control?",
+    "relevant": [
+      "billing-webhook-current",
+      "incident-postmortem-aug"
+    ]
+  },
+  {
+    "id": "q34",
+    "lang": "en",
+    "kind": "identifier",
+    "query": "What changed in v2.14.3?",
+    "relevant": [
+      "api-versioning-v2"
+    ]
+  },
+  {
+    "id": "q35",
+    "lang": "en",
+    "kind": "identifier",
+    "query": "Which table needed the idx_invoice_due_date index?",
+    "relevant": [
+      "sql-index-invoice"
+    ]
+  },
+  {
+    "id": "q36",
+    "lang": "zh",
+    "kind": "keyword",
+    "query": "报销",
+    "relevant": [
+      "hr-expense-cn"
+    ]
+  },
+  {
+    "id": "q37",
+    "lang": "zh",
+    "kind": "keyword",
+    "query": "季度访问权限审查",
+    "relevant": [
+      "security-access-review"
+    ]
+  },
+  {
+    "id": "q38",
+    "lang": "zh",
+    "kind": "natural",
+    "query": "工单升级给工程团队的标准是什么?",
+    "relevant": [
+      "support-escalation-policy"
+    ]
+  },
+  {
+    "id": "q39",
+    "lang": "zh",
+    "kind": "natural",
+    "query": "上海办公室新员工第一天需要做什么?",
+    "relevant": [
+      "apac-onboarding"
+    ]
+  },
+  {
+    "id": "q40",
+    "lang": "zh",
+    "kind": "natural",
+    "query": "亚太支持团队上个月的工单量有什么变化?",
+    "relevant": [
+      "apac-support-team-notes"
+    ]
+  },
+  {
+    "id": "q41",
+    "lang": "zh",
+    "kind": "paraphrase",
+    "query": "如果数据库出了问题,需要把数据恢复到出问题之前的某一个精确时间点,应该怎么做?",
+    "relevant": [
+      "runbook-database-restore"
+    ],
+    "crosslang": true
+  },
+  {
+    "id": "q42",
+    "lang": "zh",
+    "kind": "paraphrase",
+    "query": "如果我想休几天,要提前多久告诉公司?",
+    "relevant": [
+      "leave-policy-cn"
+    ]
+  },
+  {
+    "id": "q43",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "连接池耗尽",
+    "relevant": [
+      "incident-postmortem-mar"
+    ]
+  },
+  {
+    "id": "q44",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "权限审查",
+    "relevant": [
+      "security-access-review"
+    ]
+  },
+  {
+    "id": "q45",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "报销单",
+    "relevant": [
+      "hr-expense-cn"
+    ]
+  },
+  {
+    "id": "q46",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "新员工入职",
+    "relevant": [
+      "apac-onboarding"
+    ]
+  },
+  {
+    "id": "q47",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "工单升级",
+    "relevant": [
+      "support-escalation-policy"
+    ]
+  },
+  {
+    "id": "q48",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "法定节假日",
+    "relevant": [
+      "company-holidays-cn"
+    ]
+  },
+  {
+    "id": "q49",
+    "lang": "zh",
+    "kind": "cjk",
+    "query": "年假可以跨年使用吗?",
+    "relevant": [
+      "leave-policy-cn"
+    ]
+  },
+  {
+    "id": "q50",
+    "lang": "zh",
+    "kind": "identifier",
+    "query": "SUP-1042是什么问题?",
+    "relevant": [
+      "sql-index-invoice",
+      "apac-support-team-notes"
+    ]
+  }
+]

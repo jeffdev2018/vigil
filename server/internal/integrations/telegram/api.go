@@ -187,11 +187,38 @@ type MessageEntity struct {
 	Length int    `json:"length"`
 }
 
-// Update is the getUpdates envelope entry. Only new messages are consumed;
-// edits, channel posts, and callback queries are ignored in v1.
+// Update is the getUpdates envelope entry. Edits and channel posts are still
+// ignored; callback queries carry the inline-keyboard clicks of the inline
+// approval buttons.
 type Update struct {
-	UpdateID int64    `json:"update_id"`
-	Message  *Message `json:"message"`
+	UpdateID      int64          `json:"update_id"`
+	Message       *Message       `json:"message"`
+	CallbackQuery *CallbackQuery `json:"callback_query,omitempty"`
+}
+
+// CallbackQuery is one inline-keyboard button press. Data is the button's
+// callback_data verbatim — Telegram caps it at 64 bytes, which is why the
+// approval payload packs its UUIDs rather than spelling them out.
+type CallbackQuery struct {
+	ID      string   `json:"id"`
+	From    *User    `json:"from"`
+	Message *Message `json:"message"`
+	Data    string   `json:"data"`
+}
+
+// InlineKeyboardButton is one button of an inline keyboard. Exactly one of
+// CallbackData and URL is set: Telegram rejects a button carrying both.
+type InlineKeyboardButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data,omitempty"`
+	URL          string `json:"url,omitempty"`
+}
+
+// InlineKeyboardMarkup is the reply_markup shape carrying the buttons. Rows
+// are rendered one button each: an approval option's label is a sentence, and
+// two of them side by side truncate on a phone.
+type InlineKeyboardMarkup struct {
+	InlineKeyboard [][]InlineKeyboardButton `json:"inline_keyboard"`
 }
 
 // GetMe validates the token and returns the bot's own identity.
@@ -227,9 +254,10 @@ func (a *botAPI) GetUpdates(ctx context.Context, offset int64) ([]Update, error)
 	err := a.call(ctx, "getUpdates", getUpdatesParams{
 		Offset:  offset,
 		Timeout: longPollTimeoutSecs,
-		// Restrict the stream to plain messages: fewer wakeups, and edits /
-		// reactions / channel posts never enter the pipeline.
-		AllowedUpdates: []string{"message"},
+		// Restrict the stream to plain messages and button presses: fewer
+		// wakeups, and edits / reactions / channel posts never enter the
+		// pipeline.
+		AllowedUpdates: []string{"message", "callback_query"},
 	}, &updates)
 	if err != nil {
 		var ae *apiError
@@ -242,11 +270,12 @@ func (a *botAPI) GetUpdates(ctx context.Context, offset int64) ([]Update, error)
 }
 
 type sendMessageParams struct {
-	ChatID          int64            `json:"chat_id"`
-	Text            string           `json:"text"`
-	ParseMode       string           `json:"parse_mode,omitempty"`
-	MessageThreadID int64            `json:"message_thread_id,omitempty"`
-	ReplyParameters *replyParameters `json:"reply_parameters,omitempty"`
+	ChatID          int64                 `json:"chat_id"`
+	Text            string                `json:"text"`
+	ParseMode       string                `json:"parse_mode,omitempty"`
+	MessageThreadID int64                 `json:"message_thread_id,omitempty"`
+	ReplyParameters *replyParameters      `json:"reply_parameters,omitempty"`
+	ReplyMarkup     *InlineKeyboardMarkup `json:"reply_markup,omitempty"`
 }
 
 // replyParameters is Telegram's current quote-reply shape. The legacy
@@ -286,9 +315,31 @@ type editMessageTextParams struct {
 }
 
 // EditMessageText replaces a previously sent message's text — the streaming
-// primitive. "message is not modified" errors are swallowed by the caller.
+// primitive. Omitting reply_markup also clears any inline keyboard, which is
+// what retires the buttons of a settled approval. "message is not modified"
+// errors are swallowed by the caller.
 func (a *botAPI) EditMessageText(ctx context.Context, p editMessageTextParams) error {
 	return a.call(ctx, "editMessageText", p, nil)
+}
+
+// AnswerCallbackQuery closes a button press. Telegram shows Text as a toast
+// over the chat and stops the button's loading spinner; leaving a press
+// unanswered spins for a minute and then reads as a broken bot.
+func (a *botAPI) AnswerCallbackQuery(ctx context.Context, queryID, text string) error {
+	return a.call(ctx, "answerCallbackQuery", struct {
+		CallbackQueryID string `json:"callback_query_id"`
+		Text            string `json:"text,omitempty"`
+		ShowAlert       bool   `json:"show_alert"`
+	}{CallbackQueryID: queryID, Text: truncateToastText(text), ShowAlert: true}, nil)
+}
+
+// truncateToastText keeps a toast inside Telegram's 200-character cap.
+func truncateToastText(s string) string {
+	r := []rune(s)
+	if len(r) <= 200 {
+		return s
+	}
+	return string(r[:199]) + "…"
 }
 
 // SendChatAction shows the native "typing…" indicator for ~5s in the same

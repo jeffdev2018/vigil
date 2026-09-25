@@ -1,7 +1,9 @@
 "use client";
 
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useMemo, useState } from "react";
-import { CalendarRange, Pencil } from "lucide-react";
+import { CalendarRange, ListTodo, Pencil, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -26,6 +28,8 @@ import { IssueSurface } from "../../issues/surface/issue-surface";
 import { useT } from "../../i18n";
 import { BurndownChart } from "./burndown-chart";
 import { CapacityBar } from "./capacity-bar";
+import { CapacityByActor } from "./capacity-by-actor";
+import { VelocityPanel } from "./velocity-panel";
 import { CycleFormDialog, type CycleFormTarget } from "./cycle-form-dialog";
 
 const errorMessage = (e: unknown, fallback: string) =>
@@ -34,7 +38,7 @@ const errorMessage = (e: unknown, fallback: string) =>
 export function CycleDetail({ cycleId }: { cycleId: string }) {
   const { t } = useT("cycles");
   const wsId = useWorkspaceId();
-  const { data: cycle, isPending } = useQuery(cycleDetailOptions(wsId, cycleId));
+  const { data: cycle, isPending, error: cycleError, refetch: refetchCycle } = useQuery(cycleDetailOptions(wsId, cycleId));
   const { data: burndown } = useQuery(cycleBurndownOptions(wsId, cycleId));
   const closeCycle = useCloseCycle(wsId);
   const [formTarget, setFormTarget] = useState<CycleFormTarget | null>(null);
@@ -54,6 +58,9 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
         {t(($) => $.detail.loading)}
       </div>
     );
+  }
+  if (!cycle && cycleError && !isResourceMissingError(cycleError)) {
+    return <LoadErrorState onRetry={() => void refetchCycle()} />;
   }
   if (!cycle) {
     return (
@@ -142,11 +149,32 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
         </section>
       </div>
 
+      <div className="grid gap-4 border-b px-4 py-3 md:grid-cols-2">
+        <CapacityByActor cycleId={cycle.id} />
+        <VelocityPanel cycleId={cycle.id} />
+      </div>
+
       <div className="flex min-h-0 flex-1 flex-col">
         {scope && (
           <IssueSurface
             scope={scope}
             modes={["board", "list", "table", "swimlane", "gantt", "calendar"]}
+            renderEmpty={({ controller }) => (
+              <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 text-muted-foreground">
+                <ListTodo className="h-10 w-10 text-faint-foreground" />
+                <p className="text-body">{t(($) => $.detail.empty_issues_title)}</p>
+                <p className="text-caption">{t(($) => $.detail.empty_issues_hint)}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1"
+                  onClick={() => controller.openCreateIssue()}
+                >
+                  <Plus className="size-3.5 mr-1.5" />
+                  {t(($) => $.detail.empty_issues_new_button)}
+                </Button>
+              </div>
+            )}
           />
         )}
       </div>

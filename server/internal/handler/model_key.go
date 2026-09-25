@@ -236,6 +236,15 @@ func (h *Handler) createModelKey(ctx context.Context, wsUUID pgtype.UUID, userID
 	}
 	row, err := h.Queries.CreateModelKey(ctx, db.CreateModelKeyParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Scope: req.Scope, ScopeID: scopeID, Provider: vendor.ID, Label: truncate(strings.TrimSpace(req.Label), 100), KeyEncrypted: sealed, KeyHint: modelkey.Hint(key), Priority: req.Priority, CreatedBy: parseUUID(userID)})
 	if err != nil {
+		// The read-then-write check above is racy: two concurrent creates for
+		// the same workspace+provider+scope+scope_id can both pass it before
+		// either commits. idx_workspace_model_key_active_unique (migration
+		// 918) is the actual guarantee; a violation here means the race was
+		// hit, not a real server error, so report it the same way the
+		// pre-check does.
+		if isUniqueViolation(err) {
+			return db.WorkspaceModelKey{}, modelKeyConflict{vendor: vendor.Label}
+		}
 		return db.WorkspaceModelKey{}, err
 	}
 	h.audit(ctx, wsUUID, "member", userID, AuditModelKeyCreated, "workspace_model_key", row.ID, map[string]any{"scope": row.Scope, "scope_id": uuidToPtr(row.ScopeID), "provider": row.Provider, "label": row.Label, "hint": row.KeyHint, "rotation": req.Replace}, nil)
@@ -394,7 +403,13 @@ func (h *Handler) modelKeyFailover(ctx context.Context, task db.AgentTaskQueue, 
 		}
 	}
 	next, _ := h.Queries.ListActiveModelKeys(ctx, db.ListActiveModelKeysParams{WorkspaceID: key.WorkspaceID, Provider: key.Provider, ProjectID: projectID})
-	vendor, _ := modelkey.VendorByID(key.Provider)
+	vendor, ok := modelkey.VendorByID(key.Provider)
+	if !ok {
+		// The stored provider id fell out of the vendor catalog (catalog can
+		// change independently of stored rows) — fall back to the raw
+		// provider string so the alert body isn't left with an empty label.
+		vendor.Label = key.Provider
+	}
 	body := fmt.Sprintf("Run %s failed with %s. The key %s (%s) was retired.", uuidToString(task.ID), reason, key.KeyHint, key.Label)
 	if len(next) > 0 {
 		body += fmt.Sprintf(" The run retries once on %s (%s).", next[0].KeyHint, next[0].Label)

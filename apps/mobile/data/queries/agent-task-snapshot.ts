@@ -1,6 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/data/api";
 
+/** Three-segment key shape per apps/mobile/CLAUDE.md. */
+export const agentTaskSnapshotKeys = {
+  all: (wsId: string | null) => ["agent-task-snapshot", wsId] as const,
+};
+
 // Workspace agent task snapshot — every active task plus each agent's most
 // recent terminal task. Feeds the workload dimension of presence. Mobile
 // invalidates on task lifecycle events (queued/dispatch/completed/failed/
@@ -9,7 +14,7 @@ import { api } from "@/data/api";
 // See data/realtime/use-presence-realtime.ts.
 export const agentTaskSnapshotOptions = (wsId: string | null) =>
   queryOptions({
-    queryKey: ["agent-task-snapshot", wsId] as const,
+    queryKey: agentTaskSnapshotKeys.all(wsId),
     queryFn: ({ signal }) => api.listAgentTaskSnapshot({ signal }),
     enabled: !!wsId,
   });

@@ -19,7 +19,7 @@ import {
 } from "../../editor/use-coordinated-uploads";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { ChatAddMenu } from "./chat-add-menu";
-import { VoiceMemoButton } from "../../voice";
+import { VoiceConversationButton, VoiceMemoButton } from "../../voice";
 import { useConfigStore } from "@multica/core/config";
 import { useVoiceStore } from "@multica/core/voice/store";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
@@ -33,6 +33,7 @@ import { ProjectPicker } from "../../projects/components/project-picker";
 import { ClearablePillButton } from "../../common/pill-button";
 import { useThrottledChatTyping } from "./participant-bar";
 import { useT } from "../../i18n";
+import { AgentRunDetails } from "../../agents/components/agent-run-details";
 
 const logger = createLogger("chat.ui");
 const EMPTY_UPLOADS: DraftUpload[] = [];
@@ -122,6 +123,11 @@ interface ChatInputProps {
   agentRuntimeRequired?: boolean;
   /** Name of the currently selected agent, used in the placeholder. */
   agentName?: string;
+  /** Id of the agent a send will run. With `showRunNotice`, the composer says —
+   *  before the first send — that sending starts a run, where, and roughly at
+   *  what cost. */
+  agentId?: string;
+  showRunNotice?: boolean;
   /** Rendered at the bottom-left of the input bar — typically the agent picker. */
   leftAdornment?: ReactNode;
   /** Chat @ suggestions: current/recent issue/project entries. */
@@ -166,6 +172,8 @@ export function ChatInput({
   agentAccessRevoked,
   agentRuntimeRequired,
   agentName,
+  agentId,
+  showRunNotice = false,
   leftAdornment,
   contextItems,
   projects = [],
@@ -675,6 +683,12 @@ export function ChatInput({
         )}
         aria-disabled={noAgent || undefined}
       >
+        {showRunNotice && agentId && agentName && !disabled && !noAgent && (
+          <div role="note" data-testid="chat-run-notice" className="px-3 pt-2 text-caption text-muted-foreground">
+            <span>{t(($) => $.input.run_notice, { name: agentName })} </span>
+            <AgentRunDetails agentId={agentId} />
+          </div>
+        )}
         {selectedProject && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 pt-2">
             <div
@@ -754,6 +768,23 @@ export function ChatInput({
                 projectId={projectId}
                 onSelectProject={projectSelectionEnabled ? onProjectChange : undefined}
                 projectContextUnsupported={projectContextUnsupported}
+              />
+            )}
+            {voiceEnabled && (
+              <VoiceConversationButton
+                disabled={!!disabled || !!noAgent}
+                onUtterance={(text) => {
+                  // A conversation turn sends itself: drop the text into the
+                  // draft then submit, so the normal send path — including the
+                  // dictated-reply arm that reads the answer back aloud — runs.
+                  const key = editorDraftKeyRef.current;
+                  const current = useChatStore.getState().inputDrafts[key] ?? "";
+                  const joined = current.trim() ? `${current.replace(/\s+$/, "")} ${text}` : text;
+                  commitDraft(key, joined);
+                  setIsEmpty(false);
+                  useVoiceStore.getState().markDictated();
+                  void submit();
+                }}
               />
             )}
             {voiceEnabled && (

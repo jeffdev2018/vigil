@@ -251,7 +251,7 @@ func (h *Handler) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	appName := strings.TrimSpace(req.AppName)
 	if len(appName) > 64 {
-		appName = appName[:64]
+		appName = util.TruncateUTF8Bytes(appName, 64)
 	}
 	m, err := h.Queries.CreateMeeting(r.Context(), db.CreateMeetingParams{
 		WorkspaceID: workspaceID,
@@ -532,7 +532,7 @@ func (h *Handler) summarizeMeeting(ctx context.Context, transcript string) (meet
 		return meetingSummary{}, false
 	}
 	if len(transcript) > meetingLLMTranscriptCap {
-		transcript = transcript[:meetingLLMTranscriptCap]
+		transcript = util.TruncateUTF8Bytes(transcript, meetingLLMTranscriptCap)
 	}
 	ctx, cancel := context.WithTimeout(ctx, meetingSummaryTimeout)
 	defer cancel()
@@ -659,7 +659,9 @@ func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request,
 	})
 	if err != nil {
 		slog.Error("complete meeting failed", "error", err)
-		_ = h.Queries.FailMeeting(context.Background(), db.FailMeetingParams{ID: m.ID, WorkspaceID: workspaceID})
+		if ferr := h.Queries.FailMeeting(context.Background(), db.FailMeetingParams{ID: m.ID, WorkspaceID: workspaceID}); ferr != nil {
+			slog.Error("meeting: mark failed after summary error", "meeting_id", uuidToString(m.ID), "error", ferr)
+		}
 		// A meeting stuck in `summarizing` is exactly what the poll fallback
 		// waits out, so the failure has to be announced too.
 		m.Status = "failed"
@@ -717,11 +719,15 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 			fmt.Fprintf(&body, "**Owner:** %s\n\n", owner)
 		}
 		fmt.Fprintf(&body, "> %s\n\n_From meeting: %s_", evidence, m.Title)
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"meeting_id": util.UUIDToString(m.ID),
 			"owner":      strings.TrimSpace(a.Owner),
 			"evidence":   evidence,
 		})
+		if err != nil {
+			slog.Warn("capture meeting actions: marshal payload failed", "meeting_id", util.UUIDToString(m.ID), "error", err)
+			continue
+		}
 		item, source, err := triage.Capture(ctx, h.Queries, triage.CaptureParams{
 			WorkspaceID:     workspaceID,
 			SourceKind:      triage.SourceMeeting,

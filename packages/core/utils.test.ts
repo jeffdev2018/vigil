@@ -3,7 +3,9 @@ import {
   createRequestId,
   createSafeId,
   generateUUID,
+  humanizeIdentifier,
   isImeComposing,
+  runBulk,
   truncateWithEllipsis,
 } from "./utils";
 
@@ -104,5 +106,48 @@ describe("truncateWithEllipsis", () => {
     expect(truncateWithEllipsis("hello", 0)).toBe("");
     expect(truncateWithEllipsis("hello", -5)).toBe("");
     expect(truncateWithEllipsis("hello", Number.NaN)).toBe("…");
+  });
+});
+
+describe("humanizeIdentifier", () => {
+  it("turns kebab and snake identifiers into a sentence", () => {
+    expect(humanizeIdentifier("handle-out-of-scope-tasks")).toBe("Handle out of scope tasks");
+    expect(humanizeIdentifier("context_overflow")).toBe("Context overflow");
+    expect(humanizeIdentifier("mixed-case_id")).toBe("Mixed case id");
+  });
+
+  it("leaves human-authored names untouched", () => {
+    expect(humanizeIdentifier("Repo triage")).toBe("Repo triage");
+    expect(humanizeIdentifier("PR Review")).toBe("PR Review");
+  });
+
+  it("returns the input when nothing readable remains", () => {
+    expect(humanizeIdentifier("")).toBe("");
+    expect(humanizeIdentifier("---")).toBe("---");
+  });
+});
+
+describe("runBulk", () => {
+  it("reports every item as succeeded when all resolve", async () => {
+    const result = await runBulk([1, 2, 3], async (n) => n * 2);
+    expect(result.succeeded).toEqual([1, 2, 3]);
+    expect(result.failed).toEqual([]);
+  });
+
+  it("keeps going past a rejection and reports partial failure with the original error", async () => {
+    const boom = new Error("boom");
+    const result = await runBulk(["a", "b", "c"], async (item) => {
+      if (item === "b") throw boom;
+      return item;
+    });
+    expect(result.succeeded).toEqual(["a", "c"]);
+    expect(result.failed).toEqual([{ item: "b", error: boom }]);
+  });
+
+  it("returns empty results for an empty input without calling fn", async () => {
+    const fn = vi.fn();
+    const result = await runBulk([], fn);
+    expect(result).toEqual({ succeeded: [], failed: [] });
+    expect(fn).not.toHaveBeenCalled();
   });
 });

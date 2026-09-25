@@ -23,7 +23,11 @@ import (
 // this file decides is WHICH plugin event an internal one becomes, and that is
 // worth asserting on its own rather than through a live endpoint.
 type EventSink interface {
-	Dispatch(eventType, workspaceID string, payload any)
+	// actorType/actorID identify who caused the underlying domain event
+	// ("member", "agent", "plugin", "system"). The dispatcher needs this to
+	// refuse delivering an event hook back to the very installation whose own
+	// write produced it — see run()'s self-trigger guard.
+	Dispatch(eventType, workspaceID, actorType, actorID string, payload any)
 }
 
 // SubscribePluginEvents wires the dispatcher onto the bus.
@@ -44,7 +48,7 @@ func SubscribePluginEvents(bus *events.Bus, dispatcher EventSink) {
 	// check, where it costs nothing anyone is waiting for.
 	forward := func(pluginEvent string) events.Handler {
 		return func(e events.Event) {
-			dispatcher.Dispatch(pluginEvent, e.WorkspaceID, e.Payload)
+			dispatcher.Dispatch(pluginEvent, e.WorkspaceID, e.ActorType, e.ActorID, e.Payload)
 		}
 	}
 
@@ -60,10 +64,10 @@ func SubscribePluginEvents(bus *events.Bus, dispatcher EventSink) {
 	// event, and lets a plugin subscribe to the specific thing it cares about
 	// instead of filtering every field change itself.
 	bus.Subscribe(protocol.EventIssueUpdated, func(e events.Event) {
-		dispatcher.Dispatch(plugincontract.EventIssueUpdated, e.WorkspaceID, e.Payload)
+		dispatcher.Dispatch(plugincontract.EventIssueUpdated, e.WorkspaceID, e.ActorType, e.ActorID, e.Payload)
 		// A map lookup, not a parse: cheap enough for the request goroutine.
 		if payloadFlag(e.Payload, "status_changed") {
-			dispatcher.Dispatch(plugincontract.EventIssueStatusChanged, e.WorkspaceID, e.Payload)
+			dispatcher.Dispatch(plugincontract.EventIssueStatusChanged, e.WorkspaceID, e.ActorType, e.ActorID, e.Payload)
 		}
 	})
 }

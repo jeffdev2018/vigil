@@ -77,6 +77,7 @@ import {
   pendingRuntimeCommandName,
 } from "./pending-runtime";
 import { useT, useTimeAgo } from "../../i18n";
+import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 
 // The machine detail's runtimes table on the shared ListGrid. Paradigm
 // pieces are taken À LA CARTE here: subgrid template + var-width tracks +
@@ -235,8 +236,8 @@ function RuntimeKindBadge({ runtime }: { runtime: AgentRuntime }) {
     <span
       className={
         isCustom
-          ? "inline-flex shrink-0 items-center rounded bg-info/10 px-1 text-micro font-medium text-info"
-          : "inline-flex shrink-0 items-center rounded bg-muted px-1 text-micro font-medium text-muted-foreground"
+          ? "inline-flex shrink-0 items-center rounded-xs bg-info/10 px-1 text-micro font-medium text-info"
+          : "inline-flex shrink-0 items-center rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground"
       }
     >
       {isCustom
@@ -251,13 +252,13 @@ function PendingRuntimeBadge({ runtime }: { runtime: AgentRuntime }) {
   if (!isPendingCustomRuntime(runtime)) return null;
   if (isDisabledCustomRuntime(runtime)) {
     return (
-      <span className="inline-flex shrink-0 items-center rounded bg-muted px-1 text-micro font-medium text-muted-foreground">
+      <span className="inline-flex shrink-0 items-center rounded-xs bg-muted px-1 text-micro font-medium text-muted-foreground">
         {t(($) => $.list.badge_disabled)}
       </span>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center rounded bg-warning/10 px-1 text-micro font-medium text-warning">
+    <span className="inline-flex shrink-0 items-center rounded-xs bg-warning/10 px-1 text-micro font-medium text-warning">
       {t(($) => $.list.badge_registering)}
     </span>
   );
@@ -272,7 +273,7 @@ function VisibilityBadge({ runtime }: { runtime: AgentRuntime }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-info/10 px-1 text-micro font-medium text-info">
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-xs bg-info/10 px-1 text-micro font-medium text-info">
             <Globe className="h-2.5 w-2.5" />
             {t(($) => $.detail.visibility_label.public)}
           </span>
@@ -422,10 +423,14 @@ export function CostCell({
     ...runtimeUsageOptions(runtimeId, COST_CELL_DAYS, tz),
     enabled,
   });
-  const cost7d = useMemo(() => computeCostInWindow(usage, 7, tz), [usage, tz]);
+  const pricings = useCustomPricingStore((s) => s.pricings);
+  const cost7d = useMemo(
+    () => computeCostInWindow(usage, 7, tz, 0, pricings),
+    [usage, tz, pricings],
+  );
   const costPrev7d = useMemo(
-    () => computeCostInWindow(usage, 7, tz, 7),
-    [usage, tz],
+    () => computeCostInWindow(usage, 7, tz, 7, pricings),
+    [usage, tz, pricings],
   );
   const delta = pctChange(cost7d, costPrev7d);
 

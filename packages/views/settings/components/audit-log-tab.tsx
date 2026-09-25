@@ -9,13 +9,34 @@ import { auditLogInfiniteOptions } from "@multica/core/workspace/audit";
 import type { AuditChainStatus, AuditLogFilter } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { useT, useTimeAgo } from "../../i18n";
+import { SettingsTab } from "./settings-layout";
 
 /**
  * Audit log (K08): the workspace's actions, newest first, filterable by
  * actor type and action, exportable as CSV or JSON with the same filter.
  * The export streams from the server and is saved by the browser.
  */
+// Same 3 values the filter dropdown offers below — kept as a lookup rather
+// than a second t($) => switch so the two never drift. A server-driven
+// actor_type this build does not know about (workspace.ts's `(string & {})`
+// escape hatch) falls back to the raw value instead of an empty label.
+function actorTypeLabel(actorType: string, t: ReturnType<typeof useT<"settings">>["t"]): string {
+  switch (actorType) {
+    case "member":
+      return t(($) => $.audit.actor_member);
+    case "agent":
+      return t(($) => $.audit.actor_agent);
+    case "system":
+      return t(($) => $.audit.actor_system);
+    default:
+      return actorType;
+  }
+}
+
 export function AuditLogTab() {
   const { t } = useT("settings");
   const timeAgo = useTimeAgo();
@@ -59,8 +80,8 @@ export function AuditLogTab() {
   }
 
   return (
+    <SettingsTab title={t(($) => $.audit.title)} description={t(($) => $.audit.description)}>
     <div data-testid="audit-log" className="flex flex-col gap-3 text-caption">
-      <p className="text-muted-foreground">{t(($) => $.audit.description)}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" variant="outline" disabled={verifying} onClick={() => void verify()}>
           {t(($) => $.audit.verify)}
@@ -74,12 +95,24 @@ export function AuditLogTab() {
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <select aria-label={t(($) => $.audit.actor_type)} className="h-8 rounded-md border bg-background px-2" value={actorType} onChange={(e) => setActorType(e.target.value)}>
-          <option value="">{t(($) => $.audit.any_actor)}</option>
-          <option value="member">{t(($) => $.audit.actor_member)}</option>
-          <option value="agent">{t(($) => $.audit.actor_agent)}</option>
-          <option value="system">{t(($) => $.audit.actor_system)}</option>
-        </select>
+        <Select
+          items={[
+            { value: "", label: t(($) => $.audit.any_actor) },
+            { value: "member", label: t(($) => $.audit.actor_member) },
+            { value: "agent", label: t(($) => $.audit.actor_agent) },
+            { value: "system", label: t(($) => $.audit.actor_system) },
+          ]}
+          value={actorType}
+          onValueChange={(value) => setActorType(value ?? "")}
+        >
+          <SelectTrigger aria-label={t(($) => $.audit.actor_type)} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t(($) => $.audit.any_actor)}</SelectItem>
+            <SelectItem value="member">{t(($) => $.audit.actor_member)}</SelectItem>
+            <SelectItem value="agent">{t(($) => $.audit.actor_agent)}</SelectItem>
+            <SelectItem value="system">{t(($) => $.audit.actor_system)}</SelectItem>
+          </SelectContent>
+        </Select>
         <Input aria-label={t(($) => $.audit.action)} placeholder={t(($) => $.audit.action_placeholder)} className="h-8 w-56 font-mono" value={action} onChange={(e) => setAction(e.target.value)} />
         <span className="flex-1" />
         <Button type="button" size="sm" variant="outline" disabled={exporting !== null} onClick={() => void exportAs("csv")}>
@@ -112,7 +145,7 @@ export function AuditLogTab() {
                 <tr key={e.id} data-testid="audit-row" className="border-t align-top">
                   <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground" title={e.occurred_at}>{timeAgo(e.occurred_at)}</td>
                   <td className="whitespace-nowrap px-3 py-1.5">
-                    {e.actor_type}
+                    {actorTypeLabel(e.actor_type, t)}
                     {e.approver_id && <span className="text-muted-foreground"> · {t(($) => $.audit.approved)}</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-1.5 font-mono">{e.action}</td>
@@ -120,8 +153,8 @@ export function AuditLogTab() {
                     {e.entity_type}
                     {e.entity_id ? ` ${e.entity_id.slice(0, 8)}` : ""}
                   </td>
-                  <td className="max-w-md truncate px-3 py-1.5 font-mono text-muted-foreground" title={JSON.stringify(e.details)}>
-                    {JSON.stringify(e.details)}
+                  <td className="max-w-md px-3 py-1.5 text-muted-foreground">
+                    <AuditDetails details={e.details} />
                   </td>
                 </tr>
               ))}
@@ -135,5 +168,39 @@ export function AuditLogTab() {
         </Button>
       )}
     </div>
+    </SettingsTab>
+  );
+}
+
+/** One audit value on a single line: scalars verbatim, nested data as JSON. */
+function detailValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/**
+ * Details as `key: value` pairs. Collapsed, the row shows the pairs on one
+ * truncated line; open, each pair gets its own wrapping line so nothing is
+ * cut off and nothing widens the table.
+ */
+function AuditDetails({ details }: { details: Record<string, unknown> }) {
+  const pairs = Object.entries(details ?? {});
+  if (pairs.length === 0) return <span>—</span>;
+  const inline = pairs.map(([k, v]) => `${k}: ${detailValue(v)}`).join(" · ");
+  return (
+    <details className="min-w-0">
+      <summary className="cursor-pointer list-none truncate" title={inline}>
+        {inline}
+      </summary>
+      <dl className="mt-1 flex flex-col gap-0.5">
+        {pairs.map(([k, v]) => (
+          <div key={k} className="flex gap-1.5 break-all">
+            <dt className="shrink-0 font-mono">{k}</dt>
+            <dd className="min-w-0">{detailValue(v)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   );
 }

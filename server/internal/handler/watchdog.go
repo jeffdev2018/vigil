@@ -121,8 +121,12 @@ func (h *Handler) watchdogToResponse(ctx context.Context, w db.IssueWatchdog) Wa
 
 func watchdogVerdictToResponse(v db.WatchdogVerdict) WatchdogVerdictResponse {
 	var findings, dropped []WatchdogFinding
-	_ = json.Unmarshal(v.Findings, &findings)
-	_ = json.Unmarshal(v.Dropped, &dropped)
+	if err := json.Unmarshal(v.Findings, &findings); err != nil {
+		slog.Warn("watchdog verdict: unmarshal findings failed", "verdict_id", uuidToString(v.ID), "error", err)
+	}
+	if err := json.Unmarshal(v.Dropped, &dropped); err != nil {
+		slog.Warn("watchdog verdict: unmarshal dropped failed", "verdict_id", uuidToString(v.ID), "error", err)
+	}
 	if findings == nil {
 		findings = []WatchdogFinding{}
 	}
@@ -168,6 +172,9 @@ func (h *Handler) SetIssueWatchdog(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	var req struct {
@@ -236,6 +243,9 @@ func (h *Handler) DeleteIssueWatchdog(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	n, err := h.Queries.DeleteIssueWatchdog(r.Context(), db.DeleteIssueWatchdogParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID})
@@ -347,6 +357,9 @@ func (h *Handler) SetIssueContractRisk(w http.ResponseWriter, r *http.Request) {
 	}
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	var req struct {

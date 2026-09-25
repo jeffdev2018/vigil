@@ -89,12 +89,15 @@ func (h *Handler) fileTriageStaleDigest(ctx context.Context, row db.ListWorkspac
 	}
 	title := fmt.Sprintf("%d triage items waiting, the oldest for %dh", row.PendingCount, oldestHours)
 	body := "Nobody has decided on these yet. Accept, dismiss or merge them, or turn the source off."
-	details, _ := json.Marshal(map[string]any{
+	details, err := json.Marshal(map[string]any{
 		"day":          day,
 		"count":        row.PendingCount,
 		"oldest_hours": oldestHours,
 		"path":         triageStalePath,
 	})
+	if err != nil {
+		slog.Warn("triage stale digest: marshal details failed", "workspace_id", uuidToString(row.WorkspaceID), "error", err)
+	}
 
 	filed := 0
 	for _, rcpt := range recipients {

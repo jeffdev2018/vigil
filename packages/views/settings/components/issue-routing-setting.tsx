@@ -8,6 +8,9 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { RISK_LEVELS, routingSettingsOptions, useSaveRoutingSettings, type RiskLevel, type RoutingSettings } from "@multica/core/issues/routing";
 import { runtimePoolsOptions } from "@multica/core/runtimes/pools";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
@@ -49,21 +52,31 @@ export function IssueRoutingSetting({ canEdit }: { canEdit: boolean }) {
           </SettingsRow>
           {RISK_LEVELS.map((level: RiskLevel) => (
             <SettingsRow key={level} label={t(($) => $.workspace.routing_levels[level])} description={t(($) => $.workspace.routing_level_hints[level])}>
-              <select
-                aria-label={t(($) => $.workspace.routing_pool_aria, { level: t(($) => $.workspace.routing_levels[level]) })}
-                className="rounded-md border border-input bg-transparent px-2 py-1 text-caption"
+              <Select
+                items={[
+                  { value: "", label: t(($) => $.workspace.routing_pool_agent) },
+                  ...pools.map((p) => ({ value: p.id, label: p.name })),
+                ]}
                 value={draft.pools[level] ?? ""}
-                disabled={disabled}
-                onChange={(e) => {
-                  const pools = { ...draft.pools };
-                  if (e.target.value) pools[level] = e.target.value;
-                  else delete pools[level];
-                  persist({ ...draft, pools });
+                onValueChange={(value) => {
+                  const nextPools = { ...draft.pools };
+                  if (value) nextPools[level] = value;
+                  else delete nextPools[level];
+                  persist({ ...draft, pools: nextPools });
                 }}
               >
-                <option value="">{t(($) => $.workspace.routing_pool_agent)}</option>
-                {pools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+                <SelectTrigger
+                  aria-label={t(($) => $.workspace.routing_pool_aria, { level: t(($) => $.workspace.routing_levels[level]) })}
+                  size="sm"
+                  disabled={disabled}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t(($) => $.workspace.routing_pool_agent)}</SelectItem>
+                  {pools.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </SettingsRow>
           ))}
           <SettingsRow label={t(($) => $.workspace.routing_escalation)} description={t(($) => $.workspace.routing_escalation_description)}>

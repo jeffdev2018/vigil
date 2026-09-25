@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { CircleEqual } from "lucide-react";
 import type { IssueStatus, UpdateIssueRequest } from "@multica/core/types";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
@@ -28,6 +29,8 @@ export function StatusPicker({
   onOpenChange: controlledOnOpenChange,
   align,
   issueId,
+  onMarkDuplicate,
+  isDuplicate,
 }: {
   /**
    * The currently-selected status, used to check the matching row. `null`
@@ -50,6 +53,14 @@ export function StatusPicker({
    * the ones that would go to an approver.
    */
   issueId?: string;
+  /**
+   * Adds the "Mark as duplicate" action. It is an action, not a status: it
+   * opens a picker for the original and only writes once one is chosen. Pass
+   * it only for an existing single issue — never on create or batch surfaces.
+   */
+  onMarkDuplicate?: () => void;
+  /** The issue already carries a mark, so the action re-points it. */
+  isDuplicate?: boolean;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -60,7 +71,7 @@ export function StatusPicker({
   // detail, table, board batch toolbar, create-issue modal), so the provider
   // is guaranteed here.
   const wsId = useWorkspaceId();
-  const { categoryOf, colorOf } = useIssueStatuses(wsId);
+  const { categoryOf, colorOf, iconOf } = useIssueStatuses(wsId);
   const labelOf = useStatusLabel(wsId);
 
   /**
@@ -103,6 +114,28 @@ export function StatusPicker({
       searchable={searchable}
       searchPlaceholder={t(($) => $.filters.search_status)}
       onSearchChange={setQuery}
+      footer={
+        onMarkDuplicate ? (
+          // Rendered outside the arrow-key listbox so keyboard nav and search
+          // never treat the action as another status option.
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setQuery("");
+              onMarkDuplicate();
+            }}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent transition-colors"
+          >
+            <CircleEqual className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span>
+              {t(($) =>
+                isDuplicate ? $.pickers.status.change_original : $.pickers.status.mark_duplicate,
+              )}
+            </span>
+          </button>
+        ) : undefined
+      }
       trigger={
         customTrigger ??
         (status != null ? (
@@ -111,6 +144,7 @@ export function StatusPicker({
               status={status}
               category={categoryOf(status)}
               color={colorOf(status)}
+              icon={iconOf(status)}
               className="h-3.5 w-3.5 shrink-0"
             />
             <span className="truncate">{labelOf(status)}</span>
@@ -141,6 +175,7 @@ export function StatusPicker({
               status={option.key}
               category={option.category}
               color={option.color}
+              icon={option.icon}
               className="h-3.5 w-3.5"
             />
             <span className="truncate">{option.label}</span>

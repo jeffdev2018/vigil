@@ -30,6 +30,7 @@ import { ActionSheetIOS, Alert } from "react-native";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import type { Reaction, TimelineEntry } from "@multica/core/types";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
@@ -37,10 +38,12 @@ import { useCommentSelectStore } from "@/data/comment-select-store";
 import { useReplyTargetStore } from "@/data/stores/reply-target-store";
 import { useActorLookup } from "@/data/use-actor-name";
 import {
+  commentDeleteKeepsReplies,
   useDeleteComment,
   useResolveComment,
   useToggleCommentReaction,
 } from "@/data/mutations/issues";
+import { appConfigOptions } from "@/data/queries/billing";
 import { QUICK_EMOJIS } from "@/lib/quick-emojis";
 import { canCreateSubIssueFromComment } from "@/lib/comment-actions";
 
@@ -50,6 +53,10 @@ export function useCommentLongPress(
   entry: TimelineEntry,
   issueId: string,
   issueIdentifier: string | undefined,
+  /** True when this comment is a root with at least one reply — picks the
+   *  delete confirmation copy that warns replies are also removed.
+   *  Mirrors web's `hasReplies` prop on comment-card.tsx's delete dialog. */
+  hasReplies = false,
 ): { onLongPress: () => void; isPressed: boolean } {
   const [isPressed, setIsPressed] = useState(false);
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
@@ -58,6 +65,12 @@ export function useCommentLongPress(
   const deleteComment = useDeleteComment(issueId);
   const resolveComment = useResolveComment(issueId);
   const { getName } = useActorLookup();
+  // Same config cache useDeleteComment reads when it runs, so the copy and
+  // the delete route agree.
+  const { data: keepReplies = false } = useQuery({
+    ...appConfigOptions(),
+    select: commentDeleteKeepsReplies,
+  });
 
   const onLongPress = useCallback(() => {
     const isOwn = entry.actor_type === "member" && entry.actor_id === userId;
@@ -205,7 +218,11 @@ export function useCommentLongPress(
           case "delete":
             Alert.alert(
               "Delete comment?",
-              "This comment will be permanently deleted. Replies in the thread will also be removed. This cannot be undone.",
+              !hasReplies
+                ? "This comment will be permanently deleted. This cannot be undone."
+                : keepReplies
+                  ? "This comment will be permanently deleted. Any replies to it stay in the thread. This cannot be undone."
+                  : "This comment and all its replies will be permanently deleted. This cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -229,6 +246,8 @@ export function useCommentLongPress(
     deleteComment,
     resolveComment,
     getName,
+    hasReplies,
+    keepReplies,
   ]);
 
   return { onLongPress, isPressed };

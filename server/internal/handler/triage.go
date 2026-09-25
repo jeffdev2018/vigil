@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -155,6 +157,8 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 	// counted separately and taken out of it rather than double-counted.
 	if pending >= snoozed {
 		pending -= snoozed
+	} else {
+		slog.Warn("triage stats: snoozed count exceeds pending, skipping subtraction", "workspace_id", workspaceID, "pending", pending, "snoozed", snoozed)
 	}
 
 	age, err := h.Queries.OldestRealPendingTriageAgeSeconds(ctx, workspaceID)
@@ -561,6 +565,9 @@ func (h *Handler) AcceptTriageItem(w http.ResponseWriter, r *http.Request) {
 	res := h.acceptTriageItemCore(r.Context(), workspaceID, userID, itemID, ov)
 	switch res.outcome {
 	case "accepted":
+		// Twenty backlink (OS plan, chantier 2): best effort, off the request.
+		backlinkCtx := context.WithoutCancel(r.Context())
+		util.GoBackground("twenty backlink", func() { h.twentyBacklink(backlinkCtx, workspaceID, itemID, res, userID) })
 		filler := h.newStatusCategoryFiller(r.Context(), workspaceID)
 		resp := issueToResponse(res.issue, res.prefix)
 		filler(&resp)
@@ -608,7 +615,10 @@ func (h *Handler) DismissTriageItem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
@@ -719,51 +729,6 @@ func (h *Handler) BatchAcceptTriageItems(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, struct {
 		Items []BatchAcceptTriageItem `json:"items"`
 	}{Items: results})
-}
-
-// UpdateTriageSourceMode flips a source between gate, direct, and blocked.
-// This is the M2 kill switch: routing changes on the next delivery.
-func (h *Handler) UpdateTriageSource(w http.ResponseWriter, r *http.Request) {
-	workspaceID, ok := parseUUIDOrBadRequest(w, h.resolveWorkspaceID(r), "workspace_id")
-	if !ok {
-		return
-	}
-	sourceID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "id")
-	if !ok {
-		return
-	}
-	var req struct {
-		Mode string `json:"mode"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	switch req.Mode {
-	case string(triage.ModeGate), string(triage.ModeDirect), string(triage.ModeBlocked):
-	default:
-		writeError(w, http.StatusBadRequest, "mode must be one of: gate, direct, blocked")
-		return
-	}
-
-	src, err := h.Queries.UpdateTriageSourceMode(r.Context(), db.UpdateTriageSourceModeParams{
-		ID: sourceID, WorkspaceID: workspaceID, Mode: req.Mode,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "triage source not found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update triage source")
-		return
-	}
-	writeJSON(w, http.StatusOK, TriageSourceStats{
-		ID:    util.UUIDToString(src.ID),
-		Kind:  src.Kind,
-		RefID: util.UUIDToString(src.RefID),
-		Name:  src.Name,
-		Mode:  src.Mode,
-	})
 }
 
 // ExpireStaleTriageItems is the retention sweep behind the scheduler's

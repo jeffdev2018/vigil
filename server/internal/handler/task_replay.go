@@ -35,9 +35,13 @@ const (
 	AuditRunSealed            = "run.sealed"
 	AuditRunResumedFromReplay = "run.resumed_from_replay"
 	AuditRunSandboxDegraded   = "run.sandbox_degraded"
-	AuditRunStarted           = "run.started"
-	AuditRunReplayedSafe      = "run.replayed_safe"
-	replayPageMax             = 500
+	// AuditRunSandboxPolicyApplied (JEF-256) records the merged workspace <
+	// project < issue sandbox policy a claim was confined with, whenever any
+	// layer tightened the run beyond the defaults.
+	AuditRunSandboxPolicyApplied = "run.sandbox_policy_applied"
+	AuditRunStarted              = "run.started"
+	AuditRunReplayedSafe         = "run.replayed_safe"
+	replayPageMax                = 500
 )
 
 // Data classes a replay event can carry. Confidential means the server
@@ -120,20 +124,23 @@ type ReplayRun struct {
 	// Snapshot is nil for runs that started before snapshots existed.
 	Snapshot *ReplaySnapshot `json:"snapshot"`
 	// Plan is the plan the tool calls are compared against; nil = no plan, no drift flags.
-	Plan        *ReplayPlan  `json:"plan"`
-	Drift       int          `json:"drift"`
-	IssueID     string       `json:"issue_id"`
-	AgentID     string       `json:"agent_id"`
-	AgentName   string       `json:"agent_name"`
-	Status      string       `json:"status"`
-	TrustMode   string       `json:"trust_mode"`
-	EffectMode  string       `json:"effect_mode"`
-	Model       string       `json:"model,omitempty"`
-	RuntimeID   string       `json:"runtime_id,omitempty"`
-	CreatedAt   *time.Time   `json:"created_at"`
-	StartedAt   *time.Time   `json:"started_at"`
-	CompletedAt *time.Time   `json:"completed_at"`
-	Links       []ReplayLink `json:"links"`
+	Plan      *ReplayPlan `json:"plan"`
+	Drift     int         `json:"drift"`
+	IssueID   string      `json:"issue_id"`
+	AgentID   string      `json:"agent_id"`
+	AgentName string      `json:"agent_name"`
+	Status    string      `json:"status"`
+	// FailureReason is the classifier code of a failed or system-cancelled
+	// run, so a client can say why in plain words before any event payload.
+	FailureReason string       `json:"failure_reason,omitempty"`
+	TrustMode     string       `json:"trust_mode"`
+	EffectMode    string       `json:"effect_mode"`
+	Model         string       `json:"model,omitempty"`
+	RuntimeID     string       `json:"runtime_id,omitempty"`
+	CreatedAt     *time.Time   `json:"created_at"`
+	StartedAt     *time.Time   `json:"started_at"`
+	CompletedAt   *time.Time   `json:"completed_at"`
+	Links         []ReplayLink `json:"links"`
 }
 
 type ReplayCost struct {
@@ -150,6 +157,9 @@ type RunReplayResponse struct {
 	HeadHash   string        `json:"head_hash"`
 	Cost       ReplayCost    `json:"cost"`
 	Sealed     *ReplaySeal   `json:"sealed"`
+	// AuditTruncated is true when the run had more audit entries than the
+	// page the replay reads (200); the chain shown is then incomplete.
+	AuditTruncated bool `json:"audit_truncated"`
 }
 
 // ReplaySeal is what the audit log recorded when the run ended, and whether
@@ -250,6 +260,11 @@ func (h *Handler) ResumeTaskReplay(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "issue not found")
 		return
 	}
+	// K60: same gate as SimulateTaskReplay — this starts a real (non-safe-mode)
+	// run, same root cause and fix by symmetry.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 	replay, err := h.buildRunReplay(r.Context(), task, wsID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to build the replay: "+err.Error())
@@ -324,7 +339,7 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 	agentActor := ReplayActor{Type: "agent", ID: uuidToString(task.AgentID)}
 	run := ReplayRun{
 		ID: uuidToString(task.ID), IssueID: uuidToString(task.IssueID), AgentID: uuidToString(task.AgentID), Status: task.Status,
-		RuntimeID: uuidToString(task.RuntimeID), Links: []ReplayLink{},
+		RuntimeID: uuidToString(task.RuntimeID), FailureReason: task.FailureReason.String, Links: []ReplayLink{},
 	}
 	if agent, err := h.Queries.GetAgent(ctx, task.AgentID); err == nil {
 		agentActor.Name = agent.Name
@@ -514,10 +529,12 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 	}
 	// 6. The run's own audit entries (gates, seals, resumes), minus the seal
 	// itself, which is the chain's witness and cannot be in the chain.
-	entries, err := h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{WorkspaceID: wsID, EntityID: task.ID, PageSize: 200})
+	const replayAuditPage = 200
+	entries, err := h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{WorkspaceID: wsID, EntityID: task.ID, PageSize: replayAuditPage})
 	if err != nil {
 		return RunReplayResponse{}, err
 	}
+	auditTruncated := len(entries) >= replayAuditPage
 	var seal *ReplaySeal
 	for _, a := range entries {
 		if a.Action == AuditRunSealed {
@@ -566,7 +583,7 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 			seal.Verified = seal.HeadHash == ""
 		}
 	}
-	return RunReplayResponse{Run: run, Events: events, Total: len(events), HeadHash: prev, Cost: cost, Sealed: seal}, nil
+	return RunReplayResponse{Run: run, Events: events, Total: len(events), HeadHash: prev, Cost: cost, Sealed: seal, AuditTruncated: auditTruncated}, nil
 }
 
 // replayEventHash chains one event onto the previous hash. Only the fields
@@ -679,6 +696,9 @@ func (h *Handler) SimulateTaskReplay(w http.ResponseWriter, r *http.Request) {
 	issue, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: task.IssueID, WorkspaceID: wsID})
 	if err != nil {
 		writeError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 	replay, err := h.buildRunReplay(r.Context(), task, wsID)

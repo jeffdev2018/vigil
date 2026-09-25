@@ -1,12 +1,39 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UpdateNotification } from "./update-notification";
-
 const mocks = vi.hoisted(() => ({
   installUpdate: vi.fn(),
   openExternal: vi.fn(),
 }));
+
+const translations = {
+  desktop: {
+    updates: {
+      notification_ready_title: "Update ready",
+      notification_ready_body: "v{{version}} will be applied on next launch.",
+      see_changelog: "See changelog",
+      restart_now: "Restart now",
+      dismiss: "Dismiss",
+    },
+  },
+};
+
+vi.mock("@multica/views/i18n", () => ({
+  useT: () => ({
+    t: (
+      selector: (resources: typeof translations) => string,
+      values?: Record<string, string>,
+    ) => {
+      const template = selector(translations);
+      return Object.entries(values ?? {}).reduce(
+        (result, [key, value]) => result.replace(`{{${key}}}`, value),
+        template,
+      );
+    },
+  }),
+}));
+
+import { UpdateNotification } from "./update-notification";
 
 type UpdateDownloadedListener = (info: {
   version: string;
@@ -55,5 +82,28 @@ describe("UpdateNotification", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restart now" }));
 
     expect(mocks.installUpdate).toHaveBeenCalledOnce();
+  });
+
+  // Every string in this notification used to be hardcoded English with no
+  // useT — the ONE component every desktop user sees at every update,
+  // regardless of their app locale.
+  it("renders the ready title and body through i18n, with the version interpolated", () => {
+    render(<UpdateNotification />);
+    act(() => updateDownloaded({ version: "0.4.27" }));
+
+    expect(screen.getByText("Update ready")).toBeInTheDocument();
+    expect(
+      screen.getByText("v0.4.27 will be applied on next launch."),
+    ).toBeInTheDocument();
+  });
+
+  it("gives the icon-only close button an accessible name", () => {
+    render(<UpdateNotification />);
+    act(() => updateDownloaded({ version: "0.4.27" }));
+
+    const dismiss = screen.getByRole("button", { name: "Dismiss" });
+    fireEvent.click(dismiss);
+
+    expect(screen.queryByText("Update ready")).not.toBeInTheDocument();
   });
 });

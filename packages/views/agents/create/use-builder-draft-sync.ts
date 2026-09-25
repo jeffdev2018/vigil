@@ -121,11 +121,13 @@ export function useBuilderDraftSync(options: {
     [],
   );
 
+  const markApplied = useCallback((messageId: string) => {
+    appliedMessageIdRef.current = messageId;
+  }, []);
+
   return {
     restored,
     appliedMessageId: appliedMessageIdRef.current,
-    markApplied: (messageId: string) => {
-      appliedMessageIdRef.current = messageId;
-    },
+    markApplied,
   };
 }

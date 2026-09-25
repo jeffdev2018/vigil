@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -245,7 +246,13 @@ func (h *Handler) DeletePermissionProfile(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "builtin profiles cannot be deleted; edit their rules instead")
 		return
 	}
-	if n, err := h.Queries.CountAgentsUsingPermissionProfile(r.Context(), pgtype.UUID{Bytes: row.ID.Bytes, Valid: true}); err != nil || n > 0 {
+	n, err := h.Queries.CountAgentsUsingPermissionProfile(r.Context(), pgtype.UUID{Bytes: row.ID.Bytes, Valid: true})
+	if err != nil {
+		slog.Error("permission profile: count users failed", "profile_id", uuidToString(row.ID), "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to check the profile's agents")
+		return
+	}
+	if n > 0 {
 		writeError(w, http.StatusConflict, "agents still use this profile")
 		return
 	}

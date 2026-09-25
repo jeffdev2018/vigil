@@ -81,6 +81,18 @@ const (
 	OutcomeChatStarted  Outcome = "chat_started"
 	// OutcomeIssueUsage — /issue was sent without its required title.
 	OutcomeIssueUsage Outcome = "issue_usage"
+	// OutcomeCaptured — /capture filed a Brain capture; nothing else ran.
+	OutcomeCaptured Outcome = "captured"
+	// OutcomeCaptureUsage — /capture was sent with nothing to capture.
+	OutcomeCaptureUsage Outcome = "capture_usage"
+	// OutcomeScheduled — /schedule filed a paused autopilot proposal.
+	OutcomeScheduled Outcome = "scheduled"
+	// OutcomeScheduleUsage — /schedule was sent with nothing to schedule, or
+	// with a sentence the model could not read as one.
+	OutcomeScheduleUsage Outcome = "schedule_usage"
+	// OutcomeScheduleUnavailable — /schedule needs a model this workspace has
+	// not configured.
+	OutcomeScheduleUnavailable Outcome = "schedule_unavailable"
 	// OutcomeAgentOffline — landed, but the agent has no runtime bound.
 	OutcomeAgentOffline Outcome = "agent_offline"
 	// OutcomeAgentArchived — landed, but the agent is archived.
@@ -102,6 +114,8 @@ type DispatchResult struct {
 	// IssueIdentifier is the workspace-qualified key ("MUL-42") for the
 	// created issue, used verbatim in the confirmation message.
 	IssueIdentifier string
+	// IssueWorkspaceSlug is the workspace route segment used in deep links.
+	IssueWorkspaceSlug string
 	// IssueTitle is the title supplied on /issue, echoed in the confirmation.
 	IssueTitle string
 	// IssueDuplicate distinguishes an active-issue conflict from a successful
@@ -113,4 +127,10 @@ type DispatchResult struct {
 	// IssueHeld marks an /issue command the triage queue parked instead of
 	// creating. There is no IssueID; the sender is told a human will review it.
 	IssueHeld bool
+	// AutopilotID, ScheduleTitle and ScheduleSummary describe the paused
+	// autopilot a /schedule command proposed. The summary is the schedule in
+	// words — cron, timezone, first run — composed by the server.
+	AutopilotID     pgtype.UUID
+	ScheduleTitle   string
+	ScheduleSummary string
 }

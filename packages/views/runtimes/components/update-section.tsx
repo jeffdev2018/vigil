@@ -152,9 +152,9 @@ export function UpdateSection({
   useEffect(() => {
     if (!updating || !targetVersion || !currentVersion) return;
     if (!isNewer(targetVersion, currentVersion)) {
-      markCompleted(`Updated to ${targetVersion}`);
+      markCompleted(t(($) => $.update.updated_to, { version: targetVersion }));
     }
-  }, [currentVersion, markCompleted, targetVersion, updating]);
+  }, [currentVersion, markCompleted, t, targetVersion, updating]);
 
   const handleUpdate = async () => {
     if (!latestVersion || !runtimeId) return;
@@ -175,7 +175,8 @@ export function UpdateSection({
 
           if (result.status === "completed") {
             markCompleted(
-              result.output ?? `Updated to ${targetVersion ?? latestVersion}`,
+              result.output ??
+                t(($) => $.update.updated_to, { version: targetVersion ?? latestVersion }),
             );
           } else if (
             result.status === "failed" ||

@@ -157,6 +157,16 @@ export function agentBuilderSessionListOptions(wsId: string) {
   });
 }
 
+// Pre-launch cost notice: what one run of this agent has recently cost.
+export function agentCostEstimateOptions(wsId: string, agentId: string) {
+  return queryOptions({
+    queryKey: ["agent-cost-estimate", wsId, agentId] as const,
+    queryFn: () => api.getAgentCostEstimate(agentId),
+    enabled: Boolean(wsId && agentId),
+    staleTime: 60_000,
+  });
+}
+
 // Scorecards (K25).
 export const scorecardKeys = {
   agent: (wsId: string, agentId: string, days: number) => ["scorecard", wsId, agentId, days] as const,

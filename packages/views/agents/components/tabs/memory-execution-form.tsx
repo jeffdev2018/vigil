@@ -5,6 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { memoryExecutionConfigOptions, useStartMemoryExecution } from "@multica/core/agents";
 import type { AgentMemory, MemoryExecutionRequest } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { useT } from "../../../i18n";
 
@@ -30,10 +37,16 @@ export function MemoryExecutionForm({ wsId, agentId, memory, disabled, onStarted
       <p className="text-caption text-muted-foreground">{t(($) => $.tab_body.memory.connected.scope)}</p>
       {cases.map((item, index) => <fieldset key={item.id} disabled={busy} className="space-y-2 rounded border p-3">
         <legend className="px-1 font-medium">{item.split === "replay" ? t(($) => $.tab_body.memory.evaluations.replay) : t(($) => $.tab_body.memory.evaluations.holdout)}</legend>
-        <label className="block space-y-1"><span>{t(($) => $.tab_body.memory.connected.check)}</span><select aria-label={t(($) => $.tab_body.memory.connected.check)} className="block w-full rounded border bg-background p-2" value={item.check ?? "exact"} onChange={(event) => {
-          const check = event.target.value;
-          if (check === "exact" || check === "json" || check === "javascript") setCases((values) => values.map((value, i) => i === index ? { ...value, check } : value));
-        }}>{(config.data.check_modes ?? ["exact"]).map((mode) => <option key={mode} value={mode}>{mode === "json" ? t(($) => $.tab_body.memory.connected.json) : mode === "javascript" ? t(($) => $.tab_body.memory.connected.javascript) : t(($) => $.tab_body.memory.connected.exact)}</option>)}</select></label>
+        <label className="block space-y-1"><span>{t(($) => $.tab_body.memory.connected.check)}</span>{(() => {
+          const modes = config.data.check_modes ?? ["exact"];
+          const modeLabel = (mode: string) => mode === "json" ? t(($) => $.tab_body.memory.connected.json) : mode === "javascript" ? t(($) => $.tab_body.memory.connected.javascript) : t(($) => $.tab_body.memory.connected.exact);
+          return <Select items={modes.map((mode) => ({ value: mode, label: modeLabel(mode) }))} value={item.check ?? "exact"} onValueChange={(check) => {
+            if (check === "exact" || check === "json" || check === "javascript") setCases((values) => values.map((value, i) => i === index ? { ...value, check } : value));
+          }}>
+            <SelectTrigger aria-label={t(($) => $.tab_body.memory.connected.check)} className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>{modes.map((mode) => <SelectItem key={mode} value={mode}>{modeLabel(mode)}</SelectItem>)}</SelectContent>
+          </Select>;
+        })()}</label>
         {item.check === "javascript" && <p className="text-caption text-muted-foreground">{t(($) => $.tab_body.memory.connected.javascript_hint)}</p>}
         <label className="block space-y-1"><span>{t(($) => $.tab_body.memory.connected.prompt)}</span><Textarea aria-label={t(($) => $.tab_body.memory.connected.prompt)} value={item.prompt} maxLength={2000} onChange={(event) => setCases((values) => values.map((value, i) => i === index ? { ...value, prompt: event.target.value } : value))} /></label>
         <label className="block space-y-1"><span>{t(($) => $.tab_body.memory.connected.expected)}</span><Textarea aria-label={t(($) => $.tab_body.memory.connected.expected)} value={item.expected} maxLength={2000} onChange={(event) => setCases((values) => values.map((value, i) => i === index ? { ...value, expected: event.target.value } : value))} /></label>

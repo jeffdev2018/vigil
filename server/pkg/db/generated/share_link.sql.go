@@ -209,7 +209,7 @@ func (q *Queries) ListShareLinksByWorkspace(ctx context.Context, workspaceID pgt
 	return items, nil
 }
 
-const revokeShareLink = `-- name: RevokeShareLink :exec
+const revokeShareLink = `-- name: RevokeShareLink :execrows
 UPDATE workspace_share_link
 SET is_active = false
 WHERE id = $1 AND workspace_id = $2
@@ -220,7 +220,10 @@ type RevokeShareLinkParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) RevokeShareLink(ctx context.Context, arg RevokeShareLinkParams) error {
-	_, err := q.db.Exec(ctx, revokeShareLink, arg.ID, arg.WorkspaceID)
-	return err
+func (q *Queries) RevokeShareLink(ctx context.Context, arg RevokeShareLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeShareLink, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

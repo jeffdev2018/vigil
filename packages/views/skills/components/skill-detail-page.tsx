@@ -1,4 +1,7 @@
 "use client";
+import { isResourceMissingError } from "@multica/core/api/load-error";
+import { LoadErrorState } from "../../common/load-error-state";
+import { SkillStudio } from "./skill-studio";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -166,10 +169,10 @@ function hasLocalEdits(draft: SkillDraft, baseline: SkillDraft | null): boolean 
  * read-only sentence. Delete lives in the header instead, matching the agent
  * detail page where Archive sits in the header.
  */
-type DetailView = "overview" | "files";
+type DetailView = "overview" | "files" | "studio";
 
 function isDetailView(value: string | null): value is DetailView {
-  return value === "overview" || value === "files";
+  return value === "overview" || value === "files" || value === "studio";
 }
 
 // ---------------------------------------------------------------------------
@@ -473,9 +476,12 @@ function OverviewTab({
       <div className="w-full max-w-3xl">
         <section>
           <h2 className="text-title-sm font-medium">{t(($) => $.detail.overview.properties)}</h2>
-          <p className="mt-1 text-caption text-muted-foreground">
-            {t(($) => $.detail.overview.properties_hint)}
-          </p>
+          <details className="mt-1 text-caption text-muted-foreground">
+            <summary className="cursor-pointer rounded-sm py-2 focus-visible:outline-2 focus-visible:outline-ring">
+              {t(($) => $.detail.overview.properties_help)}
+            </summary>
+            <p className="mt-1">{t(($) => $.detail.overview.properties_hint)}</p>
+          </details>
           <div className="mt-4 divide-y">
             <PropertyRow label={t(($) => $.detail.overview.name)} htmlFor="skill-name">
               <Input
@@ -504,11 +510,12 @@ function OverviewTab({
                 rows={6}
                 className="text-body leading-relaxed read-only:cursor-default"
               />
-              <p className="mt-1.5 text-caption text-muted-foreground">
-                {t(($) => $.detail.overview.description_hint, {
-                  count: description.length,
-                })}
-              </p>
+              <div className="mt-1.5 flex flex-wrap justify-between gap-x-4 gap-y-1 text-caption text-muted-foreground">
+                <p>{t(($) => $.detail.overview.description_hint)}</p>
+                <span className="tabular-nums">
+                  {t(($) => $.detail.overview.character_count, { count: description.length })}
+                </span>
+              </div>
             </PropertyRow>
 
             <PropertyRow label={t(($) => $.detail.overview.labels)}>
@@ -698,9 +705,9 @@ function FilesTab({
                     aria-pressed={mode === value}
                     onClick={() => onModeChange(value)}
                     className={cn(
-                      "h-6 rounded px-2 text-caption font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "h-6 rounded-xs px-2 text-caption font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       mode === value
-                        ? "bg-surface text-foreground shadow-sm"
+                        ? "bg-surface text-foreground shadow-surface"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -768,6 +775,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
     data: skill,
     isLoading,
     error,
+    refetch: refetchSkill,
   } = useQuery(skillDetailOptions(wsId, skillId));
   const { data: agents = [], error: agentsError } = useQuery(
     agentListOptions(wsId),
@@ -1097,7 +1105,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
       <div className="flex flex-1 min-h-0 flex-col">
         <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <Skeleton className="h-4 w-16" />
-          <Skeleton className="h-3 w-3 rounded" />
+          <Skeleton className="h-3 w-3 rounded-xs" />
           <Skeleton className="h-4 w-40" />
         </div>
         <div className={cn(PAGE_RAIL, PAGE_GUTTER, "space-y-3 py-6")}>
@@ -1107,6 +1115,10 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
         </div>
       </div>
     );
+  }
+
+  if (error && !isResourceMissingError(error)) {
+    return <LoadErrorState onRetry={() => void refetchSkill()} />;
   }
 
   if (error || !skill) {
@@ -1157,6 +1169,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
       id: "files",
       label: t(($) => $.detail.tabs.files, { count: totalFileCount(skill) }),
     },
+    { id: "studio", label: t($ => $.studio.title) },
   ];
 
   return (
@@ -1311,7 +1324,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
           activeView === "files" && "md:overflow-hidden",
         )}
       >
-        {activeView === "overview" ? (
+        {activeView === "studio" ? <SkillStudio skill={skill} dirty={isDirty || conflictPending} /> : activeView === "overview" ? (
           <OverviewTab
             skill={skill}
             name={name}
@@ -1353,7 +1366,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
         <div
           role="status"
           aria-live="polite"
-          className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 animate-in items-center gap-1 rounded-lg border bg-background px-2 py-1.5 fade-in slide-in-from-bottom-2 shadow-lg max-md:above-chat-launcher"
+          className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 animate-in items-center gap-1 rounded-lg border bg-background px-2 py-1.5 fade-in slide-in-from-bottom-2 shadow-menu max-md:above-chat-launcher"
         >
           <div className="mr-1 flex items-center border-r pl-1 pr-2">
             <span className="whitespace-nowrap text-caption text-muted-foreground">

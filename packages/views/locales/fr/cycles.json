@@ -14,7 +14,8 @@
     "edit": "Modifier le cycle",
     "delete": "Supprimer le cycle",
     "no_project": "Choisissez un projet pour planifier un cycle.",
-    "loading": "Chargement des cycles"
+    "loading": "Chargement des cycles",
+    "load_error": "Impossible de charger les cycles"
   },
   "status": {
     "upcoming": "À venir",
@@ -46,7 +47,32 @@
     "close_confirm": "Clore le cycle",
     "cancel": "Annuler",
     "close_error": "Impossible de clore le cycle",
-    "closed_on": "Clos le {{date}}"
+    "closed_on": "Clos le {{date}}",
+    "empty_issues_title": "Aucune issue dans ce cycle",
+    "empty_issues_hint": "Créez une nouvelle issue ou assignez-en des existantes à ce cycle.",
+    "empty_issues_new_button": "Nouvelle issue"
+  },
+  "actors": {
+    "title": "Capacité par acteur",
+    "empty": "Aucune capacité par acteur déclarée pour l'instant.",
+    "empty_hint": "Déclarez ce que chaque personne ou agent peut prendre en charge sur ce cycle.",
+    "add": "Ajouter un acteur",
+    "actor_label": "Acteur",
+    "actor_placeholder": "Choisissez une personne ou un agent",
+    "points_label": "Points",
+    "remove": "Retirer l'acteur",
+    "save": "Enregistrer les capacités",
+    "error": "Impossible d'enregistrer les capacités",
+    "points_invalid": "Les points doivent être un nombre entier entre 0 et 10000."
+  },
+  "velocity": {
+    "title": "Vélocité",
+    "loading": "Chargement de la vélocité",
+    "empty": "Aucun travail terminé pour l'instant sur ce cycle.",
+    "empty_hint": "La vélocité apparaît ici à mesure que les personnes et les agents terminent des issues.",
+    "other": "Travail non assigné ou en escouade",
+    "done_value": "{{points}} terminés",
+    "history_title": "Cycles précédents"
   },
   "form": {
     "create_title": "Nouveau cycle",
@@ -69,7 +95,8 @@
     "create": "Créer le cycle",
     "save": "Enregistrer",
     "error": "Impossible d'enregistrer le cycle",
-    "date_order": "La date de fin doit être égale ou postérieure à la date de début."
+    "date_order": "La date de fin doit être égale ou postérieure à la date de début.",
+    "capacity_negative": "La capacité doit être supérieure ou égale à zéro."
   },
   "delete_dialog": {
     "title": "Supprimer ce cycle ?",

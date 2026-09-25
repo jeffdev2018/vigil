@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ProjectReviewConfig } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -48,13 +49,16 @@ beforeEach(() => {
   state.saved = [];
 });
 
+// Base UI Select portals its popup onto document.body.
+afterEach(() => cleanup());
+
 describe("ProjectReviewSection", () => {
   it("renders the saved config", async () => {
     render();
     const rows = await screen.findAllByTestId("review-checklist-item");
     expect(rows[0]?.textContent).toContain("no foreign keys in migrations");
-    expect((screen.getByLabelText("Reviewer agent") as HTMLSelectElement).value).toBe("");
-    expect((screen.getByLabelText("Gate on approval") as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole("combobox", { name: "Reviewer agent" }).textContent).toContain("Automatic");
+    expect(screen.getByRole("checkbox", { name: "Gate on approval" })).not.toBeChecked();
     expect((screen.getByLabelText("Max cycles") as HTMLInputElement).value).toBe("3");
   });
 
@@ -79,8 +83,10 @@ describe("ProjectReviewSection", () => {
     state.config = config({ reviewer_agent_id: "a1", gate_enabled: true, max_cycles: 5 });
     render();
     await screen.findAllByTestId("review-checklist-item");
-    fireEvent.change(screen.getByLabelText("Reviewer agent"), { target: { value: "" } });
-    fireEvent.click(screen.getByLabelText("Gate on approval"));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("combobox", { name: "Reviewer agent" }));
+    await user.click(await screen.findByRole("option", { name: "Automatic" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Gate on approval" }));
     fireEvent.change(screen.getByLabelText("Max cycles"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Save review settings" }));
     expect(state.saved[0]).toEqual({

@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, type InvalidateQueryFilters } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { WSClient } from "../api/ws-client";
@@ -16,8 +16,12 @@ import { issueStatusKeys } from "../issue-statuses/queries";
 import { meetingKeys } from "../meetings/queries";
 import {
   markWorkspaceDeletePending,
+  markWorkspaceLeavePending,
   unmarkWorkspaceDeletePending,
+  unmarkWorkspaceLeavePending,
 } from "../workspace/pending-delete";
+import { setApiInstance } from "../api";
+import type { ApiClient } from "../api/client";
 import { useRealtimeSync, type RealtimeSyncStores } from "./use-realtime-sync";
 
 vi.mock("../platform/workspace-storage", () => ({
@@ -102,7 +106,7 @@ describe("useRealtimeSync — ws instance change", () => {
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
-  it("invalidates exactly once when a new ws instance appears after null gap", () => {
+  it("invalidates exactly once when a new ws instance appears after null gap", async () => {
     const ws1 = createMockWs();
     const { rerender } = renderHook(
       ({ ws }) => useRealtimeSync(ws, stores),
@@ -119,11 +123,16 @@ describe("useRealtimeSync — ws instance change", () => {
 
     // Should have called invalidateQueries for all workspace-scoped keys
     // (19 workspace-scoped [incl. property definitions, agent memories,
-    // meetings and the F30 work item type catalogue] + 6 per-issue prefixes +
-    // the workspace working-agents projection + 5 per-chat prefixes + 1
-    // workspaceKeys.list() + 1 cross-workspace inbox unread summary + budget
-    // policy/status scope = 35 calls)
-    expect(invalidateSpy).toHaveBeenCalledTimes(35);
+    // meetings and the F30 work item type catalogue] + 1 contest prefix
+    // [JEF-301, replaces the removed live-contest poll] + 6 per-issue
+    // prefixes + the workspace working-agents projection + 5 per-chat
+    // prefixes + 1 workspaceKeys.list() + 1 cross-workspace inbox unread
+    // summary + budget policy/status scope = 36 calls).
+    //
+    // Awaited rather than counted synchronously: the inbox unread summary
+    // refresh cancels any in-flight request before invalidating (see
+    // onInboxSummaryInvalidate), so that one lands after the synchronous ones.
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(36));
   });
 
   it("does not re-invalidate when rerendered with the same ws instance", () => {
@@ -281,6 +290,11 @@ describe("useRealtimeSync — ws instance change", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: issueStatusKeys.all("ws-1"),
     });
+    const groupRefresh = invalidateSpy.mock.calls.find(([options]: [InvalidateQueryFilters?]) => options?.predicate);
+    expect(groupRefresh?.[0]?.queryKey).toEqual([...issueKeys.tableAll("ws-1"), "groups"]);
+    const predicate = groupRefresh![0]!.predicate!;
+    expect(predicate({ queryKey: ["issues", "ws-1", "table-query", "groups", {}, { kind: "status" }] } as never)).toBe(true);
+    expect(predicate({ queryKey: ["issues", "ws-1", "table-query", "groups", {}, { kind: "assignee" }] } as never)).toBe(false);
     // Deliberately NOT the issue caches. A row stores the status KEY; its name,
     // color and category are resolved from the catalog at render time, so no
     // cached issue field can go stale here. Dragging every board and list along
@@ -513,5 +527,67 @@ describe("useRealtimeSync — workspace:deleted self-initiated suppression", () 
     dispatchWorkspaceDeleted(ws, "ws-2");
 
     expect(defaultStorage.getItem("multica_issue_draft:delete-me")).toBeNull();
+  });
+});
+
+describe("useRealtimeSync — member:removed self-initiated suppression", () => {
+  let qc: QueryClient;
+  let stores: RealtimeSyncStores;
+
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    stores = createStores();
+    // The relocate branch refetches the workspace list before it navigates;
+    // stub it so the suppressed/handled comparison is about the handler, not
+    // the network. As with the workspace:deleted suite above, the observable
+    // difference asserted here is the storage cleanup — jsdom cannot host the
+    // full-page navigation that follows it.
+    setApiInstance({
+      listWorkspaces: vi.fn().mockResolvedValue([]),
+    } as unknown as ApiClient);
+  });
+
+  afterEach(() => {
+    unmarkWorkspaceLeavePending("ws-1");
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  // getCurrentWsId/getCurrentSlug are mocked to the workspace we are on, and
+  // the removed user is this client's user, so this is exactly the event the
+  // server echoes back for our own leave.
+  const dispatchSelfRemoved = (ws: WSClient) => {
+    const call = vi
+      .mocked(ws.on)
+      .mock.calls.find(([event]) => event === "member:removed");
+    expect(call).toBeDefined();
+    (call![1] as (p: unknown) => void)({ user_id: "u1" });
+  };
+
+  it("ignores the event for a leave this client initiated", () => {
+    const ws = createMockWs();
+    renderHook(() => useRealtimeSync(ws, stores), {
+      wrapper: createWrapper(qc),
+    });
+    defaultStorage.setItem("multica_issue_draft:test-ws", "draft");
+
+    markWorkspaceLeavePending("ws-1");
+    dispatchSelfRemoved(ws);
+
+    // useLeaveWorkspace.onSuccess owns cleanup and the caller owns
+    // navigation; a parallel relocate here would race both.
+    expect(defaultStorage.getItem("multica_issue_draft:test-ws")).toBe("draft");
+  });
+
+  it("still cleans up when the removal came from elsewhere", () => {
+    const ws = createMockWs();
+    renderHook(() => useRealtimeSync(ws, stores), {
+      wrapper: createWrapper(qc),
+    });
+    defaultStorage.setItem("multica_issue_draft:test-ws", "draft");
+
+    dispatchSelfRemoved(ws);
+
+    expect(defaultStorage.getItem("multica_issue_draft:test-ws")).toBeNull();
   });
 });

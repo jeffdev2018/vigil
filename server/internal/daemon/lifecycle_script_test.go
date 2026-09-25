@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func lifecycleTestLogger() *slog.Logger {
@@ -117,5 +118,25 @@ func TestLifecycleScriptsOnlyApplyToWorktreeMode(t *testing.T) {
 	}
 	if got := worktree.ArchiveScript(); len(got) != 1 {
 		t.Fatalf("worktree ArchiveScript() = %v, want the configured argv", got)
+	}
+}
+
+// A byte-offset tail cut can land mid multi-byte rune; the output must stay
+// valid UTF-8 instead of emitting a mangled partial rune. "é" (2 bytes) sits
+// at byte 0 and the rest is exactly lifecycleOutputLimit-1 ASCII bytes, so
+// the kept tail (the last lifecycleOutputLimit bytes) starts one byte into
+// "é" — its lone continuation byte, an invalid UTF-8 start.
+func TestFormatLifecycleOutputCutsOnARuneBoundary(t *testing.T) {
+	out := []byte("é" + strings.Repeat("a", lifecycleOutputLimit-1))
+	got := formatLifecycleOutput(out)
+	if !strings.HasPrefix(got, "\n\n…") {
+		t.Fatalf("formatLifecycleOutput prefix = %q", got[:10])
+	}
+	body := strings.TrimPrefix(got, "\n\n…")
+	if !utf8.ValidString(body) {
+		t.Fatalf("formatLifecycleOutput produced invalid UTF-8: %q", body)
+	}
+	if !strings.HasSuffix(body, strings.Repeat("a", lifecycleOutputLimit-1)) {
+		t.Fatalf("formatLifecycleOutput dropped content beyond the split rune")
 	}
 }

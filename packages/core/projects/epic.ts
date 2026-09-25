@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "../api";
+import { issueKeys } from "../issues/queries";
 
 // Epic Mode (F18 / JEF-30): a project's PRD -> tech plan -> wireframe ->
 // tickets pipeline, with a human gate between the steps.
@@ -289,7 +290,7 @@ export function useApplyEpicTickets(wsId: string, projectId: string) {
       // Apply creates issues under the epic host issue, so the issue lists and
       // the project counters are stale too, not just the epic.
       qc.invalidateQueries({ queryKey: epicKeys.detail(wsId, projectId) });
-      qc.invalidateQueries({ queryKey: ["issues"] });
+      qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
     },
   });
 }

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { scorecardRate, workspaceScorecardsOptions } from "@multica/core/agents/queries";
 import { agentListOptions } from "@multica/core/workspace/queries";
+import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { formatUsd } from "../../runtimes/utils";
 import { useT } from "../../i18n";
@@ -21,8 +22,22 @@ import { useT } from "../../i18n";
  */
 export function AgentScorecardsCard({ wsId, days }: { wsId: string; days: number }) {
   const { t } = useT("usage");
-  const { data: rows = [] } = useQuery(workspaceScorecardsOptions(wsId, days));
+  const { data: rows = [], isError, refetch } = useQuery(workspaceScorecardsOptions(wsId, days));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  if (isError) {
+    return (
+      <div
+        data-testid="agent-scorecards-error"
+        role="alert"
+        className="flex items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-caption text-destructive"
+      >
+        <span>{t(($) => $.scorecards.load_error)}</span>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          {t(($) => $.scorecards.retry)}
+        </Button>
+      </div>
+    );
+  }
   if (rows.length === 0) return null;
   const name = (id: string) => agents.find((a) => a.id === id)?.name ?? id.slice(0, 8);
   const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
@@ -54,7 +69,7 @@ export function AgentScorecardsCard({ wsId, days }: { wsId: string; days: number
               <tr key={`${r.agent_id}-${r.runtime_id ?? ""}`} data-testid="scorecard-row" className={cn("border-t", r.low_sample && "text-muted-foreground")}>
                 <td className="px-4 py-1.5">
                   {name(r.agent_id)}
-                  {r.low_sample && <span className="ml-1 text-faint-foreground">{t(($) => $.scorecards.low_sample)}</span>}
+                  {r.low_sample && <span className="ml-1 text-muted-foreground">{t(($) => $.scorecards.low_sample)}</span>}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{r.runs_total}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{pct(scorecardRate(r.runs_accepted, r.runs_total))}</td>

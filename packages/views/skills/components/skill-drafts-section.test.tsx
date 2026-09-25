@@ -50,6 +50,8 @@ describe("SkillDraftsSection", () => {
     render();
     const card = await screen.findByTestId("skill-draft");
     expect(card.getAttribute("data-origin")).toBe("skill_miner");
+    // The kebab-case id becomes the readable title; the id stays on hover.
+    expect(screen.getByText("Mined unit tests").getAttribute("title")).toBe("mined-unit-tests");
     expect(screen.getByText("from 3 corrections of Builder (1 with a status moved back)")).toBeTruthy();
     expect(screen.getByText("#12 ↩").getAttribute("href")).toBe("/ws/issues/i1");
     fireEvent.click(screen.getByText("Publish and edit"));

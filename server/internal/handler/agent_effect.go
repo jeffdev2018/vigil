@@ -35,7 +35,13 @@ import (
 const (
 	AuditAgentEffectReversed = "agent_effect.reversed"
 	AuditUndoSettings        = "undo.settings_updated"
-	InboxTypeUndoBreaker     = "agent_undo_breaker"
+	// AuditAgentEffectModeUpdated is distinct from AuditUndoSettings: a
+	// per-agent apply/preview toggle (agent_effect_preview.go) is not the
+	// same event as a workspace's undo window/breaker threshold, and mixing
+	// them under one audit kind made an admin filtering by kind see both
+	// shapes with no way to tell them apart without inspecting the payload.
+	AuditAgentEffectModeUpdated = "agent.effect_mode_updated"
+	InboxTypeUndoBreaker        = "agent_undo_breaker"
 )
 
 // effectActor is the run behind a task-token request: the only writes the
@@ -348,10 +354,21 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 	if report.Reversed > 0 && agentID.Valid {
 		report.Breaker = h.checkUndoBreaker(ctx, wsID, agentID, userID, settings)
 	}
-	// Fresh rows so the client sees reversed_at / reverse_error without a refetch.
+	// Fresh rows so the client sees reversed_at / reverse_error without a
+	// refetch. One batched query instead of one GetAgentEffect per row.
+	ids := make([]pgtype.UUID, len(rows))
+	for i, eff := range rows {
+		ids[i] = eff.ID
+	}
+	byID := map[pgtype.UUID]db.AgentEffect{}
+	if refetched, err := h.Queries.ListAgentEffectsByIDs(ctx, db.ListAgentEffectsByIDsParams{WorkspaceID: wsID, Ids: ids}); err == nil {
+		for _, e := range refetched {
+			byID[e.ID] = e
+		}
+	}
 	fresh := make([]db.AgentEffect, 0, len(rows))
 	for _, eff := range rows {
-		if e, err := h.Queries.GetAgentEffect(ctx, db.GetAgentEffectParams{ID: eff.ID, WorkspaceID: wsID}); err == nil {
+		if e, ok := byID[eff.ID]; ok {
 			fresh = append(fresh, e)
 		}
 	}
@@ -360,10 +377,7 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
+	return util.TruncateUTF8Bytes(s, n)
 }
 
 // reverseEffect applies the inverse of one journaled effect.
@@ -437,6 +451,9 @@ func (h *Handler) reverseEffect(ctx context.Context, eff db.AgentEffect) error {
 		}
 		if v, ok := before["pinned"].(bool); ok {
 			params.Pinned = pgtype.Bool{Bool: v, Valid: true}
+		}
+		if v, ok := before["kind"].(string); ok && v != "" {
+			params.Kind = pgtype.Text{String: v, Valid: true}
 		}
 		if raw, ok := before["tags"].([]any); ok {
 			tags := make([]string, 0, len(raw))
@@ -661,7 +678,7 @@ func commentEffectSnapshot(c db.Comment) map[string]any {
 // noteEffectSnapshot is what restoring a deleted note needs.
 func noteEffectSnapshot(n db.WorkspaceNote) map[string]any {
 	return map[string]any{
-		"title": n.Title, "content": n.Content, "tags": n.Tags, "pinned": n.Pinned, "source": n.Source,
+		"title": n.Title, "content": n.Content, "tags": n.Tags, "pinned": n.Pinned, "source": n.Source, "kind": n.Kind,
 		"source_task_id": uuidToPtr(n.SourceTaskID), "source_agent_id": uuidToPtr(n.SourceAgentID),
 		"created_by_type": n.CreatedByType, "created_by_id": uuidToPtr(n.CreatedByID),
 	}
@@ -730,9 +747,13 @@ func (h *Handler) restoreNote(ctx context.Context, eff db.AgentEffect, before ma
 	if createdByType == "" {
 		createdByType = "agent"
 	}
+	kind := snapshotString(before, "kind")
+	if kind == "" {
+		kind = service.DefaultNoteKind
+	}
 	note, err := h.Queries.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{
 		ID: eff.TargetID, WorkspaceID: eff.WorkspaceID, Title: snapshotString(before, "title"), Content: snapshotString(before, "content"),
-		Tags: tags, Pinned: pinned, Source: source, SourceTaskID: snapshotUUID(before, "source_task_id"), SourceAgentID: snapshotUUID(before, "source_agent_id"),
+		Tags: tags, Pinned: pinned, Source: source, Kind: kind, SourceTaskID: snapshotUUID(before, "source_task_id"), SourceAgentID: snapshotUUID(before, "source_agent_id"),
 		CreatedByType: createdByType, CreatedByID: snapshotUUID(before, "created_by_id"),
 	})
 	if err != nil {

@@ -12,6 +12,7 @@ import {
   type PermissionProfile,
   type PermissionProfilePatch,
 } from "@multica/core/agents/permission-profiles";
+import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
@@ -25,7 +26,7 @@ import { useT } from "../../i18n";
 export function PermissionProfilesSetting({ canEdit }: { canEdit: boolean }) {
   const { t } = useT("settings");
   const wsId = useWorkspaceId();
-  const { data: profiles = [] } = useQuery(permissionProfilesOptions(wsId));
+  const { data: profiles = [], isLoading, isError, refetch } = useQuery(permissionProfilesOptions(wsId));
   const update = useUpdatePermissionProfile(wsId);
   const save = (id: string, patch: PermissionProfilePatch) =>
     update.mutate({ id, patch }, { onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.workspace.profiles_failed)) });
@@ -40,11 +41,26 @@ export function PermissionProfilesSetting({ canEdit }: { canEdit: boolean }) {
       }
     >
       <p className="mb-3 text-caption text-muted-foreground">{t(($) => $.workspace.profiles_intro)}</p>
-      <div className="flex flex-col gap-3">
-        {profiles.map((p) => (
-          <ProfileCard key={p.id} profile={p} canEdit={canEdit && !update.isPending} onSave={(patch) => save(p.id, patch)} />
-        ))}
-      </div>
+      {isLoading ? (
+        <p role="status" className="text-caption text-muted-foreground">
+          {t(($) => $.workspace.profiles_loading)}
+        </p>
+      ) : isError ? (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-caption text-destructive">
+            {t(($) => $.workspace.profiles_load_error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            {t(($) => $.workspace.profiles_retry)}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {profiles.map((p) => (
+            <ProfileCard key={p.id} profile={p} canEdit={canEdit && !update.isPending} onSave={(patch) => save(p.id, patch)} />
+          ))}
+        </div>
+      )}
     </SettingsSection>
   );
 }

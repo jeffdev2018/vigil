@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Users } from "lucide-react";
 import type { CommentTriggerPreviewAgent, CommentTriggerOutcome } from "@multica/core/types";
 import { useAgentPresenceDetail } from "@multica/core/agents";
 import { mentionLabelsByTarget } from "@multica/core/issues/comment-trigger-outcomes";
@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
 import { AgentStatusDot } from "../../common/actor-avatar";
+import { AgentRunDetails } from "../../agents/components/agent-run-details";
 import { useT } from "../../i18n";
 import { blockedReasonLabel, blockedShortReasonLabel } from "../blocked-trigger-copy";
 
@@ -38,6 +39,8 @@ interface CommentTriggerChipsProps {
   // (MUL-4525 §2). Each renders as a named warning chip so the user sees WHICH
   // target won't run and why, not a silent no-op after sending.
   blocked?: CommentTriggerOutcome[];
+  /** Whether the draft contains the structured @all member broadcast. */
+  hasAllMembersMention?: boolean;
   // The draft markdown, used only to label each blocked target with the name the
   // user typed in its mention markup. The server omits blocked target names
   // (enumeration-safety); this is the user's own text, so it discloses nothing new.
@@ -116,6 +119,8 @@ function TriggerAgentTooltipBody({
             const line = [sourceReason(agent, t), presenceLine].filter(Boolean).join(" ");
             return line ? <div>{line}</div> : null;
           })()}
+          {/* Where the run happens and roughly what it costs, before sending. */}
+          <AgentRunDetails agentId={agent.id} className="block" />
           <div className="text-muted-foreground">{t(($) => $.comment.trigger_click_to_skip)}</div>
         </>
       )}
@@ -126,6 +131,7 @@ function TriggerAgentTooltipBody({
 export function CommentTriggerChips({
   agents,
   blocked = [],
+  hasAllMembersMention = false,
   draftContent = "",
   suppressedAgentIds,
   onToggle,
@@ -137,7 +143,7 @@ export function CommentTriggerChips({
 
   // Loading and errors render nothing: the preview is an enhancement, and
   // any interim chrome here reads as composer noise.
-  if (agents.length === 0 && blocked.length === 0) return null;
+  if (agents.length === 0 && blocked.length === 0 && !hasAllMembersMention) return null;
 
   const allowed =
     agents.length === 1 ? (
@@ -156,10 +162,16 @@ export function CommentTriggerChips({
       />
     ) : null;
 
-  if (blocked.length === 0) return allowed;
+  if (blocked.length === 0 && !hasAllMembersMention) return allowed;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {hasAllMembersMention && (
+        <span className="inline-flex h-6 min-w-0 max-w-full animate-in fade-in items-center gap-1.5 rounded-md px-1.5 text-micro font-medium text-muted-foreground">
+          <Users className="size-3 shrink-0" />
+          <span className="truncate">{t(($) => $.comment.all_members_notice)}</span>
+        </span>
+      )}
       {allowed}
       {blocked.map((outcome) => (
         <BlockedTriggerChip

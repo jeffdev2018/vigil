@@ -13,7 +13,9 @@
       "assignee": "Assignee",
       "trigger": "Trigger",
       "next_run": "Next run",
-      "created": "Created"
+      "created": "Created",
+      "select_all": "Select all automations",
+      "select_autopilot": "Select {{name}}"
     },
     "last_run_empty": "--",
     "empty": {
@@ -28,8 +30,8 @@
     "active": "Active",
     "paused": "Paused",
     "paused_runtime_required": "Paused — the assignee needs a runtime",
-    "paused_failure_rate": "Paused — too many runs failed",
-    "archived": "Archived"
+    "archived": "Archived",
+    "paused_failure_rate": "Paused — too many runs failed"
   },
   "execution_mode": {
     "create_issue": "Create Issue",
@@ -72,7 +74,6 @@
     "pause_aria": "Pause autopilot",
     "activate_aria": "Activate autopilot",
     "paused_runtime_required": "Paused because the assignee lost its runtime. Bind a runtime, then reactivate this autopilot.",
-    "paused_failure_rate": "Auto-paused because too many recent runs failed. Investigate the failures, fix the root cause, then reactivate this autopilot.",
     "bind_runtime": "Bind runtime",
     "edit": "Edit",
     "run_now": "Run now",
@@ -82,6 +83,7 @@
     "run_blocked_invocation_not_allowed": "Not triggered — you don't have permission to use this autopilot's agent",
     "run_blocked_runtime_offline": "Not triggered — the agent's runtime is offline",
     "run_blocked_agent_runtime_required": "Not triggered — the agent has no runtime; bind one to run it",
+    "run_blocked_runtime_access_denied": "Not triggered — the agent can't run on its private runtime; make it public or rebind/copy the agent",
     "run_blocked_target_unavailable": "Not triggered — the agent is unavailable",
     "run_blocked_attribution": "Not triggered — the run couldn't be attributed to a responsible member",
     "run_blocked_already_active": "Not triggered — a recent run already covers this",
@@ -114,6 +116,7 @@
       "confirm": "Delete",
       "deleting": "Deleting..."
     },
+    "paused_failure_rate": "Auto-paused because too many recent runs failed. Investigate the failures, fix the root cause, then reactivate this autopilot.",
     "load_more": "Load more",
     "loading_more": "Loading...",
     "showing_count": "{{shown}} of {{total}}"
@@ -173,8 +176,6 @@
   },
   "trigger_row": {
     "disabled_badge": "Disabled",
-    "enable_aria": "Enable trigger",
-    "edit_trigger": "Edit trigger",
     "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -184,6 +185,7 @@
     "copy_url": "Copy URL",
     "url_copied": "Webhook URL copied",
     "url_copy_failed": "Failed to copy",
+    "edit_schedule": "Edit schedule",
     "rotate_url": "Rotate URL",
     "rotate_confirm_title": "Rotate webhook URL",
     "rotate_confirm_description": "The current URL will stop working immediately. Any external systems calling it must be updated with the new URL. Continue?",
@@ -194,16 +196,18 @@
     "toast_rotate_failed": "Failed to rotate URL",
     "toast_deleted": "Trigger deleted",
     "toast_delete_failed": "Failed to delete trigger",
-    "toast_enabled": "Trigger enabled",
-    "toast_disabled": "Trigger disabled",
-    "toast_toggle_failed": "Failed to update trigger",
     "delete_dialog": {
       "title": "Delete trigger",
       "description": "This trigger will be removed and the autopilot will stop firing on this schedule. This action cannot be undone.",
       "cancel": "Cancel",
       "confirm": "Delete",
       "deleting": "Deleting..."
-    }
+    },
+    "enable_aria": "Enable trigger",
+    "edit_trigger": "Edit trigger",
+    "toast_enabled": "Trigger enabled",
+    "toast_disabled": "Trigger disabled",
+    "toast_toggle_failed": "Failed to update trigger"
   },
   "deliveries": {
     "section_title": "Webhook Deliveries",
@@ -218,16 +222,6 @@
       "rejected": "Rejected",
       "ignored": "Ignored",
       "failed": "Failed"
-    },
-    "reason": {
-      "trigger_disabled": "Trigger disabled",
-      "autopilot_paused": "Autopilot paused",
-      "autopilot_archived": "Autopilot archived",
-      "event_filtered": "Event filtered out",
-      "criteria_not_matched": "Criteria not matched",
-      "quota_exceeded": "Run limit reached",
-      "invalid_signature": "Signature invalid",
-      "missing_signature": "Signature missing"
     },
     "signature": {
       "not_required": "No signature",
@@ -248,10 +242,10 @@
       "content_type": "Content-Type",
       "replayed_from": "Replayed from",
       "error_label": "Error",
-      "reason_label": "Reason",
       "raw_body": "Raw body",
       "selected_headers": "Headers",
-      "response_body": "Response body"
+      "response_body": "Response body",
+      "reason_label": "Reason"
     },
     "replay": {
       "action": "Replay",
@@ -261,49 +255,17 @@
       "disabled_invalid_signature": "Can't replay — signature was invalid",
       "disabled_rejected": "Can't replay a rejected delivery",
       "disabled_queued": "Still queued — replay once it settles"
+    },
+    "reason": {
+      "trigger_disabled": "Trigger disabled",
+      "autopilot_paused": "Autopilot paused",
+      "autopilot_archived": "Autopilot archived",
+      "event_filtered": "Event filtered out",
+      "criteria_not_matched": "Criteria not matched",
+      "quota_exceeded": "Run limit reached",
+      "invalid_signature": "Signature invalid",
+      "missing_signature": "Signature missing"
     }
-  },
-  "dry_run": {
-    "open": "Test with a sample event",
-    "title": "Test with a sample event",
-    "description": "Replays this payload through the whole delivery decision — filters, routing criteria, pause state and run limit. Nothing is recorded: no delivery, no run.",
-    "sample_label": "Sample",
-    "payload_label": "Event payload (JSON)",
-    "run": "Run dry-run",
-    "running": "Running...",
-    "replay_action": "Replay as dry-run",
-    "invalid_json": "Invalid JSON: {{message}}",
-    "invalid_shape": "The payload must be a JSON object or array.",
-    "verdict_would_run": "This event would run the autopilot",
-    "verdict_blocked": "This event would not run the autopilot",
-    "verdict_unreadable": "The verdict could not be read",
-    "matched_filters": "Matched filters:",
-    "toast_failed": "Dry-run failed"
-  },
-  "next_runs": {
-    "label": "Next runs",
-    "loading": "Loading...",
-    "unavailable": "Next runs unavailable",
-    "never": "This schedule never fires again.",
-    "blocked": "Would not run: {{reason}}",
-    "blocked_unknown": "blocked",
-    "window_hint": "Fires at a random minute within {{minutes}} minutes of the scheduled time."
-  },
-  "signing_secret": {
-    "label": "Signing secret",
-    "hint": "When set, every delivery must carry X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the raw body, keyed with this secret>. Unsigned or wrongly signed deliveries are rejected with 401.",
-    "not_configured": "No signing secret — the webhook URL alone authenticates callers.",
-    "configured": "Configured (ends in {{hint}}).",
-    "shown_once": "Copy it now — it is shown only once.",
-    "generate": "Generate signing secret",
-    "rotate": "Rotate signing secret",
-    "clear": "Remove",
-    "copy": "Copy secret",
-    "copied": "Signing secret copied",
-    "copy_failed": "Failed to copy",
-    "toast_rotated": "Signing secret updated — senders must be reconfigured",
-    "toast_cleared": "Signing secret removed",
-    "toast_failed": "Failed to update signing secret"
   },
   "add_trigger_dialog": {
     "title": "Add Trigger",
@@ -321,8 +283,13 @@
   },
   "edit_trigger_dialog": {
     "title": "Edit Trigger",
+    "label_field": "Label (optional)",
+    "label_placeholder": "e.g. Weekday morning",
+    "enabled_label": "Enabled",
     "submit": "Save trigger",
     "submitting": "Saving...",
+    "toast_updated": "Schedule updated",
+    "toast_update_failed": "Failed to update schedule",
     "toast_saved": "Trigger updated",
     "toast_save_failed": "Failed to update trigger"
   },
@@ -386,7 +353,7 @@
     "event_filter_add": "Add",
     "event_filter_remove_label": "Remove filter",
     "event_filter_hint": "Only process webhooks matching these events. Leave empty to accept all.",
-    "schedule_disabled_reason": "This autopilot has multiple schedules — edit them in the detail page.",
+    "schedule_multiple_notice": "This autopilot has {{count}} schedules. Close this dialog and edit each one under Triggers below.",
     "schedule_empty": "No schedule — this autopilot only runs when triggered manually.",
     "schedule_add": "Add schedule",
     "error_title_required": "Enter a name for this autopilot.",
@@ -401,6 +368,7 @@
         "description": "Silent run, no issue created"
       }
     },
+    "schedule_disabled_reason": "This autopilot has multiple schedules — edit them in the detail page.",
     "event_criteria_label": "Only run when…",
     "event_criteria_placeholder": "e.g. production deployment failures, or pull requests that touch billing",
     "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone.",
@@ -542,8 +510,100 @@
       "warning": "This action cannot be undone.",
       "cancel": "Cancel",
       "confirm": "Delete permanently",
-      "deleting": "Deleting…"
-    }
+      "deleting": "Deleting…",
+      "partial": "{{succeeded}} deleted, {{failed}} failed."
+    },
+    "status_partial": "{{succeeded}} updated, {{failed}} failed."
+  },
+  "wakeups": {
+    "title": "Issue wakeups",
+    "scope": "Scope",
+    "issue": "Issue",
+    "trigger": "Trigger",
+    "next": "Wakeup state",
+    "enabled": "Enabled",
+    "all_triggers": "All triggers",
+    "event": "Event",
+    "at": "One-time",
+    "recurring": "Recurring",
+    "all_agents": "All agents",
+    "search": "Search issues or agents",
+    "search_action": "Search",
+    "running": "Running",
+    "active_runs": "{{count}} active runs",
+    "issue_closed": "Issue closed",
+    "read_only": "Only the creator or a workspace admin can manage this wakeup",
+    "select_row": "Select {{issue}}, {{agent}}",
+    "select_page": "Select enabled wakeups on this page",
+    "load_error": "Could not load wakeups",
+    "loading": "Loading wakeups…",
+    "empty": "No wakeup rules yet",
+    "selected": "{{count}} selected",
+    "disable_selected": "Turn off selected",
+    "clear": "Clear selection",
+    "results": "Page {{page}} · {{count}} results",
+    "previous": "Previous",
+    "next_page": "Next",
+    "confirm_title": "Turn off {{count}} wakeups?",
+    "confirm_body": "Future wakeups will stop. Runs still queued and not handed to an agent will be withdrawn. Dispatched runs will continue; stop them from the execution log.",
+    "cancel": "Cancel",
+    "confirm": "Turn off",
+    "disabling": "Turning off…",
+    "batch_result": "Turned off: {{succeeded}}. Failed: {{failed}}.",
+    "scopes": {
+      "active": "Waiting or executing",
+      "all": "All",
+      "disabled": "Turned off",
+      "ended": "Ended"
+    },
+    "target_agent": "Wake agent",
+    "wakeup_run": "Runs from wakeup",
+    "empty_filtered": "No matching wakeups",
+    "clear_filters": "Clear filters",
+    "batch_success": "Turned off {{count}} wakeup rules",
+    "batch_partial": "Turned off {{succeeded}}; {{failed}} failed. Failed items remain selected for retry."
+  },
+  "dry_run": {
+    "open": "Test with a sample event",
+    "title": "Test with a sample event",
+    "description": "Replays this payload through the whole delivery decision — filters, routing criteria, pause state and run limit. Nothing is recorded: no delivery, no run.",
+    "sample_label": "Sample",
+    "payload_label": "Event payload (JSON)",
+    "run": "Run dry-run",
+    "running": "Running...",
+    "replay_action": "Replay as dry-run",
+    "invalid_json": "Invalid JSON: {{message}}",
+    "invalid_shape": "The payload must be a JSON object or array.",
+    "verdict_would_run": "This event would run the autopilot",
+    "verdict_blocked": "This event would not run the autopilot",
+    "verdict_unreadable": "The verdict could not be read",
+    "matched_filters": "Matched filters:",
+    "toast_failed": "Dry-run failed"
+  },
+  "next_runs": {
+    "label": "Next runs",
+    "loading": "Loading...",
+    "unavailable": "Next runs unavailable",
+    "never": "This schedule never fires again.",
+    "blocked": "Would not run: {{reason}}",
+    "blocked_unknown": "blocked",
+    "window_hint": "Fires at a random minute within {{minutes}} minutes of the scheduled time."
+  },
+  "signing_secret": {
+    "label": "Signing secret",
+    "hint": "When set, every delivery must carry X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the raw body, keyed with this secret>. Unsigned or wrongly signed deliveries are rejected with 401.",
+    "not_configured": "No signing secret — the webhook URL alone authenticates callers.",
+    "configured": "Configured (ends in {{hint}}).",
+    "shown_once": "Copy it now — it is shown only once.",
+    "generate": "Generate signing secret",
+    "rotate": "Rotate signing secret",
+    "clear": "Remove",
+    "copy": "Copy secret",
+    "copied": "Signing secret copied",
+    "copy_failed": "Failed to copy",
+    "toast_rotated": "Signing secret updated — senders must be reconfigured",
+    "toast_cleared": "Signing secret removed",
+    "toast_failed": "Failed to update signing secret"
   },
   "daemon_import": {
     "open": "Import DAEMON.md",
@@ -586,10 +646,37 @@
   "memory": {
     "section_title": "Memory",
     "export_button": "Export DAEMON.md",
+    "export_failed": "Could not export DAEMON.md.",
     "empty_title": "No memory yet",
     "empty_hint": "Runs of this daemon write what the next run needs to know.",
     "updated_at": "Updated {{at}}",
     "last_run": "Last run {{at}}",
     "read_only": "Written by runs, not editable here"
+  },
+  "from_sentence": {
+    "action": "From a sentence",
+    "title": "Autopilot from a sentence",
+    "description": "Say what should happen and when. The model proposes the schedule; you check it before anything is created.",
+    "sentence_label": "Your sentence",
+    "sentence_placeholder": "Every Monday at 9, list the open tickets and post them.",
+    "draft": "Read my sentence",
+    "draft_failed": "Could not read that sentence",
+    "no_model": "No model configured; write the schedule yourself.",
+    "write_yourself": "Open the manual form",
+    "back": "Rewrite the sentence",
+    "field_title": "Title",
+    "field_cron": "Cron",
+    "field_timezone": "Timezone",
+    "field_prompt": "Instruction to the agent",
+    "field_mode": "Execution mode",
+    "field_issue_title": "Issue title at each run",
+    "field_assignee": "Agent",
+    "assignee_placeholder": "Which agent runs it?",
+    "next_runs": "Next runs",
+    "create_paused": "Create paused",
+    "create_active": "Create and activate",
+    "created_paused": "Autopilot created, paused",
+    "created_active": "Autopilot created and active",
+    "create_failed": "Could not create the autopilot"
   }
 }

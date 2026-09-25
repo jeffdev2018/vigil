@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 func TestCreateAgentBuilderSessionCreatesIsolatedHiddenBuilder(t *testing.T) {
@@ -606,6 +608,7 @@ func runSaveDraftAgainst(t *testing.T, sessionID string, w *httptest.ResponseRec
 		t.Fatalf("begin holder transaction: %v", err)
 	}
 	defer tx.Rollback(ctx)
+	holderPID := holderBackendPID(t, ctx, tx)
 	// The same row and lock mode DeleteChatSession and SetChatSessionArchived
 	// take, as their transaction's first statement.
 	if _, err := tx.Exec(ctx, `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, sessionID); err != nil {
@@ -621,10 +624,13 @@ func runSaveDraftAgainst(t *testing.T, sessionID string, w *httptest.ResponseRec
 		testHandler.SaveAgentBuilderDraft(w, req)
 	}()
 
-	select {
-	case <-done:
-		t.Fatalf("save finished while the session row was held: %d %s", w.Code, w.Body.String())
-	case <-time.After(500 * time.Millisecond):
+	if !waitForWaiterBlockedBy(t, holderPID, 10*time.Second) {
+		select {
+		case <-done:
+			t.Fatalf("save finished while the session row was held: %d %s", w.Code, w.Body.String())
+		default:
+			t.Fatalf("save never blocked on the session row held by pid %d", holderPID)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -864,6 +870,12 @@ func holderBackendPID(t *testing.T, ctx context.Context, tx pgx.Tx) int {
 // committed state, and pass even with its lock removed. Attributing the waiter
 // to this transaction's PID removes that false-green path.
 //
+// Only row-lock waits (transactionid, tuple) and advisory-lock waits count.
+// A relation-level wait is excluded for the same reason: a sibling package's
+// DDL (CREATE/DROP TRIGGER on agent_task_queue) queues behind any transaction
+// that has merely touched the table, which would satisfy the probe without the
+// path under test ever reaching the lock.
+//
 // Returns false only after the deadline with no attributable waiter, which is
 // the signal that the path under test never took the lock. A probe error is
 // fatal rather than swallowed: a permissions or connectivity failure must not
@@ -878,6 +890,7 @@ func waitForWaiterBlockedBy(t *testing.T, holderPID int, timeout time.Duration) 
 			WHERE datname = current_database()
 			  AND state = 'active'
 			  AND wait_event_type = 'Lock'
+			  AND wait_event IN ('transactionid', 'tuple', 'advisory')
 			  AND $1::int = ANY(pg_blocking_pids(pid))
 		`, holderPID).Scan(&waiting); err != nil {
 			t.Fatalf("probe pg_stat_activity for waiters blocked by pid %d: %v", holderPID, err)
@@ -1345,24 +1358,42 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("hold unrelated session lock: %v", err)
 	}
 
-	blocked := make(chan struct{})
+	// Take the waiter's connection here, not inside the goroutine. Under a
+	// parallel `go test ./...` every package's pool dials the same server and
+	// a fresh connection can be refused at max_connections; a Begin failure
+	// swallowed in the goroutine left no waiter at all, and the probe below
+	// then spent its full 10 s to report the wrong cause.
+	waiterConn, err := testPool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire a connection for the unrelated waiter: %v", err)
+	}
+	defer waiterConn.Release()
+	blocked := make(chan error, 1)
 	go func() {
-		defer close(blocked)
-		waiterTx, err := testPool.Begin(context.Background())
+		waiterTx, err := waiterConn.Begin(context.Background())
 		if err != nil {
+			blocked <- fmt.Errorf("begin unrelated waiter tx: %w", err)
 			return
 		}
 		defer waiterTx.Rollback(context.Background())
-		_, _ = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		_, err = waiterTx.Exec(context.Background(), `SELECT id FROM chat_session WHERE id = $1 FOR UPDATE`, theirs.SessionID)
+		blocked <- err
 	}()
 
 	// The unrelated waiter is genuinely parked, so a database-wide probe would
 	// fire here.
 	if !waitForWaiterBlockedBy(t, otherPID, 10*time.Second) {
-		t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		select {
+		case err := <-blocked:
+			t.Fatalf("the unrelated waiter finished without blocking (err: %v); this test cannot prove anything", err)
+		default:
+			t.Fatal("the unrelated waiter never blocked; this test cannot prove anything")
+		}
 	}
-	// Attributed to our holder, it must not.
-	if waitForWaiterBlockedBy(t, holderPID, 500*time.Millisecond) {
+	// Attributed to our holder, it must not. One probe is enough: the waiter
+	// stays parked behind otherPID until otherTx rolls back below, so polling
+	// longer could only re-read the same state.
+	if waitForWaiterBlockedBy(t, holderPID, 0) {
 		t.Fatal("probe matched a waiter blocked by another backend; the interleaving tests could commit their holder early and pass with the lock removed")
 	}
 
@@ -1370,8 +1401,47 @@ func TestWaitForWaiterBlockedByIgnoresUnrelatedWaiters(t *testing.T) {
 		t.Fatalf("release unrelated lock: %v", err)
 	}
 	select {
-	case <-blocked:
+	case err := <-blocked:
+		if err != nil {
+			t.Fatalf("unrelated waiter after its blocker released: %v", err)
+		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("unrelated waiter did not finish after its blocker released")
+	}
+}
+
+// TestCreateAgentRejectsTooManySkillIDs is the regression test for the
+// missing skill_ids cap: CreateAgent used to run one GetSkillInWorkspace per
+// id (validation loop) then one AddAgentSkill per id inside the open
+// create transaction, with parseUUIDSliceOrBadRequest enforcing no upper
+// bound — an arbitrarily large skill_ids array drove 2N sequential round
+// trips, part of them holding a transaction open. It now rejects a
+// skill_ids array over maxCreateAgentSkillIDs before doing any of that
+// work.
+func TestCreateAgentRejectsTooManySkillIDs(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	tooMany := make([]string, maxCreateAgentSkillIDs+1)
+	for i := range tooMany {
+		tooMany[i] = uuidToString(dbid.NewV7())
+	}
+
+	w := httptest.NewRecorder()
+	testHandler.CreateAgent(w, newRequest(http.MethodPost, "/api/agents", map[string]any{
+		"name":       "Too Many Skills Agent",
+		"runtime_id": testRuntimeID,
+		"skill_ids":  tooMany,
+	}))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("CreateAgent with %d skill_ids: expected 400, got %d: %s", len(tooMany), w.Code, w.Body.String())
+	}
+
+	var count int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM agent WHERE workspace_id = $1 AND name = 'Too Many Skills Agent'`, testWorkspaceID).Scan(&count); err != nil {
+		t.Fatalf("count agents: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("agent was created despite the oversized skill_ids array")
 	}
 }

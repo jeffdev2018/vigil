@@ -366,6 +366,3 @@ func (s *TaskService) SweepTasksOnTerminalIssues(ctx context.Context, maxPerTick
 	}
 	return len(ended)
 }
-
-// ReasonIssueTerminal is the failure reason the sweep writes.
-const ReasonIssueTerminal = "issue_terminal"

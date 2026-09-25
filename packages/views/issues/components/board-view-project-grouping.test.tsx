@@ -8,7 +8,7 @@
  * as the "no assignee" column.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ViewStoreProvider } from "@multica/core/issues/stores/view-store-context";
 import { getIssueSurfaceViewStore } from "@multica/core/issues/stores/surface-view-store";
@@ -196,9 +196,11 @@ describe("Board grouped by project", () => {
   function render({
     descriptors = [NO_PROJECT_DESCRIPTOR, ...PROJECT_DESCRIPTORS],
     issues = ISSUES,
+    onCreateIssue,
   }: {
     descriptors?: IssueGroupBranches["descriptors"];
     issues?: Issue[];
+    onCreateIssue?: (defaults: Record<string, unknown>) => void;
   } = {}) {
     const store = getIssueSurfaceViewStore(
       `board-project-${Math.floor(Math.random() * 1e9)}`,
@@ -222,12 +224,37 @@ describe("Board grouped by project", () => {
               new Map([[ACME_ID, makeProject(ACME_ID, "Acme Corp", "🚀")]])
             }
             groupBranches={makeGroupBranches(descriptors, issues)}
+            onCreateIssue={onCreateIssue}
           />
           </IssueContextMenuProvider>
         </ViewStoreProvider>
       </QueryClientProvider>,
     );
   }
+
+  it("scrolls the board horizontally inside its own container, with fixed-width columns", () => {
+    render();
+
+    const scroller = screen.getByTestId("board-scroller");
+    expect(scroller.className).toContain("overflow-x-auto");
+    expect(scroller.className).toContain("min-w-0");
+    const column = screen.getByText("Acme Corp").closest('[style*="width"]');
+    expect(column).not.toBeNull();
+    expect(column!.className).toContain("shrink-0");
+  });
+
+  it("offers to add the first issue from inside an empty column", () => {
+    const onCreateIssue = vi.fn();
+    render({ issues: [], onCreateIssue });
+
+    // The header "+" is icon-only; the empty state repeats it with a label.
+    const labelled = screen
+      .getAllByRole("button", { name: "Add issue" })
+      .filter((button) => button.textContent?.trim() === "Add issue");
+    expect(labelled.length).toBeGreaterThan(0);
+    fireEvent.click(labelled[0]!);
+    expect(onCreateIssue).toHaveBeenCalledTimes(1);
+  });
 
   it("titles each column with its project, never with its id", () => {
     render();

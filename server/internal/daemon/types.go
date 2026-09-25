@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
@@ -75,18 +76,31 @@ type SandboxSpec struct {
 	Mode         string   `json:"mode"`
 	Image        string   `json:"image,omitempty"`
 	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+	// BlockSensitiveFiles (JEF-256) mirrors handler.SandboxSpec: the merged
+	// sandbox policy asks the run to not read .env files. Enforced per
+	// provider where the CLI allows it (Claude deny rules), advisory
+	// elsewhere; container mode remains the hard boundary.
+	BlockSensitiveFiles bool `json:"block_sensitive_files,omitempty"`
 }
 
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
-	ID                   string                 `json:"id"`
-	AgentID              string                 `json:"agent_id"`
-	RuntimeID            string                 `json:"runtime_id"`
-	IssueID              string                 `json:"issue_id"`
-	WorkspaceID          string                 `json:"workspace_id"`
-	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
-	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
+	// StartClaimSupported gates retries when talking to older servers.
+	StartClaimSupported bool   `json:"start_claim_supported,omitempty"`
+	DispatchedAt        string `json:"dispatched_at,omitempty"`
+	ID                  string `json:"id"`
+	AgentID             string `json:"agent_id"`
+	RuntimeID           string `json:"runtime_id"`
+	IssueID             string `json:"issue_id"`
+	WorkspaceID         string `json:"workspace_id"`
+	WorkspaceSlug       string `json:"workspace_slug,omitempty"`
+	IssueIdentifier     string `json:"issue_identifier,omitempty"`
+	// ModelOverride (JEF-12) mirrors agent_task_queue.model_override: a
+	// per-task model pin that outranks the agent's configured model and the
+	// daemon-wide env tier in the daemon's model cascade. Empty on a server
+	// predating the field, which reads as "no override".
+	ModelOverride        string                 `json:"model_override,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
 	// McpGateway (K77) is the per-tool policy the daemon enforces on every MCP
 	// server of the run. Nil on a server too old to send it: the daemon then
@@ -120,11 +134,16 @@ type Task struct {
 	// the local MCP server presents to the agent as tools. Resolved by the
 	// server at claim time; the daemon never reads plugin state itself.
 	PluginHookTools []PluginHookTool `json:"plugin_hook_tools,omitempty"`
-	// WorkspaceContext mirrors workspace.context (the per-workspace system
-	// prompt set in Settings → General). Server populates this on every claim
-	// regardless of task kind so the daemon can inject `## Workspace Context`
-	// into the brief. Empty when the owner hasn't set one.
+	// WorkspaceContext mirrors workspace.context: the workspace doctrine, the
+	// governing document its owners write for every agent. Server populates
+	// this on every claim regardless of task kind so the daemon can inject
+	// `## Workspace Doctrine` into the brief. Empty when the owner hasn't
+	// written one.
 	WorkspaceContext string `json:"workspace_context,omitempty"`
+	// WorkspaceDoctrineRevision mirrors workspace.doctrine_revision, rendered
+	// in the doctrine heading so a run and a report name the same text. Zero
+	// on a server predating the revision ledger.
+	WorkspaceDoctrineRevision int32 `json:"workspace_doctrine_revision,omitempty"`
 	// IssueStatuses mirrors the claim payload's active CUSTOM status catalog
 	// (MUL-6460): key/name/category/description per status, already in catalog
 	// order. Rendered into the brief's status-command line; empty (including on
@@ -152,6 +171,11 @@ type Task struct {
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.
 	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	// WorkspaceNotesOmitted mirrors handler.AgentTaskResponse.WorkspaceNotesOmitted.
+	WorkspaceNotesOmitted int `json:"workspace_notes_omitted,omitempty"`
+	// WorkspaceNotesQuery mirrors handler.AgentTaskResponse.WorkspaceNotesQuery:
+	// what the Brain was searched with to pick this run's relevant notes.
+	WorkspaceNotesQuery string `json:"workspace_notes_query,omitempty"`
 	// AutopilotMemory mirrors handler.AgentTaskResponse.AutopilotMemory: the
 	// execution memory of the daemon that started this run (F24 / JEF-15).
 	// Empty when the run has no autopilot, when the memory is empty, and on
@@ -179,6 +203,11 @@ type Task struct {
 	NewCommentCount               int                           `json:"new_comment_count,omitempty"`                // issue-wide comments since this agent's last run (excludes its own and the injected trigger); 0/omitted for old daemons or cold start
 	NewCommentsSince              string                        `json:"new_comments_since,omitempty"`               // RFC3339 anchor (last run's started_at) the count is measured from; empty on cold start
 	NewCommentsDeltaKnown         bool                          `json:"new_comments_delta_known,omitempty"`         // the server actually computed the issue-wide delta this claim (both reads succeeded). A zero NewCommentCount means "nothing was said" only when this is true; otherwise the zero is a failed read, a cold start, or an old server, and the prompt must not present it as the comment scan's answer (MUL-6984)
+	IssueStateDeltaKnown          bool                          `json:"issue_state_delta_known,omitempty"`          // MUL-7344: the server compared the issue's title/description against the snapshot taken at this agent's previous run on this issue. Same contract as NewCommentsDeltaKnown — absent means NOT compared (cold start, no prior snapshot, read error, old server), and the prompt must then keep telling the agent to read the issue
+	IssueChangedFields            []string                      `json:"issue_changed_fields,omitempty"`             // subset of title,description in that order; empty alongside IssueStateDeltaKnown means unchanged. Fields outside that set (status, assignee, priority, labels, parent, due, stage, project, metadata) are not compared and must never be reported as checked; status and assignee ship their current values instead
+	IssueStatus                   string                        `json:"issue_status,omitempty"`                     // the issue's status key at claim time; sent whether or not the delta is known
+	IssueAssigneeType             string                        `json:"issue_assignee_type,omitempty"`              // "agent", "member" or "squad" at claim time; empty when unassigned
+	IssueAssigneeID               string                        `json:"issue_assignee_id,omitempty"`                // assignee UUID at claim time; empty when unassigned
 	ChatSessionID                 string                        `json:"chat_session_id,omitempty"`                  // non-empty for chat tasks
 	ChatChannelType               string                        `json:"chat_channel_type,omitempty"`                // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Drives the channel-awareness block in the prompt
 	ChatChannelDeliversFiles      bool                          `json:"chat_channel_delivers_files,omitempty"`      // server capability: this deployment carries a file the agent produces the last hop into this conversation. Absent on a server predating it, which reads as false — the run is told to describe its file in words, and the worst case is a delivery that could have happened did not. Must never be re-derived from chat_channel_type: whether the hop exists depends on the SERVER's storage and adapter wiring, which no daemon can see (MUL-4899)
@@ -199,9 +228,12 @@ type Task struct {
 	QuickCreateDueDate            string                        `json:"quick_create_due_date,omitempty"`            // explicit calendar due date selected in quick-create
 	QuickCreateAttachmentIDs      []string                      `json:"quick_create_attachment_ids,omitempty"`      // attachments uploaded in the quick-create prompt and bound by issue create
 	QuickCreateSourceContext      json.RawMessage               `json:"quick_create_source_context,omitempty"`      // immutable historical context, separate from the new instruction
-	HandoffNote                   string                        `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
+	WakeupID                      string                        `json:"wakeup_id,omitempty"`
+	HandoffNote                   string                        `json:"handoff_note,omitempty"` // legacy assignment handoff instruction; rendered only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
 	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
+	// Goal (goal loop): the issue's goal and chain state; rendered in the per-turn prompt.
+	Goal *goalstate.State `json:"goal,omitempty"`
 	// ResumeFromCheckpointSeq (K20): non-zero when this run continues an interrupted one.
 	ResumeFromCheckpointSeq int64 `json:"resume_from_checkpoint_seq,omitempty"`
 

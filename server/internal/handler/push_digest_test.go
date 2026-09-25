@@ -138,7 +138,10 @@ func TestSlackDigestButtonAnswersDecision(t *testing.T) {
 	// The digest buttons: the answered card is gone, the briefing link stays.
 	acts := testHandler.briefingDigestActions(context.Background(), parseUUID(testWorkspaceID), MorningBriefingResponse{AwaitingReview: []BriefingItem{{IssueID: issue, Identifier: "X-1"}}}, "https://app/acme")
 	for _, a := range acts {
-		if a.Value == value {
+		// Compare the decoded ask, not the literal payload: the encoding is
+		// the packed cross-platform form now, and a literal comparison would
+		// pass vacuously whatever the buttons said.
+		if click, ok := decodeApprovalValue(a.Value); ok && uuidToString(click.AskID) == created.Decision.ID {
 			t.Fatal("an answered card must not keep its button")
 		}
 	}

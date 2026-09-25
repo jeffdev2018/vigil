@@ -290,6 +290,47 @@ func (q *Queries) GetWatchdogVerdictByTask(ctx context.Context, taskID pgtype.UU
 	return i, err
 }
 
+const getWatchdogVerdictsByDecisionIDs = `-- name: GetWatchdogVerdictsByDecisionIDs :many
+SELECT id, workspace_id, watchdog_id, issue_id, task_id, verdict, summary, findings, dropped, applied, decision_id, human_review, contract_revision, created_at FROM watchdog_verdict WHERE decision_id = ANY($1::uuid[])
+`
+
+// Batch variant of GetWatchdogVerdictByDecision for ListApprovals'
+// decisionKind, which resolves this once per decision on the feed.
+func (q *Queries) GetWatchdogVerdictsByDecisionIDs(ctx context.Context, decisionIds []pgtype.UUID) ([]WatchdogVerdict, error) {
+	rows, err := q.db.Query(ctx, getWatchdogVerdictsByDecisionIDs, decisionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WatchdogVerdict{}
+	for rows.Next() {
+		var i WatchdogVerdict
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.WatchdogID,
+			&i.IssueID,
+			&i.TaskID,
+			&i.Verdict,
+			&i.Summary,
+			&i.Findings,
+			&i.Dropped,
+			&i.Applied,
+			&i.DecisionID,
+			&i.HumanReview,
+			&i.ContractRevision,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnabledWatchdogs = `-- name: ListEnabledWatchdogs :many
 SELECT id, workspace_id, issue_id, agent_id, owner_id, instructions, rest_minutes, enabled, last_scan_task_id, last_scanned_at, motion_streak, created_by, created_at, updated_at FROM issue_watchdog WHERE enabled ORDER BY created_at ASC LIMIT 1000
 `

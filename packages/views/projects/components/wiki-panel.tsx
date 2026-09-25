@@ -15,6 +15,7 @@ import {
   type CodeWikiCitation,
 } from "@multica/core/projects";
 import { Button } from "@multica/ui/components/ui/button";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { RichContent } from "../../rich-content";
 import { useT } from "../../i18n";
 
@@ -59,7 +60,7 @@ export function WikiPanel({ projectId }: { projectId: string }) {
       </div>
       <p className="mb-2 px-2 text-muted-foreground">{t(($) => $.wiki.description)}</p>
 
-      {isLoading && <p className="px-2 text-muted-foreground animate-pulse">...</p>}
+      {isLoading && <Skeleton className="mx-2 h-4 w-24" />}
       {isError && <p className="px-2 text-destructive">{t(($) => $.wiki.failed)}</p>}
 
       {!isLoading && !isError && wiki?.resource == null && (
@@ -158,7 +159,7 @@ function WikiPage({
   const wsId = useWorkspaceId();
   const { data: page, isLoading, isError } = useQuery(projectCodeWikiPageOptions(wsId, projectId, slug));
 
-  if (isLoading) return <p className="text-muted-foreground animate-pulse">...</p>;
+  if (isLoading) return <Skeleton className="h-4 w-24" />;
   if (isError || !page) return <p className="text-destructive">{t(($) => $.wiki.page_failed)}</p>;
 
   const citations: CodeWikiCitation[] = page.citations ?? [];

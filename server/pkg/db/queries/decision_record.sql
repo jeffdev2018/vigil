@@ -17,6 +17,13 @@ LIMIT 500;
 -- name: CountIssueDecisionRecords :one
 SELECT COUNT(*) FROM decision_record WHERE issue_id = $1;
 
+-- name: CountIssueDecisionRecordsByIssueIDs :many
+-- Batch variant of CountIssueDecisionRecords for DryRunBusinessRule; see
+-- CountIssueLabelsByIssueIDs in business_rule.sql for why this exists.
+SELECT issue_id, COUNT(*) AS count FROM decision_record
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[])
+GROUP BY issue_id;
+
 -- name: CountRunDecisionRecords :one
 SELECT COUNT(*) FROM decision_record WHERE run_id = $1;
 

@@ -43,7 +43,9 @@ export function HandoffPacketCard({ issueId, canWrite = true }: { issueId: strin
           </button>
         )}
       </div>
-      <div className="flex flex-col gap-2 pl-2">
+      {/* Packets are sections under the heading, separated by spacing only —
+          the sidebar already draws the enclosing card. */}
+      <div className="flex flex-col gap-4 pl-2">
         {latest ? <PacketView packet={latest} latest timeAgo={timeAgo} /> : <p className="text-muted-foreground">{t(($) => $.handoff.none)}</p>}
         {showHistory && history.map((p) => <PacketView key={p.id} packet={p} timeAgo={timeAgo} />)}
         {canWrite && latestRunId && (
@@ -80,7 +82,7 @@ function PacketView({ packet, latest = false, timeAgo }: { packet: HandoffPacket
       </div>
     ) : null;
   return (
-    <div data-testid="handoff-packet-item" data-latest={latest ? "true" : "false"} className={cn("flex flex-col gap-1.5 rounded-md border p-2", latest ? "border-border" : "border-border/60 opacity-80")}>
+    <div data-testid="handoff-packet-item" data-latest={latest ? "true" : "false"} className={cn("flex flex-col gap-1.5 px-2", latest ? "" : "opacity-80")}>
       <div className="flex items-center gap-2 text-micro text-muted-foreground">
         <span className="rounded border border-border px-1">{t(($) => $.handoff.by[packet.created_by_type])}</span>
         <span className="font-mono">{t(($) => $.handoff.run, { id: packet.run_id.slice(0, 8) })}</span>
@@ -91,7 +93,7 @@ function PacketView({ packet, latest = false, timeAgo }: { packet: HandoffPacket
       {list(t(($) => $.handoff.evidence), packet.evidence)}
       {list(t(($) => $.handoff.failed_attempts), packet.failed_attempts)}
       {packet.next_action && (
-        <div className="rounded bg-muted px-2 py-1">
+        <div>
           <span className="text-muted-foreground">{t(($) => $.handoff.next_action)} </span>
           <span className="font-medium">{packet.next_action}</span>
         </div>

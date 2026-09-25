@@ -27,6 +27,7 @@ import {
   workflowStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
@@ -76,6 +77,7 @@ import { Leaderboard } from "./leaderboard";
 import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
 import { WorkflowOutcomesCard } from "./workflow-outcomes-card";
 import { ErrorsTab } from "./errors-tab";
+import { VelocityTab } from "./velocity-tab";
 import { cn } from "@multica/ui/lib/utils";
 import { BudgetNotice } from "./budget-notice";
 
@@ -95,7 +97,7 @@ const EMPTY_WORKFLOW_STATS_ROWS: import("@multica/core/types").WorkflowStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
-type DashboardTab = "usage" | "errors" | "insights";
+type DashboardTab = "usage" | "velocity" | "errors" | "insights";
 const TAB_QUERY_KEY = "tab";
 const DEFAULT_TAB: DashboardTab = "usage";
 
@@ -177,7 +179,9 @@ export function DashboardPage() {
   // falls back to Usage rather than rendering nothing.
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
   const tab: DashboardTab =
-    tabFromUrl === "errors" || tabFromUrl === "insights" ? tabFromUrl : DEFAULT_TAB;
+    tabFromUrl === "velocity" || tabFromUrl === "errors" || tabFromUrl === "insights"
+      ? tabFromUrl
+      : DEFAULT_TAB;
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
     if (next === DEFAULT_TAB) params.delete(TAB_QUERY_KEY);
@@ -322,6 +326,17 @@ export function DashboardPage() {
     runTimeDailyQuery.isLoading;
   const errorsLoading =
     failuresDailyQuery.isLoading || failuresByAgentQuery.isLoading;
+  // Every rollup defaults to an empty array, so a failed read is
+  // indistinguishable from a workspace that simply spent nothing. Read
+  // `isError` before the empty state, or the dashboard reports "no activity"
+  // for a backend that never answered.
+  const usageFailed =
+    dailyQuery.isError ||
+    byAgentQuery.isError ||
+    runTimeQuery.isError ||
+    runTimeDailyQuery.isError;
+  const errorsFailed =
+    failuresDailyQuery.isError || failuresByAgentQuery.isError;
 
   const usageHasNoData =
     !usageLoading &&
@@ -530,6 +545,12 @@ export function DashboardPage() {
               {t(($) => $.tab_usage)}
             </TabsTrigger>
             <TabsTrigger
+              value="velocity"
+              className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t(($) => $.velocity.title)}
+            </TabsTrigger>
+            <TabsTrigger
               value="errors"
               className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
             >
@@ -563,6 +584,8 @@ export function DashboardPage() {
           <TabsContent value="usage" className="space-y-5">
             {usageLoading ? (
               <DashboardSkeleton />
+            ) : usageFailed ? (
+              <LoadErrorState onRetry={handleRefresh} />
             ) : usageHasNoData ? (
               <DashboardEmpty />
             ) : (
@@ -573,6 +596,10 @@ export function DashboardPage() {
                   <KpiCard
                     label={t(($) => $.kpi.cost_label, { days })}
                     value={<CurrencyNumberFlow value={totals.cost} locales={locales} />}
+                    // Says what this figure measures: Settings > Budgets
+                    // shows the amount charged to a budget, a different
+                    // ledger that can read lower for the same period.
+                    hint={t(($) => $.kpi.cost_hint)}
                   />
                   <KpiCard
                     label={t(($) => $.kpi.tokens_label, { days })}
@@ -661,6 +688,7 @@ export function DashboardPage() {
                   agents={agents}
                   deletedAgentCount={deletedAgentCount}
                   lessThanMinuteLabel={lessThanMinuteLabel}
+                  locales={locales}
                 />
               </>
             )}
@@ -681,9 +709,17 @@ export function DashboardPage() {
             />
           </TabsContent>
 
+          <TabsContent value="velocity" className="space-y-5">
+            {/* Mixed member/agent velocity (JEF-251). The tab fetches its own
+                weekly rollup, like the cost/ROI cards do. */}
+            <VelocityTab wsId={wsId} days={days} projectId={projectId} locales={locales} />
+          </TabsContent>
+
           <TabsContent value="errors">
             {errorsLoading ? (
               <DashboardSkeleton />
+            ) : errorsFailed ? (
+              <LoadErrorState onRetry={handleRefresh} />
             ) : (
               <ErrorsTab
                 days={days}

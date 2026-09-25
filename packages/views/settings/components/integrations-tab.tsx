@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowLeft, ChevronRight, FolderGit2, Blocks } from "lucide-react";
+import { ArrowLeft, ChevronRight, FolderGit2, Blocks, Contact } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { ApiError } from "@multica/core/api";
+import { ApiError, errorCode } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentMember } from "@multica/core/permissions";
 import {
@@ -13,6 +13,7 @@ import {
 import { githubInstallationsOptions } from "@multica/core/github";
 import { larkInstallationsOptions } from "@multica/core/lark";
 import { linearInstallationOptions } from "@multica/core/linear";
+import { twentyStatusOptions } from "@multica/core/twenty";
 import { slackInstallationsOptions } from "@multica/core/slack";
 import { dingtalkInstallationsOptions } from "@multica/core/dingtalk";
 import { wecomInstallationsOptions } from "@multica/core/wecom";
@@ -20,11 +21,12 @@ import { telegramInstallationsOptions } from "@multica/core/telegram";
 import { vcsConnectionsOptions } from "@multica/core/vcs";
 import { useConfigStore, useFeatureEnabled } from "@multica/core/config";
 import { COMPOSIO_MCP_APPS_FLAG } from "@multica/core/feature-flags";
-import { cn } from "@multica/ui/lib/utils";
 import { AppLink, useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
+import { StatusBadge, type StatusBadgeConfig } from "../../common/status-badge";
 import { LarkTab } from "./lark-tab";
 import { LinearTab } from "./linear-tab";
+import { TwentyTab } from "./twenty-tab";
 import { ComposioTab } from "./composio-tab";
 import { SlackTab } from "./slack-tab";
 import { DingTalkTab } from "./dingtalk-tab";
@@ -52,6 +54,14 @@ interface IntegrationEntry {
   state: ConnectionState;
 }
 
+// The IM channels soft-revoke: the row survives with status 'revoked', so a row
+// count never falls back to zero and would report a torn-down bot as connected
+// forever. GitHub and VCS hard-delete instead, so their count-based reads below
+// are correct and deliberately left as they are (#8496).
+const hasActiveInstallation = (data: {
+  installations?: { status: string }[];
+}) => data.installations?.some((inst) => inst.status === "active") ?? false;
+
 export function IntegrationsTab() {
   const { t } = useT("settings");
   const navigation = useNavigation();
@@ -66,6 +76,7 @@ export function IntegrationsTab() {
   });
   const composioAvailable =
     composioEnabled &&
+    errorCode(toolkits.error) !== "composio_not_configured" &&
     !(toolkits.error instanceof ApiError && toolkits.error.status === 503);
 
   // Reuse the detail pages' query caches. Never report a failed or pending read
@@ -78,30 +89,35 @@ export function IntegrationsTab() {
   const lark = useQuery({
     ...larkInstallationsOptions(wsId),
     enabled: canView,
-    select: (data) => (data.installations?.length ?? 0) > 0,
+    select: hasActiveInstallation,
   });
   const slack = useQuery({
     ...slackInstallationsOptions(wsId),
     enabled: canView,
-    select: (data) => (data.installations?.length ?? 0) > 0,
+    select: hasActiveInstallation,
   });
   const dingtalk = useQuery({
     ...dingtalkInstallationsOptions(wsId),
     enabled: canView,
-    select: (data) => (data.installations?.length ?? 0) > 0,
+    select: hasActiveInstallation,
   });
   const wecom = useQuery({
     ...wecomInstallationsOptions(wsId),
     enabled: canView,
-    select: (data) => (data.installations?.length ?? 0) > 0,
+    select: hasActiveInstallation,
   });
   const telegram = useQuery({
     ...telegramInstallationsOptions(wsId),
     enabled: canView,
-    select: (data) => (data.installations?.length ?? 0) > 0,
+    select: hasActiveInstallation,
   });
   const linear = useQuery({
     ...linearInstallationOptions(wsId),
+    enabled: canView,
+    select: (data) => data.connected === true,
+  });
+  const twenty = useQuery({
+    ...twentyStatusOptions(wsId),
     enabled: canView,
     select: (data) => data.connected === true,
   });
@@ -152,6 +168,20 @@ export function IntegrationsTab() {
           icon: <IntegrationChannelIcon channel="linear" />,
           content: <LinearTab />,
           state: linear,
+        },
+      ],
+    },
+    {
+      id: "business",
+      label: t(($) => $.integrations.business_title),
+      entries: [
+        {
+          id: "twenty",
+          label: t(($) => $.twenty.section_title),
+          description: t(($) => $.twenty.page_description),
+          icon: <Contact className="size-5" />,
+          content: <TwentyTab />,
+          state: twenty,
         },
       ],
     },
@@ -264,7 +294,6 @@ export function IntegrationsTab() {
   return (
     <SettingsTab
       title={t(($) => $.page.tabs.integrations)}
-      description={t(($) => $.integrations.description)}
     >
       {groups.map((group) => (
         <SettingsSection
@@ -313,27 +342,22 @@ export function IntegrationsTab() {
   );
 }
 
+/** Which of the four connection states this integration is currently in. */
+function connectionStatus(state: ConnectionState): "connected" | "not_connected" | "loading" | "error" {
+  if (state.isError) return "error";
+  if (state.isPending) return "loading";
+  return state.data === true ? "connected" : "not_connected";
+}
+
 function ConnectionBadge({ state }: { state: ConnectionState }) {
   const { t } = useT("settings");
-  const connected = !state.isError && !state.isPending && state.data === true;
-  const label = state.isError
-    ? t(($) => $.integrations.status_unknown)
-    : state.isPending
-      ? t(($) => $.integrations.status_loading)
-      : connected
-        ? t(($) => $.integrations.status_connected)
-        : t(($) => $.integrations.status_not_connected);
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-caption",
-        connected ? "text-success" : "text-muted-foreground",
-      )}
-    >
-      {connected && (
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
-      )}
-      {label}
-    </span>
-  );
+  // Only "connected" is a positive signal; loading/error/not-connected all
+  // read the same as "nothing to report yet", so they share the muted tone.
+  const config: StatusBadgeConfig = {
+    connected: { tone: "success", label: t(($) => $.integrations.status_connected) },
+    not_connected: { tone: "muted", label: t(($) => $.integrations.status_not_connected) },
+    loading: { tone: "muted", label: t(($) => $.integrations.status_loading) },
+    error: { tone: "muted", label: t(($) => $.integrations.status_unknown) },
+  };
+  return <StatusBadge status={connectionStatus(state)} config={config} />;
 }

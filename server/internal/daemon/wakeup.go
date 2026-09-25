@@ -144,6 +144,10 @@ func (d *Daemon) runTaskWakeupConnection(ctx context.Context, runtimeIDs []strin
 
 	d.logger.Info("task wakeup websocket connected", "runtimes", len(runtimeIDs))
 	signalTaskWakeup(taskWakeups, "")
+	// A healthy reconnect is the strongest signal that a terminal callback
+	// stranded during an outage may now succeed. The buffered wakeup also
+	// preserves a connect that races replay-loop startup.
+	d.signalTerminalReportReplay()
 	// signalTaskWakeup only wakes idle ClaimTask pollers. In-flight tasks and
 	// the workspace sync loop park on coarse tickers (5s and 30s) that do not
 	// observe the wakeup channel, so anything the server changed during the
@@ -305,13 +309,28 @@ func (d *Daemon) runWSHeartbeatSender(ctx context.Context, runtimeIDs []string, 
 }
 
 func (d *Daemon) sendWSHeartbeats(ctx context.Context, runtimeIDs []string, writes chan<- *wsOutbound) {
+	if len(runtimeIDs) == 0 {
+		return
+	}
+	// K18: a healthy WS keeps the HTTP tick skipped, so this is the transport
+	// that must refresh the human-edit report. The checkouts are daemon-wide,
+	// so one collection serves every runtime of the batch. Always non-nil: an
+	// empty list is what clears a previous report server-side.
+	// ponytail: one metadata UPDATE per runtime per beat, like the HTTP body;
+	// send only on change plus a refresh inside HumanEditWindowSeconds if that
+	// write shows up in DB load.
+	collected := d.collectDirtyCheckouts(ctx)
+	dirty := make([]protocol.DaemonDirtyCheckout, 0, len(collected))
+	for _, c := range collected {
+		dirty = append(dirty, protocol.DaemonDirtyCheckout(c))
+	}
 	for _, rid := range runtimeIDs {
 		if ctx.Err() != nil {
 			return
 		}
 		frame, err := json.Marshal(protocol.Message{
 			Type:    protocol.EventDaemonHeartbeat,
-			Payload: marshalRaw(protocol.DaemonHeartbeatRequestPayload{RuntimeID: rid, SupportsBatchImport: true}),
+			Payload: marshalRaw(protocol.DaemonHeartbeatRequestPayload{RuntimeID: rid, SupportsBatchImport: true, DirtyCheckouts: dirty}),
 		})
 		if err != nil {
 			d.logger.Debug("ws heartbeat marshal failed", "error", err, "runtime_id", rid)
@@ -403,6 +422,17 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				d.logger.Debug("task wakeup received", "runtime_id", payload.RuntimeID, "task_id", payload.TaskID)
 			}
 			signalTaskWakeup(taskWakeups, payload.RuntimeID)
+		case protocol.EventDaemonTaskSupplementAvailable:
+			var payload protocol.TaskAvailablePayload
+			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				d.logger.Debug("task supplement websocket invalid payload", "error", err)
+				continue
+			}
+			if payload.TaskID == "" {
+				d.logger.Debug("task supplement websocket missing task_id")
+				continue
+			}
+			d.taskSupplementSignals.notify(payload.TaskID)
 		case protocol.EventDaemonRuntimeProfilesChanged:
 			var payload protocol.RuntimeProfilesChangedPayload
 			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
@@ -413,7 +443,15 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				d.logger.Debug("runtime profile refresh websocket missing workspace_id")
 				continue
 			}
-			go d.handleRuntimeProfilesChanged(payload)
+			d.goRecover("runtime profiles changed", func() { d.handleRuntimeProfilesChanged(payload) })
+		case protocol.EventDaemonRunHaltChanged:
+			// JEF-257: a halt flip changes the control status of every
+			// in-flight task in the workspace. The reconcile broadcaster nudges
+			// each task watcher to re-poll immediately instead of on its 5s
+			// tick, so a freeze lands sub-second.
+			if d.reconcile != nil {
+				d.reconcile.broadcast()
+			}
 		case protocol.EventDaemonWorkspacesChanged:
 			if d.workspaceChanges != nil {
 				d.workspaceChanges.broadcast()
@@ -430,7 +468,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 			}
 			// Own goroutine: the hint triggers an HTTP heartbeat plus the work it
 			// claims, and the read pump must stay free for the next frame.
-			go d.handlePendingWorkHint(payload.RuntimeID, payload.Kind)
+			d.goRecover("pending work hint", func() { d.handlePendingWorkHint(payload.RuntimeID, payload.Kind) })
 		case protocol.EventDaemonHeartbeatAck:
 			var ack HeartbeatResponse
 			if err := json.Unmarshal(msg.Payload, &ack); err != nil {
@@ -450,7 +488,7 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 			}
 			// Own goroutine: the handler makes a local HTTP call that can take
 			// seconds, and the read pump must stay free for the next frame.
-			go d.handleServerRPC(req)
+			d.goRecover("server rpc", func() { d.handleServerRPC(req) })
 		case protocol.EventDaemonRPCResponse:
 			var resp protocol.RPCResponsePayload
 			if err := json.Unmarshal(msg.Payload, &resp); err != nil {

@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { ApiError, errorCode } from "@multica/core/api";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -24,7 +24,8 @@ import { isImeComposing } from "@multica/core/utils";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
 import {
   inboxListOptions,
-  archivedInboxListOptions,
+  archivedInboxPagesOptions,
+  archivedInboxLookupOptions,
   attentionInboxListOptions,
   deduplicateInboxItems,
   deduplicateArchivedInboxItems,
@@ -50,10 +51,10 @@ import {
   useInboxFilterStore,
 } from "@multica/core/inbox/filter-store";
 
-import { IssueDetail, issueHighlightMementoKey } from "../../issues/components";
+import { IssueDetail, issueHighlightMementoKey } from "../../issues/components/issue-detail";
 import { useViewStateWriter } from "../../platform";
 import { ErrorBoundary } from "@multica/ui/components/common/error-boundary";
-import { useNavigation, useReportNavigating } from "../../navigation";
+import { AppLink, useNavigation, useReportNavigating } from "../../navigation";
 import { toast } from "sonner";
 import {
   MoreHorizontal,
@@ -85,6 +86,7 @@ import {
 import { useIsCompact } from "@multica/ui/hooks/use-mobile";
 import { cn } from "@multica/ui/lib/utils";
 import { PAGE_GUTTER, PageHeader } from "../../layout/page-header";
+import { CollectionPageState } from "../../layout/collection-page";
 import { useTimeAgo } from "./inbox-list-item";
 import { InboxList } from "./inbox-list";
 import { InboxFilterMenu } from "./inbox-filter-menu";
@@ -98,11 +100,20 @@ import {
   getInboxDisplayTitle,
   isAutopilotQuotaNotice,
   isQuickCreateOutcome,
+  isApprovalAskType,
+  isDoctrineType,
+  findMatchingApproval,
   resolveDetailItem,
 } from "./inbox-display";
 import { AutopilotQuotaNotice } from "./autopilot-quota-notice";
 import { useT } from "../../i18n";
 import { useIssueLimitUpgradePrompt } from "../../modals/use-issue-limit-upgrade-prompt";
+import { workspaceApprovalsOptions } from "@multica/core/approvals";
+import { ApprovalCard } from "../../approvals/approval-card";
+
+const INBOX_LIST_DEFAULT_SIZE = 260;
+const INBOX_LIST_MIN_SIZE = 240;
+const INBOX_LIST_MAX_SIZE = 400;
 
 export function InboxPage() {
   const { t } = useT("inbox");
@@ -139,21 +150,18 @@ export function InboxPage() {
   }, [urlView]);
 
   const wsId = useWorkspaceId();
-  const { data: rawItems = [], isLoading: loading } = useQuery(inboxListOptions(wsId));
-  const items = useMemo(() => deduplicateInboxItems(rawItems), [rawItems]);
+  const isArchivedView = view === "archived";
+  const isAttentionView = view === "attention";
+  const isBriefingView = view === "briefing";
+  const isRetroView = view === "retro";
+  const isDecisionsView = view === "decisions";
+  const isInboxView = view === "inbox";
 
-  // Fetched in both views, not just the archived one: the main list's entry
-  // into the archive is labelled with this count, so it has to be known before
-  // the user goes there.
-  const {
-    data: rawArchivedItems = [],
-    isLoading: archivedLoading,
-    isError: archivedError,
-  } = useQuery(archivedInboxListOptions(wsId));
-  const archivedItems = useMemo(
-    () => deduplicateArchivedInboxItems(rawArchivedItems),
-    [rawArchivedItems],
-  );
+  // Inline approvals (OS plan, chantier 3): the same feed the timeline and
+  // chat panel read, so a decision/transition/goal-question row can be
+  // answered without opening the full issue.
+  const { data: approvalsFeed } = useQuery(workspaceApprovalsOptions(wsId));
+  const approvals = useMemo(() => approvalsFeed?.approvals ?? [], [approvalsFeed]);
 
   // Attention Inbox (K02): fetched alongside so the main list's entry into it
   // carries its count; the server already filtered and ordered it by risk.
@@ -161,40 +169,60 @@ export function InboxPage() {
     data: attentionItems = [],
     isLoading: attentionLoading,
     isError: attentionError,
+    refetch: refetchAttention,
+    isFetching: attentionFetching,
   } = useQuery(attentionInboxListOptions(wsId));
-
-  const isArchivedView = view === "archived";
-  const isAttentionView = view === "attention";
-  const isBriefingView = view === "briefing";
-  const isRetroView = view === "retro";
-  const isDecisionsView = view === "decisions";
-  const viewItems = isArchivedView ? archivedItems : isAttentionView ? attentionItems : items;
   const filters = useInboxFilters(wsId);
   const clearFilters = useInboxFilterStore((state) => state.clearFilters);
-  // Active and archived endpoints return the same row contract and are both
-  // already loaded on this page. Requiring the combined response to expose the
-  // projection prevents one pod in a rolling deploy from advertising a
-  // capability the other pod does not have yet.
-  const priorityFilterSupport = useMemo(
-    () => inboxPriorityFilterSupport([...rawItems, ...rawArchivedItems]),
-    [rawItems, rawArchivedItems],
-  );
-  const effectiveFilters = useMemo(
-    () => inboxFiltersForPrioritySupport(filters, priorityFilterSupport),
-    [filters, priorityFilterSupport],
-  );
-  const visibleItems = useMemo(
-    () => filterInboxItems(viewItems, effectiveFilters),
-    [viewItems, effectiveFilters],
-  );
+  const {
+    data: rawItems = [],
+    isLoading: loading,
+    isError: inboxIsError,
+    isFetching: inboxFetching,
+    refetch: refetchInbox,
+  } = useQuery({
+    ...inboxListOptions(wsId), enabled: !isArchivedView,
+  });
+  const items = useMemo(() => deduplicateInboxItems(rawItems), [rawItems]);
+  const archiveQuery = useInfiniteQuery({
+    ...archivedInboxPagesOptions(wsId, filters), enabled: isArchivedView,
+  });
+  const fetchNextArchivedPage = archiveQuery.fetchNextPage;
+  const loadNextArchivedPage = useCallback(() => { void fetchNextArchivedPage(); }, [fetchNextArchivedPage]);
+  const archivedLoading = archiveQuery.isLoading;
+  const archivedError = archiveQuery.isError && !archiveQuery.data;
+  // Same rule the archive and attention lists already follow: an unanswered
+  // read is not an empty inbox. Without it the main list renders "all caught
+  // up" over a backend that never replied.
+  const inboxError = inboxIsError && rawItems.length === 0;
+  const archivedItems = useMemo(() => deduplicateArchivedInboxItems(
+    archiveQuery.data?.pages.flatMap((page) => page.items) ?? [],
+  ), [archiveQuery.data]);
+  const viewItems = isArchivedView
+    ? archivedItems
+    : isAttentionView
+      ? attentionItems
+      : items;
+  // The paginated endpoint guarantees the projection, including on empty pages.
+  const priorityFilterSupport = isArchivedView ? "supported" : inboxPriorityFilterSupport(rawItems);
+  const effectiveFilters = useMemo(() => inboxFiltersForPrioritySupport(filters, priorityFilterSupport), [filters, priorityFilterSupport]);
+  const visibleItems = useMemo(() => filterInboxItems(viewItems, effectiveFilters), [viewItems, effectiveFilters]);
   const hasActiveFilters = inboxFilterCount(effectiveFilters) > 0;
-
-  const selected =
-    visibleItems.find((i) => (i.issue_id ?? i.id) === selectedKey) ?? null;
-  const selectedInView =
-    viewItems.find((i) => (i.issue_id ?? i.id) === selectedKey) ?? null;
-  const selectionFilteredOut =
-    selectedKey.length > 0 && selectedInView !== null && selected === null;
+  const selectedOnPage = viewItems.find((i) => (i.issue_id ?? i.id) === selectedKey);
+  // A deep link can point beyond every loaded page. Resolve its group directly
+  // without adding it to the cursor chain or mistaking a page miss for a 404.
+  const lookup = useQuery({
+    ...archivedInboxLookupOptions(wsId, selectedKey),
+    enabled: isArchivedView && !!selectedKey && !selectedOnPage && !archivedLoading && !archivedError,
+  });
+  const lookupItems = useMemo(() => deduplicateArchivedInboxItems(lookup.data?.items ?? []), [lookup.data]);
+  const selectionItems = useMemo(() => {
+    if (!isArchivedView || selectedOnPage) return visibleItems;
+    return [...visibleItems, ...filterInboxItems(lookupItems, effectiveFilters)];
+  }, [isArchivedView, selectedOnPage, visibleItems, lookupItems, effectiveFilters]);
+  const selected = selectionItems.find((i) => (i.issue_id ?? i.id) === selectedKey) ?? null;
+  const selectedInView = selectedOnPage ?? (isArchivedView ? lookupItems.find((i) => (i.issue_id ?? i.id) === selectedKey) : null);
+  const selectionFilteredOut = !!selectedKey && !!selectedInView && !selected;
 
   // What the DETAIL pane shows, one React transition behind the click.
   //
@@ -207,7 +235,7 @@ export function InboxPage() {
   // painting — and the previous issue stays on screen until it is ready.
   const detailKey = useDeferredValue(selectedKey);
   const detailSwapping = detailKey !== selectedKey;
-  const detailItem = resolveDetailItem(visibleItems, selectedKey, detailKey);
+  const detailItem = resolveDetailItem(selectionItems, selectedKey, detailKey);
 
   // The gap above is invisible to the navigation adapter — the inbox stays on
   // the same route and only rewrites `?issue=` — so report it explicitly and
@@ -274,7 +302,16 @@ export function InboxPage() {
   // Whether the list currently on screen has finished its first load. The
   // fallback and drain effects below both key on this, and getting it wrong in
   // the archived view means acting on an empty list that simply hasn't arrived.
-  const viewLoading = isArchivedView ? archivedLoading : isAttentionView ? attentionLoading : loading;
+  const viewLoading = isArchivedView
+    ? archivedLoading
+    : isAttentionView
+      ? attentionLoading
+      : loading;
+  // A targeted lookup must not hide pages that have already loaded. Its
+  // pending/error states only block resolution of the off-page selection.
+  const needsLookup = isArchivedView && !!selectedKey && !selectedOnPage;
+  const lookupLoading = needsLookup && lookup.isLoading;
+  const lookupError = needsLookup && lookup.isError && !selected;
 
   // Shared inbox links (?issue=<id>) may point to notifications not in this
   // user's inbox (archived, or never received). Fall back to the issue page
@@ -283,7 +320,7 @@ export function InboxPage() {
   // and `onInboxIssueDeleted` pruned the cache), the issue detail would 404
   // too — clear the selection and stay on /inbox instead.
   useEffect(() => {
-    if (viewLoading) return;
+    if (viewLoading || lookupLoading || lookupError || (isArchivedView && archivedError)) return;
     if (!selectedKey) return;
     if (selected) return;
     if (selectionFilteredOut) return;
@@ -294,38 +331,16 @@ export function InboxPage() {
     replace(wsPaths.issueDetail(selectedKey));
   }, [
     viewLoading,
+    isArchivedView,
+    archivedError,
+    lookupLoading,
+    lookupError,
     selectedKey,
     selected,
     selectionFilteredOut,
     replace,
     wsPaths,
     setSelectedKey,
-  ]);
-
-  // Never strand the user on an empty archive: when the last archived issue is
-  // restored (or a new notification revives it into the main inbox), fall back
-  // to the main list. Same fallback chat's archived view has. Gated on the load
-  // so a cold `?view=archived` open doesn't bounce before the data lands.
-  useEffect(() => {
-    if (!isArchivedView) return;
-    if (archivedLoading) return;
-    // A failed fetch is also "no items" — bouncing here would swap the error
-    // message for the main list and leave the user with no idea it failed.
-    if (archivedError) return;
-    // Let the fallback effect above settle an unresolved selection first. On a
-    // deep link like `?view=archived&issue=X` into an empty archive both would
-    // otherwise fire in the same commit, and this one's replace() would land
-    // last and swallow the redirect to X.
-    if (selectedKey) return;
-    if (archivedItems.length > 0) return;
-    setView("inbox");
-  }, [
-    isArchivedView,
-    archivedLoading,
-    archivedError,
-    archivedItems.length,
-    selectedKey,
-    setView,
   ]);
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -452,7 +467,7 @@ export function InboxPage() {
 
   // Toasts live in these shared handlers so every archive surface confirms alike.
   const handleArchive = (id: string) => {
-    advanceSelectionPast(id, visibleItems);
+    advanceSelectionPast(id, selectionItems);
     archiveMutation.mutate(id, {
       onSuccess: () => toast.success(t(($) => $.toasts.archived)),
       onError: (err) =>
@@ -465,7 +480,7 @@ export function InboxPage() {
   };
 
   const handleUnarchive = (id: string) => {
-    advanceSelectionPast(id, visibleItems);
+    advanceSelectionPast(id, selectionItems);
     unarchiveMutation.mutate(id, {
       onSuccess: () => toast.success(t(($) => $.toasts.unarchived)),
       onError: (err) =>
@@ -570,6 +585,7 @@ export function InboxPage() {
         wsId={wsId}
         items={viewItems}
         priorityFilterSupport={priorityFilterSupport}
+        archived={isArchivedView}
       />
       {/* Batch actions are main-view only. Every entry archives from the MAIN
           inbox, so offering them while the archived list is on screen reads as
@@ -582,6 +598,7 @@ export function InboxPage() {
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground"
+              aria-label={t(($) => $.menu.more_actions_aria)}
             />
           }
         >
@@ -622,9 +639,6 @@ export function InboxPage() {
     >
       <ChevronLeft className="size-4 shrink-0" />
       <span className="truncate">{t(($) => $.list.archived_title)}</span>
-      <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
-        {archivedItems.length}
-      </span>
     </button>
   );
 
@@ -681,13 +695,39 @@ export function InboxPage() {
     <WeeklyRetroView />
   ) : isBriefingView ? (
     <MorningBriefingView />
-  ) : (archivedError && isArchivedView) || (attentionError && isAttentionView) ? (
+  ) : (archivedError && isArchivedView) ||
+    (attentionError && isAttentionView) ||
+    (inboxError && isInboxView) ? (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <div role="alert" className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <Archive className="mb-3 h-8 w-8 text-faint-foreground" />
         <p className="text-body">
-          {isAttentionView ? t(($) => $.errors.attention_load_failed) : t(($) => $.errors.archived_load_failed)}
+          {isAttentionView
+            ? t(($) => $.errors.attention_load_failed)
+            : isArchivedView
+              ? t(($) => $.errors.archived_load_failed)
+              : t(($) => $.errors.inbox_load_failed)}
         </p>
+        {/* Each list owns its own retry: the archive is paginated, the
+            attention feed and the main list are single requests. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          disabled={
+            (isAttentionView && attentionFetching) ||
+            (isInboxView && inboxFetching)
+          }
+          onClick={() =>
+            void (isAttentionView
+              ? refetchAttention()
+              : isArchivedView
+                ? archiveQuery.refetch()
+                : refetchInbox())
+          }
+        >
+          {t(($) => $.list.retry)}
+        </Button>
       </div>
     </div>
   ) : (
@@ -703,8 +743,10 @@ export function InboxPage() {
         items={visibleItems}
         view={view}
         selectedKey={selectedKey}
-        archivedCount={archivedItems.length}
         attentionCount={attentionItems.length}
+        onLoadMore={isArchivedView && archiveQuery.hasNextPage ? loadNextArchivedPage : undefined}
+        loadingMore={archiveQuery.isFetchingNextPage}
+        loadMoreError={archiveQuery.isFetchNextPageError}
         onSelect={handleSelect}
         onAction={isArchivedView ? handleUnarchive : handleArchive}
         onOpenArchived={openArchived}
@@ -712,16 +754,18 @@ export function InboxPage() {
         onOpenBriefing={openBriefing}
         onOpenDecisions={openDecisions}
         onOpenRetro={openRetro}
+        approvals={approvals}
         emptyLabel={
-          hasActiveFilters && viewItems.length > 0 && visibleItems.length === 0
+          hasActiveFilters && visibleItems.length === 0
             ? t(($) => $.filters.empty)
             : undefined
         }
         emptyAction={
-          hasActiveFilters && viewItems.length > 0 && visibleItems.length === 0 ? (
+          hasActiveFilters && visibleItems.length === 0 ? (
             <Button
               variant="outline"
               size="sm"
+              data-testid="inbox-clear-filters"
               onClick={() => clearFilters(wsId)}
             >
               {t(($) => $.filters.clear)}
@@ -740,6 +784,21 @@ export function InboxPage() {
       {isBriefingView && briefingBackRow}
       {isRetroView && retroBackRow}
       {isDecisionsView && decisionsBackRow}
+      {lookupLoading && (
+        <p role="status" className="shrink-0 border-b px-3 py-2 text-caption text-muted-foreground">
+          {t(($) => $.list.loading_selection)}
+        </p>
+      )}
+      {lookupError && (
+        <div role="alert" className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+          <p className="flex-1 text-caption text-muted-foreground">
+            {t(($) => $.errors.archived_lookup_failed)}
+          </p>
+          <Button variant="outline" size="sm" disabled={lookup.isFetching} onClick={() => void lookup.refetch()}>
+            {t(($) => $.list.retry)}
+          </Button>
+        </div>
+      )}
       {list}
     </>
   );
@@ -771,7 +830,13 @@ export function InboxPage() {
     </div>
   ) : null;
 
-  const detailContent = detailItem?.issue_id ? (
+  // Inline approvals: a decision/transition/goal-question row stays in the
+  // inbox's own detail pane (act-in-place) instead of opening the full issue
+  // — null when the ask has already been settled underneath the row.
+  const isApprovalDetail = !!detailItem && isApprovalAskType(detailItem.type);
+  const detailApproval = isApprovalDetail && detailItem ? findMatchingApproval(detailItem, approvals) : null;
+
+  const detailContent = detailItem?.issue_id && !isApprovalDetail ? (
     // Key by issue_id (not inbox-item id): a new comment/reaction generates a
     // new inbox notification for the same issue, and the dedup helper picks the
     // newest one — keying on its id would remount IssueDetail on every event,
@@ -797,7 +862,9 @@ export function InboxPage() {
         layoutId="multica_inbox_issue_detail_layout"
         highlightCommentId={detailItem.details?.comment_id ?? undefined}
         highlightRequestToken={highlightRequestToken}
-        leadingAction={compactBackAction}
+        // The split layout already has a nav trigger in the list header.
+        // Explicit false suppresses the detail header's fallback trigger.
+        leadingAction={compactBackAction ?? false}
         onDelete={() => {
           // Issue deletion CASCADE-deletes the inbox item server-side, and the
           // issue:deleted WS event prunes it from the inbox cache. Just clear
@@ -820,6 +887,15 @@ export function InboxPage() {
       <p className="mt-1 text-body text-muted-foreground">
         {typeLabels[detailItem.type]} · {timeAgo(detailItem.created_at)}
       </p>
+      {isApprovalDetail ? (
+        detailApproval ? (
+          <div className="mt-4">
+            <ApprovalCard approval={detailApproval} wsId={wsId} showIssue />
+          </div>
+        ) : (
+          <p className="mt-4 text-body text-muted-foreground">{t(($) => $.detail.already_decided)}</p>
+        )
+      ) : null}
       {isAutopilotQuotaNotice(detailItem.type) ? (
         <AutopilotQuotaNotice
           item={detailItem}
@@ -839,6 +915,17 @@ export function InboxPage() {
         </div>
       )}
       <div className="mt-4 flex gap-2">
+        {isDoctrineType(detailItem.type) && (
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="open-doctrine"
+            render={<AppLink href={`${wsPaths.settings()}?tab=doctrine`} />}
+            nativeButton={false}
+          >
+            {t(($) => $.detail.open_doctrine)}
+          </Button>
+        )}
         {detailItem.type === "quick_create_failed" &&
           detailItem.details?.source_context_id &&
           detailItem.details?.task_id && (
@@ -945,7 +1032,7 @@ export function InboxPage() {
     // of selection get their chrome from different places, so they render
     // differently — `InboxItem.issue_id` is nullable and a null one is a plain
     // notification (a failed quick-create, say), not an issue.
-    if (detailItem?.issue_id) {
+    if (detailItem?.issue_id && !isApprovalDetail) {
       // No scroll container and no back bar of our own: `IssueDetail` owns
       // both, and takes the way back through `leadingAction`. Wrapping it in
       // an `overflow-y-auto` used to collapse its inner scroller to content
@@ -977,7 +1064,13 @@ export function InboxPage() {
   if (viewLoading) {
     return (
       <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
-        <ResizablePanel id="list" defaultSize={280} minSize={240} maxSize={480} groupResizeBehavior="preserve-pixel-size">
+        <ResizablePanel
+          id="list"
+          defaultSize={INBOX_LIST_DEFAULT_SIZE}
+          minSize={INBOX_LIST_MIN_SIZE}
+          maxSize={INBOX_LIST_MAX_SIZE}
+          groupResizeBehavior="preserve-pixel-size"
+        >
           <div className="flex flex-col border-r h-full">
             <div className={cn("flex h-12 shrink-0 items-center border-b", PAGE_GUTTER)}>
               <Skeleton className="h-5 w-16" />
@@ -1008,7 +1101,13 @@ export function InboxPage() {
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
-      <ResizablePanel id="list" defaultSize={280} minSize={240} maxSize={480} groupResizeBehavior="preserve-pixel-size">
+      <ResizablePanel
+        id="list"
+        defaultSize={INBOX_LIST_DEFAULT_SIZE}
+        minSize={INBOX_LIST_MIN_SIZE}
+        maxSize={INBOX_LIST_MAX_SIZE}
+        groupResizeBehavior="preserve-pixel-size"
+      >
       <div className="flex flex-col border-r h-full">
         {listPanel}
       </div>
@@ -1017,14 +1116,20 @@ export function InboxPage() {
       <ResizablePanel id="detail" minSize="40%">
       <div className="flex flex-col min-h-0 h-full">
         {detailContent ?? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-            <Inbox className="mb-3 h-10 w-10 text-faint-foreground" />
-            <p className="text-body">
-              {visibleItems.length === 0
+          <CollectionPageState
+            icon={Inbox}
+            className="h-full"
+            title={
+              visibleItems.length === 0
                 ? t(($) => $.detail.empty)
-                : t(($) => $.detail.select_prompt)}
-            </p>
-          </div>
+                : t(($) => $.detail.select_prompt)
+            }
+            description={
+              visibleItems.length === 0
+                ? t(($) => $.detail.empty_hint)
+                : t(($) => $.detail.select_prompt_hint)
+            }
+          />
         )}
       </div>
       </ResizablePanel>

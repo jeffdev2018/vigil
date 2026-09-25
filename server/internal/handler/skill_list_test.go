@@ -261,3 +261,123 @@ func insertHandlerTestSkill(t *testing.T, namePrefix, content string) string {
 	})
 	return id
 }
+
+// TestListAgentSkills_IncludesStatus guards the fix for the audit finding
+// that GET /api/agents/{id}/skills dropped the skill's `status` (draft vs
+// published) because ListAgentSkillSummaries never selected s.status,
+// unlike the workspace-wide ListSkills. draft/published badges in the
+// agent skills UI silently disappeared for this endpoint only.
+func TestListAgentSkills_IncludesStatus(t *testing.T) {
+	agentID := createHandlerTestAgent(t, "Handler Skill Status Test", nil)
+	skillID := insertHandlerTestSkill(t, "agent-skill-status", "content")
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO agent_skill (agent_id, skill_id) VALUES ($1, $2)`,
+		agentID, skillID,
+	); err != nil {
+		t.Fatalf("attach skill to agent: %v", err)
+	}
+	var wantStatus string
+	if err := testPool.QueryRow(context.Background(), `SELECT status FROM skill WHERE id = $1`, skillID).Scan(&wantStatus); err != nil {
+		t.Fatalf("read skill status: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := newRequest("GET", "/api/agents/"+agentID+"/skills", nil)
+	req = withURLParam(req, "id", agentID)
+	testHandler.ListAgentSkills(w, req)
+	if w.Code != 200 {
+		t.Fatalf("ListAgentSkills: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var rows []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("ListAgentSkills: failed to decode body: %v", err)
+	}
+	var found bool
+	for _, row := range rows {
+		if row["id"] != skillID {
+			continue
+		}
+		found = true
+		if got, _ := row["status"].(string); got != wantStatus {
+			t.Fatalf("ListAgentSkills: status = %q, want %q (regression: status dropped from the response)", got, wantStatus)
+		}
+	}
+	if !found {
+		t.Fatalf("ListAgentSkills: inserted skill %s not in response", skillID)
+	}
+}
+
+func TestListSkills_IncludesAttachedLabelsAndOmitsContent(t *testing.T) {
+	labeledID := insertHandlerTestSkill(t, "list-skill-with-label", strings.Repeat("c", 512))
+	unlabeledID := insertHandlerTestSkill(t, "list-skill-no-label", strings.Repeat("d", 512))
+
+	wCreate := httptest.NewRecorder()
+	testHandler.CreateLabel(wCreate, newRequest("POST", "/api/labels", map[string]any{
+		"resource_type": "skill",
+		"name":          "list-filter",
+		"color":         "#3b82f6",
+	}))
+	if wCreate.Code != 201 {
+		t.Fatalf("CreateLabel: expected 201, got %d: %s", wCreate.Code, wCreate.Body.String())
+	}
+	var created LabelResponse
+	if err := json.NewDecoder(wCreate.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created label: %v", err)
+	}
+	t.Cleanup(func() {
+		w := httptest.NewRecorder()
+		req := newRequest("DELETE", "/api/labels/"+created.ID, nil)
+		req = withURLParam(req, "id", created.ID)
+		testHandler.DeleteLabel(w, req)
+	})
+	if _, err := testPool.Exec(context.Background(),
+		`INSERT INTO skill_to_label (skill_id, label_id) VALUES ($1, $2)`,
+		labeledID, created.ID,
+	); err != nil {
+		t.Fatalf("attach skill label: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := newRequest("GET", "/api/skills?workspace_id="+testWorkspaceID, nil)
+	testHandler.ListSkills(w, req)
+	if w.Code != 200 {
+		t.Fatalf("ListSkills: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var rows []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("ListSkills: failed to decode body: %v", err)
+	}
+
+	byID := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		id, _ := row["id"].(string)
+		byID[id] = row
+	}
+
+	labeled, ok := byID[labeledID]
+	if !ok {
+		t.Fatalf("ListSkills: labeled skill %s not in response", labeledID)
+	}
+	if _, hasContent := labeled["content"]; hasContent {
+		t.Fatalf("ListSkills: labeled skill must still omit content, got: %v", labeled)
+	}
+	labels, ok := labeled["labels"].([]any)
+	if !ok || len(labels) != 1 {
+		t.Fatalf("ListSkills: labeled skill expected 1 label, got: %v", labeled["labels"])
+	}
+	label, _ := labels[0].(map[string]any)
+	if label["id"] != created.ID || label["name"] != created.Name || label["resource_type"] != "skill" {
+		t.Fatalf("ListSkills: unexpected attached label: %+v", label)
+	}
+
+	unlabeled, ok := byID[unlabeledID]
+	if !ok {
+		t.Fatalf("ListSkills: unlabeled skill %s not in response", unlabeledID)
+	}
+	empty, ok := unlabeled["labels"].([]any)
+	if !ok || len(empty) != 0 {
+		t.Fatalf("ListSkills: unlabeled skill expected labels: [], got: %v", unlabeled["labels"])
+	}
+}

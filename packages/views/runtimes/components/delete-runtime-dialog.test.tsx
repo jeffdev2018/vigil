@@ -35,16 +35,23 @@ const { ApiError, apiDeleteRuntime, apiUnbindAgentsAndDeleteRuntime } = vi.hoist
   };
 });
 
-vi.mock("@multica/core/api", () => ({
-  api: {
-    deleteRuntime: (...args: unknown[]) => apiDeleteRuntime(...args),
-    unbindAgentsAndDeleteRuntime: (...args: unknown[]) =>
-      apiUnbindAgentsAndDeleteRuntime(...args),
-    listAgents: vi.fn(),
-    listMembers: vi.fn(),
-  },
-  ApiError,
-}));
+vi.mock("@multica/core/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@multica/core/api")>();
+  return {
+    ...actual,
+    api: {
+      deleteRuntime: (...args: unknown[]) => apiDeleteRuntime(...args),
+      unbindAgentsAndDeleteRuntime: (...args: unknown[]) =>
+        apiUnbindAgentsAndDeleteRuntime(...args),
+      listAgents: vi.fn(),
+      listMembers: vi.fn(),
+    },
+    // parseWithFallback (real, via ...actual) validates active_agents through
+    // AgentSchema — the mocked ApiError below must still satisfy the
+    // `instanceof` check parseActiveAgentsConflict runs first.
+    ApiError,
+  };
+});
 
 // The mutations file imports api lazily via the mock above; the mocked
 // hooks below thread directly to the api stubs so the dialog's mode

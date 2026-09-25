@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   rules: [] as IssueTransitionRule[],
   role: "member" as string,
   remove: vi.fn(),
+  rulesError: null as Error | null,
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -23,7 +24,10 @@ vi.mock("@multica/core/issue-transitions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/issue-transitions")>()),
   issueTransitionRulesOptions: () => ({
     queryKey: ["rules"],
-    queryFn: async () => ({ rules: state.rules, categories: [] }),
+    queryFn: async () => {
+      if (state.rulesError) throw state.rulesError;
+      return { rules: state.rules, categories: [] };
+    },
   }),
   useSaveIssueTransitionRule: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteIssueTransitionRule: () => ({ mutate: state.remove, isPending: false }),
@@ -62,9 +66,24 @@ beforeEach(() => {
   state.rules = [];
   state.role = "admin";
   state.remove.mockReset();
+  state.rulesError = null;
 });
 
 describe("TransitionsTab", () => {
+  // A failed fetch must not read as "no rules configured" — that would tell
+  // an admin every transition is free when the truth is unknown.
+  it("reports a load failure instead of the free-transitions empty state", async () => {
+    state.rulesError = new Error("network down");
+    render();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(screen.queryByText(/Every transition is free/)).toBeNull();
+
+    state.rulesError = null;
+    state.rules = [rule()];
+    (await screen.findByRole("button", { name: /retry/i })).click();
+    expect(await screen.findByText("In Progress → Done")).toBeTruthy();
+  });
+
   it("says out loud that no rules means free transitions", async () => {
     // The empty state is the whole explanation of the feature for an admin who
     // arrives here wondering why the picker greys nothing.
@@ -75,22 +94,22 @@ describe("TransitionsTab", () => {
   it("summarises a rule as origin, target and who it grants", async () => {
     state.rules = [rule({ requires_approval: true })];
     render();
-    expect(await screen.findByText("in_progress → done")).toBeTruthy();
-    const summary = await screen.findByText(/Allowed: admin/);
+    expect(await screen.findByText("In Progress → Done")).toBeTruthy();
+    const summary = await screen.findByText(/Allowed: Admin/);
     expect(summary.textContent).toContain("needs approval");
   });
 
   it("reads any-origin as a named origin rather than an empty gap", async () => {
     state.rules = [rule({ from_category: null })];
     render();
-    expect(await screen.findByText("any status → done")).toBeTruthy();
+    expect(await screen.findByText("any status → Done")).toBeTruthy();
   });
 
   it("hides every write affordance from a plain member", async () => {
     state.rules = [rule()];
     state.role = "member";
     render();
-    await screen.findByText("in_progress → done");
+    await screen.findByText("In Progress → Done");
     expect(screen.queryByRole("button", { name: "Add rule" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Edit rule" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete rule" })).toBeNull();

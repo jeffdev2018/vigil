@@ -8,7 +8,7 @@ import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import { cn } from "@multica/ui/lib/utils";
 import { DragStrip } from "@multica/views/platform";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
-import type { IssueStatus } from "@multica/core/types";
+import type { BuiltInIssueStatus } from "@multica/core/types";
 import { StatusIcon } from "../../issues/components/status-icon";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
 import { useT } from "../../i18n";
@@ -96,11 +96,11 @@ export function StepWelcome({
               <p className="text-title leading-relaxed text-foreground">
                 {t(($) => $.welcome.lede)}
               </p>
-              <p className="text-body leading-relaxed text-muted-foreground">
-                {isWeb
-                  ? t(($) => $.welcome.lede_web)
-                  : t(($) => $.welcome.lede_desktop)}
-              </p>
+              {isWeb && (
+                <p className="text-body leading-relaxed text-muted-foreground">
+                  {t(($) => $.welcome.lede_web)}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -175,9 +175,6 @@ export function StepWelcome({
       <div className="hidden border-l bg-muted/40 lg:flex lg:flex-1 lg:flex-col lg:overflow-hidden">
         <DragStrip />
         <div className="flex flex-1 flex-col items-center justify-center gap-7 px-8 py-8">
-          <p className="max-w-[440px] text-balance text-center font-serif text-body-lg italic leading-snug text-muted-foreground">
-            {t(($) => $.welcome.illustration_caption)}
-          </p>
           <WelcomeIllustration />
         </div>
       </div>
@@ -300,19 +297,19 @@ function MockActivityCard({
   actor: ActivityActor;
   issueId: string;
   content: React.ReactNode;
-  status?: Extract<IssueStatus, "in_progress" | "done" | "in_review">;
+  status?: Extract<BuiltInIssueStatus, "in_progress" | "done" | "in_review">;
   timestamp?: string;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card px-4 py-3.5 shadow-sm",
+        "rounded-lg border bg-card px-4 py-3.5 shadow-surface",
         // Decorative hover: lift, straighten, deeper shadow. Cards aren't
         // clickable — this is ambient polish so the illustration feels like
         // real app UI rather than a flat screenshot.
         "transition-all duration-200 ease-out will-change-transform",
-        "hover:-translate-y-0.5 hover:rotate-0 hover:shadow-md",
+        "hover:-translate-y-0.5 hover:rotate-0 hover:shadow-surface",
         className,
       )}
     >
@@ -362,7 +359,7 @@ function StatusFooter({
   status,
   timestamp,
 }: {
-  status: IssueStatus;
+  status: BuiltInIssueStatus;
   timestamp?: string;
 }) {
   // The illustration's statuses are hard-coded BUILT-IN keys, so the label
@@ -384,7 +381,7 @@ function StatusFooter({
             status === "in_progress" && "animate-pulse",
           )}
         />
-        {t(($) => $.status[category])}
+        {t(($) => $.status[status])}
       </span>
       {timestamp && (
         <>

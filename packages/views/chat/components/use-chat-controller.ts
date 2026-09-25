@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useQuery,
@@ -11,7 +11,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useAuthStore } from "@multica/core/auth";
 import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
-import { canAssignAgent } from "@multica/views/issues/components";
+import { canAssignAgent } from "../../issues/components/pickers/assignee-picker";
 import { api, dispatchReasonCode } from "@multica/core/api";
 import {
   isAgentRuntimeBound as hasAgentRuntime,
@@ -553,7 +553,9 @@ export function useChatController(opts?: { isActive?: boolean }) {
             ? t(($) => $.input.send_blocked_toast)
             : reason === "agent_runtime_required"
               ? t(($) => $.input.runtime_required_toast)
-              : t(($) => $.input.send_failed_toast),
+              : reason === "runtime_access_denied"
+                ? t(($) => $.input.runtime_access_denied_toast)
+                : t(($) => $.input.send_failed_toast),
         );
         return false;
       }
@@ -583,7 +585,9 @@ export function useChatController(opts?: { isActive?: boolean }) {
             ? t(($) => $.input.send_blocked_toast)
             : reason === "agent_runtime_required"
               ? t(($) => $.input.runtime_required_toast)
-              : t(($) => $.input.send_failed_toast),
+              : reason === "runtime_access_denied"
+                ? t(($) => $.input.runtime_access_denied_toast)
+                : t(($) => $.input.send_failed_toast),
         );
         return false;
       }
@@ -793,30 +797,22 @@ export function useChatController(opts?: { isActive?: boolean }) {
     ],
   );
 
-  // Archiving the chat currently in view would otherwise strand the
-  // conversation pane on a now read-only, "dangling" session. Mirror the Inbox
-  // list: advance selection to the next chat in the (sorted, non-archived)
-  // history, fall back to the previous one, and clear only when nothing is
-  // left. Routing the non-null advance through handleSelectSession keeps
-  // selectedAgentId in sync, so a follow-up "new chat" still defaults to the
-  // right agent even when the next chat belongs to a different agent. A no-op
-  // when the archived session isn't the open one — that selection stays put.
-  const advanceSelectionAfterArchive = useCallback(
-    (session: { id: string; agent_id: string }) => {
-      if (activeSessionId !== session.id) return;
-      const history = sortChatSessions(
-        sessions.filter((s) => s.status !== "archived"),
-      );
-      const idx = history.findIndex((s) => s.id === session.id);
-      const next = history[idx + 1] ?? history[idx - 1] ?? null;
-      if (next) handleSelectSession(next);
-      else setActiveSession(null);
-    },
-    [activeSessionId, sessions, handleSelectSession, setActiveSession],
+  // The non-archived history, in the order the thread list shows it. The
+  // archive flow (useArchiveSessionFlow) walks it to pick the chat that
+  // replaces an archived one, so it has to be the DISPLAYED order, not the
+  // raw query order.
+  const historySessions = useMemo(
+    () => sortChatSessions(sessions.filter((s) => s.status !== "archived")),
+    [sessions],
   );
 
+  // Callers own what happens to the selection, so they own its rollback too:
+  // `onError` lets the page put the user back where they were when the
+  // archive never landed (useSetChatSessionArchived rolls the list back, but
+  // it knows nothing about which conversation is on screen).
   const archiveSession = useCallback(
-    (sessionId: string) => setArchived.mutate({ sessionId, archived: true }),
+    (sessionId: string, options?: { onError?: () => void }) =>
+      setArchived.mutate({ sessionId, archived: true }, { onError: options?.onError }),
     [setArchived],
   );
 
@@ -830,6 +826,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
     availableAgents,
     agentsSettled,
     sessions,
+    historySessions,
     projects,
     activeSessionId,
     selectedAgentId,
@@ -876,7 +873,6 @@ export function useChatController(opts?: { isActive?: boolean }) {
     handleStartNewChat,
     handleSelectSession,
     handleProjectChange,
-    advanceSelectionAfterArchive,
     archiveSession,
     // store setters (for surfaces that sync selection to the URL, etc.)
     setActiveSession,

@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { dashboardCostPerDeliverableOptions } from "@multica/core/dashboard/queries";
 import type { DeliverableCostStats } from "@multica/core/types";
 import { CurrencyNumberFlow } from "@multica/ui/components/ui/number-flow";
+import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { KpiCard } from "../../runtimes/components/shared";
 import { useT } from "../../i18n";
@@ -29,10 +30,26 @@ export function CostPerDeliverableCard({
   locales: string;
 }) {
   const { t } = useT("usage");
-  const { data, isError } = useQuery(dashboardCostPerDeliverableOptions(wsId, days, projectId, tz));
+  const { data, isError, refetch } = useQuery(dashboardCostPerDeliverableOptions(wsId, days, projectId, tz));
+  // A failed fetch must not render as nothing — that told the user "no
+  // deliverables" indistinguishable from a workspace with none yet.
+  if (isError) {
+    return (
+      <div
+        data-testid="cost-per-deliverable-error"
+        role="alert"
+        className="flex items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-caption text-destructive"
+      >
+        <span>{t(($) => $.deliverable.load_error)}</span>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          {t(($) => $.deliverable.retry)}
+        </Button>
+      </div>
+    );
+  }
   // Defensive on shape: an older backend (or a test fixture) may hand back
   // something that is not this response.
-  if (!data || isError || !data.issues || !data.pull_requests) return null;
+  if (!data || !data.issues || !data.pull_requests) return null;
   if (data.issues.count === 0 && data.pull_requests.count === 0) {
     return (
       <div data-testid="cost-per-deliverable" data-empty="true" className="rounded-lg border bg-card px-4 py-3 text-caption text-muted-foreground">

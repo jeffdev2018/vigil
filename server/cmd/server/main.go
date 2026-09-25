@@ -17,17 +17,21 @@ import (
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/daemonws"
+	"github.com/multica-ai/multica/server/internal/database"
 	"github.com/multica-ai/multica/server/internal/dbreader"
 	"github.com/multica-ai/multica/server/internal/dbstartup"
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/handler"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/maintenance"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/profiling"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/scheduler"
+	"github.com/multica-ai/multica/server/internal/selfhosttelemetry"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -39,14 +43,34 @@ var (
 	commit  = "unknown"
 )
 
-func newNamedRedisClient(base *redis.Options, suffix string) *redis.Client {
+func newNamedRedisClient(base *redis.UniversalOptions, suffix string) redis.UniversalClient {
 	opts := *base
 	if envBool("REDIS_DISABLE_CLIENT_NAME", false) {
 		opts.ClientName = ""
 	} else {
 		opts.ClientName = redisClientName(opts.ClientName, suffix)
 	}
-	return redis.NewClient(&opts)
+	return redis.NewUniversalClient(&opts)
+}
+
+// newClaimRedisClient is a named client that honours its callers' context
+// deadlines.
+//
+// go-redis discards them by default (Options.ContextTimeoutEnabled): a command
+// is bounded by the socket timeout instead, so a caller's deadline reaches the
+// wire only as a suggestion. That is the right default for the relay's own
+// publish traffic, where nobody is holding a stopwatch, and the wrong one for
+// the WeCom claim store, whose callers spend budgets they have promised to
+// keep — DedupeStore.ClaimBudget is what sizes the dispatcher's outcome grace,
+// and a shutdown drain gives its whole sequence of round trips one DrainBudget.
+//
+// Hence a dedicated client rather than the flag on the shared relay client:
+// setting it there would change the timeout behaviour of every publish that
+// runs through it, which is a far wider blast radius than this store needs.
+func newClaimRedisClient(base *redis.UniversalOptions, suffix string) redis.UniversalClient {
+	opts := *base
+	opts.ContextTimeoutEnabled = true
+	return newNamedRedisClient(&opts, suffix)
 }
 
 func redisClientName(existing, suffix string) string {
@@ -59,21 +83,7 @@ func redisClientName(existing, suffix string) string {
 	return "multica-api:" + suffix
 }
 
-func channelLeaseRedisURLFromEnv() string {
-	if dedicated := strings.TrimSpace(os.Getenv("CHANNEL_WS_LEASE_REDIS_URL")); dedicated != "" {
-		return dedicated
-	}
-	return strings.TrimSpace(os.Getenv("REDIS_URL"))
-}
-
-func realtimeRelayRedisURLFromEnv() string {
-	if dedicated := strings.TrimSpace(os.Getenv("REALTIME_RELAY_REDIS_URL")); dedicated != "" {
-		return dedicated
-	}
-	return strings.TrimSpace(os.Getenv("REDIS_URL"))
-}
-
-func closeRedisClient(label string, client *redis.Client) {
+func closeRedisClient(label string, client redis.UniversalClient) {
 	if client == nil {
 		return
 	}
@@ -113,6 +123,13 @@ func realtimeRelayModeFromEnv() string {
 		slog.Warn("invalid env var, using default", "name", "REALTIME_RELAY_MODE", "value", raw, "default", defaultMode)
 		return defaultMode
 	}
+}
+
+func validateRealtimeRelayMode(mode string, clusterMode bool) error {
+	if clusterMode && mode != "sharded" {
+		return fmt.Errorf("REALTIME_RELAY_MODE=%s is incompatible with REDIS_CLUSTER_MODE=true; use sharded mode", mode)
+	}
+	return nil
 }
 
 func envPositiveInt(name string, def int) int {
@@ -272,6 +289,23 @@ func jwtSecretBootError(jwtSecret, appEnv string) error {
 	return auth.ValidateJWTSecret(jwtSecret)
 }
 
+// mailTransportBootError returns a non-nil error when production has no mail
+// transport configured (neither Resend nor SMTP). Production must never boot
+// silently into the dev stdout fallback, which would leak verification codes
+// and invitation links to the server log instead of delivering them.
+// Non-production keeps the stdout fallback and only warns (see the
+// RESEND_API_KEY/SMTP_HOST warning right after this check in main()).
+func mailTransportBootError(resendAPIKey, smtpHost, appEnv string) error {
+	isProduction := strings.EqualFold(strings.TrimSpace(appEnv), "production")
+	if !isProduction {
+		return nil
+	}
+	if strings.TrimSpace(resendAPIKey) != "" || strings.TrimSpace(smtpHost) != "" {
+		return nil
+	}
+	return fmt.Errorf("no mail transport configured for production: set RESEND_API_KEY or SMTP_HOST (see .env.example)")
+}
+
 // newMainHTTPServer builds the public HTTP server with the production timeout
 // defaults. These values are load-bearing safety settings, not cosmetic tuning,
 // so they live in one helper that main() and the config regression test share.
@@ -291,6 +325,10 @@ func newMainHTTPServer(addr string, handler http.Handler) *http.Server {
 
 func main() {
 	logger.Init()
+	// Read the opt-out before constructing any telemetry dependency. In the
+	// disabled case no collector or HTTP client is ever created.
+	telemetryConfig := selfhosttelemetry.ConfigFromDoNotTrack(os.Getenv("DO_NOT_TRACK"))
+	selfhosttelemetry.LogStartupStatus(slog.Default(), telemetryConfig)
 	// Warn about missing configuration
 	if err := jwtSecretBootError(os.Getenv("JWT_SECRET"), os.Getenv("APP_ENV")); err != nil {
 		slog.Error(
@@ -302,6 +340,13 @@ func main() {
 	}
 	if os.Getenv("JWT_SECRET") == "" {
 		slog.Warn("JWT_SECRET is not set — using insecure dev default (allowed only because APP_ENV is not production).")
+	}
+	if err := mailTransportBootError(os.Getenv("RESEND_API_KEY"), os.Getenv("SMTP_HOST"), os.Getenv("APP_ENV")); err != nil {
+		slog.Error(
+			"refusing to start: "+err.Error(),
+			"app_env", os.Getenv("APP_ENV"),
+		)
+		os.Exit(1)
 	}
 	if os.Getenv("RESEND_API_KEY") == "" && strings.TrimSpace(os.Getenv("SMTP_HOST")) == "" {
 		slog.Warn("no email backend configured (RESEND_API_KEY and SMTP_HOST both empty) — verification codes will be printed to the log instead of emailed.")
@@ -388,7 +433,9 @@ func main() {
 
 	bus := events.New()
 	hub := realtime.NewHub()
-	go hub.Run()
+	// Every long-lived loop below runs under util.Supervise: a panic logs and
+	// restarts that loop instead of taking the whole server down.
+	go util.Supervise(context.Background(), "realtime hub", func(context.Context) { hub.Run() })
 	daemonHub := daemonws.NewHub()
 	var daemonWakeup interface {
 		service.TaskWakeupNotifier
@@ -410,16 +457,18 @@ func main() {
 	// is the sole broadcaster and the server stays single-node (legacy).
 	// Runtime local-skill stores and realtime relay traffic use separate Redis
 	// clients so blocking stream consumers cannot starve request-path Redis
-	// operations. Channel leases are initialized separately below so production
-	// can point them at a dedicated no-eviction Redis instance.
+	// operations. Channel leases are initialized separately below from the same
+	// global Redis configuration.
 	relayCtx, relayCancel := context.WithCancel(context.Background())
 	var broadcaster realtime.Broadcaster = hub
-	var storeRedis *redis.Client
-	var channelLeaseRedis *redis.Client
-	var relayWriteRedis *redis.Client
-	var relayReadRedis *redis.Client
-	var shardedReadRedis *redis.Client
-	var legacyReadRedis *redis.Client
+	var storeRedis redis.UniversalClient
+	var storeRedisPoolSize int
+	var channelLeaseRedis redis.UniversalClient
+	var relayWriteRedis redis.UniversalClient
+	var wecomClaimRedis redis.UniversalClient
+	var relayReadRedis redis.UniversalClient
+	var shardedReadRedis redis.UniversalClient
+	var legacyReadRedis redis.UniversalClient
 	var relay realtime.ManagedRelay
 	// stopRelay halts the relay readers and drains the WeCom dispatcher. It is
 	// called from the shutdown BODY, before the channel supervisor is torn
@@ -449,30 +498,40 @@ func main() {
 		closeRedisClient("realtime-read-legacy", legacyReadRedis)
 		closeRedisClient("realtime-read-sharded", shardedReadRedis)
 		closeRedisClient("realtime-read", relayReadRedis)
+		closeRedisClient("wecom-claim", wecomClaimRedis)
 		closeRedisClient("realtime-write", relayWriteRedis)
 		closeRedisClient("channel-lease", channelLeaseRedis)
 		closeRedisClient("store", storeRedis)
 	}()
 	sharedRedisURL := strings.TrimSpace(os.Getenv("REDIS_URL"))
-	relayRedisURL := realtimeRelayRedisURLFromEnv()
-	if (sharedRedisURL != "" || relayRedisURL != "") && envBool("REDIS_DISABLE_CLIENT_NAME", false) {
+	redisClusterMode := envBool("REDIS_CLUSTER_MODE", false)
+	// Main parses shared options instead of using database.NewRedisClient so it
+	// can create separate role-specific pools. Request-path clients must also
+	// survive a transient startup outage; relay and lease components own their
+	// existing bounded readiness probes and failure policies.
+	if sharedRedisURL != "" && envBool("REDIS_DISABLE_CLIENT_NAME", false) {
 		slog.Info("redis: CLIENT SETNAME disabled (REDIS_DISABLE_CLIENT_NAME=true) for managed Redis compatibility")
 	}
 	if sharedRedisURL != "" {
-		if opts, err := redis.ParseURL(sharedRedisURL); err != nil {
+		if opts, err := database.NewRedisOptions(database.RedisConfig{URL: sharedRedisURL, ClusterMode: redisClusterMode}); err != nil {
 			slog.Error("invalid REDIS_URL — request-path Redis features disabled", "error", err)
 		} else {
 			storeRedis = newNamedRedisClient(opts, "store")
+			storeRedisPoolSize = opts.PoolSize
 		}
 	}
-	if relayRedisURL != "" {
-		opts, err := redis.ParseURL(relayRedisURL)
+	if sharedRedisURL != "" {
+		opts, err := database.NewRedisOptions(database.RedisConfig{URL: sharedRedisURL, ClusterMode: redisClusterMode})
 		if err != nil {
-			slog.Error("invalid realtime relay Redis URL — falling back to in-memory hub", "error", err)
+			slog.Error("invalid REDIS_URL — realtime relay falling back to in-memory hub", "error", err)
 		} else {
+			relayMode := realtimeRelayModeFromEnv()
+			if err := validateRealtimeRelayMode(relayMode, redisClusterMode); err != nil {
+				slog.Error("invalid realtime relay configuration", "error", err)
+				os.Exit(1)
+			}
 			relayWriteRedis = newNamedRedisClient(opts, "realtime-write")
 
-			relayMode := realtimeRelayModeFromEnv()
 			relayConfig := shardedRelayConfigFromEnv()
 			switch relayMode {
 			case "legacy":
@@ -507,8 +566,9 @@ func main() {
 						"error", err)
 					leaseSettle = 0
 				}
+				wecomClaimRedis = newClaimRedisClient(opts, "wecom-claim")
 				wecomRelayOutbound = wecom.NewRelayOutbound(wecomRelay,
-					wecom.NewRedisDedupe(relayWriteRedis, 0, slog.Default()),
+					wecom.NewRedisDedupe(wecomClaimRedis, 0, slog.Default()),
 					wecom.RelayConfig{
 						ReplayGrace: relayConfig.ReplayGrace,
 						LeaseSettle: leaseSettle,
@@ -521,15 +581,10 @@ func main() {
 			// silently misses it.
 			relay.Start(relayCtx)
 			broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
-			storePoolSize := 0
-			if storeRedis != nil {
-				storePoolSize = storeRedis.Options().PoolSize
-			}
 			slog.Info(
 				"realtime: Redis relay enabled",
 				"node_id", relay.NodeID(),
 				"mode", relayMode,
-				"dedicated_instance", strings.TrimSpace(os.Getenv("REALTIME_RELAY_REDIS_URL")) != "",
 				"shards", relayConfig.Shards,
 				"stream_max_len", relayConfig.StreamMaxLen,
 				"replay_grace", relayConfig.ReplayGrace.String(),
@@ -538,19 +593,18 @@ func main() {
 				"stream_ttl_enabled", relayConfig.StreamTTLEnabled,
 				"xread_count", relayConfig.ReadCount,
 				"xread_block", relayConfig.ReadBlock.String(),
-				"store_pool_size", storePoolSize,
+				"store_pool_size", storeRedisPoolSize,
 				"realtime_write_pool_size", opts.PoolSize,
 				"realtime_read_pool_size", opts.PoolSize,
 			)
 		}
 	} else {
-		slog.Info("realtime: REDIS_URL and REALTIME_RELAY_REDIS_URL are unset — using in-memory hub (single-node mode)")
+		slog.Info("realtime: REDIS_URL is unset — using in-memory hub (single-node mode)")
 	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("CHANNEL_WS_LEASE_BACKEND")), "redis") {
-		leaseRedisURL := channelLeaseRedisURLFromEnv()
-		if leaseRedisURL == "" {
-			slog.Error("channel leases: CHANNEL_WS_LEASE_REDIS_URL and REDIS_URL are unset")
-		} else if opts, err := redis.ParseURL(leaseRedisURL); err != nil {
+		if sharedRedisURL == "" {
+			slog.Error("channel leases: REDIS_URL is unset")
+		} else if opts, err := database.NewRedisOptions(database.RedisConfig{URL: sharedRedisURL, ClusterMode: redisClusterMode}); err != nil {
 			slog.Error("channel leases: invalid Redis URL; supervisor will fail closed", "error", err)
 		} else {
 			channelLeaseRedis = newNamedRedisClient(opts, "channel-lease")
@@ -665,10 +719,15 @@ func main() {
 
 	srv := newMainHTTPServer(":"+port, r)
 	profilingServer := profiling.NewServer()
+	maintenanceServer, maintenanceErr := maintenance.NewServer(os.Getenv("MAINTENANCE_PORT"), maintenance.NewService(pool, maintenance.StatusCategory{}))
+	if maintenanceErr != nil {
+		slog.Error("maintenance listener disabled", "error", maintenanceErr)
+	}
 
 	// Start background workers.
 	sweepCtx, sweepCancel := context.WithCancel(context.Background())
 	autopilotCtx, autopilotCancel := context.WithCancel(context.Background())
+	telemetryWorker := selfhosttelemetry.New(pool, version, telemetryConfig, slog.Default())
 	// Reuse the router's services here. In particular, the router wires the
 	// EmptyClaim cache into TaskService; constructing a second TaskService for
 	// scheduled Autopilot dispatch would send the daemon wakeup without bumping
@@ -699,29 +758,50 @@ func main() {
 	// Queued work now expires on the same runtime-liveness signal as in-flight
 	// work, so there is no separate queue TTL to tune: a busy runtime keeps its
 	// backlog, and a departed one retires everything it owned at once.
-	go runRuntimeSweeper(sweepCtx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
-	go runDelegatedFailureRecoverySweeper(sweepCtx, taskSvc)
+	go util.Supervise(sweepCtx, "runtime sweeper", func(ctx context.Context) {
+		runRuntimeSweeper(ctx, queries, liveness, taskSvc, bus, runtimeReconnectGrace)
+	})
+	if telemetryWorker != nil {
+		go telemetryWorker.Run(sweepCtx) // supervises its own loop
+	}
+	go util.Supervise(sweepCtx, "delegated failure recovery sweeper", func(ctx context.Context) {
+		runDelegatedFailureRecoverySweeper(ctx, taskSvc)
+	})
 	// Seven-day runtime retention does not share the 30-second liveness tick:
 	// its bounded transactions run independently once per hour, so a slow GC
 	// round cannot delay offline detection or task recovery.
-	go runRuntimeGCSweeper(sweepCtx, pool, queries, taskSvc.Metrics, h)
+	go util.Supervise(sweepCtx, "runtime gc sweeper", func(ctx context.Context) {
+		runRuntimeGCSweeper(ctx, pool, queries, taskSvc.Metrics, h)
+	})
+	// Approval gates past their deadline are settled once a minute so an
+	// inbox row or a timeline card never shows an ask nobody can answer.
+	go util.Supervise(sweepCtx, "approval gate sweeper", func(ctx context.Context) { runApprovalGateSweeper(ctx, h) })
+	// Orphaned attachment reclamation (JEF-292): marks issue/comment
+	// attachments no longer referenced by their owning content, and deletes
+	// what stays unreferenced past the retention window.
+	go util.Supervise(sweepCtx, "attachment sweeper", func(ctx context.Context) { runAttachmentSweeper(ctx, h) })
 	// Source-context cleanup is object-store work, so it gets its own goroutine
 	// instead of a slot in the runtime sweep tick.
-	go runSourceContextSweeper(sweepCtx, taskSvc)
-	go heartbeatScheduler.Run(sweepCtx)
-	go runAutopilotFailureMonitor(autopilotCtx, queries, bus, envFailureMonitorConfig())
+	go util.Supervise(sweepCtx, "source context sweeper", func(ctx context.Context) { runSourceContextSweeper(ctx, taskSvc) })
+	go heartbeatScheduler.Run(sweepCtx) // supervises its own loop
+	failureMonitorCfg := envFailureMonitorConfig()
+	go util.Supervise(autopilotCtx, "autopilot failure monitor", func(ctx context.Context) {
+		runAutopilotFailureMonitor(ctx, queries, bus, failureMonitorCfg)
+	})
 	if autopilotSvc.QuotaEnabled() {
-		go runAutopilotQuotaReconciler(autopilotCtx, autopilotSvc)
+		go util.Supervise(autopilotCtx, "autopilot quota reconciler", func(ctx context.Context) {
+			runAutopilotQuotaReconciler(ctx, autopilotSvc)
+		})
 	}
-	go runDBStatsLogger(sweepCtx, "primary", pool)
+	go util.Supervise(sweepCtx, "primary db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "primary", pool) })
 	if replicaPool != nil {
-		go runDBStatsLogger(sweepCtx, "replica", replicaPool)
+		go util.Supervise(sweepCtx, "replica db stats logger", func(ctx context.Context) { runDBStatsLogger(ctx, "replica", replicaPool) })
 	}
 	if h.WebhookDeliveryWorker != nil {
-		go h.WebhookDeliveryWorker.Run(sweepCtx)
+		go h.WebhookDeliveryWorker.Run(sweepCtx) // supervises each pool worker
 	}
 	if h.SeatCapacityWorker != nil {
-		go h.SeatCapacityWorker.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "seat capacity worker", h.SeatCapacityWorker.Run)
 	}
 	if h.TelegramOutbound != nil {
 		h.TelegramOutbound.Start(sweepCtx)
@@ -738,7 +818,7 @@ func main() {
 	// alongside the other long-running workers, AFTER the HTTP server has
 	// drained.
 	if h.ChannelSupervisor != nil {
-		go h.ChannelSupervisor.Run(sweepCtx)
+		go h.ChannelSupervisor.Run(sweepCtx) // supervises its own loop
 	}
 
 	// Media intent-ledger reconciler (PR #5580): settles uploaded-but-unbound
@@ -746,7 +826,7 @@ func main() {
 	// spikes cannot starve any other sweeper's cadence.
 	if h.ChannelMediaReconciler != nil {
 		h.ChannelMediaReconciler.Metrics = channelMediaMetrics
-		go h.ChannelMediaReconciler.Run(sweepCtx)
+		go util.Supervise(sweepCtx, "channel media reconciler", h.ChannelMediaReconciler.Run)
 	}
 
 	// MUL-2957: DB-backed execution scheduler. The scheduler turns the
@@ -765,10 +845,12 @@ func main() {
 	// cycle, so a temporary outage does not crash the server.
 	schedulerMgr := scheduler.NewManager(pool, scheduler.Options{})
 	if err := schedulerMgr.Register(scheduler.TaskUsageHourlyJob(pool)); err != nil {
-		slog.Warn("scheduler: failed to register task_usage_hourly rollup job", "error", err)
+		slog.Error("scheduler: failed to register task_usage_hourly rollup job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.BudgetReservationReconciliationJob(h.BudgetService)); err != nil {
-		slog.Warn("scheduler: failed to register budget reservation reconciliation job", "error", err)
+		slog.Error("scheduler: failed to register budget reservation reconciliation job", "error", err)
+		os.Exit(1)
 	}
 	// MUL-3551: scheduled-Autopilot dispatch runs on the same DB-backed
 	// scheduler. The job owns its plan_times via PlansForScope (each
@@ -776,90 +858,133 @@ func main() {
 	// not fit). Crash recovery, occurrence-level idempotency, lease
 	// theft, and retry are all reused from the manager + sys_cron_executions
 	// — there is no separate goroutine for scheduled Autopilot anymore.
+	if err := schedulerMgr.Register(scheduler.IssueWakeupJob(&service.IssueWakeupService{Tasks: taskSvc})); err != nil {
+		slog.Error("scheduler: register issue wakeups", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.AutopilotScheduleDispatchJob(pool, queries, autopilotSvc)); err != nil {
-		slog.Warn("scheduler: failed to register autopilot_schedule_dispatch job", "error", err)
+		slog.Error("scheduler: failed to register autopilot_schedule_dispatch job", "error", err)
+		os.Exit(1)
 	}
 	// Manifest-declared Plugin schedules share the same durable lease and retry
 	// machinery. The job is inert while plugins_v1 is disabled.
 	if err := schedulerMgr.Register(scheduler.PluginHookScheduleDispatchJob(queries, h.PluginService)); err != nil {
-		slog.Warn("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+		slog.Error("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+		os.Exit(1)
 	}
-	// Decision SLA (K35): overdue Decision Cards step to their substitute,
-	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.SkillMinerJob(pool, h.MineSkills)); err != nil {
-		slog.Warn("scheduler: failed to register skill_miner job", "error", err)
+		slog.Error("scheduler: failed to register skill_miner job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
-		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
+		slog.Error("scheduler: failed to register watchdog_scan job", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.IssueRecurrenceTickJob(h.TickIssueRecurrences)); err != nil {
+		slog.Error("scheduler: register issue recurrence tick job failed", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.BrainEmbeddingBackfillJob(h.BackfillBrainEmbeddings)); err != nil {
+		slog.Error("scheduler: register brain embedding backfill job failed", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.CalendarReminderJob(h.RemindCalendarEvents)); err != nil {
+		slog.Error("scheduler: register calendar reminder job failed", "error", err)
+		os.Exit(1)
 	}
 	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
 	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
 	if err := schedulerMgr.Register(scheduler.NativeAgentTickJob(h.NativeAgents.Tick)); err != nil {
-		slog.Warn("scheduler: failed to register native_agent_tick job", "error", err)
+		slog.Error("scheduler: failed to register native_agent_tick job", "error", err)
+		os.Exit(1)
 	}
 	// Code health autopilot (K22): one scheduled read-only maintenance scan per
 	// enabled workspace. Inert while every workspace leaves it disabled.
 	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
-		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
+		slog.Error("scheduler: failed to register code_health_scan job", "error", err)
+		os.Exit(1)
 	}
 
 	if err := schedulerMgr.Register(scheduler.RunPreviewStaleSweepJob(h.SweepStaleRunPreviews)); err != nil {
 		slog.Error("scheduler: register run preview stale sweep job", "error", err)
 		os.Exit(1)
 	}
+	// Dead run-branch GC (JEF-388): workspaces that opted in get the branches
+	// their terminal runs left behind discarded past the TTL, through the
+	// JEF-255 branch-action channel. Inert while every workspace leaves it
+	// disabled.
+	if err := schedulerMgr.Register(scheduler.BranchGCTickJob(pool, h.TickBranchGC)); err != nil {
+		slog.Error("scheduler: register branch gc tick job", "error", err)
+		os.Exit(1)
+	}
 	if err := schedulerMgr.Register(scheduler.CycleSnapshotJob(h.SnapshotCycles)); err != nil {
-		slog.Warn("scheduler: failed to register cycle_snapshot job", "error", err)
+		slog.Error("scheduler: failed to register cycle_snapshot job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.CycleRolloverJob(h.RolloverCycles)); err != nil {
-		slog.Warn("scheduler: failed to register cycle_rollover job", "error", err)
+		slog.Error("scheduler: failed to register cycle_rollover job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
-		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
+		slog.Error("scheduler: failed to register doc_drift_check job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
-		slog.Warn("scheduler: failed to register org_tick job", "error", err)
+		slog.Error("scheduler: failed to register org_tick job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.McpBindingReviewJob(pool, h.ReviewMcpBindings)); err != nil {
-		slog.Warn("scheduler: failed to register mcp_binding_review job", "error", err)
+		slog.Error("scheduler: failed to register mcp_binding_review job", "error", err)
+		os.Exit(1)
 	}
+	// Decision SLA (K35): overdue Decision Cards step to their substitute,
+	// then the workspace leads.
 	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
-		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
+		slog.Error("scheduler: failed to register decision_sla_escalation job", "error", err)
+		os.Exit(1)
 	}
 	// Scorecards (K25): recompute the last days of per-agent metrics.
 	if err := schedulerMgr.Register(scheduler.AgentScorecardRollupJob(pool, h.RollupAgentScorecards)); err != nil {
-		slog.Warn("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+		slog.Error("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+		os.Exit(1)
 	}
 	// Morning briefing (K30): one daily digest per enabled workspace.
 	if err := schedulerMgr.Register(scheduler.StandupJob(pool, h.RunStandup)); err != nil {
-		slog.Warn("scheduler: failed to register standup job", "error", err)
+		slog.Error("scheduler: failed to register standup job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.WeeklyRetroJob(pool, h.GenerateDueWeeklyRetros)); err != nil {
-		slog.Warn("scheduler: failed to register weekly_retro job", "error", err)
+		slog.Error("scheduler: failed to register weekly_retro job", "error", err)
+		os.Exit(1)
 	}
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
-		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
+		slog.Error("scheduler: failed to register morning_briefing job", "error", err)
+		os.Exit(1)
 	}
 	// Triage digest: tell a workspace's admins when nobody has decided on the
 	// queue for two days. The queue reports its own age to whoever opens it,
 	// which is the person already looking; this reaches the one who stopped.
 	if err := schedulerMgr.Register(scheduler.TriageStaleDigestJob(pool, h.RunTriageStaleDigest)); err != nil {
-		slog.Warn("scheduler: failed to register triage_stale_digest job", "error", err)
+		slog.Error("scheduler: failed to register triage_stale_digest job", "error", err)
+		os.Exit(1)
 	}
 	// Triage retention: pending items past expires_at leave the queue as
 	// expired, so a queue nobody reads stops growing without losing the
 	// resolved history the auto-classifier learns from.
 	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.SweepTriageQueue)); err != nil {
-		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
+		slog.Error("scheduler: failed to register triage_retention_sweep job", "error", err)
+		os.Exit(1)
 	}
 	// Workspace Brain: a daily pass merges near-duplicate notes, retitles the
 	// vague ones, normalizes tags and archives what stopped being true. Inert
 	// without an assist-layer LLM.
 	if err := schedulerMgr.Register(scheduler.WorkspaceBrainCurationJob(pool, h.TaskService.CurateWorkspaceBrains)); err != nil {
-		slog.Warn("scheduler: failed to register workspace_brain_curation job", "error", err)
+		slog.Error("scheduler: failed to register workspace_brain_curation job", "error", err)
+		os.Exit(1)
 	}
 	// Refactoring campaigns (K42): merge queues move without a board read.
-	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
-		slog.Warn("scheduler: failed to register campaign_merge_queue job", "error", err)
+	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(h.AdvanceCampaignMergeQueues)); err != nil {
+		slog.Error("scheduler: failed to register campaign_merge_queue job", "error", err)
+		os.Exit(1)
 	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)
@@ -870,6 +995,15 @@ func main() {
 			slog.Info("metrics server starting", "addr", metricsConfig.Addr)
 			if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				slog.Error("metrics server disabled after startup error", "error", err)
+			}
+		}()
+	}
+
+	if maintenanceServer != nil {
+		go func() {
+			slog.Info("maintenance server starting", "addr", maintenanceServer.Addr)
+			if err := maintenanceServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("maintenance listener disabled", "error", err)
 			}
 		}()
 	}
@@ -907,6 +1041,17 @@ func main() {
 	// finds no socket to deliver over.
 	shutdownSequence{
 		StopAutopilot: autopilotCancel,
+		DrainMaintenance: func() {
+			if maintenanceServer == nil {
+				return
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 16*time.Second)
+			defer cancel()
+			if err := maintenanceServer.Shutdown(ctx); err != nil {
+				slog.Error("maintenance shutdown interrupted", "error", err)
+				_ = maintenanceServer.Close()
+			}
+		},
 		DrainHTTP: func() {
 			apiShutdownCtx, apiShutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 			if err := srv.Shutdown(apiShutdownCtx); err != nil {

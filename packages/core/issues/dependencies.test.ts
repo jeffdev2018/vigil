@@ -54,7 +54,7 @@ describe("listIssueDependencies", () => {
   it("degrades a malformed response to empty lists instead of throwing", async () => {
     stubFetchJson({ blocks: "nope", blocked_by: [{ id: 1 }] });
     const deps = await new ApiClient("https://api.example.test").listIssueDependencies("issue-1");
-    expect(deps).toEqual({ blocks: [], blocked_by: [], related: [] });
+    expect(deps).toEqual({ blocks: [], blocked_by: [], related: [], duplicate: [] });
   });
 
   it("keeps a 404 as an ApiError", async () => {

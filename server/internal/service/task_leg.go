@@ -43,6 +43,12 @@ const (
 	// the work, so it is review-like and must not feed the routing statistics
 	// as a sample of the host issue's task class.
 	LegRoleEpicStep = "epic_step"
+	// LegRoleSubagent (long tasks, brick 5) is an isolated in-process run a
+	// native run delegated a bounded piece of work to; the parent verifies
+	// its report against its tool journal. Its cost belongs to the parent's
+	// workflow. Review-like for routing statistics: it did a piece of the
+	// work, not the task the issue was routed for.
+	LegRoleSubagent = "subagent"
 )
 
 // WorkflowRoot is the run every leg of parent's workflow points at: parent's

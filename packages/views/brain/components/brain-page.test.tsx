@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider, keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { WorkspaceNote, WorkspaceNotesResponse } from "@multica/core/types";
+import type {
+  WorkspaceNote,
+  WorkspaceNoteSearchResponse,
+  WorkspaceNotesResponse,
+} from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { BrainPage } from "./brain-page";
@@ -33,6 +38,7 @@ const note = (over: Partial<WorkspaceNote> = {}): WorkspaceNote => ({
   created_by_type: "member",
   created_by_id: "user-1",
   revision: 3,
+  kind: "fact",
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-02T00:00:00Z",
   ...over,
@@ -40,7 +46,10 @@ const note = (over: Partial<WorkspaceNote> = {}): WorkspaceNote => ({
 
 const data = vi.hoisted(() => ({
   response: { items: [], tags: [] } as WorkspaceNotesResponse,
+  searchResponse: { notes: [], vector: false } as WorkspaceNoteSearchResponse,
   lastParams: undefined as unknown,
+  lastSearch: undefined as unknown,
+  rawCount: 0,
 }));
 
 vi.mock("@multica/core/brain/queries", () => ({
@@ -54,18 +63,46 @@ vi.mock("@multica/core/brain/queries", () => ({
       queryFn: async () => data.response,
     };
   },
+  noteSearchOptions: (_wsId: string, q: string, params?: unknown) => {
+    data.lastSearch = { q, params };
+    return {
+      queryKey: ["brain", "ws-1", "search", q, JSON.stringify(params ?? {})],
+      placeholderData: keepPreviousData,
+      enabled: q.trim() !== "",
+      queryFn: async () => data.searchResponse,
+    };
+  },
+  brainCapturesOptions: () => ({
+    queryKey: ["brain", "ws-1", "captures", "list", "raw"],
+    queryFn: async () => ({ captures: [], raw_count: data.rawCount }),
+  }),
+  useBrainRawCount: () => ({ data: data.rawCount }),
+  noteUsageOptions: (_wsId: string, id: string) => ({
+    queryKey: ["brain", "ws-1", "usage", id],
+    queryFn: async () => ({ counts: { injected: 0, retrieved: 0, opened: 0, viewed: 0 }, runs_count: 0, viewers_count: 0, last_used_at: null, runs: [] }),
+  }),
 }));
 
 const mutations = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   archive: vi.fn(),
+  remove: vi.fn(),
+  noop: vi.fn(),
 }));
 
 vi.mock("@multica/core/brain/mutations", () => ({
   useCreateWorkspaceNote: () => ({ mutateAsync: mutations.create, isPending: false }),
   useUpdateWorkspaceNote: () => ({ mutateAsync: mutations.update, isPending: false }),
   useSetWorkspaceNoteArchived: () => ({ mutateAsync: mutations.archive, isPending: false }),
+  useDeleteWorkspaceNote: () => ({ mutateAsync: mutations.remove, isPending: false }),
+  useCaptureText: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useCaptureUpload: () => ({ mutateAsync: mutations.noop, isPending: false, error: null }),
+  useSuggestCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useOrganizeCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useReopenCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useDeleteCapture: () => ({ mutateAsync: mutations.noop, isPending: false }),
+  useRecordNoteView: () => ({ mutate: mutations.noop }),
 }));
 
 function renderPage() {
@@ -79,26 +116,49 @@ function renderPage() {
     hash: "",
     getShareableUrl: (p) => p,
   };
-  return renderWithI18n(
+  const rendered = renderWithI18n(
     <NavigationProvider value={adapter}>
       <QueryClientProvider client={client}>
         <BrainPage />
       </QueryClientProvider>
     </NavigationProvider>,
   );
+  return { ...rendered, client };
+}
+
+/**
+ * The page opens on the capture inbox ("capture first, organize later"), so
+ * every note assertion starts by switching to the Notes tab.
+ */
+async function renderNotes() {
+  const rendered = renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Notes" }));
+  return rendered;
+}
+
+/** Base UI Select portals its popup onto document.body. */
+async function pickOption(comboboxName: string, optionName: string) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
 }
 
 describe("BrainPage", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mutations.create.mockResolvedValue(note({ id: "note-new" }));
     mutations.update.mockResolvedValue(note({ revision: 4 }));
     mutations.archive.mockResolvedValue(note({ archived_at: "2026-01-03T00:00:00Z" }));
+    mutations.remove.mockResolvedValue(undefined);
     data.response = { items: [note()], tags: ["deploy", "release"] };
+    data.searchResponse = { notes: [], vector: false };
+    data.rawCount = 0;
   });
 
   it("lists notes with their source badge and tags", async () => {
-    renderPage();
+    await renderNotes();
     expect(await screen.findByText("Deploys go through the release tag")).toBeTruthy();
     expect(screen.getByText("Manual")).toBeTruthy();
     // The tag facets come from the server, not from the notes on screen, so a
@@ -107,15 +167,25 @@ describe("BrainPage", () => {
   });
 
   it("shows a note's body as rendered markdown once selected", async () => {
-    renderPage();
+    await renderNotes();
     fireEvent.click(await screen.findByText("Deploys go through the release tag"));
     expect(await screen.findByRole("heading", { name: "Deploys go through the release tag" })).toBeTruthy();
     // The body is markdown: the backticks become a code element, not literal text.
     await waitFor(() => expect(document.querySelector("code")?.textContent).toBe("v0.x.x"));
   });
 
+  it("offers to create the first note from the empty state", async () => {
+    data.response = { items: [], tags: [] };
+    await renderNotes();
+    expect(await screen.findByText("No notes yet")).toBeTruthy();
+    const buttons = screen.getAllByRole("button", { name: "New note" });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]!);
+    expect(screen.getByLabelText("Title")).toBeTruthy();
+  });
+
   it("creates a note from the header action", async () => {
-    renderPage();
+    await renderNotes();
     fireEvent.click(await screen.findByRole("button", { name: "New note" }));
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Postgres runs behind pgbouncer" },
@@ -129,13 +199,91 @@ describe("BrainPage", () => {
         title: "Postgres runs behind pgbouncer",
         content: "port 6432",
         tags: ["db", "infra"],
+        kind: "fact",
       }),
     );
     expect(toast.success).toHaveBeenCalled();
   });
 
+  it("inserts the kind's template into an empty editor, and never overwrites typed text", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByRole("button", { name: "New note" }));
+
+    await pickOption("Note kind", "Decision");
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Content") as HTMLTextAreaElement).value,
+      ).toContain("## Context"),
+    );
+
+    // Switching again while the editor still holds exactly the previous
+    // kind's template (untouched) swaps it for the new one.
+    await pickOption("Note kind", "Procedure");
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Content") as HTMLTextAreaElement).value,
+      ).not.toContain("## Context"),
+    );
+
+    // Switching again must not clobber text the author already has.
+    fireEvent.change(screen.getByLabelText("Content"), {
+      target: { value: "custom body" },
+    });
+    await pickOption("Note kind", "Glossary");
+    expect((screen.getByLabelText("Content") as HTMLTextAreaElement).value).toBe(
+      "custom body",
+    );
+  });
+
+  it("creates a note with the picked kind", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByRole("button", { name: "New note" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "x" } });
+    await pickOption("Note kind", "Glossary");
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(mutations.create).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "glossary" }),
+      ),
+    );
+  });
+
+  it("shows the note's kind badge, defaulting an unknown kind to Fact", async () => {
+    data.response = {
+      items: [
+        note({ kind: "decision" }),
+        note({
+          id: "note-2",
+          title: "Other",
+          kind: "some-future-kind" as unknown as WorkspaceNote["kind"],
+        }),
+      ],
+      tags: [],
+    };
+    await renderNotes();
+    expect(await screen.findByText("Decision")).toBeTruthy();
+    expect(screen.getByText("Fact")).toBeTruthy();
+  });
+
+  it("shows a note mirrored from a decision record with its own source badge", async () => {
+    data.response = { items: [note({ source: "decision" })], tags: [] };
+    await renderNotes();
+    expect(await screen.findByText("Decision record")).toBeTruthy();
+    // It links nowhere, unlike the agent source's "Open the run".
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("filters the note list by kind", async () => {
+    await renderNotes();
+    await screen.findByText("Deploys go through the release tag");
+    await pickOption("Filter by kind", "Procedure");
+    await waitFor(() =>
+      expect(data.lastParams).toMatchObject({ kind: "procedure" }),
+    );
+  });
+
   it("sends the note's revision on edit so a concurrent write conflicts", async () => {
-    renderPage();
+    await renderNotes();
     fireEvent.click(await screen.findByText("Deploys go through the release tag"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByLabelText("Content"), { target: { value: "new body" } });
@@ -154,10 +302,59 @@ describe("BrainPage", () => {
     );
   });
 
+  it("omits kind from the save when unchanged, and sends it when the author picked a different one", async () => {
+    await renderNotes();
+    fireEvent.click(await screen.findByText("Deploys go through the release tag"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.not.objectContaining({ kind: expect.anything() }),
+      }),
+    );
+
+    mutations.update.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await pickOption("Note kind", "Decision");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.objectContaining({ kind: "decision" }),
+      }),
+    );
+  });
+
+  it("keeps the revision the draft was opened on when the note refreshes while editing", async () => {
+    // Regression (JEF-348 recette): a realtime update refetched the note under
+    // the open editor and the save carried the NEW revision, so the server
+    // accepted a draft built on stale fields and the concurrent edit was lost.
+    const { client } = await renderNotes();
+    fireEvent.click(await screen.findByText("Deploys go through the release tag"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Content"), { target: { value: "my draft" } });
+
+    data.response = { items: [note({ revision: 4, content: "someone else's body" })], tags: ["deploy"] };
+    await client.invalidateQueries();
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    // The draft is untouched by the refresh…
+    expect((screen.getByLabelText("Content") as HTMLTextAreaElement).value).toBe("my draft");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    // …and the save still names revision 3, so the server answers 409.
+    await waitFor(() =>
+      expect(mutations.update).toHaveBeenCalledWith({
+        id: "note-1",
+        input: expect.objectContaining({ content: "my draft", revision: 3 }),
+      }),
+    );
+  });
+
   it("tells the user to reload when the server reports a 409", async () => {
     const { ApiError } = await import("@multica/core/api");
     mutations.update.mockRejectedValue(new ApiError("conflict", 409, "Conflict"));
-    renderPage();
+    await renderNotes();
     fireEvent.click(await screen.findByText("Deploys go through the release tag"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -168,18 +365,106 @@ describe("BrainPage", () => {
     expect(screen.getByLabelText("Content")).toBeTruthy();
   });
 
-  it("passes the search box and the tag chip to the server", async () => {
-    renderPage();
+  it("sends a typed query to the ranked search endpoint, and the tag with it", async () => {
+    data.searchResponse = {
+      notes: [
+        { ...note(), score: 0.7, snippet: "", passage_heading: "", lex_rank: 1, vec_rank: null },
+      ],
+      vector: false,
+    };
+    await renderNotes();
     await screen.findByText("Deploys go through the release tag");
     fireEvent.change(screen.getByLabelText("Search notes"), {
       target: { value: "pgbouncer" },
     });
-    await waitFor(() =>
-      expect(data.lastParams).toMatchObject({ search: "pgbouncer", tag: "" }),
-    );
+    // Debounced by 250ms, so the endpoint is not asked per keystroke.
+    await waitFor(() => expect(data.lastSearch).toMatchObject({ q: "pgbouncer" }));
     fireEvent.click(screen.getByRole("button", { name: "deploy" }));
     await waitFor(() =>
-      expect(data.lastParams).toMatchObject({ search: "pgbouncer", tag: "deploy" }),
+      expect(data.lastSearch).toMatchObject({
+        q: "pgbouncer",
+        params: { tag: "deploy" },
+      }),
+    );
+    // The plain list keeps its own filters and never receives the query: an
+    // empty box is the list, a typed box is the ranked endpoint.
+    expect(data.lastParams).toMatchObject({ search: "" });
+  });
+
+  it("renders a search snippet as text, marks included, never as HTML", async () => {
+    data.searchResponse = {
+      notes: [
+        {
+          ...note({ title: "Injected" }),
+          score: 1,
+          snippet: '<mark>deploy</mark> <script>alert("x")</script>',
+          passage_heading: "",
+          lex_rank: 1,
+          vec_rank: null,
+        },
+      ],
+      vector: true,
+    };
+    await renderNotes();
+    fireEvent.change(screen.getByLabelText("Search notes"), {
+      target: { value: "deploy" },
+    });
+    // The mark survives as a real element (that is what the server asked for)…
+    await waitFor(() => expect(document.querySelector("mark")?.textContent).toBe("deploy"));
+    // …and the note's own text does not: no script element, just characters.
+    expect(document.querySelector("script")).toBeNull();
+    expect(screen.getByText(/<script>alert\("x"\)<\/script>/)).toBeTruthy();
+    // A fused vector rank is worth saying; the score is not.
+    expect(screen.getByText("semantic")).toBeTruthy();
+  });
+
+  it("shows the matching section before the snippet", async () => {
+    data.searchResponse = {
+      notes: [
+        {
+          ...note({ title: "Runbook" }),
+          score: 1,
+          snippet: "run the <mark>revert</mark> pipeline",
+          passage_heading: "Deploy › Rollback <b>",
+          lex_rank: 1,
+          vec_rank: null,
+        },
+      ],
+      vector: false,
+    };
+    await renderNotes();
+    fireEvent.change(screen.getByLabelText("Search notes"), {
+      target: { value: "revert" },
+    });
+    await waitFor(() => expect(document.querySelector("mark")?.textContent).toBe("revert"));
+    // The heading is text, even when it looks like markup.
+    expect(screen.getByText("Deploy › Rollback <b> ·")).toBeTruthy();
+    expect(document.querySelector("b")).toBeNull();
+  });
+
+  it("shows the raw capture count on the inbox tab", async () => {
+    data.rawCount = 3;
+    renderPage();
+    expect(await screen.findByLabelText("3 to sort")).toBeTruthy();
+  });
+
+  it("deletes a note only after the confirm, and surfaces the server's 403 text", async () => {
+    const { ApiError } = await import("@multica/core/api");
+    mutations.remove.mockRejectedValueOnce(
+      new ApiError("only a workspace admin or the note author can delete this note", 403, "Forbidden"),
+    );
+    await renderNotes();
+    fireEvent.click(await screen.findByText("Deploys go through the release tag"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(mutations.remove).not.toHaveBeenCalled();
+    // Scoped to the dialog: the icon button on the note carries the same label.
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(mutations.remove).toHaveBeenCalledWith("note-1"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "only a workspace admin or the note author can delete this note",
+      ),
     );
   });
 
@@ -188,7 +473,7 @@ describe("BrainPage", () => {
       items: [note({ source: "agent", source_agent_id: "agent-1", source_task_id: "task-1" })],
       tags: [],
     };
-    renderPage();
+    await renderNotes();
     const link = await screen.findByRole("link", { name: "Open the run" });
     expect(link.getAttribute("href")).toBe("/acme/agents/agent-1");
   });

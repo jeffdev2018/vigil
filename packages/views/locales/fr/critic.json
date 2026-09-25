@@ -35,6 +35,9 @@
     "hide_findings": "Masquer les constats",
     "cost": "Coût {{cost}}",
     "open_run": "Ouvrir l'exécution du critique",
-    "empty": "Aucune revue adverse sur ce ticket."
+    "empty": "Aucune revue adverse sur ce ticket.",
+    "severity_bug": "Bug",
+    "severity_warning": "Avertissement",
+    "severity_info": "Info"
   }
 }

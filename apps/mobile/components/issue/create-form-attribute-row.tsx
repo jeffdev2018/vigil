@@ -55,7 +55,7 @@ export function CreateFormAttributeRow() {
 
   const { getName } = useActorLookup();
   // The draft can hold a custom status the user picked in the sheet. (MUL-6243)
-  const { categoryOf, colorOf, labelOf } = useIssueStatuses();
+  const { categoryOf, colorOf, labelOf, iconOf } = useIssueStatuses();
   const assigneeLabel = assignee
     ? getName(assignee.type, assignee.id)
     : "Assignee";
@@ -78,7 +78,7 @@ export function CreateFormAttributeRow() {
             <StatusIcon
               status={status}
               category={categoryOf(status)}
-              color={colorOf(status)}
+              icon={iconOf(status)} color={colorOf(status)}
               size={12}
             />
           }
@@ -144,5 +144,8 @@ export function CreateFormAttributeRow() {
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).
 function formatDueDate(iso: string): string {
-  return formatDateOnly(iso, { month: "short", day: "numeric" }) || "Due date";
+  return (
+    formatDateOnly(iso, { month: "short", day: "numeric" }, "en-US") ||
+    "Due date"
+  );
 }

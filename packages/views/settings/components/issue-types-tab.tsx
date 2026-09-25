@@ -108,7 +108,7 @@ export function IssueTypesTab() {
   const [editing, setEditing] = useState<IssueTypeEntry | null>(null);
   const [pendingArchive, setPendingArchive] = useState<IssueTypeEntry | null>(null);
 
-  const { data: types = [], isLoading } = useQuery(issueTypeListOptions(wsId));
+  const { data: types = [], isLoading, isError, refetch } = useQuery(issueTypeListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const currentUser = useAuthStore((s) => s.user);
   const myRole = useMemo(() => {
@@ -189,6 +189,15 @@ export function IssueTypesTab() {
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">
             {t(($) => $.issue_types.loading)}
           </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-surface-border bg-card px-4 py-12 text-center">
+            <p role="alert" className="text-body text-destructive">
+              {t(($) => $.issue_types.load_error)}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t(($) => $.issue_types.retry)}
+            </Button>
+          </div>
         ) : order.length === 0 ? (
           <div className="rounded-lg border border-surface-border bg-card px-4 py-12 text-center text-body text-muted-foreground">
             {t(($) => $.issue_types.empty)}
@@ -250,7 +259,7 @@ function TypeRow({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group/row relative flex min-h-12 items-center gap-3 bg-card px-4 py-2 ${isDragging ? "z-10 shadow-[var(--surface-shadow)]" : ""} ${archived ? "opacity-60" : ""}`}
+      className={`group/row relative flex min-h-12 items-center gap-3 bg-card px-4 py-2 ${isDragging ? "z-10 shadow-surface" : ""} ${archived ? "opacity-60" : ""}`}
     >
       {/* The handle rides inside the row's own left padding rather than taking
           a gutter of its own, mirroring the status list. */}

@@ -1,7 +1,8 @@
-export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState } from "./issue";
+export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, BuiltInIssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState, IssueDuplicateOf } from "./issue";
 export type {
   IssueStatusCategory,
   IssueStatusEntry,
+  IssueStatusIcon,
   ListIssueStatusesResponse,
   CreateIssueStatusRequest,
   UpdateIssueStatusRequest,
@@ -28,6 +29,7 @@ export type {
   TaskUsage,
   TaskAttribution,
   AttributionUser,
+  TaskCancellationActor,
   TaskEvidence,
   AgentActivityBucket,
   AgentRunCount,
@@ -39,6 +41,7 @@ export type {
   RuntimeDevice,
   RuntimeProfile,
   RuntimeProtocolFamily,
+  RuntimeProfileType,
   RuntimeProfileVisibility,
   CreateRuntimeProfileRequest,
   UpdateRuntimeProfileRequest,
@@ -118,7 +121,7 @@ export type {
   SandboxMode,
   SandboxCapabilities,
 } from "./agent";
-export { RUNTIME_PROFILE_PROTOCOL_FAMILIES } from "./agent";
+export { RUNTIME_PROFILE_PROTOCOL_FAMILIES, RUNTIME_PROFILE_RUNTIME_TYPES } from "./agent";
 export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo, McpToolRisk, McpToolClass, McpCatalogTool, McpToolPolicy, McpServerToolCatalog } from "./workspace";
 export type {
   PluginInstallation,
@@ -143,8 +146,9 @@ export type {
   PluginInvocation,
   PluginMCPTool,
   PluginTokenIssue,
+  AgentPluginTool,
 } from "./plugin";
-export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem } from "./inbox";
+export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem, ArchivedInboxPage, ArchivedInboxFacets } from "./inbox";
 export type {
   TriageItem,
   TriageItemPayload,
@@ -181,10 +185,48 @@ export type {
 export type {
   WorkspaceNote,
   WorkspaceNoteSource,
+  WorkspaceNoteKind,
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
+  WorkspaceNoteUsage,
+  WorkspaceNoteUsageKind,
+  WorkspaceNoteUsageRun,
+  TaskNoteUsageItem,
+  TaskNoteUsageResponse,
 } from "./workspace-note";
+export type {
+  BrainCapture,
+  BrainCaptureAttachment,
+  BrainCaptureKind,
+  BrainCaptureMergeTarget,
+  BrainCaptureOrigin,
+  BrainCaptureStatus,
+  BrainCaptureSuggestion,
+  BrainCapturesResponse,
+  BrainTranscriptionStatus,
+  CreateBrainCaptureInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UploadBrainCaptureInput,
+  WorkspaceNoteSearchHit,
+  WorkspaceNoteSearchResponse,
+} from "./brain-capture";
+export type {
+  Followup,
+  FollowupBudget,
+  FollowupScheduledByType,
+  IssueFollowupsResponse,
+  ScheduleFollowupInput,
+} from "./followup";
+export type {
+  IssueRecurrence,
+  IssueRecurrenceMode,
+  IssueRecurrenceOccurrence,
+  IssueRecurrenceResponse,
+  IssueRecurrenceSource,
+  SetIssueRecurrenceInput,
+} from "./recurrence";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";
@@ -245,21 +287,57 @@ export type {
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
 export type {
+  IssueGoal,
+  IssueGoalStatus,
+  IssueGoalQuestion,
+  IssueGoalQuestionKind,
+  SetIssueGoalInput,
+} from "./issue-goal";
+export type {
   Cycle,
+  CycleActorCapacity,
+  CycleActorCapacityWrite,
+  CycleActorType,
   CycleBurndown,
   CycleBurndownDay,
   CycleCapacity,
   CycleCapacitySide,
+  CycleCapacitiesResponse,
   CycleLoadUnit,
   CycleStatus,
+  CycleVelocity,
+  CycleVelocityActor,
+  CycleVelocityHistoryEntry,
   CycleWriteRequest,
   GoalProgress,
   GoalProjectProgress,
   ListCyclesResponse,
 } from "./cycle";
 export type {
+  CalendarEventStatus,
+  CalendarParticipantType,
+  CalendarParticipantResponse,
+  CalendarParticipant,
+  CalendarActor,
+  CalendarEventEntry,
+  CalendarEventParticipantInput,
+  CalendarEventInput,
+  CalendarEventsResponse,
+  AgendaIssue,
+  AgendaCycle,
+  AgendaMeeting,
+  AgendaFollowup,
+  CalendarAgenda,
+  CalendarSlot,
+  CalendarSlotsResponse,
+  CalendarFeedTokenStatus,
+  CalendarFeedTokenMinted,
+  CalendarGoogleImportResult,
+} from "./calendar-events";
+export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
+  OrgSimulationUnit, OrgSimulationRef, OrgSimulationActor, OrgSimulationRequest, OrgSimulation,
 } from "./org";
 export type {
   Project,
@@ -294,6 +372,10 @@ export type {
   GitHubPullRequestMergeable,
   GitHubPullRequestMergeStateStatus,
   GitHubPullRequestState,
+  IssuePullRequestsResponse,
+  PRAutoComplete,
+  PRAutoCompleteState,
+  PullRequestLinkSource,
   ListGitHubInstallationsResponse,
   GitHubRepository,
   ListGitHubRepositoriesResponse,
@@ -384,6 +466,10 @@ export type {
   WebhookTriggerDryRunRequest,
   WebhookTriggerDryRunResult,
   ScheduleTriggerDryRunResult,
+  AutopilotDraft,
+  DraftAutopilotInput,
+  ProposeAutopilotInput,
+  AutopilotProposalResponse,
 } from "./autopilot";
 export type {
   Squad,
@@ -442,12 +528,19 @@ export type {
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
 export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
 export type { AgentRoiRow, DashboardAgentRoi } from "./agent";
+export type {
+  DashboardCostPerClosedIssueWeek,
+  DashboardThroughputWeek,
+  DashboardVelocityCycleTime,
+  DashboardVelocityWeekly,
+} from "./dashboard-velocity";
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
-export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
+export type { AgentScorecard, AgentCostEstimate, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
 export type { AgentVersion, AgentVersionDiff } from "./agent";
 export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
 export type { DecisionRecord, ADRRequirement, BlastRadiusLevel, BlastRadiusRule, BlastRadiusPreview } from "./workspace";
+export type { SandboxNetworkMode, SandboxPolicy, ProjectSandboxPolicyResponse, IssueSandboxOverrideResponse } from "./workspace";
 export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleAction, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";
 export type {
   Meeting,
@@ -471,3 +564,6 @@ export type {
   TransferExportOptions,
   TransferSecretValues,
 } from "./transfer";
+export type { IssueWakeup, WakeupPreview, IssueWakeupSummaryRow } from "./issue-wakeup";
+
+export type { WorkspaceWakeup, WorkspaceWakeupPage, WorkspaceWakeupFilters, WakeupScope } from "./issue-wakeup";

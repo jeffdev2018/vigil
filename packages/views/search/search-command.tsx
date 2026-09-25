@@ -29,8 +29,8 @@ import type {
 } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { partitionAggregatedSearchResults } from "@multica/core/search/cancelled-rank";
+import { useOpenContextualCreateIssue } from "../issues/hooks/use-open-contextual-create-issue";
 import {
-  openCreateIssueWithPreference,
   selectRecentIssues,
   useCommentCollapseStore,
   useRecentIssuesStore,
@@ -38,6 +38,7 @@ import {
 } from "@multica/core/issues/stores";
 import { issueDetailOptions, issueTimelineOptions } from "@multica/core/issues/queries";
 import { useWorkspaceId } from "@multica/core";
+import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useWorkspacePaths, WORKSPACE_PAGES } from "@multica/core/paths";
 import type { WorkspacePageKey, WorkspacePaths } from "@multica/core/paths";
 import { useModalStore } from "@multica/core/modals";
@@ -73,6 +74,7 @@ import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
 import { HighlightText } from "./highlight-text";
 import { WhySearchGroup } from "./why-search-group";
+import { BrainSearchGroup } from "./brain-search-group";
 import { useSearchStore } from "./search-store";
 
 // The palette's Pages group is generated from WORKSPACE_PAGES, the same
@@ -92,6 +94,7 @@ import { useSearchStore } from "./search-store";
 const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   inbox: ["inbox", "notifications", "收件箱", "通知"],
   triage: ["triage", "queue", "review", "inbound", "待审核", "审核"],
+  runs: ["runs", "run", "fleet", "kill switch", "运行", "紧急停止开关"],
   meetings: ["meetings", "meeting", "record", "transcript", "summary", "会议", "录制", "转录"],
   postmortems: ["postmortem", "postmortems", "failure", "retrospective", "复盘", "振り返り"],
   chat: ["chat", "messages", "conversation", "聊天", "消息", "对话"],
@@ -99,6 +102,9 @@ const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   issues: ["issues", "tasks", "bugs", "任务"],
   projects: ["projects", "kanban", "项目"],
   cycles: ["cycles", "cycle", "sprint", "sprints", "iteration", "burndown", "周期", "迭代", "サイクル", "사이클"],
+  roadmap: ["roadmap", "timeline", "dependencies", "gantt", "路线图", "ロードマップ", "로드맵"],
+  tools: ["tools", "mcp", "catalog", "catalogue", "outils", "工具", "ツール", "도구"],
+  calendar: ["calendar", "agenda", "schedule", "meetings", "events", "日历", "日程", "カレンダー", "캘린더"],
   goals: ["goals", "objectives", "okr", "目标", "objectifs", "ゴール", "목표"],
   org: ["org", "organization", "org chart", "structure", "organigramme", "组织", "組織", "조직"],
   autopilots: ["autopilot", "autopilots", "automation", "schedule", "cron", "webhook", "自动化", "定时"],
@@ -237,6 +243,7 @@ function IssueResultRow({
   disabled?: boolean;
   onSelect: (value: string) => void;
 }) {
+  const { colorOf, iconOf } = useIssueStatuses(useWorkspaceId());
   return (
     <CommandPrimitive.Item
       key={issue.id}
@@ -248,6 +255,8 @@ function IssueResultRow({
       <div className="flex items-center gap-2.5">
         <StatusIcon
           status={issue.status}
+          color={colorOf(issue.status)}
+          icon={iconOf(issue.status)}
           category={issueStatusCategory(issue) ?? undefined}
           className="size-4 shrink-0"
         />
@@ -352,6 +361,7 @@ export function SearchCommand() {
     return intent;
   }, []);
   const wsId = useWorkspaceId();
+  const { colorOf, iconOf } = useIssueStatuses(wsId);
   const recentItems = useRecentIssuesStore(selectRecentIssues(wsId));
   const p: WorkspacePaths = useWorkspacePaths();
   const { theme, setTheme } = useTheme();
@@ -399,6 +409,7 @@ export function SearchCommand() {
     enabled: !!currentIssueId,
   });
   const queryClient = useQueryClient();
+  const openCreateIssue = useOpenContextualCreateIssue();
 
   const commands = useMemo<CommandItem[]>(() => {
     const activeThemeCheck = (value: ThemeValue) =>
@@ -416,7 +427,7 @@ export function SearchCommand() {
         icon: Plus,
         keywords: ["new", "issue", "create", "add"],
         onSelect: () => {
-          openCreateIssueWithPreference();
+          openCreateIssue();
           setOpen(false);
         },
       },
@@ -539,7 +550,7 @@ export function SearchCommand() {
     );
 
     return items;
-  }, [currentIssue, currentIssueId, getShareableUrl, pathname, queryClient, setOpen, setTheme, theme, t]);
+  }, [currentIssue, currentIssueId, getShareableUrl, openCreateIssue, pathname, queryClient, setOpen, setTheme, theme, t]);
 
   const filteredCommands = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -866,6 +877,9 @@ export function SearchCommand() {
             {/* Why search (K55): questions find the comment, run message or decision that answers them. */}
             <WhySearchGroup query={query} groupClassName={GROUP_CLASS} onNavigated={() => setOpen(false)} />
 
+            {/* Brain: ranked note hits, plus capturing what was just typed. */}
+            <BrainSearchGroup query={query} groupClassName={GROUP_CLASS} onNavigated={() => setOpen(false)} />
+
             {/*
               Render order is the cross-type cancelled partition (MUL-5824):
               live projects → live issues → one trailing Cancelled section
@@ -957,6 +971,8 @@ export function SearchCommand() {
                   >
                     <StatusIcon
                       status={item.status}
+                      color={colorOf(item.status)}
+                      icon={iconOf(item.status)}
                       category={issueStatusCategory(item) ?? undefined}
                       className="size-4 shrink-0"
                     />

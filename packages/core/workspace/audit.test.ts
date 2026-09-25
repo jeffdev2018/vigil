@@ -20,7 +20,14 @@ describe("audit log client", () => {
     const ok = await new ApiClient("https://api.example.test").listAuditLog({});
     expect(ok.entries[0]?.details).toEqual({});
     expect(ok.next_cursor).toBe("n");
-    expect(auditKeys.list("w", { action: "a" })).toEqual(["audit-log", "w", "", "", "", "a"]);
+    expect(auditKeys.list("w", { action: "a" })).toEqual(["audit-log", "w", "", "", "", "a", ""]);
+  });
+
+  // Regression: the issue role view reads one entity's trail. Without
+  // entity_id in the key, issue B was served issue A's cached pages (and A's
+  // next cursor) while it refetched.
+  it("keys the cache by entity so two issues never share a trail", () => {
+    expect(auditKeys.list("w", { entity_id: "issue-a" })).not.toEqual(auditKeys.list("w", { entity_id: "issue-b" }));
   });
 
   it("reads the chain status and falls back to not ok on garbage", async () => {

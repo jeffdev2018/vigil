@@ -3,25 +3,29 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
 	slackintegration "github.com/multica-ai/multica/server/internal/integrations/slack"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/slack-go/slack"
 )
 
-// Digest buttons (K64). The Slack digest carries buttons: "Answer …" on a
-// waiting Decision Card (the recommended option, one click, the same path
-// as the web button) and links to open an issue, a review or the briefing.
-// A click comes back over Socket Mode; the Slack user must be bound to a
-// Multica member of the workspace, otherwise the click is refused.
+// Digest buttons (K64). The Slack digest carries buttons: one click answers a
+// waiting ask — a Decision Card's recommended option, a held transition, a
+// goal-loop question — through the same path as the web button, plus links to
+// open an issue, a review or the briefing. A click comes back over Socket
+// Mode; the Slack user must be bound to a Multica member of the workspace,
+// otherwise the click is refused.
+//
+// Deciding itself lives in channel_approvals.go, shared with every other chat
+// platform. This file is only Slack's half of the round trip.
 
 const (
-	digestDecideValuePrefix  = "decide|"
 	digestMaxDecisionButtons = 5
 	AuditDigestAction        = "briefing.digest_action"
 )
@@ -29,24 +33,69 @@ const (
 // briefingDigestActions builds the buttons of a workspace's digest.
 func (h *Handler) briefingDigestActions(ctx context.Context, wsID pgtype.UUID, b MorningBriefingResponse, base string) []channel.DigestAction {
 	var actions []channel.DigestAction
+	n := 0
 	if decisions, err := h.Queries.ListPendingDecisionsForWorkspace(ctx, wsID); err == nil {
-		n := 0
 		for _, d := range decisions {
 			if n >= digestMaxDecisionButtons || len(d.Response) > 0 || !d.RecommendedOptionID.Valid || d.RecommendedOptionID.String == "" || d.PlanVersion.Valid || d.InterviewGroupID.Valid {
 				continue
 			}
 			var options []DecisionOption
-			_ = json.Unmarshal(d.Options, &options)
-			label := ""
-			for _, o := range options {
+			if err := json.Unmarshal(d.Options, &options); err != nil {
+				slog.Warn("briefing digest actions: unmarshal decision options failed", "decision_id", uuidToString(d.ID), "error", err)
+				continue
+			}
+			label, index := "", -1
+			for i, o := range options {
 				if o.ID == d.RecommendedOptionID.String {
-					label = o.Label
+					label, index = o.Label, i
 				}
 			}
 			if label == "" {
 				continue
 			}
-			actions = append(actions, channel.DigestAction{Label: "Answer: " + label, Value: digestDecideValuePrefix + uuidToString(d.IssueID) + "|" + uuidToString(d.ID) + "|" + d.RecommendedOptionID.String})
+			actions = append(actions, channel.DigestAction{Label: "Answer: " + label, Value: encodeApprovalValue(ApprovalSourceDecision, d.IssueID, d.ID, index)})
+			n++
+		}
+	}
+	// Held transitions and goal-loop questions are asks too, and the feed
+	// already treats them as such; the digest is where they become clickable
+	// for a team that lives in chat.
+	if reqs, err := h.Queries.ListPendingIssueTransitionRequestsForWorkspace(ctx, wsID); err == nil {
+		prefix := h.getIssuePrefix(ctx, wsID)
+		scanned := 0
+		for _, req := range reqs {
+			if n >= digestMaxDecisionButtons {
+				break
+			}
+			// An orphan request (issue gone, no FK) must not keep the scan
+			// going through the whole table.
+			scanned++
+			if scanned > digestMaxDecisionButtons*10 {
+				break
+			}
+			issue, ierr := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: req.IssueID, WorkspaceID: wsID})
+			if ierr != nil {
+				continue
+			}
+			label := prefix + "-" + strconv.Itoa(int(issue.Number)) + " → " + req.ToStatus
+			actions = append(actions,
+				channel.DigestAction{Label: "Approve " + label, Value: encodeApprovalValue(ApprovalSourceTransition, req.IssueID, req.ID, 0)},
+				channel.DigestAction{Label: "Reject " + label, Value: encodeApprovalValue(ApprovalSourceTransition, req.IssueID, req.ID, 1)})
+			n++
+		}
+	}
+	if goals, err := h.Queries.ListWaitingIssueGoalsForWorkspace(ctx, wsID); err == nil {
+		for _, goal := range goals {
+			q := service.GoalQuestionOf(goal.Question)
+			if n >= digestMaxDecisionButtons || q == nil || q.Answer != "" || len(q.Options) == 0 {
+				continue
+			}
+			for i, opt := range q.Options {
+				if i >= approvalMaxOptionButtons {
+					break
+				}
+				actions = append(actions, channel.DigestAction{Label: opt, Value: encodeApprovalValue(ApprovalSourceGoalQuestion, goal.IssueID, goal.ID, i)})
+			}
 			n++
 		}
 	}
@@ -84,80 +133,9 @@ func (a *SlackDigestActions) reply(url, text string) {
 
 func (a *SlackDigestActions) HandleInteraction(ctx context.Context, appID string, cb slack.InteractionCallback) {
 	for _, act := range cb.ActionCallback.BlockActions {
-		if act == nil || act.ActionID != slackintegration.DigestActionID || !strings.HasPrefix(act.Value, digestDecideValuePrefix) {
+		if act == nil || act.ActionID != slackintegration.DigestActionID || !strings.HasPrefix(act.Value, approvalValuePrefix) {
 			continue
 		}
-		a.reply(cb.ResponseURL, a.decide(ctx, appID, cb.User.ID, act.Value))
+		a.reply(cb.ResponseURL, a.H.DecideApprovalFromChannel(ctx, string(slackintegration.TypeSlack), appID, cb.User.ID, act.Value))
 	}
-}
-
-// decide answers a Decision Card from a digest button and returns the
-// ephemeral text for the clicker. Every refusal is a sentence, not an error.
-func (a *SlackDigestActions) decide(ctx context.Context, appID, slackUserID, value string) string {
-	h := a.H
-	parts := strings.Split(strings.TrimPrefix(value, digestDecideValuePrefix), "|")
-	if len(parts) != 3 {
-		return "This button is not valid any more."
-	}
-	inst, err := h.Queries.GetChannelInstallationByAppID(ctx, db.GetChannelInstallationByAppIDParams{ChannelType: string(slackintegration.TypeSlack), AppID: appID})
-	if err != nil {
-		return "This Slack app is not connected to a Multica workspace."
-	}
-	binding, err := h.Queries.GetChannelUserBindingByUserID(ctx, db.GetChannelUserBindingByUserIDParams{InstallationID: inst.ID, ChannelUserID: slackUserID})
-	if err != nil {
-		return "Link your Slack account to Multica first (`/issue link`), then click again."
-	}
-	member, err := h.Queries.GetMemberByUserAndWorkspace(ctx, db.GetMemberByUserAndWorkspaceParams{UserID: binding.MulticaUserID, WorkspaceID: inst.WorkspaceID})
-	if err != nil {
-		return "You are not a member of this workspace any more."
-	}
-	issueID, ok1 := decisionUUID(parts[0])
-	decisionID, ok2 := decisionUUID(parts[1])
-	if !ok1 || !ok2 {
-		return "This button is not valid any more."
-	}
-	issue, err := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: issueID, WorkspaceID: inst.WorkspaceID})
-	if err != nil {
-		return "That issue no longer exists."
-	}
-	decision, err := h.Queries.GetIssueDecision(ctx, db.GetIssueDecisionParams{ID: decisionID, IssueID: issue.ID})
-	if err != nil {
-		return "That decision no longer exists."
-	}
-	if len(decision.Response) > 0 {
-		return "Already answered."
-	}
-	if decision.PlanVersion.Valid || decision.InterviewGroupID.Valid {
-		return "This card needs the web: open the issue to answer it."
-	}
-	var options []DecisionOption
-	_ = json.Unmarshal(decision.Options, &options)
-	chosen := ""
-	for _, o := range options {
-		if o.ID == parts[2] {
-			chosen = o.Label
-		}
-	}
-	if chosen == "" {
-		return "That option is not on the card any more."
-	}
-	userID := uuidToString(member.UserID)
-	updated, code, err := h.answerDecisionCore(ctx, issue, decision, userID, "member", userID, DecisionAnswer{OptionID: parts[2]}, chosen, "", nil)
-	if code == "already_decided" {
-		return "Already answered."
-	}
-	if err != nil {
-		slog.Warn("slack digest: answer failed", "error", err, "decision_id", parts[1])
-		return "The answer could not be recorded. Open the issue in Multica."
-	}
-	h.audit(ctx, issue.WorkspaceID, "member", userID, AuditDigestAction, "issue_decision", decision.ID, map[string]any{"issue_id": uuidToString(issue.ID), "option_id": parts[2], "channel": "slack", "slack_user_id": slackUserID}, nil)
-	if h.Bus != nil {
-		// Best effort: the web refreshes its decision lists on this event.
-		h.publish("issue:aux_changed", uuidToString(issue.WorkspaceID), "member", userID, map[string]any{"issue_id": uuidToString(issue.ID)})
-	}
-	suffix := ""
-	if updated.ResumeTaskID.Valid {
-		suffix = " The agent resumes with your answer."
-	}
-	return fmt.Sprintf("Answered «%s» with %q.%s", decision.Question, chosen, suffix)
 }

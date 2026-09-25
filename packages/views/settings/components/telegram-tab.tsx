@@ -35,6 +35,7 @@ import { telegramInstallationsOptions, telegramKeys } from "@multica/core/telegr
 import { api } from "@multica/core/api";
 import type { TelegramInstallation } from "@multica/core/types";
 import { ActorAvatar } from "../../common/actor-avatar";
+import { docsLocalePrefix } from "../../common/docs-locale";
 import { openExternal } from "../../platform";
 import { useLocale, useT } from "../../i18n";
 
@@ -106,7 +107,7 @@ export function TelegramTab() {
             <p className="text-body font-medium">{t(($) => $.telegram.not_enabled_title)}</p>
             <p className="text-caption text-muted-foreground">
               {t(($) => $.telegram.not_enabled_description_prefix)}{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-micro">
+              <code className="rounded-xs bg-muted px-1 py-0.5 text-micro">
                 MULTICA_TELEGRAM_SECRET_KEY
               </code>{" "}
               {t(($) => $.telegram.not_enabled_description_suffix)}{" "}
@@ -209,7 +210,7 @@ function InstallationRow({
               </span>
             ) : null}
             {!isActive && (
-              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
+              <span className="ml-2 rounded-xs bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
                 {t(($) => $.telegram.revoked_badge)}
               </span>
             )}
@@ -234,14 +235,7 @@ function InstallationRow({
 // telegramDocsUrl points at the Telegram integration guide on the docs site,
 // localized like the Slack docs link.
 function telegramDocsUrl(lang: string | undefined): string {
-  const prefix = lang?.startsWith("zh")
-    ? "/zh"
-    : lang?.startsWith("ja")
-      ? "/ja"
-      : lang?.startsWith("ko")
-        ? "/ko"
-        : "";
-  return `https://multica.ai/docs${prefix}/telegram-bot-integration`;
+  return `https://multica.ai/docs${docsLocalePrefix(lang)}/telegram-bot-integration`;
 }
 
 // TelegramAgentBindButton is the per-agent CTA on the agent detail page.
@@ -444,7 +438,7 @@ function TelegramAgentBotStatusRow({
       )}
       data-testid="telegram-agent-bot-status"
     >
-      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+      <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
       <span className="truncate">{t(($) => $.telegram.agent_bot_connected_label)}</span>
       <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0" />
     </button>
@@ -491,7 +485,7 @@ function TelegramAgentBotConnectedBadge({
     >
       <div className="flex items-center justify-between gap-3">
         <span className="inline-flex min-w-0 items-center gap-2 text-caption text-muted-foreground">
-          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
           <span className="truncate">
             {t(($) => $.telegram.agent_bot_connected_label)}
             {installation.bot_username ? ` · @${installation.bot_username}` : ""}

@@ -37,11 +37,17 @@ import {
 } from "@multica/core/pins";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
+import { runBulk } from "@multica/core/utils";
 import { useAuthStore } from "@multica/core/auth";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { memberListOptions } from "@multica/core/workspace/queries";
 import { useModalStore } from "@multica/core/modals";
-import { AppLink, useIntentNavigate, useRowLink } from "../../navigation";
+import {
+  AppLink,
+  rowLinkInteractiveProps,
+  useIntentNavigate,
+  useRowLink,
+} from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { FILTER_ITEM_CLASS, HoverCheck } from "../../common/hover-check";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -103,6 +109,7 @@ import {
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../../layout/collection-page";
+import { LoadErrorState } from "../../common/load-error-state";
 import { ProjectIcon } from "./project-icon";
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
@@ -335,11 +342,16 @@ function ProjectRowActions({
   );
 }
 
+// The toggle stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -347,13 +359,16 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           stopRowNavigation(e);
           onToggle();
         }}
         onAuxClick={stopRowNavigation}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
@@ -381,6 +396,7 @@ function ProjectTableRow({
   rowHref: string;
   rowLink: ReturnType<typeof useRowLink>;
 }) {
+  const { t } = useT("projects");
   const formatRelativeDate = useFormatRelativeDate();
   const updateProject = useUpdateProject();
   const handleUpdate = useCallback(
@@ -393,12 +409,27 @@ function ProjectTableRow({
       className={`h-11 cursor-pointer ${selected ? "bg-accent/30" : ""}`}
       {...rowLink(rowHref, project.title)}
     >
-      <CheckboxCell checked={selected} onToggle={onToggleSelect} />
+      <CheckboxCell
+        checked={selected}
+        label={t(($) => $.table.select_project, { name: project.title })}
+        onToggle={onToggleSelect}
+      />
       <ListGridCell className="gap-2">
         <ProjectIcon project={project} size="sm" />
-        <span className="min-w-0 truncate text-body font-medium">
+        {/* The row's click/auxclick handlers are a mouse convenience on a
+            plain <div> (see ui list-grid + views useRowLink): the keyboard
+            path, "open in new tab" and the browser context menu all come
+            from this anchor. `rowLinkInteractiveProps` stops the event from
+            reaching the row, so web's native modifier-click is not doubled
+            by the row's own window.open fallback. */}
+        <AppLink
+          href={rowHref}
+          newTabTitle={project.title}
+          {...rowLinkInteractiveProps}
+          className="min-w-0 truncate text-body font-medium"
+        >
           {project.title}
-        </span>
+        </AppLink>
       </ListGridCell>
 
       {/* status — core column, always visible */}
@@ -431,7 +462,7 @@ function ProjectTableRow({
             renderTrigger={(leadName) => (
               <button
                 type="button"
-                className="flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:bg-accent/60"
+                className="flex min-w-0 items-center gap-1.5 rounded-xs px-1 py-0.5 transition-colors hover:bg-accent/60"
               >
                 {project.lead_type && project.lead_id ? (
                   <ActorAvatar actorType={project.lead_type} actorId={project.lead_id} size="sm" enableHoverCard />
@@ -501,9 +532,12 @@ function ProjectTableHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
-            anySelected ? "" : "opacity-0 transition-opacity group-hover/header:opacity-100"
+            anySelected
+              ? ""
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -647,7 +681,7 @@ function ProjectCard({
           project={project}
           handleUpdate={handleUpdate}
           renderTrigger={(leadName) => (
-            <button type="button" className="-mx-1.5 flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-colors hover:bg-accent/60">
+            <button type="button" className="-mx-1.5 flex items-center gap-1.5 rounded-xs px-1.5 py-0.5 transition-colors hover:bg-accent/60">
               {project.lead_type && project.lead_id ? (
                 <ActorAvatar actorType={project.lead_type} actorId={project.lead_id} size="sm" enableHoverCard />
               ) : (
@@ -696,7 +730,7 @@ function countActiveFilters(f: ProjectListFilters): number {
 
 // Batch toolbar — page-anchored (not viewport). Pin all selected (any
 // member) + Delete (workspace admin). Mirrors the other lists.
-function ProjectBatchToolbar({
+export function ProjectBatchToolbar({
   rows,
   pinnedIds,
   canDelete,
@@ -717,7 +751,7 @@ function ProjectBatchToolbar({
 
   return (
     <>
-      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 shadow-lg max-md:above-chat-launcher">
+      <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background px-2 py-1.5 shadow-menu max-md:above-chat-launcher">
         <div className="mr-1 flex items-center gap-1.5 border-r pl-1 pr-2">
           <span className="text-body font-medium">
             {t(($) => $.page.selected, { count: rows.length })}
@@ -726,7 +760,7 @@ function ProjectBatchToolbar({
             type="button"
             aria-label={t(($) => $.page.clear_selection)}
             onClick={onClear}
-            className="rounded p-0.5 transition-colors hover:bg-accent"
+            className="rounded-xs p-0.5 transition-colors hover:bg-accent"
           >
             <X className="size-3.5 text-muted-foreground" />
           </button>
@@ -735,13 +769,26 @@ function ProjectBatchToolbar({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              for (const p of rows) {
-                if (!pinnedIds.has(p.id)) {
-                  createPin.mutate({ item_type: "project", item_id: p.id });
-                }
+            onClick={async () => {
+              const targets = rows.filter((p) => !pinnedIds.has(p.id));
+              // Every project is pinned independently: useCreatePin already
+              // patches/invalidates the pins cache per item on its own
+              // onSuccess/onSettled, so a rejection here only needs to be
+              // reported, not un-done. Selection clears only on a clean run
+              // so the failed rows stay selected for retry.
+              const { succeeded, failed } = await runBulk(targets, (p) =>
+                createPin.mutateAsync({ item_type: "project", item_id: p.id }),
+              );
+              if (failed.length === 0) {
+                onClear();
+                return;
               }
-              onClear();
+              toast.error(
+                t(($) => $.page.pin_partial, {
+                  succeeded: succeeded.length,
+                  failed: failed.length,
+                }),
+              );
             }}
           >
             <Pin className="mr-1 size-3.5" />
@@ -775,10 +822,21 @@ function ProjectBatchToolbar({
               type="button"
               variant="destructive"
               size="sm"
-              onClick={() => {
-                for (const p of rows) deleteProject.mutate(p.id);
-                setConfirmDelete(false);
-                onClear();
+              onClick={async () => {
+                const { succeeded, failed } = await runBulk(rows, (p) =>
+                  deleteProject.mutateAsync(p.id),
+                );
+                if (failed.length === 0) {
+                  setConfirmDelete(false);
+                  onClear();
+                  return;
+                }
+                toast.error(
+                  t(($) => $.delete_dialog.partial, {
+                    succeeded: succeeded.length,
+                    failed: failed.length,
+                  }),
+                );
               }}
             >
               {t(($) => $.delete_dialog.confirm)}
@@ -817,7 +875,12 @@ export function ProjectsPage() {
   const isCompact = viewMode === "compact";
   const isColVisible = (key: ProjectColumnKey) => !hiddenColumns.includes(key);
 
-  const { data: projects = [], isLoading } = useQuery(projectListOptions(wsId));
+  const {
+    data: projects = [],
+    isLoading,
+    isError: projectsError,
+    refetch: refetchProjects,
+  } = useQuery(projectListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: pins = [] } = useQuery({
     ...pinListOptions(wsId, currentUser?.id ?? ""),
@@ -931,7 +994,10 @@ export function ProjectsPage() {
             ? t(($) => $.table.issues)
             : t(($) => $.table.created);
 
-  const showEmpty = !isLoading && projects.length === 0;
+  // An unanswered read must not read as "no projects yet": the empty state
+  // offers "create your first project", which is the wrong instruction when
+  // the list simply failed to load.
+  const showEmpty = !isLoading && !projectsError && projects.length === 0;
   const countBadge = (n: number) => (
     <span className="ml-auto pl-3 text-caption text-muted-foreground">{n}</span>
   );
@@ -952,7 +1018,9 @@ export function ProjectsPage() {
         }
       />
 
-      {showEmpty ? (
+      {projectsError ? (
+        <LoadErrorState onRetry={() => void refetchProjects()} />
+      ) : showEmpty ? (
         <CollectionPageState
           icon={FolderKanban}
           title={t(($) => $.page.empty)}
@@ -1011,22 +1079,6 @@ export function ProjectsPage() {
                         </>
                       ) : (
                         <span className="hidden md:inline">{t(($) => $.toolbar.filter_label)}</span>
-                      )}
-                      {hasActiveFilters && (
-                        <span
-                          role="button"
-                          tabIndex={-1}
-                          aria-label={t(($) => $.toolbar.clear_filters)}
-                          className="-mr-1 ml-0.5 hidden rounded-sm p-0.5 hover:bg-white/20 md:inline-flex"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            clearFilters();
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                          <X className="size-3" />
-                        </span>
                       )}
                     </Button>
                   }
@@ -1099,6 +1151,19 @@ export function ProjectsPage() {
                   </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {/* A sibling, not a child of the trigger: nothing nested inside a
+                  native <button> is reachable from the keyboard. */}
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t(($) => $.toolbar.clear_filters)}
+                  className="text-muted-foreground"
+                  onClick={() => clearFilters()}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
 
               {/* Display (sort + columns). Always present — view mode is a
                   pure presentation choice and must not reshape the toolbar.
@@ -1151,6 +1216,7 @@ export function ProjectsPage() {
                           size="icon-sm"
                           onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
                           title={sortDirection === "asc" ? t(($) => $.toolbar.direction_asc) : t(($) => $.toolbar.direction_desc)}
+                          aria-label={sortDirection === "asc" ? t(($) => $.toolbar.direction_asc) : t(($) => $.toolbar.direction_desc)}
                         >
                           {sortDirection === "asc" ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
                         </Button>
@@ -1312,12 +1378,12 @@ function LoadingState({ isCompact }: { isCompact: boolean }) {
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-2 rounded-md border p-3">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-8 rounded" />
+            <Skeleton className="h-8 w-8 rounded-xs" />
             <Skeleton className="h-4 w-3/4" />
           </div>
           <div className="flex gap-1.5">
-            <Skeleton className="h-5 w-16 rounded" />
-            <Skeleton className="h-5 w-20 rounded" />
+            <Skeleton className="h-5 w-16 rounded-xs" />
+            <Skeleton className="h-5 w-20 rounded-xs" />
           </div>
         </div>
       ))}

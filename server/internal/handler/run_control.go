@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -38,19 +40,44 @@ type RunControlState struct {
 	ResumedByTaskID *string  `json:"resumed_by_task_id"`
 }
 
-func (h *Handler) runControlState(r *http.Request, task db.AgentTaskQueue) RunControlState {
-	rows, _ := h.Queries.ListSteeringInstructions(r.Context(), task.ID)
+func (h *Handler) runControlState(r *http.Request, task db.AgentTaskQueue) (RunControlState, error) {
+	rows, err := h.Queries.ListSteeringInstructions(r.Context(), task.ID)
+	if err != nil {
+		return RunControlState{}, err
+	}
 	instructions := make([]string, 0, len(rows))
 	for _, m := range rows {
 		instructions = append(instructions, m.Content.String)
 	}
-	return RunControlState{TaskID: uuidToString(task.ID), Status: task.Status, PausePending: task.PauseRequestedAt.Valid, Instructions: instructions, ResumedByTaskID: uuidToPtr(task.ResumedByTaskID)}
+	return RunControlState{TaskID: uuidToString(task.ID), Status: task.Status, PausePending: task.PauseRequestedAt.Valid, Instructions: instructions, ResumedByTaskID: uuidToPtr(task.ResumedByTaskID)}, nil
+}
+
+// writeRunControlState answers the caller with the run's state, or 500 if
+// ListSteeringInstructions fails — a transient DB error here used to be
+// discarded and the endpoint answered 2xx with instructions: [], silently
+// hiding steering instructions from the caller/UI.
+func (h *Handler) writeRunControlState(w http.ResponseWriter, r *http.Request, status int, task db.AgentTaskQueue, extra map[string]any) {
+	state, err := h.runControlState(r, task)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load the run's steering instructions")
+		return
+	}
+	body := map[string]any{"run": state}
+	for k, v := range extra {
+		body[k] = v
+	}
+	writeJSON(w, status, body)
 }
 
 // controllableRun loads the issue and its running or paused run.
 func (h *Handler) controllableRun(w http.ResponseWriter, r *http.Request) (db.Issue, db.AgentTaskQueue, bool) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return db.Issue{}, db.AgentTaskQueue{}, false
+	}
+	// K60: gates all three callers (Pause/Steer/Resume) from this one choke
+	// point. GetRunControlState is read-only and does not call this.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return db.Issue{}, db.AgentTaskQueue{}, false
 	}
 	task, err := h.Queries.GetControllableTaskForIssue(r.Context(), issue.ID)
@@ -72,7 +99,7 @@ func (h *Handler) GetRunControlState(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"run": nil})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"run": h.runControlState(r, task)})
+	h.writeRunControlState(w, r, http.StatusOK, task, nil)
 }
 
 // PauseRun: POST /api/issues/{id}/run/pause — 202 until the daemon acks.
@@ -82,7 +109,7 @@ func (h *Handler) PauseRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if task.Status == "paused" {
-		writeJSON(w, http.StatusOK, map[string]any{"run": h.runControlState(r, task)})
+		h.writeRunControlState(w, r, http.StatusOK, task, nil)
 		return
 	}
 	updated, err := h.Queries.RequestTaskPause(r.Context(), task.ID)
@@ -92,7 +119,7 @@ func (h *Handler) PauseRun(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r.Context(), issue.WorkspaceID, "member", requestUserID(r), AuditRunPaused, "task", task.ID, map[string]any{"issue_id": uuidToString(issue.ID)}, nil)
 	h.publish(protocol.EventTaskProgress, uuidToString(issue.WorkspaceID), "member", requestUserID(r), map[string]any{"task_id": uuidToString(task.ID), "issue_id": uuidToString(issue.ID), "pause_pending": true})
-	writeJSON(w, http.StatusAccepted, map[string]any{"run": h.runControlState(r, updated)})
+	h.writeRunControlState(w, r, http.StatusAccepted, updated, nil)
 }
 
 // SteerRun: POST /api/issues/{id}/run/steer {instruction} — only on a paused run.
@@ -125,7 +152,7 @@ func (h *Handler) SteerRun(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r.Context(), issue.WorkspaceID, "member", requestUserID(r), AuditRunSteered, "task", task.ID, map[string]any{"issue_id": uuidToString(issue.ID), "seq": seq}, nil)
 	h.publish(protocol.EventTaskProgress, uuidToString(issue.WorkspaceID), "member", requestUserID(r), map[string]any{"task_id": uuidToString(task.ID), "issue_id": uuidToString(issue.ID), "steered": true})
-	writeJSON(w, http.StatusCreated, map[string]any{"run": h.runControlState(r, task)})
+	h.writeRunControlState(w, r, http.StatusCreated, task, nil)
 }
 
 // ResumeRun: POST /api/issues/{id}/run/resume — a follow-up run on the same
@@ -154,7 +181,7 @@ func (h *Handler) ResumeRun(w http.ResponseWriter, r *http.Request) {
 	for _, m := range rows {
 		note.WriteString("\n- " + m.Content.String)
 	}
-	child, err := h.TaskService.EnqueueTaskForIssueWithHandoff(r.Context(), issue, note.String(), parseUUID(requestUserID(r)))
+	child, err := h.TaskService.EnqueueResumeChild(r.Context(), issue, task, note.String(), parseUUID(requestUserID(r)))
 	if err != nil {
 		writeError(w, http.StatusConflict, "could not queue the resumed run: "+err.Error())
 		return
@@ -170,7 +197,7 @@ func (h *Handler) ResumeRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.audit(r.Context(), issue.WorkspaceID, "member", requestUserID(r), AuditRunResumed, "task", task.ID, map[string]any{"issue_id": uuidToString(issue.ID), "resumed_by_task_id": uuidToString(child.ID), "instructions": len(rows)}, nil)
-	writeJSON(w, http.StatusCreated, map[string]any{"run": h.runControlState(r, child), "paused_task_id": uuidToString(task.ID)})
+	h.writeRunControlState(w, r, http.StatusCreated, child, map[string]any{"paused_task_id": uuidToString(task.ID)})
 }
 
 // AckTaskPaused: POST /api/daemon/tasks/{taskId}/paused — the daemon
@@ -185,7 +212,10 @@ func (h *Handler) AckTaskPaused(w http.ResponseWriter, r *http.Request) {
 		WorkDir    string `json:"work_dir"`
 		BranchName string `json:"branch_name"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	paused, err := h.Queries.MarkTaskPaused(r.Context(), db.MarkTaskPausedParams{
 		ID: task.ID, SessionID: pgtype.Text{String: req.SessionID, Valid: req.SessionID != ""}, WorkDir: pgtype.Text{String: req.WorkDir, Valid: req.WorkDir != ""}, BranchName: pgtype.Text{String: req.BranchName, Valid: req.BranchName != ""},
 	})

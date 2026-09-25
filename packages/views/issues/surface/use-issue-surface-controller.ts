@@ -5,7 +5,7 @@ import { hashKey, keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@multica/core/api";
 import type {
   Issue,
-  IssueStatusCategory,
+  IssueStatus,
   IssueTableFacetSpec,
   IssueTableFacetsResponse,
   IssueTableGroupsRequest,
@@ -15,9 +15,8 @@ import type {
 } from "@multica/core/types";
 import { workspaceWorkingAgentsOptions } from "@multica/core/agents";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { ALL_STATUSES } from "@multica/core/issues/config";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
-import { statusFilterColumns } from "@multica/core/issues";
+import { statusFilterColumns, visibleStatusKeys } from "@multica/core/issues";
 import { dateOnlyToLocalDate } from "@multica/core/issues/date";
 import type { IssueSortParam } from "@multica/core/issues/queries";
 import { issueTableFacetsOptions } from "@multica/core/issues/queries";
@@ -84,8 +83,8 @@ export interface IssueSurfaceController {
   calendarIssues: Issue[];
   sort: IssueSortParam;
   ganttIssues: Issue[];
-  visibleStatuses: IssueStatusCategory[];
-  hiddenStatuses: IssueStatusCategory[];
+  visibleStatuses: IssueStatus[];
+  hiddenStatuses: IssueStatus[];
   /** Exact server counts plus cursor controls for List/status Board. */
   statusPagination?: IssueStatusPagination;
   /** Exact group catalog plus independent row cursors for Assignee/Property
@@ -233,6 +232,7 @@ export function useIssueSurfaceController({
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
   const typeFilters = useViewStore((s) => s.typeFilters);
+  const projectStatusFilters = useViewStore((s) => s.projectStatusFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const agentRunningFilter = useViewStore((s) => s.agentRunningFilter);
@@ -243,9 +243,8 @@ export function useIssueSurfaceController({
   const tableColumns = useViewStore((s) => s.tableColumns);
   const tableGrouping = useViewStore((s) => s.tableGrouping);
   const listCollapsedStatuses = useViewStore((s) => s.listCollapsedStatuses);
-  const hiddenStatusCategories = useViewStore((s) => s.hiddenStatusCategories);
+  const hiddenStatusKeys = useViewStore((s) => s.hiddenStatuses);
   const catalog = useIssueStatuses(wsId);
-  const { hasCustomStatuses } = catalog;
   const [tableSearch, setTableSearch] = useState("");
 
   const allowedModes = useMemo(() => new Set<IssueSurfaceMode>(modes), [modes]);
@@ -355,8 +354,10 @@ export function useIssueSurfaceController({
    * surface a retryable error — not fetch zero branches and render an empty
    * board, which is what "return no columns" alone produced. (MUL-6243)
    */
-  const statusFilterPending = statusColumnsForFilters.state === "pending";
-  const statusFilterError = statusColumnsForFilters.state === "error";
+  const statusFilterPending = statusColumnsForFilters.state === "pending" ||
+    ((usesServerStatusSurface || effectiveViewMode === "swimlane") && catalog.isPending);
+  const statusFilterError = statusColumnsForFilters.state === "error" ||
+    ((usesServerStatusSurface || effectiveViewMode === "swimlane") && catalog.isError);
   /**
    * Fetching is suspended until the filter resolves. Not just "narrow to
    * nothing": with the filter unresolved the visible column set falls back to
@@ -366,21 +367,14 @@ export function useIssueSurfaceController({
    */
   const statusFilterUnresolved = statusFilterPending || statusFilterError;
 
-  // Columns are CATEGORIES. Two independent things narrow them, and conflating
-  // them is what let "hide the Backlog column" also drop every custom status in
-  // other categories: `hiddenStatusCategories` is display state, `statusFilters`
-  // is a filter over concrete status KEYS which we map back to the columns those
-  // keys land in. (MUL-6243)
-  const serverStatuses = useMemo<IssueStatusCategory[]>(
+  // Display preferences hide individual columns; status filters independently
+  // select exact keys. Selecting a key explicitly restores its hidden column.
+  const serverStatuses = useMemo<IssueStatus[]>(
     () => {
-      const selected =
-        statusFilters.length > 0 && statusColumnsForFilters.state === "resolved"
-          ? statusColumnsForFilters.columns
-          : null;
-      const visible = ALL_STATUSES.filter(
-        (category) =>
-          !hiddenStatusCategories.includes(category) &&
-          (selected === null || selected.has(category)),
+      const visible = visibleStatusKeys(
+        statusFilters,
+        hiddenStatusKeys,
+        catalog,
       );
       return effectiveViewMode === "list"
         ? visible.filter((status) => !listCollapsedStatuses.includes(status))
@@ -388,9 +382,9 @@ export function useIssueSurfaceController({
     },
     [
       effectiveViewMode,
-      hiddenStatusCategories,
+      hiddenStatusKeys,
       listCollapsedStatuses,
-      statusColumnsForFilters,
+      catalog,
       statusFilters,
     ],
   );
@@ -421,6 +415,7 @@ export function useIssueSurfaceController({
     goalFilters.length > 0 ||
     cycleFilters.length > 0 ||
     typeFilters.length > 0 ||
+    projectStatusFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.keys(effectivePropertyFilters).length > 0 ||
     dateFilter != null ||
@@ -510,6 +505,9 @@ export function useIssueSurfaceController({
         ...(viewIncludeNoProject ? { include_no_project: true } : {}),
         ...(cycleFilters.length > 0 ? { cycle_ids: cycleFilters } : {}),
         ...(typeFilters.length > 0 ? { issue_types: typeFilters } : {}),
+        ...(projectStatusFilters.length > 0
+          ? { project_statuses: projectStatusFilters }
+          : {}),
         ...(labelFilters.length > 0 ? { label_ids: labelFilters } : {}),
         ...(Object.keys(effectivePropertyFilters).length > 0
           ? { properties: effectivePropertyFilters }
@@ -538,6 +536,7 @@ export function useIssueSurfaceController({
     includeNoAssignee,
     labelFilters,
     priorityFilters,
+    projectStatusFilters,
     scope,
     showSubIssues,
     sort.sort_by,
@@ -660,12 +659,7 @@ export function useIssueSurfaceController({
       return {
         kind: "compound",
         primary: swimlaneGrouping,
-        // Same rollout switch as the board/list branches: `status_category` is
-        // a contract this feature introduced, so it is only sent once the
-        // catalog confirms this workspace HAS a custom status — which can only
-        // be true if the fleet already serves this version. Otherwise the
-        // swimlane keeps the exact request it made before. (MUL-6243)
-        secondary: hasCustomStatuses ? "status_category" : "status",
+        secondary: "status",
         secondary_values: serverStatuses,
       };
     }
@@ -682,7 +676,6 @@ export function useIssueSurfaceController({
   }, [
     effectiveGrouping,
     effectiveViewMode,
-    hasCustomStatuses,
     serverStatuses,
     swimlaneGrouping,
   ]);
@@ -721,6 +714,7 @@ export function useIssueSurfaceController({
         creatorFilters,
         viewProjectFilters,
         viewIncludeNoProject,
+        projectStatusFilters,
         labelFilters,
         effectivePropertyFilters,
         agentRunningFilter,
@@ -738,6 +732,7 @@ export function useIssueSurfaceController({
       includeNoAssignee,
       labelFilters,
       priorityFilters,
+      projectStatusFilters,
       showSubIssues,
       statusFilters,
       viewIncludeNoProject,
@@ -762,7 +757,7 @@ export function useIssueSurfaceController({
     serverGroupBranches,
     ganttShowCompleted,
     statusFilters,
-    hiddenStatusCategories,
+    hiddenStatusKeys,
     statusFilterPending,
     statusFilterError,
     priorityFilters,
@@ -773,12 +768,17 @@ export function useIssueSurfaceController({
     projectFilters: viewProjectFilters,
     includeNoProject: viewIncludeNoProject,
     goalFilters,
+    projectStatusFilters,
     labelFilters,
     typeFilters,
     propertyFilters: effectivePropertyFilters,
     workingIssueIDs,
     showSubIssues,
     loadProjects:
+      // The client-side project-status predicate (Gantt / swimlane extras)
+      // cannot be evaluated without the catalog, so the filter itself has to
+      // pull it in.
+      projectStatusFilters.length > 0 ||
       cardProperties.project ||
       (usesTable && tableColumns.some((column) => column.key === "project")) ||
       // Project group headers resolve their title through the projects query,
@@ -890,7 +890,12 @@ export function useIssueSurfaceController({
       !data.isRefreshing &&
       !(usesTable && (tableSearch.trim() || debouncedActiveSearch)),
     isStatusCatalogError: data.isStatusCatalogError,
-    retryStatusCatalog: catalog.retry,
+    // Either catalog can be the one that failed, and the error state offers a
+    // single retry — refresh both rather than guess which.
+    retryStatusCatalog: () => {
+      catalog.retry();
+      data.retryProjectCatalog();
+    },
     sort,
     actions,
     selection,

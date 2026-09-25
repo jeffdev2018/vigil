@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -158,7 +159,7 @@ func TestIssueTransitionHoldsForApproval(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 held", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	req := memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"})
@@ -205,7 +206,7 @@ func TestIssueTransitionApproveAppliesAndPublishes(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 approve", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -256,6 +257,46 @@ func TestIssueTransitionApproveAppliesAndPublishes(t *testing.T) {
 	t.Fatalf("issue:updated published without status_changed=true: %v", statusChanged)
 }
 
+// An approval can come hours after the request. The state gates the request
+// passed (acceptance criteria, open mirrors, plan verification, review gate)
+// may have closed since, so approving re-checks them: a refusal answers 409
+// and leaves both the request pending and the issue where it was.
+func TestIssueTransitionApproveRechecksStateGates(t *testing.T) {
+	transitionRule(t, testutil.Cols{
+		"from_category":     "in_progress",
+		"to_category":       "done",
+		"allowed_roles":     testutil.Raw("ARRAY['member']::text[]"),
+		"requires_approval": true,
+	})
+	issueID := dbfx.Issue(t, "F28 stale approval", testutil.Cols{"status": "in_progress"})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+	})
+	var held map[string]any
+	testutil.Call(t, testHandler.UpdateIssue, withURLParam(
+		memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"}), "id", issueID)).
+		Want(http.StatusAccepted).JSON(&held)
+	requestID, _ := held["request_id"].(string)
+
+	// After the request: a criterion without proof appears.
+	dbfx.Exec(t, `UPDATE issue SET acceptance_criteria = '["Load test passes"]'::jsonb WHERE id = $1`, issueID)
+
+	var body map[string]any
+	testutil.Call(t, testHandler.ApproveIssueTransitionRequest, withURLParam(newRequest("POST", "/x/approve", nil), "id", requestID)).
+		Want(http.StatusConflict).JSON(&body)
+	if body["code"] != ErrCodeUnsatisfiedAcceptanceCriteria {
+		t.Fatalf("code = %v, want %q", body["code"], ErrCodeUnsatisfiedAcceptanceCriteria)
+	}
+	if got := issueStatus(t, issueID); got != "in_progress" {
+		t.Fatalf("status = %q, want in_progress — the gate refused the approved move", got)
+	}
+	var state string
+	dbfx.QueryRow(t, `SELECT state FROM issue_transition_request WHERE id = $1`, requestID).Scan(&state)
+	if state != "pending" {
+		t.Fatalf("state = %q, want pending so it can be approved once the gate clears", state)
+	}
+}
+
 // Acceptance 8: rejecting closes the request and honours reject_status_key.
 func TestIssueTransitionRejectMovesToFallbackStatus(t *testing.T) {
 	transitionRule(t, testutil.Cols{
@@ -267,7 +308,7 @@ func TestIssueTransitionRejectMovesToFallbackStatus(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 reject", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -299,7 +340,7 @@ func TestIssueTransitionSecondDeciderGets409(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 race", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -498,7 +539,7 @@ func TestIssueTransitionCancelIsRequesterOnly(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 cancel", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	requester := memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"})
@@ -533,7 +574,7 @@ func TestListIssueTransitionRequests(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 history", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 	testutil.Call(t, testHandler.UpdateIssue, withURLParam(
 		memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"}), "id", issueID)).
@@ -548,5 +589,39 @@ func TestListIssueTransitionRequests(t *testing.T) {
 	if len(body.Requests) != 1 || body.Requests[0].State != "pending" {
 		raw, _ := json.Marshal(body.Requests)
 		t.Fatalf("requests = %s, want one pending", raw)
+	}
+}
+
+// TestIssueTransitionDecisionRejectsMalformedBody covers the audit finding
+// that decideIssueTransitionRequest (Approve/RejectIssueTransitionRequest)
+// discarded json.Decode's error with `_ =`, silently dropping a malformed
+// note instead of rejecting the request like every other Decode in this
+// package.
+func TestIssueTransitionDecisionRejectsMalformedBody(t *testing.T) {
+	transitionRule(t, testutil.Cols{
+		"from_category":     "in_progress",
+		"to_category":       "done",
+		"allowed_roles":     testutil.Raw("ARRAY['member']::text[]"),
+		"requires_approval": true,
+	})
+	issueID := dbfx.Issue(t, "F28 malformed decision", testutil.Cols{"status": "in_progress"})
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+	})
+
+	var held map[string]any
+	testutil.Call(t, testHandler.UpdateIssue, withURLParam(
+		memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"}), "id", issueID)).
+		Want(http.StatusAccepted).JSON(&held)
+	requestID, _ := held["request_id"].(string)
+
+	approve := newRequest("POST", "/api/issue-transition-requests/"+requestID+"/approve", "not an object")
+	testutil.Call(t, testHandler.ApproveIssueTransitionRequest, withURLParam(approve, "id", requestID)).
+		Want(http.StatusBadRequest)
+
+	// The request must still be pending: a rejected malformed body must not
+	// have silently gone through with an empty note.
+	if got := issueStatus(t, issueID); got != "in_progress" {
+		t.Fatalf("issue status = %q, want in_progress (unchanged): a malformed approval body must not apply the transition", got)
 	}
 }

@@ -2,6 +2,9 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"io/fs"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -31,10 +34,16 @@ func (d *Daemon) rememberCheckout(dir string) {
 }
 
 // collectDirtyCheckouts runs `git status --porcelain` in every known checkout.
+// A checkout that no longer exists on disk (a removed worktree) is forgotten,
+// so the set tracks live checkouts instead of growing with every run.
 func (d *Daemon) collectDirtyCheckouts(ctx context.Context) []DirtyCheckout {
 	var out []DirtyCheckout
 	d.durableCheckouts.Range(func(key, _ any) bool {
 		root := key.(string)
+		if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
+			d.durableCheckouts.Delete(root)
+			return true
+		}
 		if paths := gitDirtyPaths(ctx, root); paths != nil {
 			out = append(out, DirtyCheckout{Root: root, Paths: paths})
 		}

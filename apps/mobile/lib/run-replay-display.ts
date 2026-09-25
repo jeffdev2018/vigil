@@ -7,7 +7,9 @@
  * and the seal label is derived from the server's `sealed` block only —
  * the client never re-hashes the chain. Mobile is English-only today.
  */
+import { humanizeIdentifier } from "@multica/core/utils";
 import type { RunReplay, RunReplayEvent } from "@/data/schemas";
+import { failureReasonLabel } from "./failure-reason-label";
 
 /** Human labels for every kind the server emits today; unknown kinds fall
  *  back to the raw wire value so a newer server still renders. */
@@ -107,4 +109,19 @@ export function previewJson(
   const lines = JSON.stringify(data, null, 2).split("\n");
   if (lines.length <= maxLines) return lines.join("\n");
   return [...lines.slice(0, maxLines), "…"].join("\n");
+}
+
+/**
+ * Plain-language headline for a failed (or system-cancelled) run, shown before
+ * any event payload. Known reasons use lib/failure-reason-label.ts (mirror of
+ * web's failureReasonLabel); a reason this build predates is humanized rather
+ * than dropped. A user cancel carries no reason and needs no headline.
+ */
+export function replayFailureSummary(run: { status: string; failure_reason?: string }): string | null {
+  const reason = run.failure_reason?.trim() ?? "";
+  const known = reason ? failureReasonLabel(reason) : "";
+  const label = known && known !== "Failed" ? known : reason ? humanizeIdentifier(reason) : "";
+  if (run.status === "failed") return label ? `This run failed: ${label}.` : "This run failed. No reason was recorded.";
+  if (run.status === "cancelled" && label) return `This run was cancelled: ${label}.`;
+  return null;
 }

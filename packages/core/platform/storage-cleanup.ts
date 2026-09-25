@@ -16,7 +16,7 @@ import "../drafts/register-all-drafts";
  * view/navigation keys that are not drafts.
  *
  * IMPORTANT: When adding a new non-draft workspace-scoped persist store, add
- * its key here; for draft stores, prefer `createDraftStore` (auto-registers)
+ * its key here (storage-cleanup-coverage.test.ts fails until you do); for draft stores, prefer `createDraftStore` (auto-registers)
  * or call `registerDraftCleanup` directly.
  */
 const WORKSPACE_SCOPED_KEYS = [
@@ -29,6 +29,14 @@ const WORKSPACE_SCOPED_KEYS = [
   "multica:chat:activeSessionId",
   "multica:chat:expanded",
   "multica_navigation",
+  "multica_issue_role_view",
+  "multica_comment_collapse",
+  "multica_issue_create_settings",
+  "multica_agents_view",
+  "multica_autopilots_view",
+  "multica_projects_view",
+  "multica_skills_view",
+  "multica_squads_view",
 ];
 
 /** Remove all workspace-scoped storage entries for the given workspace slug. */

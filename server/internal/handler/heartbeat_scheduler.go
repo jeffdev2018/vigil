@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -157,6 +158,11 @@ func (b *BatchedHeartbeatScheduler) Schedule(_ context.Context, runtimeID, _ pgt
 // goroutine from main.go.
 func (b *BatchedHeartbeatScheduler) Run(ctx context.Context) {
 	defer close(b.doneCh)
+	// A panicking flush restarts the loop instead of crashing the process.
+	util.Supervise(ctx, "heartbeat scheduler", b.run)
+}
+
+func (b *BatchedHeartbeatScheduler) run(ctx context.Context) {
 	t := time.NewTicker(b.tickInterval)
 	defer t.Stop()
 	for {

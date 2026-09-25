@@ -291,3 +291,45 @@ func TestTriggerUpdateSendsOnlyChangedFields(t *testing.T) {
 		t.Fatalf("label must not be sent when the flag was never set: %#v", seen)
 	}
 }
+
+// trigger-update must redact the webhook secret from its JSON response the
+// same way get/trigger-list do — a plain field update (e.g. --label) should
+// not leak the live webhook token to stdout/logs.
+func TestTriggerUpdateRedactsWebhookSecretByDefault(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/autopilots/"+dryRunAutopilotID && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"autopilot": map[string]any{"id": dryRunAutopilotID},
+				"triggers":  []map[string]any{{"id": dryRunTriggerID, "kind": "webhook"}},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":                dryRunTriggerID,
+			"kind":              "webhook",
+			"webhook_token":     "supersecrettoken",
+			"webhook_path":      "/api/webhooks/x",
+			"webhook_url":       "https://example.test/api/webhooks/x",
+			"has_webhook_token": true,
+		})
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("MULTICA_SERVER_URL", srv.URL)
+	t.Setenv("MULTICA_WORKSPACE_ID", "ws-1")
+	t.Setenv("MULTICA_TOKEN", "mat_test-token")
+
+	cmd := newTriggerUpdateTestCmd()
+	_ = cmd.Flags().Set("label", "foo")
+	out, err := captureStdout(t, func() error {
+		return runAutopilotTriggerUpdate(cmd, []string{dryRunAutopilotID, dryRunTriggerID})
+	})
+	if err != nil {
+		t.Fatalf("runAutopilotTriggerUpdate: %v", err)
+	}
+	if strings.Contains(out, "supersecrettoken") {
+		t.Fatalf("webhook secret leaked in output: %s", out)
+	}
+	if strings.Contains(out, "/api/webhooks/x") {
+		t.Fatalf("webhook path/url leaked in output: %s", out)
+	}
+}

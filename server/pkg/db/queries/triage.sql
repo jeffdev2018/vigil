@@ -50,6 +50,20 @@ ON CONFLICT (workspace_id, source_id, normalized_title) WHERE state = 'pending'
 DO UPDATE SET collapse_count = triage_item.collapse_count + 1, updated_at = now()
 RETURNING *;
 
+-- name: FoldTriageItemByDedupeKey :one
+-- uq_triage_item_dedupe (workspace_id, source_id, dedupe_key) WHERE pending
+-- guards a second transport-level axis that UpsertTriageItem's own ON
+-- CONFLICT arbiter (uq_triage_item_pending_title) cannot also target —
+-- Postgres allows only one arbiter per INSERT. Two deliveries that share a
+-- dedupe_key but land on different normalized_title (both pending) hit this
+-- index as a hard unique_violation instead of the graceful DO UPDATE; the
+-- caller catches that specific constraint violation and folds into the
+-- existing row here instead of losing the delivery.
+UPDATE triage_item
+SET collapse_count = collapse_count + 1, updated_at = now()
+WHERE workspace_id = $1 AND source_id = $2 AND dedupe_key = $3 AND state = 'pending'
+RETURNING *;
+
 -- name: CountTriageItemsByState :many
 SELECT state, shadow, COUNT(*)::bigint AS n
 FROM triage_item

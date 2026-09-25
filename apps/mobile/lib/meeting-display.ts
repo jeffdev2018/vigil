@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function meetingStatusLabel(status: string): string {
-  return STATUS_LABEL[status] ?? "Unknown";
+  return STATUS_LABEL[status] ?? status;
 }
 
 /**

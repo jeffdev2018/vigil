@@ -1,7 +1,8 @@
 import type { ActorFilterValue, FilterSnapshot } from "../issues/stores/view-store";
-import type { IssuePriority, IssueStatus, PropertyFilterValue } from "../types";
+import type { IssuePriority, IssueStatus, ProjectStatus, PropertyFilterValue } from "../types";
 import { isKnownPropertyFilterOp, isPropertyOperatorFilter, propertyFilterValueKey } from "../types";
 import { PRIORITY_DISPLAY_ORDER } from "../issues/config";
+import { PROJECT_STATUS_ORDER } from "../projects/config";
 
 /**
  * The open saved view's query, normalized for two jobs:
@@ -21,9 +22,12 @@ export interface IssueViewBaseline {
   creator: Set<string>;
   project: Set<string>;
   includeNoProject: boolean;
+  /** Goal ids (JEF-395). Exact ids, no constant to validate against. */
+  goal: Set<string>;
   cycle: Set<string>;
   /** Work item type keys (F30). */
   type: Set<string>;
+  projectStatus: Set<string>;
   label: Set<string>;
   /** Property definition id → fixed member keys (`propertyFilterValueKey`). */
   property: Map<string, Set<string>>;
@@ -85,12 +89,20 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
   // for an absent one, so an older view stays valid rather than failing to
   // parse — the same tolerance every other dimension already has.
   const cycleFilters = stringArray(query.cycleFilters);
+  // Goals (JEF-395) follow the cycle rules: an absent key parses to [], and a
+  // goal id is workspace data, so nothing here validates it against a constant.
+  const goalFilters = stringArray(query.goalFilters);
   // Views saved before F30 carry no typeFilters key, and stringArray answers []
   // for an absent one — the same tolerance every other dimension has. Values
   // are NOT checked against a constant: a type key is workspace-defined, so
   // filtering against one here would silently delete every custom-type filter
   // the moment a saved view was reopened (the bug MUL-6243 fixed for statuses).
   const typeFilters = stringArray(query.typeFilters).filter((k) => k.length > 0);
+  // A saved view predating this dimension has no key at all, and an unknown
+  // member cannot be represented in the store — both collapse to "no filter".
+  const projectStatusFilters = stringArray(query.projectStatusFilters).filter(
+    (s): s is ProjectStatus => (PROJECT_STATUS_ORDER as readonly string[]).includes(s),
+  );
   const labelFilters = stringArray(query.labelFilters);
   const includeNoAssignee = query.includeNoAssignee === true;
   const includeNoProject = query.includeNoProject === true;
@@ -117,8 +129,10 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
     creator: new Set(creatorFilters.map(actorFilterKey)),
     project: new Set(projectFilters),
     includeNoProject,
+    goal: new Set(goalFilters),
     cycle: new Set(cycleFilters),
     type: new Set(typeFilters),
+    projectStatus: new Set(projectStatusFilters),
     label: new Set(labelFilters),
     property,
     raw: {
@@ -129,8 +143,10 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
       creatorFilters,
       projectFilters,
       includeNoProject,
+      goalFilters,
       cycleFilters,
       typeFilters,
+      projectStatusFilters,
       labelFilters,
       propertyFilters,
     },

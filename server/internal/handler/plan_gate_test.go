@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -35,7 +36,7 @@ func cleanupChildren(t *testing.T, parentID string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx := t.Context()
+		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM issue_dependency WHERE issue_id IN (SELECT id FROM issue WHERE parent_issue_id = $1) OR depends_on_issue_id IN (SELECT id FROM issue WHERE parent_issue_id = $1)`, parentID)
 		testPool.Exec(ctx, `DELETE FROM agent_task_queue WHERE issue_id IN (SELECT id FROM issue WHERE parent_issue_id = $1)`, parentID)
 		testPool.Exec(ctx, `DELETE FROM issue WHERE parent_issue_id = $1`, parentID)

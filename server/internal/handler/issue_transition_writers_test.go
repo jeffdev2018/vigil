@@ -62,8 +62,10 @@ var issueStatusWriters = map[string]statusWriterClass{
 	// gated path. Gating here would evaluate the same move twice.
 	"internal/handler/issue_move.go": statusWriterDownstream,
 	// The approve/reject handlers apply a move an approver just authorised.
-	// The approver's decision IS the gate; re-running it would refuse the very
-	// transition that was approved.
+	// The approver's decision IS the transition gate; re-running it would
+	// refuse the very transition that was approved. The issue-state gates
+	// (criteria, mirrors, plan verification, review) are re-checked before
+	// deciding, since that state can change while the request waits.
 	"internal/handler/issue_transition_api.go": statusWriterDownstream,
 	// IssueService.Create is called by the handlers above, which have already
 	// gated the create. The service has no request and therefore no actor.
@@ -79,9 +81,10 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"cmd/server/runtime_sweeper.go": statusWriterSystem,
 	// HandleFailedTasks does the same after a run fails.
 	"internal/service/task.go": statusWriterSystem,
-	// A merged pull request closes its issue. The move is a fact about the
-	// repository, not a request from an actor.
-	"internal/handler/github.go": statusWriterSystem,
+	// A merged pull request closes its issue via CompleteIssueFromPullRequests.
+	// A PR that merges is a fact about the repository, not a request from an
+	// actor — even when a task's token resolves the caller as an agent.
+	"internal/handler/pr_auto_complete.go": statusWriterSystem,
 	// Undo (K69) replays an effect's PREVIOUS value. A rule that blocked the
 	// inverse would make an undone run unrecoverable.
 	"internal/handler/agent_effect.go":         statusWriterSystem,
@@ -107,13 +110,17 @@ var issueStatusWriters = map[string]statusWriterClass{
 	// create tools file on the default status, which the create gate
 	// deliberately never gates.
 	"internal/service/native_agent_tools.go": statusWriterGated,
+	// The goal loop proposes done through DecideIssueTransition with the
+	// agent as the actor, exactly like the native transition tool; the
+	// helper both share is the downstream write.
+	"internal/service/goal_loop.go": statusWriterGated,
 	// A low-confidence run is sent back for review by the platform.
 	"internal/service/run_confidence.go": statusWriterSystem,
 	// An autopilot creates the issue its schedule or webhook asked for.
 	"internal/service/autopilot.go": statusWriterSystem,
 }
 
-var statusWriterPattern = regexp.MustCompile(`\.(UpdateIssueStatus|UpdateIssue|CreateIssueWithOrigin)\(`)
+var statusWriterPattern = regexp.MustCompile(`\.(UpdateIssueStatus|UpdateIssue|CreateIssueWithOrigin|CompleteIssueFromPullRequests)\(`)
 
 func TestIssueTransitionGateCoversEveryStatusWriter(t *testing.T) {
 	root, err := repoServerRoot()

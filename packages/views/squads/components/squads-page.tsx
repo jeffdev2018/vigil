@@ -83,12 +83,18 @@ import {
 import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { FILTER_ITEM_CLASS, HoverCheck } from "../../common/hover-check";
-import { useIntentNavigate, useRowLink } from "../../navigation";
+import {
+  AppLink,
+  rowLinkInteractiveProps,
+  useIntentNavigate,
+  useRowLink,
+} from "../../navigation";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
   CollectionPageState,
 } from "../../layout/collection-page";
+import { LoadErrorState } from "../../common/load-error-state";
 import { useLocale, useT } from "../../i18n";
 import { PAGE_TOOLBAR } from "../../layout/page-header";
 
@@ -172,14 +178,25 @@ function SquadAvatar({ squad }: { squad: Squad }) {
 }
 
 // Two-line identity cell — same form as the agents list.
-function NameCell({ squad }: { squad: Squad }) {
+function NameCell({ squad, rowHref }: { squad: Squad; rowHref: string }) {
   return (
     <ListGridCell className="gap-3">
       <SquadAvatar squad={squad} />
       <div className="min-w-0 flex-1">
-        <span className="block min-w-0 truncate text-body font-medium">
+        {/* The row's click/auxclick handlers are a mouse convenience on a
+            plain <div> (see ui list-grid + views useRowLink): the keyboard
+            path, "open in new tab" and the browser context menu all come from
+            this anchor. `rowLinkInteractiveProps` stops the event from
+            reaching the row, so web's native modifier-click is not doubled by
+            the row's own window.open fallback. */}
+        <AppLink
+          href={rowHref}
+          newTabTitle={squad.name}
+          {...rowLinkInteractiveProps}
+          className="block min-w-0 truncate text-body font-medium"
+        >
           {squad.name}
-        </span>
+        </AppLink>
         {squad.description ? (
           <span className="block min-w-0 truncate text-caption text-muted-foreground">
             {squad.description}
@@ -274,7 +291,7 @@ function ArchiveSquadDialog({
       toast.success(t(($) => $.archive_dialog.success));
     },
     onError: (err) =>
-      toast.error(err instanceof Error ? err.message : String(err)),
+      toast.error(err instanceof Error && err.message ? err.message : t(($) => $.toasts.archive_failed)),
   });
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -587,22 +604,6 @@ function SquadListToolbar({
               ) : (
                 <span className="hidden md:inline">{t(($) => $.toolbar.filter_label)}</span>
               )}
-              {hasActiveFilters && (
-                <span
-                  role="button"
-                  tabIndex={-1}
-                  aria-label={t(($) => $.toolbar.clear_filters)}
-                  className="-mr-1 ml-0.5 hidden rounded-sm p-0.5 hover:bg-white/20 md:inline-flex"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onClearFilters();
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <X className="size-3" />
-                </span>
-              )}
             </Button>
           }
         />
@@ -655,6 +656,19 @@ function SquadListToolbar({
           </DropdownMenuSub>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* A sibling, not a child of the trigger: nothing nested inside a
+          native <button> is reachable from the keyboard. */}
+      {hasActiveFilters && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t(($) => $.toolbar.clear_filters)}
+          className="text-muted-foreground"
+          onClick={() => onClearFilters()}
+        >
+          <X className="size-3.5" />
+        </Button>
+      )}
 
       {/* Display settings */}
       <Popover>
@@ -730,6 +744,11 @@ function SquadListToolbar({
                     ? t(($) => $.toolbar.direction_asc)
                     : t(($) => $.toolbar.direction_desc)
                 }
+                aria-label={
+                  sortDirection === "asc"
+                    ? t(($) => $.toolbar.direction_asc)
+                    : t(($) => $.toolbar.direction_desc)
+                }
               >
                 {sortDirection === "asc" ? (
                   <ArrowUp className="size-3.5" />
@@ -779,7 +798,12 @@ export function SquadsPage() {
   const rowLink = useRowLink();
   const currentUser = useAuthStore((s) => s.user);
 
-  const { data: squads = [], isLoading } = useQuery({
+  const {
+    data: squads = [],
+    isLoading,
+    isError: squadsError,
+    refetch: refetchSquads,
+  } = useQuery({
     ...squadListOptions(wsId),
     enabled: !!wsId,
   });
@@ -926,6 +950,10 @@ export function SquadsPage() {
 
       {isLoading ? (
         <LoadingSkeleton />
+      ) : squadsError ? (
+        // A failed read must not offer "create your first squad": the squads
+        // may well exist and the list simply did not arrive.
+        <LoadErrorState onRetry={() => void refetchSquads()} />
       ) : squads.length === 0 ? (
         <CollectionPageState
           icon={Users}
@@ -985,7 +1013,7 @@ export function SquadsPage() {
                     className="cursor-pointer"
                     {...rowLink(p.squadDetail(squad.id), squad.name)}
                   >
-                    <NameCell squad={squad} />
+                    <NameCell squad={squad} rowHref={p.squadDetail(squad.id)} />
                     <LeaderCell
                       leaderId={squad.leader_id}
                       leader={agentsById.get(squad.leader_id)}

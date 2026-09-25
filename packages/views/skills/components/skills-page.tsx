@@ -52,6 +52,7 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import {
+  AppLink,
   rowLinkInteractiveProps,
   useNavigation,
   useRowLink,
@@ -62,7 +63,8 @@ import {
   CollectionPageState,
 } from "../../layout/collection-page";
 import { canEditSkill } from "../hooks/use-can-edit-skill";
-import { originSourceUrl, readOrigin, type OriginInfo } from "../lib/origin";
+import { originSourceUrl, readOrigin } from "../lib/origin";
+import { rowMatchesFilters, type SkillRow } from "./skill-list-filter";
 import { CreateSkillDialog } from "./create-skill-dialog";
 import {
   useSkillsViewStore,
@@ -78,6 +80,7 @@ import {
 } from "./skill-list-actions";
 import { useT, useTimeAgo } from "../../i18n";
 import { SkillDraftsSection } from "./skill-drafts-section";
+import { docsLocalePrefix } from "../../common/docs-locale";
 
 // Column template — single source of truth for header, rows, and skeletons.
 // Tracks: [edge 0.75rem] [checkbox 1rem] [name, only fr track]
@@ -154,15 +157,7 @@ function columnTrackVars(
 // (@multica/core/skills/stores/view-store) so the persisted state and the
 // UI share one definition. Re-exported here for the toolbar's convenience.
 export type SortField = SkillSortField;
-
-export interface SkillRow {
-  skill: SkillSummary;
-  agents: Agent[];
-  creator: MemberWithUser | null;
-  runtime: AgentRuntime | null;
-  originType: OriginInfo["type"];
-  canEdit: boolean;
-}
+export { rowMatchesFilters, type SkillRow } from "./skill-list-filter";
 
 // ---------------------------------------------------------------------------
 // Page header bar — uses shared PageHeader so the mobile sidebar trigger and
@@ -176,7 +171,7 @@ function PageHeaderBar({
   totalCount: number;
   onCreate: () => void;
 }) {
-  const { t } = useT("skills");
+  const { t, i18n } = useT("skills");
   return (
     <CollectionPageHeader
       icon={SkillIcon}
@@ -184,7 +179,7 @@ function PageHeaderBar({
       count={totalCount}
       description={t(($) => $.page.tagline)}
       learnMore={{
-        href: "https://multica.ai/docs/skills",
+        href: `https://multica.ai/docs${docsLocalePrefix(i18n.language)}/skills`,
         label: t(($) => $.page.learn_more),
       }}
       actions={
@@ -208,11 +203,16 @@ function PageHeaderBar({
 // the toggle. It stops click propagation so toggling never triggers the
 // row's whole-row navigation (see `useRowLink`) — no preventDefault needed,
 // the row is a plain <div>, not an <a>.
+// It also stays out of sight until the row is hovered OR the button takes
+// focus: `opacity-0` alone made selection a mouse-only affordance, invisible
+// to anyone arriving on it with the keyboard.
 function CheckboxCell({
   checked,
+  label,
   onToggle,
 }: {
   checked: boolean;
+  label: string;
   onToggle: () => void;
 }) {
   return (
@@ -220,12 +220,15 @@ function CheckboxCell({
       <button
         type="button"
         aria-pressed={checked}
+        aria-label={label}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         className={`-m-1.5 flex items-center p-1.5 ${
-          checked ? "" : "opacity-0 transition-opacity group-hover/row:opacity-100"
+          checked
+            ? ""
+            : "opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
         }`}
       >
         <Checkbox
@@ -238,14 +241,25 @@ function CheckboxCell({
   );
 }
 
-function NameCell({ row }: { row: SkillRow }) {
+function NameCell({ row, rowHref }: { row: SkillRow; rowHref: string }) {
   const { t } = useT("skills");
   const { skill, canEdit } = row;
   return (
     <ListGridCell className="gap-1.5">
-      <span className="min-w-0 truncate text-body font-medium">
+      {/* The row's click/auxclick handlers are a mouse convenience on a plain
+          <div> (see ui list-grid + views useRowLink): the keyboard path, "open
+          in new tab" and the browser context menu all come from this anchor.
+          `rowLinkInteractiveProps` stops the event from reaching the row, so
+          web's native modifier-click is not doubled by the row's own
+          window.open fallback — the same props the source link below uses. */}
+      <AppLink
+        href={rowHref}
+        newTabTitle={skill.name}
+        {...rowLinkInteractiveProps}
+        className="min-w-0 truncate text-body font-medium"
+      >
         {skill.name}
-      </span>
+      </AppLink>
       {!canEdit && (
         <Tooltip>
           <TooltipTrigger
@@ -465,11 +479,12 @@ function SkillListHeader({
         <button
           type="button"
           aria-pressed={allSelected}
+          aria-label={t(($) => $.table.select_all)}
           onClick={onToggleAll}
           className={`-m-1.5 flex items-center p-1.5 ${
             anySelected
               ? ""
-              : "opacity-0 transition-opacity group-hover/header:opacity-100"
+              : "opacity-0 transition-opacity group-hover/header:opacity-100 focus-visible:opacity-100"
           }`}
         >
           <Checkbox
@@ -696,34 +711,9 @@ export default function SkillsPage() {
 
   // Visible rows: name search + filters, then sort.
   const rows = useMemo<SkillRow[]>(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = allRows.filter((row) => {
-      if (q && !row.skill.name.toLowerCase().includes(q)) return false;
-      if (filters.usage.length > 0) {
-        const usage = row.agents.length > 0 ? "used" : "unused";
-        if (!filters.usage.includes(usage)) return false;
-      }
-      if (
-        filters.origins.length > 0 &&
-        !filters.origins.includes(row.originType)
-      ) {
-        return false;
-      }
-      if (
-        filters.agents.length > 0 &&
-        !row.agents.some((a) => filters.agents.includes(a.id))
-      ) {
-        return false;
-      }
-      if (
-        filters.creators.length > 0 &&
-        (!row.skill.created_by ||
-          !filters.creators.includes(row.skill.created_by))
-      ) {
-        return false;
-      }
-      return true;
-    });
+    const filtered = allRows.filter((row) =>
+      rowMatchesFilters(row, filters, search),
+    );
 
     const dir = sortDirection === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
@@ -911,9 +901,12 @@ export default function SkillsPage() {
               >
                 <CheckboxCell
                   checked={selectedIds.has(row.skill.id)}
+                  label={t(($) => $.table.select_skill, {
+                    name: row.skill.name,
+                  })}
                   onToggle={() => toggleSelected(row.skill.id)}
                 />
-                <NameCell row={row} />
+                <NameCell row={row} rowHref={paths.skillDetail(row.skill.id)} />
                 {isColVisible("usedBy") ? (
                   <UsedByCell agents={row.agents} />
                 ) : (

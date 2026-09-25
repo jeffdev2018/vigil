@@ -32,6 +32,8 @@ import ReactMarkdown, {
   type Options as ReactMarkdownOptions,
 } from "react-markdown";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { BrainCircuit } from "lucide-react";
 import rehypeKatex from "rehype-katex";
 import remarkBreaks from "remark-breaks";
 import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
@@ -40,8 +42,11 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { cn } from "@multica/ui/lib/utils";
-import { useWorkspaceSlug } from "@multica/core/paths";
+import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { useConfigStore } from "@multica/core/config";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { ApiError } from "@multica/core/api";
+import { brainNoteOptions } from "@multica/core/brain/queries";
 import type { Attachment } from "@multica/core/types";
 import {
   isAllowedFileCardHref,
@@ -50,6 +55,7 @@ import {
   markdownUrlTransform,
 } from "@multica/ui/markdown";
 import {
+  AppLink,
   resolveClickIntent,
   useAppOrigin,
   useOptionalNavigation,
@@ -58,6 +64,7 @@ import { IssueMentionCard } from "../issues/components/issue-mention-card";
 import { useResolveIssueIdentifier } from "../issues/hooks";
 import { ProjectMentionCard } from "../projects/components/project-mention-card";
 import { useLinkHover, LinkHoverCard } from "../editor/link-hover-card";
+import { useT } from "../i18n";
 import {
   openLink,
   isMentionHref,
@@ -163,6 +170,59 @@ function ProjectMentionLink({ projectId, label }: { projectId: string; label?: s
   );
 }
 
+/**
+ * Note mention chip (JEF-417 / B06): an agent citing a Brain note in a
+ * comment or run output, `[text](mention://note/<uuid>)`.
+ *
+ * Unlike IssueMentionLink/ProjectMentionLink this never fetches the note per
+ * chip — the link text an agent writes already IS the citation's label, so
+ * there is nothing to resolve to render it. `brainNoteOptions` is read with
+ * `enabled: false`: no request is ever made here, but if the note is already
+ * in the query cache (the reader had it open, or something else fetched it)
+ * a cached 404 is enough to show the citation as broken instead of a link
+ * that goes nowhere.
+ *
+ * ponytail: cache-only means a note deleted after its last fetch, and never
+ * looked up in this session, still renders as a normal link. Add a real fetch
+ * here if that gap turns out to matter in practice.
+ */
+function NoteMentionLink({ noteId, label }: { noteId: string; label?: string }) {
+  const slug = useWorkspaceSlug();
+  const wsId = useWorkspaceId();
+  const { t } = useT("editor");
+  const text = label ?? noteId;
+  const cached = useQuery({ ...brainNoteOptions(wsId, noteId), enabled: false });
+  const notFound =
+    cached.isError && cached.error instanceof ApiError && cached.error.status === 404;
+
+  if (notFound) {
+    return (
+      <span
+        className="mx-0.5 italic text-muted-foreground"
+        title={t(($) => $.mention.note_not_found)}
+        aria-label={t(($) => $.mention.note_not_found)}
+      >
+        {text}
+      </span>
+    );
+  }
+
+  if (!slug) return <span className="mention">{text}</span>;
+
+  return (
+    <span className="inline align-middle" onClick={(e) => e.stopPropagation()}>
+      <AppLink
+        href={`${paths.workspace(slug).brain()}?note=${encodeURIComponent(noteId)}`}
+        newTabTitle={text}
+        className="note-mention inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 align-middle text-caption hover:bg-accent transition-colors"
+      >
+        <BrainCircuit aria-hidden="true" className="size-3 shrink-0" />
+        <span className="min-w-0 truncate">{text}</span>
+      </AppLink>
+    </span>
+  );
+}
+
 function childrenToLabel(children: ReactNode): string | undefined {
   if (typeof children === "string") return children;
   if (Array.isArray(children)) return children.join("");
@@ -217,7 +277,10 @@ function RichLink({ href, children }: { href?: string; children?: ReactNode }) {
   }
 
   if (isMentionHref(href)) {
-    const match = href.match(/^mention:\/\/(member|agent|issue|project|all)\/(.+)$/);
+    const match = href.match(/^mention:\/\/(member|agent|issue|project|note|all)\/(.+)$/);
+    if (match?.[1] === "note" && match[2]) {
+      return <NoteMentionLink noteId={match[2]} label={childrenToLabel(children)} />;
+    }
     if (match?.[1] === "issue" && match[2]) {
       // A bare identifier (from the autolink preprocessor) is carried as the id
       // segment; a real mention carries a UUID. Dispatch on the id shape.

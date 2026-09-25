@@ -17,6 +17,7 @@ import { useCreateComment } from "@/data/mutations/issues";
 import { useReplyTargetStore } from "@/data/stores/reply-target-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { MessageComposer } from "@/components/composer/message-composer";
+import { CommentRunNotice } from "@/components/issue/comment-run-notice";
 
 export function InlineCommentComposer({ issueId }: { issueId: string }) {
   const createComment = useCreateComment(issueId);
@@ -56,6 +57,9 @@ export function InlineCommentComposer({ issueId }: { issueId: string }) {
         params: { workspace: wsSlug ?? "", mode: "comment" },
       }}
       uploadContext={{ issueId }}
+      // Mentioning an agent (or commenting on an agent-owned issue) starts a
+      // real run: say so, with runtime and cost, before the user sends.
+      renderNotice={(content) => <CommentRunNotice issueId={issueId} content={content} />}
       placeholder="Add a comment…"
       pillLabel="Add a comment, @ to mention…"
       pillIcon="chatbubble-ellipses-outline"

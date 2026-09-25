@@ -190,6 +190,8 @@ func (h *Handler) RefreshSkill(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusForbidden, "only the skill creator or a workspace admin can update this skill from its source")
 		case errors.Is(err, errSkillOverwriteNameConflict):
 			writeError(w, http.StatusConflict, "a skill named \""+newName+"\" already exists in this workspace")
+		case errors.Is(err, errSkillOverwritePluginManaged):
+			writeError(w, http.StatusConflict, "this skill is managed by a plugin and cannot be edited directly; uninstall or upgrade the plugin instead")
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to update skill from source: "+err.Error())
 		}

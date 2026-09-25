@@ -84,6 +84,43 @@ export function getInboxNavigationTarget(
   historyToken: string,
 ) {
   if (!workspace) return null;
+  // Native calendar (OS plan, chantier 19). Checked BEFORE the `issue_id`
+  // branch below: a calendar_invitation can carry an issue_id (a proposed
+  // event rides an issue's Decision Card) but its primary action is
+  // Accept/Decline on the event, not the issue thread — routing to the
+  // issue would hide that affordance.
+  if (item.type === "calendar_invitation" || item.type === "calendar_reminder") {
+    return {
+      pathname: "/[workspace]/inbox/[id]" as const,
+      params: { workspace, id: item.id },
+    };
+  }
+  // Workspace doctrine (OS plan, chantier 22). Checked BEFORE `issue_id`
+  // for the same reason as the calendar branch above: a `doctrine_report`
+  // carries the issue its task was working on, but the thing waiting on the
+  // reader is the report itself (acknowledge / dismiss), which lives on the
+  // doctrine screen — the row there links back to the issue. A
+  // `doctrine_review` that names a version goes straight to its diff, the
+  // only thing an approver needs to see before deciding.
+  if (item.type === "doctrine_review") {
+    const versionId = item.details?.version_id;
+    if (typeof versionId === "string" && versionId) {
+      return {
+        pathname: "/[workspace]/more/doctrine-version/[id]" as const,
+        params: { workspace, id: versionId },
+      };
+    }
+    return {
+      pathname: "/[workspace]/more/doctrine" as const,
+      params: { workspace },
+    };
+  }
+  if (item.type === "doctrine_report") {
+    return {
+      pathname: "/[workspace]/more/doctrine" as const,
+      params: { workspace },
+    };
+  }
   if (item.issue_id) {
     return {
       pathname: "/[workspace]/issue/[id]" as const,
@@ -95,16 +132,13 @@ export function getInboxNavigationTarget(
       },
     };
   }
-  if (
-    item.type === "autopilot_quota_exceeded" ||
-    item.type === "autopilot_paused"
-  ) {
-    return {
-      pathname: "/[workspace]/inbox/[id]" as const,
-      params: { workspace, id: item.id },
-    };
-  }
-  return null;
+  // Every other issue-less notification opens its sheet: web shows each one
+  // in the inbox detail pane (title, type, body — packages/views/inbox/
+  // components/inbox-page.tsx). Returning null here made the tap a dead end.
+  return {
+    pathname: "/[workspace]/inbox/[id]" as const,
+    params: { workspace, id: item.id },
+  };
 }
 
 /**

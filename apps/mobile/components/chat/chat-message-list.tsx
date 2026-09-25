@@ -53,6 +53,8 @@ import type {
   TaskMessagePayload,
 } from "@multica/core/types";
 import type { AgentAvailability } from "@multica/core/agents";
+import { continuousCorners } from "@/lib/radius";
+import { chatMessageListState } from "@/lib/chat-list-state";
 import { taskMessagesOptions } from "@/data/queries/chat";
 import { Text } from "@/components/ui/text";
 import { Markdown } from "@/lib/markdown";
@@ -78,6 +80,11 @@ import {
 interface Props {
   messages: ChatMessage[];
   loading: boolean;
+  /** The transcript read got no answer. Kept apart from an empty
+   *  conversation: both arrive here as `messages: []`. */
+  failed?: boolean;
+  /** Retry for the failed read. */
+  onRetry?: () => void;
   /** Has the workspace ever started a chat? Drives empty-state copy. */
   hasSessions: boolean;
   /** Currently picked / inherited agent. */
@@ -105,6 +112,8 @@ interface Props {
 export function ChatMessageList({
   messages,
   loading,
+  failed = false,
+  onRetry,
   hasSessions,
   agent,
   onPickPrompt,
@@ -138,7 +147,15 @@ export function ChatMessageList({
     [messages],
   );
 
-  if (loading && messages.length === 0) {
+  // Loading / failed / empty / transcript, decided in one place — see
+  // lib/chat-list-state.ts for the precedence and its tests.
+  const listState = chatMessageListState({
+    messageCount: messages.length,
+    loading,
+    failed,
+  });
+
+  if (listState === "loading") {
     return (
       <View className="flex-1 items-center justify-center">
         <ActivityIndicator />
@@ -146,7 +163,26 @@ export function ChatMessageList({
     );
   }
 
-  if (messages.length === 0) {
+  if (listState === "error") {
+    // Never the new-chat empty state: this conversation may well have a
+    // history, we just did not get it. Same shape as the other read failures
+    // on this client (search, delivery section).
+    return (
+      <View className="flex-1 items-center justify-center gap-3 px-6">
+        <Text className="text-center text-sm text-destructive">
+          Couldn&apos;t load this conversation. Check your connection and try
+          again.
+        </Text>
+        {onRetry ? (
+          <Pressable onPress={onRetry} accessibilityRole="button">
+            <Text className="text-sm text-brand">Retry</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
+  if (listState === "empty") {
     // Empty new-chat state. Lives here (rather than the parent screen) so
     // the empty state and the rendered list share spacing/layout rules.
     return (
@@ -300,13 +336,14 @@ function MessageRow({
     const body = (
       <View
         className={cn(
-          "self-end max-w-[80%] gap-1.5 rounded-2xl border-2 px-3.5 py-2 transition-colors",
+          "self-end max-w-[80%] gap-1.5 rounded-xl border-2 px-3.5 py-2 transition-colors",
           isSelecting
             ? "bg-primary/5 border-primary/30"
             : longPress.isPressed
               ? "bg-muted border-primary/30"
               : "bg-muted border-transparent",
         )}
+        style={continuousCorners}
       >
         <Markdown
           content={message.content}
@@ -544,11 +581,12 @@ function FailureBubble({
     <View className="self-start max-w-[80%]">
       <View
         className={cn(
-          "rounded-2xl border-2 bg-destructive/10 px-3.5 py-2 transition-colors",
+          "rounded-xl border-2 bg-destructive/10 px-3.5 py-2 transition-colors",
           isSelecting || longPress.isPressed
             ? "border-primary/30"
             : "border-destructive/30",
         )}
+        style={continuousCorners}
       >
         <Text className="text-xs font-semibold text-destructive">
           {reasonLabel}
@@ -572,7 +610,7 @@ function FailureBubble({
               </View>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <View className="mt-1 rounded bg-muted/40 px-2 py-1.5">
+              <View className="mt-1 rounded-xs bg-muted/40 px-2 py-1.5">
                 <Text
                   className="text-xs text-muted-foreground"
                   selectable={isSelecting}

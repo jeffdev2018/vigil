@@ -94,6 +94,19 @@ type AppConfig struct {
 	// browser fallback works everywhere.
 	TTSAvailable bool `json:"tts_available"`
 
+	// IssueCreatePropertiesSupported tells independently deployed clients that
+	// POST /api/issues validates and persists the optional properties bag.
+	// Older handlers silently ignore unknown fields, so clients with values must
+	// fail closed when this declaration is absent.
+	IssueCreatePropertiesSupported bool `json:"issue_create_properties_supported"`
+
+	// CommentDeleteKeepRepliesSupported tells clients that deleting a comment
+	// removes only that comment and keeps its replies (#8296), and that
+	// DELETE /api/comments/{id}/keep-replies exists. Older servers deleted the
+	// replies too and omit this, so clients must promise nothing about
+	// replies unless it is declared.
+	CommentDeleteKeepRepliesSupported bool `json:"comment_delete_keep_replies_supported"`
+
 	// ServerVersion is the running API build version, so self-hosted
 	// operators can confirm what's deployed and include it in bug reports.
 	// Only emitted on self-hosted deployments — omitted on the managed cloud,
@@ -104,6 +117,9 @@ type AppConfig struct {
 	// to last_activity_at (F02). Omitted by older servers; the client falls
 	// back to its own default.
 	RunUnresponsiveAfterSeconds float64 `json:"run_unresponsive_after_seconds,omitempty"`
+	// NativeRuntimeAvailable (OS plan, chantier 5): the in-server runtime has
+	// a model to run with, so onboarding can offer "run in the browser".
+	NativeRuntimeAvailable bool `json:"native_runtime_available"`
 }
 
 // GetConfig is mounted on the public (unauthenticated) route group because
@@ -116,6 +132,8 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		// running, the save gate is running with it.
 		LocalWorktreeSupported:             true,
 		AgentConversationStartersSupported: true,
+		IssueCreatePropertiesSupported:     true,
+		CommentDeleteKeepRepliesSupported:  true,
 		AllowSignup:                        os.Getenv("ALLOW_SIGNUP") != "false",
 		GoogleClientID:                     os.Getenv("GOOGLE_CLIENT_ID"),
 		WorkspaceCreationDisabled:          os.Getenv("DISABLE_WORKSPACE_CREATION") == "true",
@@ -130,6 +148,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()
+	config.NativeRuntimeAvailable = h.NativeAgents.Available()
 	config.FeatureFlags = featureflags.EvaluateFrontendPublicFlags(r.Context(), h.FeatureFlags)
 	// Only surface the build version on self-hosted deployments. The managed
 	// cloud is continuously deployed and its users can't choose the build, so

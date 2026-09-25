@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -12,16 +13,25 @@ import {
   type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import { useLocale, useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
 
-// Three-segment stack — completed runs at the bottom (chart-1, primary
-// brand), then cancelled (chart-3, muted: a manual stop is an outcome, not
-// an error), failed on top (chart-5 for distinct emphasis). Lets the user
-// see day-over-day failure-rate trend without a separate chart.
-const tasksChartConfig = {
-  completed: { label: "Completed", color: "var(--chart-1)" },
-  cancelled: { label: "Cancelled", color: "var(--chart-3)" },
-  failed: { label: "Failed", color: "var(--chart-5)" },
-} satisfies ChartConfig;
+/**
+ * Three-segment stack — completed runs at the bottom (chart-1, primary
+ * brand), then cancelled (chart-3, muted: a manual stop is an outcome, not
+ * an error), failed on top (chart-5 for distinct emphasis). Lets the user
+ * see day-over-day failure-rate trend without a separate chart.
+ */
+export function useTasksChartConfig(): ChartConfig {
+  const { t } = useT("runtimes");
+  return useMemo(
+    () => ({
+      completed: { label: t(($) => $.charts.tasks_completed), color: "var(--chart-1)" },
+      cancelled: { label: t(($) => $.charts.tasks_cancelled), color: "var(--chart-3)" },
+      failed: { label: t(($) => $.charts.tasks_failed), color: "var(--chart-5)" },
+    }),
+    [t],
+  );
+}
 
 export interface DailyTasksData {
   date: string;
@@ -33,6 +43,7 @@ export interface DailyTasksData {
 
 export function DailyTasksChart({ data }: { data: DailyTasksData[] }) {
   const { t } = useT("runtimes");
+  const tasksChartConfig = useTasksChartConfig();
   const locale = useLocale();
   return (
     <ChartContainer config={tasksChartConfig} className="aspect-[3/1] w-full">
@@ -55,7 +66,7 @@ export function DailyTasksChart({ data }: { data: DailyTasksData[] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value, name) => `${value} ${name}`}
+              formatter={(value, name) => `${value} ${labelOf(tasksChartConfig, name)}`}
               footer={(payload) => {
                 const total = payload.reduce(
                   (sum, item) =>

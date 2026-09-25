@@ -152,7 +152,7 @@ function createComponents(
     a: ({ href, children }) => {
       // Mention links: mention://member/id, mention://agent/id, mention://issue/id, mention://project/id, mention://all/all
       if (href?.startsWith('mention://')) {
-        const mentionMatch = href.match(/^mention:\/\/(member|agent|issue|project|all)\/(.+)$/)
+        const mentionMatch = href.match(/^mention:\/\/(member|agent|issue|project|note|all)\/(.+)$/)
         if (mentionMatch?.[1] && mentionMatch[2]) {
           const type = mentionMatch[1]
           const id = mentionMatch[2]
@@ -360,7 +360,7 @@ function createComponents(
             type="checkbox"
             checked={checked}
             readOnly
-            className="mr-2 rounded border-muted-foreground"
+            className="mr-2 rounded-xs border-muted-foreground"
           />
         )
       }

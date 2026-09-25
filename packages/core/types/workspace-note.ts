@@ -1,5 +1,10 @@
-/** Who produced a Brain note. */
-export type WorkspaceNoteSource = "manual" | "agent" | "curation";
+/** Who produced a Brain note. `capture` and `decision` are stamped
+ *  server-side (organize flow, decision-record mirroring). */
+export type WorkspaceNoteSource = "manual" | "agent" | "curation" | "capture" | "decision";
+
+/** What kind of knowledge a note holds (JEF-415 / B04). Unknown or missing
+ *  parses to "fact" — see WorkspaceNoteKindSchema's `.catch`. */
+export type WorkspaceNoteKind = "fact" | "decision" | "procedure" | "glossary" | "episode";
 
 /** One workspace Brain note. */
 export interface WorkspaceNote {
@@ -21,6 +26,9 @@ export interface WorkspaceNote {
   created_by_id?: string | null;
   /** Optimistic-concurrency token: send it back on PATCH. */
   revision: number;
+  kind: WorkspaceNoteKind;
+  /** Set when this note mirrors a decision record; links to nothing new. */
+  decision_record_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +44,7 @@ export interface CreateWorkspaceNoteInput {
   content?: string;
   tags?: string[];
   pinned?: boolean;
+  kind?: WorkspaceNoteKind;
 }
 
 export interface UpdateWorkspaceNoteInput {
@@ -43,5 +52,53 @@ export interface UpdateWorkspaceNoteInput {
   content?: string;
   tags?: string[];
   pinned?: boolean;
+  kind?: WorkspaceNoteKind;
   revision: number;
+}
+
+/** How a Brain note was used (JEF-413). "cited" is an agent linking the note
+ *  in a comment/run output (JEF-417 / B06). Loose: a kind added server-side
+ *  still parses. */
+export type WorkspaceNoteUsageKind =
+  | "injected"
+  | "retrieved"
+  | "opened"
+  | "viewed"
+  | "cited"
+  | (string & {});
+
+/** One run that used a note. A private chat run keeps no task or issue. */
+export interface WorkspaceNoteUsageRun {
+  task_id: string;
+  agent_id: string;
+  agent_name: string;
+  issue_id: string;
+  issue_identifier: string;
+  kinds: WorkspaceNoteUsageKind[];
+  first_at: string;
+  private: boolean;
+}
+
+/** GET /api/workspace/notes/{id}/usage. People are counted, never named. */
+export interface WorkspaceNoteUsage {
+  counts: { injected: number; retrieved: number; opened: number; viewed: number; cited: number };
+  runs_count: number;
+  viewers_count: number;
+  last_used_at: string | null;
+  runs: WorkspaceNoteUsageRun[];
+}
+
+/** One note a run used. `deleted` notes keep only their id. */
+export interface TaskNoteUsageItem {
+  note_id: string;
+  title: string;
+  revision: number;
+  kinds: WorkspaceNoteUsageKind[];
+  channels: string[];
+  first_at: string | null;
+  deleted: boolean;
+}
+
+export interface TaskNoteUsageResponse {
+  notes: TaskNoteUsageItem[];
 }

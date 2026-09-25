@@ -224,3 +224,30 @@ func TestBlockNonPublicAddress(t *testing.T) {
 		}
 	}
 }
+
+// TestCalendarCacheSweepEvictsOnlyStaleEntries guards a real memory-growth
+// bug: calendarCache (a package-level map with no TTL sweep) only ever had
+// entries removed via forgetCalendarCache, called from SetCalendarFeed /
+// DeleteCalendarFeed. A (workspace, user) pair that read its calendar once
+// and never touched feed settings again left its entry in memory for the
+// life of the process. Pure function over the package-level map, no DB.
+func TestCalendarCacheSweepEvictsOnlyStaleEntries(t *testing.T) {
+	calendarCacheMu.Lock()
+	defer calendarCacheMu.Unlock()
+	orig := calendarCache
+	calendarCache = map[string]calendarCacheEntry{}
+	t.Cleanup(func() { calendarCache = orig })
+
+	now := time.Now()
+	calendarCache["fresh"] = calendarCacheEntry{url: "https://a", at: now}
+	calendarCache["stale"] = calendarCacheEntry{url: "https://b", at: now.Add(-calendarCacheTTL * 10)}
+
+	sweepStaleCalendarCacheEntries(now)
+
+	if _, ok := calendarCache["fresh"]; !ok {
+		t.Error("sweep evicted a fresh entry")
+	}
+	if _, ok := calendarCache["stale"]; ok {
+		t.Error("sweep left a stale entry behind")
+	}
+}

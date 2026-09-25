@@ -30,6 +30,19 @@ var grandfatheredDuplicateNumbers = map[string]bool{
 	"098": true, "109": true, "111": true, "112": true, "113": true,
 	"120": true, "122": true, "124": true, "127": true, "128": true,
 	"545": true,
+	// 891–894: the upstream sync (agent_consult, agent_task_comment_thread)
+	// and the packs ledger (workspace_pack_*) landed on the integration
+	// branch with the same numbers and are applied everywhere under their
+	// full stems; renumbering would re-run them.
+	"891": true, "892": true, "893": true, "894": true,
+	// 901–902: the Brain capture (PR #316) and the run-groups judge / pinned
+	// runtime (PR #319) crossed on the integration branch the same day; both
+	// sets are applied under their full stems.
+	"901": true, "902": true,
+	// 910: the recurring issues (PR #333, 910_issue_recurrence) and the task
+	// halt freeze (910_task_halt_frozen) crossed on the integration branch;
+	// both are applied under their full stems.
+	"910": true,
 }
 
 // TestNoNewMigrationNumberCollisions fails when a migration number gains a

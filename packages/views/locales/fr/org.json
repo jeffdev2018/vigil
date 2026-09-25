@@ -1,27 +1,19 @@
 {
   "page": {
     "title": "Organisation",
-    "new_structure": "Nouvelle structure",
     "empty": "Aucune structure",
     "empty_description": "Une structure décide qui travaille sur quoi : elle route les tâches vers des unités, escalade, approuve et dépense. Choisissez l'un des sept modèles pour commencer.",
     "workspace_default": "Défaut de l'espace de travail",
     "unknown_project": "Projet inconnu",
-    "revision": "rév. {{n}}",
     "no_owner": "Sans responsable",
-    "paused_units_one": "{{count}} unité en pause",
-    "paused_units_other": "{{count}} unités en pause",
     "back": "Toutes les structures",
     "loading": "Chargement…",
-    "chart": "Organigramme",
-    "editor": "Définition",
-    "units_summary": "Unités",
-    "no_units": "Aucune unité dans cette définition.",
     "members_one": "{{count}} membre",
     "members_other": "{{count}} membres",
-    "revisions": "Révisions",
     "no_revisions": "Aucune révision pour l'instant.",
-    "revision_row": "rév. {{n}} · {{status}} · {{model}}",
-    "read_only": "Une structure dissoute est en lecture seule."
+    "read_only": "Une structure dissoute est en lecture seule.",
+    "paused_because": "En pause : {{reason}}",
+    "read_only_role": "Seul un propriétaire ou un administrateur de l'espace de travail peut modifier cette organisation."
   },
   "status": {
     "draft": "Brouillon",
@@ -38,40 +30,174 @@
     "taskforce": "Task force temporaire",
     "market": "Marché interne"
   },
-  "autonomy": {
-    "read_only": "Lecture seule",
-    "draft": "Brouillon",
-    "approve_payload": "Approbation du contenu",
-    "auto": "Auto"
-  },
   "new": {
-    "title": "Nouvelle structure",
     "description": "Choisissez où elle s'applique, puis le modèle qu'elle suit. La définition reste modifiable ensuite.",
     "project": "S'applique à",
     "workspace_default": "Défaut de l'espace de travail (tout projet sans structure propre)",
-    "runs_per_issue_one": "{{count}} run de coordination par tâche",
-    "runs_per_issue_other": "{{count}} runs de coordination par tâche",
+    "runs_per_issue_one": "{{count}} étape de coordination par tâche",
+    "runs_per_issue_other": "{{count}} étapes de coordination par tâche",
     "loading": "Chargement des modèles…",
     "cancel": "Annuler",
-    "error": "Impossible de créer la structure",
-    "replaces_existing": "Choisir un modèle remplace la structure actuelle « {{name}} » par une nouvelle révision.",
     "composite_title": "Hiérarchie d'équipes"
+  },
+  "wizard": {
+    "title": "Créer une organisation",
+    "step": "Étape {{n}} sur {{total}}",
+    "back": "Retour",
+    "next": "Suivant",
+    "cancel": "Annuler",
+    "purpose": {
+      "question": "Qu'est-ce que cette équipe doit accomplir ?",
+      "help": "Une phrase. Ses mots nomment la structure et deviennent ce que chaque unité prend en charge.",
+      "label": "En une phrase",
+      "placeholder": "Répondre aux tickets de nos clients dans la journée.",
+      "remaining": "{{count}} caractères restants",
+      "too_long": "{{count}} caractères de trop"
+    },
+    "flow": {
+      "question": "Comment le travail circule ?",
+      "decider": "Quand une demande arrive, qui décide en dernier ?",
+      "decider_one_person": "Une personne, toujours la même",
+      "decider_each_team": "Chaque équipe, pour son domaine",
+      "decider_topic_owner": "Le propriétaire de chaque sujet",
+      "shape": "Équipes par projet, par rôle, ou les deux ?",
+      "shape_project": "Par projet",
+      "shape_role": "Par rôle",
+      "shape_both": "Les deux",
+      "end": "Une mission avec une fin ?",
+      "compete": "Mettre les agents en concurrence ?",
+      "yes": "Oui",
+      "no": "Non",
+      "result": "Votre modèle : {{model}}",
+      "pick_another": "Choisir autrement",
+      "catalog": "Les sept structures",
+      "catalog_close": "Revenir aux questions",
+      "taskforce_termination_question": "Comment se termine-t-elle ?",
+      "taskforce_termination_date": "À une date",
+      "taskforce_termination_condition": "À une condition",
+      "taskforce_dissolve_label": "Date de fin",
+      "taskforce_dissolve_placeholder": "Choisir une date et une heure",
+      "taskforce_end_condition_label": "Condition de fin",
+      "taskforce_termination_hint": "Choisissez une date de fin ou une condition de fin."
+    },
+    "model_line": {
+      "hierarchy": "Une chaîne claire : chaque équipe sait à qui remonter.",
+      "squads": "Chaque escouade tient son domaine, son budget et sa réponse.",
+      "matrix": "Les pôles de compétence prêtent leurs membres aux projets qui en ont besoin.",
+      "circles": "Des rôles, pas des titres : chaque cercle tient ses propres décisions.",
+      "owner_network": "À plat : un propriétaire et un suppléant par sujet.",
+      "taskforce": "Une équipe empruntée, avec une fin annoncée.",
+      "market": "Les agents proposent ; la meilleure offre sous votre plafond l'emporte."
+    },
+    "template": {
+      "support": "Support client",
+      "practice": "Cabinet",
+      "agency": "Agence",
+      "finance": "Direction et finance",
+      "research": "Recherche",
+      "generic": "Direction et équipe"
+    },
+    "people": {
+      "question": "Qui en fait partie ?",
+      "help": "Tout le monde dans cet espace de travail, humains et agents.",
+      "template": "Unités proposées pour : {{template}}",
+      "unit_of": "Unité de {{name}}",
+      "empty": "Aucun membre ni agent dans cet espace de travail."
+    },
+    "review": {
+      "question": "Votre brouillon",
+      "model": "Modèle",
+      "name": "Nom",
+      "unnamed": "Nommé d'après le modèle",
+      "members_one": "{{count}} membre",
+      "members_other": "{{count}} membres",
+      "open": "Ouvrir mon brouillon",
+      "draft_note": "Rien n'est activé : le brouillon s'ouvre dans l'organigramme pour que vous l'ajustiez.",
+      "replaces_existing": "Ouvrir le brouillon révise la structure actuelle « {{name}} ».",
+      "error": "Impossible de créer la structure"
+    },
+    "catalog": "Modèles métier",
+    "transfer": "Importer / exporter",
+    "transfer_hint": "Transférez les éléments de votre espace avec un aperçu avant import.",
+    "unit_templates": {
+      "support-lead": {
+        "name": "Coordination du support",
+        "mission": "Coordonner les demandes et superviser les réponses."
+      },
+      "front-line": {
+        "name": "Service client",
+        "mission": "Préparer une réponse à chaque demande reçue."
+      },
+      "escalation": {
+        "name": "Support spécialisé",
+        "mission": "Résoudre les cas que le service client ne peut pas traiter."
+      },
+      "partner": {
+        "name": "Direction du cabinet",
+        "mission": "Superviser les dossiers avant leur remise."
+      },
+      "intake": {
+        "name": "Gestion des dossiers",
+        "mission": "Ouvrir les dossiers et réunir les informations nécessaires."
+      },
+      "review": {
+        "name": "Révision et conformité",
+        "mission": "Vérifier les dossiers avant leur envoi."
+      },
+      "account": {
+        "name": "Relations clients",
+        "mission": "Suivre les clients et valider les livrables."
+      },
+      "production": {
+        "name": "Production",
+        "mission": "Transformer les briefs en livrables."
+      },
+      "quality": {
+        "name": "Qualité éditoriale",
+        "mission": "Relire et vérifier chaque livrable avant sa diffusion."
+      },
+      "direction": {
+        "name": "Direction",
+        "mission": "Coordonner les équipes et valider les décisions."
+      },
+      "finance": {
+        "name": "Finance",
+        "mission": "Préparer les chiffres pour validation humaine."
+      },
+      "research-lead": {
+        "name": "Coordination de la recherche",
+        "mission": "Choisir les questions et valider les conclusions."
+      },
+      "research": {
+        "name": "Recherche et analyse",
+        "mission": "Rechercher les réponses et documenter les sources."
+      },
+      "peer-review": {
+        "name": "Revue des sources",
+        "mission": "Vérifier les sources avant publication des conclusions."
+      },
+      "team": {
+        "name": "Équipe opérationnelle",
+        "mission": "Réaliser la mission confiée à cette équipe."
+      }
+    }
   },
   "form": {
     "name": "Nom",
     "owner": "Responsable humain",
     "owner_none": "Sans responsable",
-    "dissolve_at": "Dissolution le",
+    "dissolve_at": "Date de fin",
     "end_condition": "Condition de fin",
     "end_none": "Aucune",
     "end_all_issues_done": "Toutes les tâches terminées",
     "end_budget_spent": "Budget épuisé",
-    "budget": "Budget (ticks USD)",
+    "budget": "Budget (USD)",
     "definition": "Définition (JSON)",
     "invalid_json": "JSON invalide : {{error}}",
     "save": "Enregistrer",
     "saved": "Structure enregistrée",
-    "error": "Impossible d'enregistrer la structure"
+    "error": "Impossible d'enregistrer la structure",
+    "advanced_json": "Avancé (JSON)"
   },
   "actions": {
     "activate": "Activer",
@@ -86,12 +212,12 @@
   },
   "activate": {
     "title": "Activer la structure",
-    "description": "L'activation exige un responsable humain et votre attestation que le jeu d'évaluation de 30 cas est passé. Les chiffres ci-dessous viennent du preflight.",
+    "description": "Vérifiez le fonctionnement et les estimations avant d’activer le routage. L’attestation ci-dessous est une déclaration manuelle de vos essais.",
     "attestation": "Attestation d'évaluation",
     "attestation_placeholder": "Jeu de 30 cas passé le {{date}} : …",
-    "loading": "Preflight en cours…",
-    "pattern": "Patron",
-    "runs": "Runs de coordination par tâche",
+    "loading": "Vérification en cours…",
+    "pattern": "Fonctionnement",
+    "runs": "Étapes de coordination par tâche",
     "cost": "Coût de coordination par tâche",
     "review_seconds": "Revue humaine par tâche",
     "seconds": "{{count}} s",
@@ -123,12 +249,12 @@
     "routed": "Routées",
     "unrouted": "Non routées",
     "escalations": "Escalades",
-    "stacked": "Escalades empilées",
+    "stacked": "Tâches escaladées deux fois",
     "reassigned_outside": "Réassignées hors unité",
-    "market_short": "Marché à court d'offres",
-    "breakers": "Disjoncteurs",
-    "human_review": "Éléments en revue humaine",
-    "drift": "Taux de dérive",
+    "market_short": "Tâches sans assez d'offres",
+    "breakers": "Unités mises en pause automatiquement",
+    "human_review": "À relire par un humain",
+    "drift": "Part réassignée hors structure",
     "units": "Unités",
     "unit": "Unité",
     "vacant_roles": "Rôles vacants",
@@ -174,5 +300,501 @@
     "won": "Remportée",
     "lost": "Perdue",
     "over_cap": "Hors plafond"
+  },
+  "canvas": {
+    "no_selection": "Choisissez une unité pour ouvrir sa fiche.",
+    "json_broken": "Le JSON ci-dessous ne se lit plus ; corrigez-le pour retrouver le canevas."
+  },
+  "tester": {
+    "request": "La demande",
+    "placeholder": "Écrivez-la comme un client ou un collègue l'écrirait.",
+    "basis_draft": "Sur le brouillon, rév. {{n}}.",
+    "basis_unsaved": "Sur le brouillon, rév. {{n}} (non enregistré).",
+    "basis_active": "Sur la révision active, rév. {{n}}.",
+    "examples": "Exemples :",
+    "example_1": "Ma carte est refusée au paiement, trois clients déjà aujourd'hui.",
+    "example_2": "Changer le mot de passe de la base de production avant vendredi.",
+    "from_issue": "Tester avec une vraie tâche",
+    "picker_title": "Choisir une tâche",
+    "picker_description": "Son titre, sa description et ses étiquettes remplissent la demande.",
+    "labels": "Étiquettes :",
+    "submit": "Tester",
+    "running": "Test en cours…",
+    "empty": "Rien de testé pour l'instant. Écrivez une demande et lancez-la sur l'organigramme ci-dessus.",
+    "receives": "Reçoit",
+    "prepares": "Prépare",
+    "decides": "Tranche",
+    "escalates": "Remonte à",
+    "blocked": "Bloqué par",
+    "blocked_none": "Cette unité ne refuse rien ici.",
+    "blocked_consequence": "la demande sera escaladée avec son contexte, elle ne sera pas exécutée par cette unité.",
+    "cost": "Coût estimé",
+    "notes": "Remarques",
+    "root": "— (racine)",
+    "nobody": "Personne",
+    "no_unit": "Aucune unité ne prend cette demande.",
+    "open_unit": "Montrer {{name}} sur l'organigramme",
+    "kind": {
+      "agent": "agent",
+      "member": "membre",
+      "squad": "squad"
+    },
+    "error": "Le test a échoué",
+    "error_invalid": "La définition du canevas n'est pas valide, rien n'a été testé : {{error}}. Réglez d'abord les points listés à côté de l'organigramme.",
+    "stale": "La demande ou l’organisation a changé. Relancez le test."
+  },
+  "problem": {
+    "unit_name_required": "Chaque unité a besoin d'un identifiant et d'un nom.",
+    "duplicate_unit_id": "L'identifiant « {{id}} » est utilisé par deux unités.",
+    "taskforce_unit_model": "« {{unit}} » : une task force est une structure, pas une unité.",
+    "hierarchy_roots": "Une hiérarchie a exactement une unité qui ne rend compte à personne ; il y en a {{count}}.",
+    "autonomy_over_trust": "« {{unit}} » accorde {{autonomy}} alors que le cadran de confiance de {{agent}} s'arrête à {{trust}}.",
+    "rule_of_two_unit": "« {{unit}} » cumule entrée non fiable, données sensibles et effets externes : une approbation humaine sera exigée.",
+    "rule_of_two_edge": "{{from}} → {{to}} cumule les trois expositions : une approbation humaine sera exigée sur ce lien.",
+    "deciders_missing": "« {{unit}} » a des effets externes : nommez qui décide pour {{classes}}.",
+    "committee_termination": "Comité « {{decision}} » : fixez un quorum entre 1 et {{max}} et au moins un tour.",
+    "committee_decision_missing": "Un comité n'a pas de type de décision.",
+    "market_price_cap": "Un marché a besoin du plafond de prix humain.",
+    "squads_needs_agents": "« {{unit}} » fonctionne en squad : donnez-lui une squad ou des agents.",
+    "circles_needs_role": "« {{unit}} » fonctionne en cercles : donnez-lui au moins un rôle."
+  },
+  "unit": {
+    "title": "Fiche d'unité",
+    "close": "Fermer la fiche",
+    "remove_unit": "Supprimer cette unité",
+    "name": "Nom",
+    "mission": "Mission",
+    "mission_none": "Aucun objectif",
+    "own_mission": "Sa mission",
+    "own_mission_placeholder": "Ce que cette unité doit accomplir.",
+    "trust": "Cadran de confiance",
+    "trust_level": {
+      "read_only": "Lit seulement",
+      "draft": "Prépare des brouillons",
+      "approve_payload": "Agit après validation",
+      "auto": "Agit seule dans ses limites"
+    },
+    "allow": "Décide seule",
+    "deny": "Ne fait jamais",
+    "verb_placeholder": "Un verbe, par ex. merge",
+    "add": "Ajouter",
+    "remove": "Retirer {{item}}",
+    "properties": "Ce qu'elle manipule",
+    "property": {
+      "untrusted_input": "Entrée non fiable",
+      "sensitive_data": "Données sensibles et secrets",
+      "external_effects": "Effets externes"
+    },
+    "human_approval": "Un humain valide avant qu'elle agisse",
+    "deciders": "Qui décide",
+    "decider": {
+      "money": "Argent",
+      "outbound_data": "Données sortantes",
+      "external_message": "Message externe"
+    },
+    "decider_none": "Personne pour l'instant",
+    "members": "Membres",
+    "no_members": "Aucun membre pour l'instant.",
+    "move_to": "Déplacer {{name}} vers une autre unité",
+    "trust_level_hint": {
+      "read_only": "Elle lit et commente, sans jamais rien modifier.",
+      "draft": "Elle prépare un brouillon qu'un humain complète et envoie.",
+      "approve_payload": "Elle prépare le contenu ; un humain valide avant l'envoi.",
+      "auto": "Elle agit seule, dans les limites qu'on lui a fixées."
+    },
+    "capability": {
+      "read": "Lire",
+      "comment": "Commenter",
+      "propose_plan": "Proposer un plan",
+      "delete": "Supprimer",
+      "bill": "Facturer",
+      "refund": "Rembourser",
+      "send_external_without_approval": "Écrire à l'extérieur sans validation",
+      "touch_secrets": "Toucher aux secrets",
+      "commit_money": "Engager de l'argent",
+      "publish": "Publier",
+      "sign": "Signer"
+    },
+    "capability_enforcement": {
+      "tool": "Bloqué par les outils",
+      "instruction": "Consigne donnée à l'agent, pas bloquée techniquement"
+    }
+  },
+  "visual": {
+    "team_count": "{{count}} équipes",
+    "team_name": "Nom de l’équipe",
+    "budget": "Budget de l’équipe (USD)",
+    "roles": "Rôles",
+    "role_name": "Nom du rôle",
+    "responsibilities": "Responsabilités",
+    "assign_role": "Attribuer ce rôle",
+    "new_role": "Nouveau rôle",
+    "add_role": "Ajouter un rôle",
+    "keywords": "Mots-clés, séparés par des virgules",
+    "edge": {
+      "reports_to": "Dépend de",
+      "escalates_to": "Escalade vers",
+      "backs_up": "Supplée",
+      "consults": "Consulte"
+    },
+    "remove_connection": "Supprimer la relation",
+    "connection_type": "Type de relation",
+    "target": "Équipe cible",
+    "choose_team": "Choisir une équipe",
+    "cycle": "Cette relation hiérarchique créerait une boucle.",
+    "add_connection": "Ajouter la relation",
+    "remove_team": "Retirer l’équipe et ses relations",
+    "advanced": "Avancé : définition JSON",
+    "search": "Rechercher une personne ou un agent",
+    "remove_role": "Retirer ce rôle",
+    "team_count_one": "{{count}} équipe",
+    "team_count_other": "{{count}} équipes"
+  },
+  "history": {
+    "compare": "Comparer",
+    "title": "Révision {{n}}",
+    "description": "Restaurez la définition et le modèle dans une nouvelle révision. Le statut, le responsable, le budget et les dates actuels sont conservés. Les validations actuelles s’appliquent.",
+    "current": "Définition actuelle",
+    "previous": "Révision choisie",
+    "dirty": "Enregistrez ou annulez vos modifications avant de restaurer.",
+    "restore": "Restaurer cette définition",
+    "restored": "Définition restaurée",
+    "absent": "Équipe absente",
+    "full_diff": "Les équipes modifiées sont résumées ci-dessus. Ouvrez les définitions complètes pour examiner les responsabilités, relations, règles et budgets.",
+    "sheet_hint": "Chaque version publiée, la plus récente en premier. Restaurer publie une ancienne version comme une nouvelle.",
+    "revision_label": "Révision {{n}}",
+    "in_force": "en vigueur",
+    "by_system": "Automatique"
+  },
+  "catalog": {
+    "retry": "Réessayer",
+    "preparing": "Préparation de l’aperçu…",
+    "preview": "Ce qui sera installé",
+    "includes": "3 agents avec leurs rôles, 1 procédure partagée, 1 projet, 1 organigramme, 1 tâche initiale et 1 revue hebdomadaire.",
+    "paused": "Les agents devront être reliés à un runtime. La structure reste en brouillon et la revue hebdomadaire en pause.",
+    "collisions": "{{count}} conflits de noms détectés. Les nouveaux éléments seront renommés ; les éléments existants seront conservés.",
+    "install": "Installer cette équipe",
+    "installing": "Installation…",
+    "installed": "Résultat de l’installation",
+    "next": "Vérifiez les éléments créés ci-dessous, reliez vos agents à leurs runtimes, puis ouvrez la structure pour la vérifier avant activation.",
+    "done": "Voir les structures",
+    "names": {
+      "support": "Support client",
+      "product": "Produit et développement",
+      "agency": "Agence de contenu",
+      "finance": "Opérations et finance",
+      "research": "Recherche"
+    },
+    "descriptions": {
+      "support": "Trier les demandes, préparer les réponses et vérifier les cas sensibles.",
+      "product": "Passer du besoin à une livraison implémentée et vérifiée.",
+      "agency": "Planifier, rédiger et relire avec une voix éditoriale cohérente.",
+      "finance": "Préparer les décisions et contrôler les éléments justificatifs.",
+      "research": "Enquêter, croiser les sources et produire une synthèse."
+    },
+    "roles": "{{count}} rôles complémentaires",
+    "count_labels": {
+      "agents": "Agents",
+      "skills": "Procédures",
+      "projects": "Projets",
+      "org_structures": "Organigrammes",
+      "autopilots": "Routines",
+      "issues": "Tâches",
+      "profiles": "Profils",
+      "goals": "Objectifs",
+      "notes": "Notes",
+      "triage_sources": "Sources"
+    }
+  },
+  "workspace": {
+    "eyebrow": "L’ESPACE DE VOS ÉQUIPES",
+    "title": "Le bon rôle. La bonne équipe.",
+    "description": "Donnez une forme à votre organisation. Réunissez vos agents et vos collaborateurs, clarifiez les rôles et faites avancer le travail ensemble.",
+    "structures": "Structures",
+    "teams": "Équipes",
+    "active": "Actives",
+    "your_structures": "Vos organisations",
+    "add_title": "Créer une organisation",
+    "add_description": "Définissez le besoin, choisissez le fonctionnement et répartissez les membres.",
+    "explore": "Commencer",
+    "pending": "Modifications à enregistrer",
+    "saved": "Tout est enregistré",
+    "tabs": {
+      "compose": "Composer",
+      "activity": "Suivre",
+      "history": "Historique",
+      "settings": "Paramètres"
+    },
+    "leave_title": "Quitter sans enregistrer ?",
+    "keep_editing": "Continuer à modifier",
+    "discard": "Quitter sans enregistrer"
+  },
+  "coherence": {
+    "mission": "Mission de l’équipe",
+    "owner": "Responsable humain",
+    "add_members": "Ajouter des membres",
+    "empty_team": "Cette équipe est vide. Ajoutez ses premiers membres.",
+    "remove_member": "Retirer {{name}} de cette équipe",
+    "no_role": "Sans rôle défini",
+    "rule_fields": {
+      "keywords": "Mots-clés",
+      "labels": "Étiquettes",
+      "paths": "Chemins"
+    },
+    "priority": "Priorité",
+    "remove_rule": "Supprimer la règle",
+    "add_rule": "Ajouter une règle",
+    "team_model": "Fonctionnement de l’équipe",
+    "inherit_model": "Hériter de l’organisation / équipe parente",
+    "escalation_quota": "Escalades par jour",
+    "quorum_block": "Le comité « {{name}} » exige {{quorum}} équipes. Modifiez explicitement sa composition ou son quorum avant de supprimer cette équipe.",
+    "scope_taken": "Ce périmètre possède déjà une organisation. Choisissez un autre projet ou modifiez l’organisation existante.",
+    "excluded": "Ne pas affecter",
+    "conflict": "Une nouvelle révision existe. Votre brouillon est conservé ; comparez les versions avant de l’enregistrer.",
+    "publish": "Publier les modifications",
+    "publish_hint": "Ces changements s’appliqueront immédiatement au routage de l’organisation active.",
+    "sections": {
+      "units": "Équipes",
+      "edges": "Relations",
+      "rules": "Règles de routage",
+      "committees": "Comités",
+      "market": "Marché"
+    },
+    "squad": "Squad d’exécution (facultatif)",
+    "no_squad": "Utiliser les membres ci-dessus",
+    "goal": "Objectif associé",
+    "no_goal": "Aucun objectif",
+    "exposures": "Cette équipe traite",
+    "properties": {
+      "untrusted_input": "Contenu externe non vérifié",
+      "sensitive_data": "Données sensibles",
+      "external_effects": "Actions vers l’extérieur"
+    },
+    "human_approval": "Approbation humaine requise",
+    "collective": "Décisions collectives et marché",
+    "market": {
+      "price_cap_usd_ticks": "Plafond par offre (USD)"
+    },
+    "catalog_admin": "L’installation d’un modèle nécessite le rôle administrateur ou propriétaire.",
+    "move_member": "Déplacer {{name}} vers une autre équipe",
+    "move_hint": "Déplacer vers… (rôle local retiré)",
+    "members": "Membres"
+  },
+  "studio": {
+    "search_org": "Rechercher une organisation…",
+    "empty_title": "Composez votre première équipe",
+    "empty_hint": "Décrivez sa mission, choisissez ses membres, puis vérifiez à qui vont les demandes.",
+    "no_results": "Aucune personne ne correspond à ce filtre.",
+    "explicit_people": "Aucun membre n’est ajouté automatiquement. Choisissez uniquement les personnes qui travailleront dans cette organisation.",
+    "no_match": "Aucune organisation ne correspond à « {{query}} »."
+  },
+  "unit_kind": {
+    "unit": "Équipe",
+    "pool": "Réserve",
+    "circle": "Cercle",
+    "taskforce": "Task force",
+    "market": "Marché"
+  },
+  "approval_risk": {
+    "low": "Faible",
+    "normal": "Normal",
+    "high": "Élevé"
+  },
+  "edge_kind": {
+    "reports_to": "rend compte à",
+    "escalates_to": "escalade vers",
+    "backs_up": "soutient",
+    "consults": "consulte"
+  },
+  "edge_kind_effect": {
+    "live": "Effet sur le routage",
+    "informational": "Informatif, sans effet sur le routage"
+  },
+  "member_role": {
+    "owner": "Responsable",
+    "member": "Membre",
+    "lead": "Reçoit en premier"
+  },
+  "simulate_note": {
+    "no_rule_matched": "Aucune règle ne correspond et le modèle n'a pas d'unité de repli.",
+    "unit_no_owner": "« {{unit}} » n'a pas de responsable humain : elle ne peut pas recevoir de travail.",
+    "market_not_staged": "Cette unité fonctionne en marché : le travail va à la meilleure offre sous le plafond de prix ; une simulation ne le met pas en scène.",
+    "approval_risk": "Le responsable de l'unité valide d'abord quand le risque du contrat est {{risk}}.",
+    "no_spend_observed": "Aucune dépense observée pour cette unité sur les {{days}} derniers jours."
+  },
+  "proposal": {
+    "escalations": {
+      "title": "« {{unit}} » escalade trop",
+      "body": "Ajoutez un membre suppléant, scindez l'unité, ou élargissez sa liste d'actions autorisées pour réduire les remontées.",
+      "measure": "{{count}} escalades en {{window_days}} jours (quota {{quota}}/jour)"
+    },
+    "vacant_roles": {
+      "title": "Rôles vacants dans « {{unit}} »",
+      "body": "Pourvoyez les rôles ou retirez-les : {{roles}}",
+      "measure": "{{vacant}} rôle(s) sur {{total}} vacant(s)"
+    },
+    "saturated_agents": {
+      "title": "Agents saturés dans « {{unit}} »",
+      "body": "Ajoutez de la capacité à l'unité ou réduisez ce qui lui est routé.",
+      "measure": "{{count}} agent(s) avec {{threshold}}+ runs ouverts"
+    },
+    "budget_spent": {
+      "title": "Budget épuisé pour « {{unit}} »",
+      "body": "Augmentez le budget ou mettez l'unité en pause jusqu'au mois prochain.",
+      "measure": "{{spend}} sur {{budget}} ce mois-ci"
+    },
+    "unrouted": {
+      "title": "Tâches sans responsable identifiable",
+      "body": "Ajoutez des règles de routage (étiquettes, chemins, mots-clés) ou une unité de repli.",
+      "measure": "{{unrouted}} tâche(s) non routée(s) sur {{total}}"
+    },
+    "drift": {
+      "title": "Les flux mesurés s'écartent de la structure déclarée",
+      "body": "Réexaminez la structure : des humains réassignent en dehors des unités qu'elle désigne.",
+      "measure": "{{percent}}% des tâches routées réassignées hors structure"
+    }
+  },
+  "activation_requirement": {
+    "owner": "Un responsable humain",
+    "eval_attestation": "L'attestation d'évaluation (jeu de 30 cas)",
+    "termination": "Une fin déclarée pour la task force, le comité et le marché"
+  },
+  "agent_trust": {
+    "observer": "Observateur",
+    "propose": "Proposer",
+    "approval": "Agit sur approbation",
+    "autonomous": "Autonome"
+  },
+  "unknown_value": "Valeur inconnue",
+  "plan": {
+    "legend_reports": "rend compte à, et y escalade",
+    "legend_escalates": "escalade ailleurs",
+    "legend_trace": "chemin de la demande testée",
+    "zoom_out": "Dézoomer",
+    "zoom_in": "Zoomer",
+    "zoom_reset": "Revenir à 100 %",
+    "zoom_fit": "Ajuster l'organigramme à la fenêtre",
+    "team_label": "Équipe {{name}}",
+    "members_one": "{{count}} membre",
+    "members_other": "{{count}} membres",
+    "paused": "En pause",
+    "no_lead": "Pas encore de responsable : les escalades de cette équipe n'ont personne à qui s'adresser.",
+    "more_people_one": "+ {{count}} autre",
+    "more_people_other": "+ {{count}} autres",
+    "fewer_people": "Afficher moins",
+    "add_people": "Ajouter",
+    "lead": "Responsable",
+    "lead_subtitle": "Répond de l'équipe",
+    "receives_first": "Reçoit en premier",
+    "agent": "Agent",
+    "human": "Humain",
+    "empty_title": "Pas encore d'équipe",
+    "empty_hint": "Ajoutez une première équipe, ou partez d'un modèle métier qui apporte ses rôles et ses règles de routage.",
+    "add_team": "Ajouter une équipe"
+  },
+  "bar": {
+    "organizations": "Organisations",
+    "browse": "Toutes les organisations",
+    "catalog": "Modèles métier",
+    "create": "Nouvelle organisation",
+    "unpublished": "Modifications pas encore publiées",
+    "saved": "Enregistré · révision {{n}}",
+    "test": "Tester une demande",
+    "discard": "Annuler les modifications",
+    "publish": "Publier",
+    "save": "Enregistrer",
+    "more": "Autres actions",
+    "history": "Historique",
+    "transfer": "Importer ou exporter"
+  },
+  "inspector": {
+    "title": "Inspecteur",
+    "loading": "Chargement de l'annuaire…",
+    "directory_error": "Impossible de charger l'annuaire de l'équipe.",
+    "overview": {
+      "eyebrow": "Organisation",
+      "teams_one": "{{count}} équipe",
+      "teams_other": "{{count}} équipes",
+      "humans_one": "{{count}} humain",
+      "humans_other": "{{count}} humains",
+      "agents_one": "{{count}} agent",
+      "agents_other": "{{count}} agents",
+      "watch_title": "À regarder",
+      "watch_empty": "Rien à signaler.",
+      "vacant_role": "Rôle sans titulaire : « {{role}} », dans {{unit}}.",
+      "unit_no_owner": "{{unit}} n'a pas de responsable humain.",
+      "activity_title": "Activité, 7 derniers jours",
+      "settings_title": "Réglages",
+      "model_title": "Modèle",
+      "model_hint": "Changer de modèle change la façon dont le travail circule dans chaque équipe.",
+      "committees_empty": "Aucun comité défini.",
+      "committee_no_effect": "Un comité n'a aucun effet à l'exécution aujourd'hui : le serveur le valide seulement.",
+      "committee_add": "Ajouter un comité",
+      "committee_remove": "Retirer ce comité",
+      "committee_decision": "Type de décision (ex. recrutement)",
+      "committee_teams": "Équipes qui votent",
+      "committee_quorum": "Quorum",
+      "committee_rounds": "Tours au plus"
+    },
+    "health": {
+      "empty": "Aucune demande routée ces 7 derniers jours. Testez-en une pour voir le chemin qu'elle prendrait.",
+      "unit_saturated": "Saturés : {{agents}}"
+    },
+    "unit": {
+      "eyebrow": "Équipe",
+      "mission_count": "{{count}}/240",
+      "kind_label": "Type d'équipe",
+      "remove_confirm": "Cliquez à nouveau pour confirmer — irréversible.",
+      "autonomy_title": "Autonomie",
+      "accountable_title": "Qui en répond",
+      "approval_risk_label": "Seuil de risque pour la validation",
+      "approval_risk_none": "Aucun seuil défini",
+      "deciders_hint": "Affiché parce que cette équipe est exposée à des effets externes.",
+      "member_role_label": "Rôle dans l'équipe",
+      "role_vacant": "Vacant",
+      "receives_title": "Reçoit",
+      "receives_intro": "Les demandes qui parlent de :",
+      "receives_none": "Aucune règle de routage pour l'instant : cette équipe ne reçoit que ce qui lui est affecté à la main.",
+      "can_title": "Peut",
+      "cannot_title": "Ne peut pas",
+      "capability_locked": "Toujours refusé — non retirable.",
+      "capability_instruction_note": "* Une consigne donnée à l'agent, pas un blocage technique : aucun outil ne l'applique aujourd'hui.",
+      "upward_title": "Remonte",
+      "reports_to_none": "Personne — c'est le sommet de l'organigramme.",
+      "advanced_title": "Avancé"
+    },
+    "person": {
+      "teams_title": "Équipes",
+      "teams_none": "Dans aucune équipe de cette organisation.",
+      "agent_autonomy_title": "Autonomie accordée par {{unit}}",
+      "agent_autonomy_hint": "Un agent n'a jamais plus de droits que l'équipe qui lui confie le travail.",
+      "agent_trust_label": "Cadran de confiance",
+      "owns_title": "Responsable de",
+      "owns_hint": "Valide chaque brouillon issu de ces équipes.",
+      "owns_none": "N'est responsable d'aucune équipe ici."
+    }
+  },
+  "add_team": {
+    "title": "Ajouter une équipe",
+    "hint": "Elle commence par préparer des brouillons plutôt qu'agir. Vous pourrez le changer sur sa fiche.",
+    "name": "Nom",
+    "name_placeholder": "Support client",
+    "parent": "Rend compte à",
+    "parent_required": "Rend compte à (obligatoire dans une hiérarchie)",
+    "no_parent": "Personne : elle est au sommet",
+    "owner": "Responsable",
+    "no_owner": "Pas encore de responsable",
+    "submit": "Ajouter l'équipe"
+  },
+  "directory": {
+    "title": "Ajouter à {{team}}",
+    "hint": "Les humains et les agents de cet espace de travail.",
+    "search": "Chercher une personne ou un agent",
+    "only_unplaced": "Seulement ceux qui n'ont pas encore d'équipe ici",
+    "everyone_placed": "Tout le monde fait déjà partie d'une équipe de cette organisation. Désactivez le filtre pour ajouter quelqu'un à une deuxième équipe.",
+    "no_match": "Personne ne correspond à cette recherche.",
+    "elsewhere": "dans une autre équipe",
+    "add_one": "Ajouter {{count}} personne",
+    "add_other": "Ajouter {{count}} personnes"
   }
 }

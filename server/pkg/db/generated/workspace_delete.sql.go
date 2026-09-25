@@ -25,6 +25,12 @@ deleted_task_messages AS (
 deleted_task_tokens AS (
     DELETE FROM task_token WHERE task_id IN (SELECT id FROM batch)
 ),
+deleted_task_supplements AS (
+    DELETE FROM task_supplement WHERE task_id IN (SELECT id FROM batch)
+),
+deleted_task_supplement_capabilities AS (
+    DELETE FROM task_supplement_capability WHERE task_id IN (SELECT id FROM batch)
+),
 deleted_channel_outbound_cards AS (
     DELETE FROM channel_outbound_card_message WHERE task_id IN (SELECT id FROM batch)
 ),
@@ -103,6 +109,17 @@ WHERE workspace_invitation.workspace_id = $1
 
 func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceAdministration, workspaceID)
+	return err
+}
+
+const deleteWorkspaceAgentConsults = `-- name: DeleteWorkspaceAgentConsults :exec
+DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1
+`
+
+// agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
+// before the agent rows it logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentConsults(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentConsults, workspaceID)
 	return err
 }
 
@@ -351,6 +368,13 @@ func (q *Queries) DeleteWorkspaceIssuePlans(ctx context.Context, workspaceID pgt
 
 const deleteWorkspaceIssueRoots = `-- name: DeleteWorkspaceIssueRoots :exec
 WITH
+deleted_wakeup_receipts AS (
+    DELETE FROM issue_wakeup_receipt
+    WHERE wakeup_id IN (SELECT id FROM issue_wakeup WHERE workspace_id = $1)
+),
+deleted_wakeups AS (
+    DELETE FROM issue_wakeup WHERE workspace_id = $1
+),
 deleted_delivery_reviews AS (
     DELETE FROM issue_delivery_review WHERE workspace_id = $1
 ),
@@ -438,6 +462,12 @@ deleted_task_tokens AS (
 deleted_hourly_dirty AS (
     DELETE FROM task_usage_hourly_dirty WHERE workspace_id = $1
 ),
+deleted_orphan_task_supplements AS (
+    DELETE FROM task_supplement WHERE workspace_id = $1
+),
+deleted_orphan_task_supplement_capabilities AS (
+    DELETE FROM task_supplement_capability WHERE workspace_id = $1
+),
 deleted_hourly AS (
     DELETE FROM task_usage_hourly WHERE workspace_id = $1
 ),
@@ -509,6 +539,12 @@ deleted_issue_vcs_links AS (
     WHERE issue_id IN (SELECT id FROM ws_issues)
        OR pull_request_id IN (SELECT id FROM ws_vcs_prs)
 ),
+deleted_issue_pr_automation AS (
+    DELETE FROM issue_pr_automation WHERE workspace_id = $1
+),
+deleted_issue_pr_exclusions AS (
+    DELETE FROM issue_pull_request_exclusion WHERE workspace_id = $1
+),
 deleted_agent_invocation_targets AS (
     DELETE FROM agent_invocation_target
     WHERE agent_id IN (SELECT id FROM ws_agents)
@@ -570,6 +606,10 @@ deleted_channel_task_deliveries AS (
 ),
 deleted_channel_outbound_messages AS (
     DELETE FROM channel_outbound_message
+    WHERE installation_id IN (SELECT id FROM ws_channel_installations)
+),
+deleted_channel_reply_deliveries AS (
+    DELETE FROM channel_reply_delivery
     WHERE installation_id IN (SELECT id FROM ws_channel_installations)
 ),
 deleted_channel_chat_contexts AS (
@@ -642,11 +682,16 @@ WHERE channel_media_pending_object.workspace_id = $1
 // here is still removed by this teardown rather than by the FK cascade. The
 // former single statement combined all three with OR, which cost a full scan of
 // task_token (MUL-5999); split, each path is an index scan.
+// No foreign keys: both tables are swept by workspace_id here and by task id
+// in DeleteTaskBatch, so a workspace teardown leaves neither behind.
 // Multiplayer chat participants (K31). No FK to chat_session, so teardown
 // removes them here while ws_sessions is still readable.
 // Same no-FK chore as chat_draft_restore above. Matched on workspace_id rather
 // than the session set because that column exists precisely so this statement
 // does not have to join through chat_session, which it deletes in this same CTE.
+// channel_reply_delivery has no workspace_id: its only route back to a
+// workspace is installation_id. It must be deleted while the installation rows
+// still exist, or the leftovers become unreachable by any query.
 // Keep the two-system cleanup ledger until object storage has been settled.
 // Moving every row out of pending also prevents a concurrent media bind from
 // attaching an object after the workspace teardown commits. The reconciler
@@ -657,10 +702,16 @@ func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtyp
 }
 
 const deleteWorkspaceNotes = `-- name: DeleteWorkspaceNotes :exec
+WITH passages AS (
+    DELETE FROM workspace_note_passage WHERE workspace_note_passage.workspace_id = $1
+), usage AS (
+    DELETE FROM workspace_note_usage WHERE workspace_note_usage.workspace_id = $1
+)
 DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1
 `
 
-// workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+// workspace_note carries no FK by repo rule; sweep the Brain by workspace,
+// with its search passages and usage rows in the same statement.
 func (q *Queries) DeleteWorkspaceNotes(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceNotes, workspaceID)
 	return err
@@ -714,6 +765,10 @@ deleted_package_versions AS (
 deleted_packages AS (
     DELETE FROM plugin_package
     WHERE workspace_id = $1
+),
+deleted_agent_plugin_tools AS (
+    DELETE FROM agent_plugin_tool
+    WHERE workspace_id = $1
 )
 DELETE FROM plugin_installation WHERE id IN (SELECT id FROM installations)
 `
@@ -727,6 +782,9 @@ DELETE FROM plugin_installation WHERE id IN (SELECT id FROM installations)
 // Published artifacts are workspace-scoped too, and independent of whether
 // anything installed them. Deleting the workspace without these would leave the
 // stored bundles as the largest orphan the plugin surface can produce.
+// Agent<->plugin-tool bindings are workspace-scoped in their own right, same
+// reasoning as deleted_invocations above: a binding naming an already-
+// uninstalled installation must not survive the workspace it was made in.
 func (q *Queries) DeleteWorkspacePluginData(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspacePluginData, workspaceID)
 	return err
@@ -772,12 +830,21 @@ deleted_project_goals AS (
 deleted_cycle_snapshots AS (
     DELETE FROM cycle_snapshot WHERE cycle_snapshot.workspace_id = $1
 ),
+deleted_cycle_actor_capacities AS (
+    DELETE FROM cycle_actor_capacity WHERE cycle_actor_capacity.workspace_id = $1
+),
 deleted_cycles AS (
     DELETE FROM cycle WHERE cycle.workspace_id = $1
+),
+deleted_project_sandbox_policies AS (
+    DELETE FROM project_sandbox_policy
+    WHERE project_id IN (SELECT id FROM project WHERE project.workspace_id = $1)
 )
 DELETE FROM project WHERE project.workspace_id = $1
 `
 
+// JEF-256: keyed by project, not workspace, so the sweep goes through the
+// project set this same statement is about to remove.
 func (q *Queries) DeleteWorkspaceRuntimesAndProjects(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceRuntimesAndProjects, workspaceID)
 	return err

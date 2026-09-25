@@ -167,17 +167,28 @@ func sourceContextThreadChangeDetails(captured, current service.SourceContextSna
 	currentThread := make([]sourceContextComparableThreadNode, 0, len(current.CommentThread))
 	capturedComments := make(map[string]service.SourceContextCommentSnapshot, len(captured.CommentThread))
 	currentComments := make(map[string]service.SourceContextCommentSnapshot, len(current.CommentThread))
+	// A tombstone only holds its replies' place, so it compares as absent: a
+	// comment deleted after capture reads as removed, not as emptied.
 	for _, comment := range captured.CommentThread {
+		if comment.Deleted {
+			continue
+		}
 		capturedThread = append(capturedThread, sourceContextComparableThreadNode{ID: comment.ID, ParentID: comment.ParentID, Type: comment.Type})
 		capturedComments[comment.ID] = comment
 	}
 	for _, comment := range current.CommentThread {
+		if comment.Deleted {
+			continue
+		}
 		currentThread = append(currentThread, sourceContextComparableThreadNode{ID: comment.ID, ParentID: comment.ParentID, Type: comment.Type})
 		currentComments[comment.ID] = comment
 	}
 	threadChanged := captured.AnchorCommentID != current.AnchorCommentID || !jsonEqual(capturedThread, currentThread)
 	changedCommentIDs := make([]string, 0)
 	for _, capturedComment := range captured.CommentThread {
+		if capturedComment.Deleted {
+			continue
+		}
 		currentComment, exists := currentComments[capturedComment.ID]
 		if !exists {
 			continue
@@ -207,12 +218,18 @@ func sourceContextThreadChangeDetails(captured, current service.SourceContextSna
 	}
 	addedComments := make([]service.SourceContextCommentSnapshot, 0)
 	for _, currentComment := range current.CommentThread {
+		if currentComment.Deleted {
+			continue
+		}
 		if _, exists := capturedComments[currentComment.ID]; !exists {
 			addedComments = append(addedComments, currentComment)
 		}
 	}
 	removedCommentIDs := make([]string, 0)
 	for _, capturedComment := range captured.CommentThread {
+		if capturedComment.Deleted {
+			continue
+		}
 		if _, exists := currentComments[capturedComment.ID]; !exists {
 			removedCommentIDs = append(removedCommentIDs, capturedComment.ID)
 		}
@@ -247,7 +264,7 @@ func (h *Handler) issueSourceContextDetail(ctx context.Context, issue db.Issue) 
 	anchor, anchorErr := h.Queries.GetCommentInWorkspace(ctx, db.GetCommentInWorkspaceParams{
 		ID: row.AnchorCommentID, WorkspaceID: issue.WorkspaceID,
 	})
-	anchorExists := anchorErr == nil && anchor.Type == "comment"
+	anchorExists := anchorErr == nil && anchor.Type == "comment" && !anchor.DeletedAt.Valid
 	if anchorExists {
 		response.AnchorCommentState = "available"
 		response.CurrentSource = &sourceContextCurrentSource{
@@ -665,6 +682,11 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		projectID = parsed
 	}
+	// K60: same gate as POST /issues — a sub-issue filed into a project the
+	// caller can only view is still a write on that project.
+	if !h.requireProjectWrite(w, r, projectID) {
+		return errSourceContextResponseWritten
+	}
 	// Transition rules (F28): same gate as POST /issues — a sub-issue filed
 	// straight into a governed category goes through the rules too.
 	if !h.transitionAllowsCreate(w, r, workspaceID, projectID, status) {
@@ -675,6 +697,10 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		return errSourceContextResponseWritten
 	}
 	labelIDs, ok := parseUUIDSliceOrBadRequest(w, input.LabelIDs, "label_ids")
+	if !ok {
+		return errSourceContextResponseWritten
+	}
+	properties, ok := parseIssueCreateProperties(w, input.Properties)
 	if !ok {
 		return errSourceContextResponseWritten
 	}
@@ -708,7 +734,7 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		WorkspaceID: workspaceID, Title: title, Description: ptrToText(input.Description), Status: status, Priority: priority,
 		AssigneeType: assigneeType, AssigneeID: assigneeID, CreatorType: "member", CreatorID: userID,
 		ParentIssueID: capture.SourceIssueID, ProjectID: projectID, StartDate: startDate, DueDate: dueDate,
-		AttachmentIDs: attachmentIDs, LabelIDs: labelIDs, Stage: stage,
+		AttachmentIDs: attachmentIDs, LabelIDs: labelIDs, Properties: properties, Stage: stage,
 		AllowDuplicate: input.AllowDuplicate, SourceContext: &capture,
 	}, service.IssueCreateOpts{
 		ActorID: util.UUIDToString(userID),
@@ -823,6 +849,10 @@ func (h *Handler) prepareAgentCommentSubIssue(w http.ResponseWriter, r *http.Req
 		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: parsed, WorkspaceID: workspaceID}); err != nil {
 			return nil, sourceContextBadRequest("project not found")
 		}
+		// K60: same gate as the manual path above.
+		if !h.requireProjectWrite(w, r, parsed) {
+			return nil, errSourceContextResponseWritten
+		}
 		projectID = parsed
 	}
 	return &preparedAgentCommentSubIssue{
@@ -859,6 +889,7 @@ func (h *Handler) writeSourceContextError(w http.ResponseWriter, err error, limi
 	status := http.StatusInternalServerError
 	code := "source_context_capture_failed"
 	message := "failed to capture source context"
+	var propertyErr *service.IssuePropertyValidationError
 	switch {
 	case errors.Is(err, service.ErrSourceContextChanged):
 		status, code = http.StatusConflict, "source_context_changed"
@@ -884,6 +915,12 @@ func (h *Handler) writeSourceContextError(w http.ResponseWriter, err error, limi
 	case errors.Is(err, service.ErrParentIssueNotFound), errors.Is(err, service.ErrProjectNotFound):
 		status = http.StatusBadRequest
 		message = err.Error()
+	case errors.As(err, &propertyErr):
+		status, code = http.StatusBadRequest, "invalid_issue_property"
+		message = propertyErr.Message
+	case errors.Is(err, service.ErrIssuePropertiesTooLarge):
+		status, code = http.StatusBadRequest, "issue_properties_too_large"
+		message = err.Error()
 	case errors.Is(err, errSourceContextBadRequest):
 		status, code = http.StatusBadRequest, "invalid_request"
 		message = err.Error()
@@ -891,6 +928,9 @@ func (h *Handler) writeSourceContextError(w http.ResponseWriter, err error, limi
 		return
 	}
 	payload := map[string]any{"code": code, "error": message}
+	if propertyErr != nil {
+		payload["property_id"] = propertyErr.PropertyID
+	}
 	if errors.Is(err, service.ErrSourceContextTooLarge) {
 		payload["limits"] = limits
 	}

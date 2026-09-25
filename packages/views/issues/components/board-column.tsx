@@ -8,16 +8,19 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type {
   Issue,
   IssueAssigneeType,
-  IssueStatusCategory,
+  IssueStatus,
   Project,
 } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Empty, EmptyContent, EmptyTitle } from "@multica/ui/components/ui/empty";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@multica/ui/components/ui/dropdown-menu";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
 import { useViewStoreApi } from "@multica/core/issues/stores/view-store-context";
 import { useViewBaseline } from "../surface/view-baseline-context";
@@ -75,8 +78,8 @@ const EMPTY_VIRTUOSO_COMPONENTS = {};
 export interface BoardColumnGroup {
   id: string;
   title: string;
-  /** Board columns are CATEGORIES, never raw status keys. (MUL-6243) */
-  status?: IssueStatusCategory;
+  /** Status columns carry exact built-in or custom status keys. */
+  status?: IssueStatus;
   assigneeType?: IssueAssigneeType | null;
   assigneeId?: string | null;
   /** Project id for this column; null = the "No project" column. Set only
@@ -119,8 +122,12 @@ export const BoardColumn = memo(function BoardColumn({
   sortLabel?: string | null;
 }) {
   const status = group.status;
-  const cfg = status ? STATUS_CONFIG[status] : null;
-  const { setNodeRef, isOver } = useDroppable({ id: group.id });
+  const wsId = useWorkspaceId();
+  const { categoryOf, entryOf } = useIssueStatuses(wsId);
+  const archived = !!status && !!entryOf(status)?.archived_at;
+  const cfg = status ? STATUS_CONFIG[categoryOf(status)] : null;
+  const { setNodeRef, isOver: droppableIsOver } = useDroppable({ id: group.id });
+  const isOver = droppableIsOver && !archived;
   const viewStoreApi = useViewStoreApi();
   // A status fixed by the open saved view cannot be hidden from the board —
   // that would silently strip one of the view's own conditions.
@@ -200,7 +207,12 @@ export const BoardColumn = memo(function BoardColumn({
             <DeferredPopup
               ariaHasPopup="menu"
               triggerRender={
-                <Button variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="rounded-full text-muted-foreground"
+                  aria-label={t(($) => $.board.column_menu_aria)}
+                >
                   <MoreHorizontal className="size-3.5" />
                 </Button>
               }
@@ -209,7 +221,12 @@ export const BoardColumn = memo(function BoardColumn({
                 <DropdownMenu open={open} onOpenChange={onOpenChange}>
                   <DropdownMenuTrigger
                     render={
-                      <Button variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="rounded-full text-muted-foreground"
+                        aria-label={t(($) => $.board.column_menu_aria)}
+                      >
                         <MoreHorizontal className="size-3.5" />
                       </Button>
                     }
@@ -228,7 +245,7 @@ export const BoardColumn = memo(function BoardColumn({
               )}
             </DeferredPopup>
           )}
-          {onCreateIssue && (
+          {onCreateIssue && !archived && (
             <DeferredTooltip
               content={t(($) => $.board.add_issue_tooltip)}
               trigger={
@@ -236,6 +253,7 @@ export const BoardColumn = memo(function BoardColumn({
                   variant="ghost"
                   size="icon-sm"
                   className="rounded-full text-muted-foreground"
+                  aria-label={t(($) => $.board.add_issue_tooltip)}
                   onClick={() => {
                     const data = {
                       ...(group.createData ?? {}),
@@ -254,7 +272,7 @@ export const BoardColumn = memo(function BoardColumn({
       <div className="relative min-h-[200px] flex-1 rounded-lg">
         {isOver && sortLabel && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/40">
-            <span className="rounded-md bg-popover px-2.5 py-1 text-caption font-medium text-popover-foreground shadow-sm border border-border">
+            <span className="rounded-md bg-popover px-2.5 py-1 text-caption font-medium text-popover-foreground shadow-surface border border-border">
               {sortLabel}
             </span>
           </div>
@@ -322,9 +340,33 @@ export const BoardColumn = memo(function BoardColumn({
           ) : (
             <>
               {issueIds.length === 0 && (
-                <p className="py-8 text-center text-caption text-muted-foreground">
-                  {t(($) => $.board.empty_column)}
-                </p>
+                <Empty className="gap-2 py-8">
+                  <EmptyTitle className="text-caption font-normal text-muted-foreground">
+                    {t(($) => $.board.empty_column)}
+                  </EmptyTitle>
+                  {onCreateIssue && !archived && (
+                    <EmptyContent>
+                      {/* Repeats the header "+" so the first card can be
+                          created from the spot where it will land. Gated on
+                          `archived` for the same reason the header "+" is: an
+                          archived status accepts no new issues. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() =>
+                          onCreateIssue({
+                            ...(group.createData ?? {}),
+                            ...(projectId ? { project_id: projectId } : {}),
+                          })
+                        }
+                      >
+                        <Plus className="size-3.5" />
+                        {t(($) => $.board.add_issue_tooltip)}
+                      </Button>
+                    </EmptyContent>
+                  )}
+                </Empty>
               )}
               {footer}
             </>

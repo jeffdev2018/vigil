@@ -72,10 +72,10 @@ func localSkillImportPendingKey(runtimeID string) string {
 // RedisLocalSkillListStore stores pending / running / completed list requests
 // in Redis so every API node agrees on the same state.
 type RedisLocalSkillListStore struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 }
 
-func NewRedisLocalSkillListStore(rdb *redis.Client) *RedisLocalSkillListStore {
+func NewRedisLocalSkillListStore(rdb redis.UniversalClient) *RedisLocalSkillListStore {
 	return &RedisLocalSkillListStore{rdb: rdb}
 }
 
@@ -266,10 +266,10 @@ func (s *RedisLocalSkillListStore) Fail(ctx context.Context, id string, errMsg s
 // request shape carries import-specific fields (skill_key, optional rename,
 // creator id) and Go generics don't buy us much for two concrete impls.
 type RedisLocalSkillImportStore struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 }
 
-func NewRedisLocalSkillImportStore(rdb *redis.Client) *RedisLocalSkillImportStore {
+func NewRedisLocalSkillImportStore(rdb redis.UniversalClient) *RedisLocalSkillImportStore {
 	return &RedisLocalSkillImportStore{rdb: rdb}
 }
 
@@ -447,6 +447,12 @@ func (s *RedisLocalSkillImportStore) PopPending(ctx context.Context, runtimeID s
 }
 
 func (s *RedisLocalSkillImportStore) PopPendingBatch(ctx context.Context, runtimeID string, limit int) ([]*RuntimeLocalSkillImportRequest, error) {
+	if limit <= 0 {
+		// int64(limit)-1 would be -1, and Redis ZRANGE treats -1 as "last
+		// element" — a limit of 0 would return the whole pending set instead
+		// of none, violating this method's own "limit" contract.
+		return nil, nil
+	}
 	pendingKey := localSkillImportPendingKey(runtimeID)
 
 	// Fetch up to limit candidate IDs from the sorted set.

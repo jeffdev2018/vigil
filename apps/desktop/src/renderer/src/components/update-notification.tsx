@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
+import { useT } from "@multica/views/i18n";
 
 // Downloads run silently in the background (main process has
 // autoDownload=true). The renderer only renders UI once the package is fully
@@ -13,6 +14,7 @@ function changelogUrl(version: string): string {
 }
 
 export function UpdateNotification() {
+  const { t } = useT("settings");
   const [state, setState] = useState<UpdateState>({ status: "idle" });
   const [dismissed, setDismissed] = useState(false);
 
@@ -28,10 +30,11 @@ export function UpdateNotification() {
   if (dismissed) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-border bg-background p-4 shadow-lg animate-in slide-in-from-bottom-2 fade-in duration-300">
+    <div className="fixed bottom-4 right-4 z-50 w-80 rounded-lg border border-border bg-background p-4 shadow-floating animate-in slide-in-from-bottom-2 fade-in duration-300">
       <button
         type="button"
         onClick={() => setDismissed(true)}
+        aria-label={t(($) => $.desktop.updates.dismiss)}
         className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
       >
         <X className="size-3.5" />
@@ -42,9 +45,9 @@ export function UpdateNotification() {
           <RefreshCw className="size-4 text-success" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-body font-medium">Update ready</p>
+          <p className="text-body font-medium">{t(($) => $.desktop.updates.notification_ready_title)}</p>
           <p className="text-caption text-muted-foreground mt-0.5">
-            v{state.version} will be applied on next launch.
+            {t(($) => $.desktop.updates.notification_ready_body, { version: state.version })}
           </p>
           <div className="mt-2 flex items-center gap-1.5">
             <button
@@ -54,14 +57,14 @@ export function UpdateNotification() {
               }
               className="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-caption font-medium text-foreground hover:bg-accent transition-colors"
             >
-              See changelog
+              {t(($) => $.desktop.updates.see_changelog)}
             </button>
             <button
               type="button"
               onClick={() => window.updater.installUpdate()}
               className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-caption font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Restart now
+              {t(($) => $.desktop.updates.restart_now)}
             </button>
           </div>
         </div>

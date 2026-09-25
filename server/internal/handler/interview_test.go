@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,17 +26,10 @@ func interviewQuestion(text string) map[string]any {
 	}
 }
 
-func issueStatusOf(t *testing.T, issueID string) string {
-	t.Helper()
-	var status string
-	dbfx.QueryRow(t, `SELECT status FROM issue WHERE id = $1`, issueID).Scan(&status)
-	return status
-}
-
 func cleanupInterview(t *testing.T, issueID string) {
 	t.Helper()
 	t.Cleanup(func() {
-		ctx := t.Context()
+		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM issue_decision WHERE issue_id = $1`, issueID)
 		testPool.Exec(ctx, `DELETE FROM inbox_item WHERE issue_id = $1`, issueID)
 		testPool.Exec(ctx, `DELETE FROM agent_task_queue WHERE issue_id = $1`, issueID)
@@ -44,7 +39,7 @@ func cleanupInterview(t *testing.T, issueID string) {
 func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	issue, _ := completedAgentRun(t, "interview")
 	cleanupInterview(t, issue)
@@ -69,8 +64,11 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 	}
 	var category string
 	dbfx.QueryRow(t, `SELECT category FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey).Scan(&category)
-	if category != "blocked" {
-		t.Fatalf("Waiting for PM category = %q, want blocked", category)
+	// `blocked` was a category before the enumeration collapsed to the four
+	// lifecycle values; parked work is in flight, so Waiting for PM is stored
+	// as `started` and its parking rides on the key.
+	if category != issuestatus.CategoryStarted {
+		t.Fatalf("Waiting for PM category = %q, want %q", category, issuestatus.CategoryStarted)
 	}
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM inbox_item WHERE issue_id = $1 AND type = 'decision_request'`, issue); n != 3 {
 		t.Fatalf("inbox items = %d, want one per question", n)
@@ -116,7 +114,7 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 func TestRequirementInterviewValidatesAndKeepsHumanIssuesParked(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	issue := dbfx.Issue(t, "interview validation", testutil.Cols{"status": "todo"})
 	cleanupInterview(t, issue)
@@ -149,7 +147,7 @@ func TestRequirementInterviewValidatesAndKeepsHumanIssuesParked(t *testing.T) {
 func TestInterviewAnswersMergeIntoPendingRun(t *testing.T) {
 	seedTestCatalog(t)
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+		testPool.Exec(context.Background(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
 	})
 	agentID := dbfx.Agent(t, "interview-merge agent", handlerTestRuntimeID(t), testutil.Cols{
 		"instructions": "",

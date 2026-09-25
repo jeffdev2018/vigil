@@ -300,7 +300,8 @@ func (d *Daemon) prepareSandboxLaunch(task Task, provider, mode, taskTempDir str
 		if _, err := rand.Read(suffix); err != nil {
 			return nil, noop, err
 		}
-		spec.ContainerName = "multica-run-" + strings.ReplaceAll(task.ID, "-", "")[:min(8, len(task.ID))] + "-" + hex.EncodeToString(suffix)
+		stripped := strings.ReplaceAll(task.ID, "-", "")
+		spec.ContainerName = "multica-run-" + stripped[:min(8, len(stripped))] + "-" + hex.EncodeToString(suffix)
 		allowed := append([]string(nil), sandboxrun.DefaultAllowedHosts...)
 		if u, err := url.Parse(d.cfg.ServerBaseURL); err == nil && u.Hostname() != "" {
 			allowed = append(allowed, u.Hostname())

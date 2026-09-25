@@ -10,19 +10,16 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@multica/ui/components/ui/chart";
 import { useLocale, useT } from "../../../i18n";
+import { labelOf } from "./chart-label";
+import { useTasksChartConfig } from "./daily-tasks-chart";
 
 // Weekly counterpart of DailyTasksChart — same completed/cancelled/failed
 // stacked bar, but each bar groups a Mon–Sun calendar week. Partial-week
 // bars at half opacity match WeeklyCostChart / WeeklyTokensChart so the
-// in-progress week reads as visually subordinate everywhere.
-const weeklyTasksChartConfig = {
-  completed: { label: "Completed", color: "var(--chart-1)" },
-  cancelled: { label: "Cancelled", color: "var(--chart-3)" },
-  failed: { label: "Failed", color: "var(--chart-5)" },
-} satisfies ChartConfig;
+// in-progress week reads as visually subordinate everywhere. Shares
+// useTasksChartConfig with the daily chart rather than a parallel copy.
 
 export interface WeeklyTasksData {
   weekStart: string;
@@ -39,6 +36,7 @@ export interface WeeklyTasksData {
 export function WeeklyTasksChart({ data }: { data: WeeklyTasksData[] }) {
   const { t } = useT("usage");
   const { t: tRuntimes } = useT("runtimes");
+  const weeklyTasksChartConfig = useTasksChartConfig();
   const locale = useLocale();
   return (
     <ChartContainer
@@ -75,7 +73,7 @@ export function WeeklyTasksChart({ data }: { data: WeeklyTasksData[] }) {
                     })
                   : row.rangeLabel;
               }}
-              formatter={(value, name) => `${value} ${name}`}
+              formatter={(value, name) => `${value} ${labelOf(weeklyTasksChartConfig, name)}`}
               footer={(payload) => {
                 const total = payload.reduce(
                   (sum, item) =>

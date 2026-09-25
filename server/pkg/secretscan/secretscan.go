@@ -19,20 +19,33 @@ var (
 	ValueRe = regexp.MustCompile(`(?i)(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{10,}|xox[abpr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|Bearer\s+[A-Za-z0-9._-]{16,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})`)
 )
 
+// maxDepth bounds Value's walk, like util.SanitizeJSONForPostgres: documents
+// are a handful of levels deep in practice, and a subtree past the cap is
+// masked rather than walked, so hostile input (a remote MCP server's tool
+// result) cannot dictate the recursion — and nothing unscanned passes through.
+const maxDepth = 32
+
 // Value walks decoded JSON: a string under a secret-looking key, or a string
 // shaped like a token, becomes the mask; everything else is kept.
 func Value(v any, key string) any {
+	return value(v, key, 0)
+}
+
+func value(v any, key string, depth int) any {
+	if depth > maxDepth {
+		return Mask
+	}
 	switch t := v.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(t))
 		for k, child := range t {
-			out[k] = Value(child, k)
+			out[k] = value(child, k, depth+1)
 		}
 		return out
 	case []any:
 		out := make([]any, len(t))
 		for i, child := range t {
-			out[i] = Value(child, key)
+			out[i] = value(child, key, depth+1)
 		}
 		return out
 	case string:

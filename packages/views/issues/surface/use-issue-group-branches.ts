@@ -230,7 +230,11 @@ export function useIssueGroupBranches({
             parent_id: null,
             page: { limit: 50, cursor },
           }),
-          ...(placeholder ? { placeholderData: () => placeholder } : {}),
+          // A value, not `() => placeholder`: QueryObserver reuses the
+          // previous placeholder result only while placeholderData is the
+          // same reference, and a fresh arrow per rebuild defeated that
+          // (MUL-5477, table-view.tsx).
+          ...(placeholder ? { placeholderData: placeholder } : {}),
           enabled,
         };
       }),

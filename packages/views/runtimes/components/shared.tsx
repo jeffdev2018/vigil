@@ -116,15 +116,6 @@ export function HealthBadge({
   );
 }
 
-export function TokenCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border px-3 py-2">
-      <div className="text-caption text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-body font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
 // KPI tile used in the Runtime detail "story numbers" row. The big number
 // is the visual anchor of the whole left column — sized large enough that
 // it dominates over the chart hierarchy below it. Label sits as a small

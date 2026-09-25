@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Cpu, Loader2, Plus } from "lucide-react";
+import { ChevronDown, Cpu, Info, Loader2, Plus } from "lucide-react";
 import {
   refreshRuntimeModels,
   runtimeModelsOptions,
@@ -69,6 +69,14 @@ export function ModelPicker({
     () => modelsQuery.data?.models ?? [],
     [modelsQuery.data],
   );
+  // resolveRuntimeModels throws the daemon's reported error text, so this is
+  // the runtime's own message. Only ever read while isError is true — see
+  // the sibling ModelDropdown, which the failed/empty distinction is copied
+  // from (MUL-6606).
+  const discoveryError =
+    modelsQuery.error instanceof Error
+      ? modelsQuery.error.message.trim() || null
+      : null;
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -223,7 +231,33 @@ export function ModelPicker({
         </div>
       )}
 
+      {/* A failed discovery must not be confused with a genuinely empty
+          catalog (model_empty below) — that told the user "no models" for a
+          transient network/API failure with no way to recover short of
+          reopening the picker. Mirrors ModelDropdown's isError branch. */}
+      {!modelsQuery.isLoading && modelsQuery.isError && (
+        <div className="px-3 py-4 text-caption text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <div className="font-medium text-foreground">
+                {t(($) => $.pickers.model_discovery_failed_title)}
+              </div>
+              {discoveryError && (
+                <div className="mt-1 whitespace-pre-wrap break-words select-text">
+                  {discoveryError}
+                </div>
+              )}
+              <div className="mt-1.5">
+                {t(($) => $.pickers.model_discovery_failed_hint)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!modelsQuery.isLoading &&
+        !modelsQuery.isError &&
         filtered.map((m) => (
           <PickerItem
             key={m.id}
@@ -252,13 +286,16 @@ export function ModelPicker({
           </PickerItem>
         ))}
 
-      {!modelsQuery.isLoading && filtered.length === 0 && !canCreate && (
-        <p className="px-3 py-3 text-center text-caption text-muted-foreground">
-          {t(($) => $.pickers.model_empty)}
-        </p>
-      )}
+      {!modelsQuery.isLoading &&
+        !modelsQuery.isError &&
+        filtered.length === 0 &&
+        !canCreate && (
+          <p className="px-3 py-3 text-center text-caption text-muted-foreground">
+            {t(($) => $.pickers.model_empty)}
+          </p>
+        )}
 
-      {!modelsQuery.isLoading && (
+      {!modelsQuery.isLoading && !modelsQuery.isError && (
         <UnavailableModelsNote
           models={unavailableModels}
           title={t(($) => $.pickers.model_unavailable_heading)}

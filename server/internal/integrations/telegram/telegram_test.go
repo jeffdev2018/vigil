@@ -510,6 +510,68 @@ func TestConnectDispatchesAndAdvancesOffset(t *testing.T) {
 	}
 }
 
+// Regression test: a transient getUpdates failure (neither 409 conflict nor
+// 429 rate limit) must retry inline after pollRetryDelay, not return an
+// error to the Supervisor on the very first blip -- the doc comment above
+// Connect's transient-failure branch says exactly this ("one spaced retry
+// loop inside the attempt keeps a momentary blip from churning the
+// Supervisor's backoff"), but the code fell through to `return
+// fmt.Errorf(...)` unconditionally after its one sleep.
+func TestConnectRetriesTransientFailureInsteadOfEscalating(t *testing.T) {
+	var calls atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "getUpdates") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
+			return
+		}
+		n := calls.Add(1)
+		if n == 1 {
+			// Neither ErrConflict (409) nor a 429 retry-after: a plain
+			// transient failure (malformed/empty body triggers a decode
+			// error, same as a network blip would).
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":[]}`))
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := &telegramChannel{
+		botID:       1,
+		botUsername: "b",
+		api:         newBotAPI(srv.URL, "123:abc", srv.Client()),
+		handler:     func(context.Context, channel.InboundMessage) error { return nil },
+		logger:      testLogger(),
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- ch.Connect(ctx) }()
+
+	// pollRetryDelay is 2s; give it enough room to have retried at least
+	// once while asserting Connect has NOT already returned an error.
+	select {
+	case err := <-errCh:
+		t.Fatalf("Connect returned after the first transient failure (err=%v); it must keep retrying instead of escalating to the Supervisor", err)
+	case <-time.After(3 * time.Second):
+	}
+	if calls.Load() < 2 {
+		t.Fatalf("getUpdates calls = %d, want at least 2 (the retry after the transient failure)", calls.Load())
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("Connect error after ctx cancel = %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Connect did not return after ctx cancel")
+	}
+}
+
 func TestChunkMessagePrefersNewlines(t *testing.T) {
 	text := strings.Repeat("a", 60) + "\n" + strings.Repeat("b", 60)
 	chunks := chunkMessage(text, 100)

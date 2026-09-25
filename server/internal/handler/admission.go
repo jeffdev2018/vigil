@@ -59,6 +59,8 @@ const (
 	ReasonTargetUnavailable     = dispatch.ReasonTargetUnavailable
 	ReasonRuntimeOffline        = dispatch.ReasonRuntimeOffline
 	ReasonRuntimeUnusable       = dispatch.ReasonRuntimeUnusable
+	ReasonRuntimeAccessDenied   = dispatch.ReasonRuntimeAccessDenied
+	ReasonRuntimeProfileMissing = dispatch.ReasonRuntimeProfileMissing
 	ReasonAgentRuntimeRequired  = dispatch.ReasonAgentRuntimeRequired
 	ReasonAttributionBlocked    = dispatch.ReasonAttributionBlocked
 	ReasonAlreadyActive         = dispatch.ReasonAlreadyActive
@@ -67,6 +69,7 @@ const (
 	ReasonA2ABudgetExceeded     = dispatch.ReasonA2ABudgetExceeded
 	ReasonQuotaExceeded         = dispatch.ReasonQuotaExceeded
 	ReasonBudgetExceeded        = dispatch.ReasonBudgetExceeded
+	ReasonIssueInTriage         = dispatch.ReasonIssueInTriage
 	ReasonInternalError         = dispatch.ReasonInternalError
 )
 
@@ -139,6 +142,10 @@ func dispatchBlockedFallbackMessage(code DispatchReasonCode) string {
 		return "the target's runtime is offline"
 	case ReasonRuntimeUnusable:
 		return "the target's agent CLI cannot run on its machine"
+	case ReasonRuntimeAccessDenied:
+		return "the target cannot run on this runtime"
+	case ReasonRuntimeProfileMissing:
+		return "the target's agent CLI is missing a runtime profile on its machine"
 	case ReasonAgentRuntimeRequired:
 		return "the target needs a runtime"
 	case ReasonAttributionBlocked:
@@ -153,6 +160,8 @@ func dispatchBlockedFallbackMessage(code DispatchReasonCode) string {
 		return "this agent-to-agent chain is too far from the person who started it"
 	case ReasonA2ABudgetExceeded:
 		return "this issue has reached its agent-to-agent message allowance"
+	case ReasonIssueInTriage:
+		return "the issue is in Triage and has no owner to run yet; accept it out of Triage first"
 	default:
 		return "the run was blocked"
 	}

@@ -1,0 +1,176 @@
+---
+title: Pack
+description: 一个文件装好一整个职能 —— 帮助台、销售、人事 —— 带上这个职能需要的工作项类型、视图、规则和同事，而且不会覆盖工作区里已有的东西。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+**pack** 是为公司某一个职能准备好的工作区配置。安装帮助台 pack，你会拿到一个 `Ticket` 工作项类型、工单真正会停留的那几个状态、值班台用来分类的标签、一个"申请人团队"属性、几个队列视图、一段写着值班规则的章程、一个分诊智能体和一条清理陈旧工单的自动化 —— 一次写入，一个事务。
+
+它就是[工作区迁移包](/workspaces)加上一份 manifest：同样的预览、同样的冲突策略、同样的报告。pack 多出来的是身份 —— 它创建的每一行都记在这个 pack 的 id 和版本名下，所以 pack 可以**原地升级**，也可以**卸载**。
+
+## 先让人跑起来
+
+每个 pack 都能在**完全没有智能体**的情况下使用。类型、属性、视图和规则是两个人的值班台第一天就用得上的东西，pack 的指标靠人也能推动。智能体是以同事的身份到来：暂停、没有绑定运行时、`trust_mode: propose`、没有任何密钥。你想连的时候再连，不连也行。
+
+pack 里不携带任何凭证，而且无论文件里怎么写，安装都会强制这几件事：
+
+- **自动化和它的触发器装进来是关闭的。** 不会因为你装了什么而突然运行。
+- **业务规则装进来是草稿。** 每一条都要由人启用。
+- **智能体装进来没有环境变量密钥**，也没有运行时。
+- **分诊来源装进来没有 token。**
+
+## 目录
+
+Multica 内置十个 pack，分三批推出。第一批是靠邮件运转的公司的起点，第三批是后台职能。
+
+| Pack | 领域 | 批次 | 装好什么 | 指标 |
+|---|---|---|---|---|
+| `helpdesk-it` | helpdesk | 1 | 同事提来的工单，分诊完成，一个工作日内回复；智能体起草，人来决定 | 首次响应时长 |
+| `ops` | ops | 1 | 周期性 runbook、故障、供应商跟进和变更申请集中在一处，必须按时做的步骤都看得见 | 按时完成的 runbook 步骤 |
+| `customer-support` | support | 2 | 每张外部工单都带 SLA 等级，退款和升级要等人审批，智能体只起草回复、从不发送 | 相对 SLA 的首次响应时长 |
+| `sales` | sales | 2 | 线索和商机都带阶段，跟进节奏不漏人，一个方案起草者，任何折扣都要审批 | 线索到首次有效通话 |
+| `marketing` | marketing | 2 | 战役是项目，每个内容都是带渠道和发布日期的任务，一个写手和一个事实核查者，没有人批准就不发布 | 每周发布的内容数 |
+| `leadership` | leadership | 2 | 决策作为工作项记录，带明确责任人和可逆性判断，每周简报，分析师只准备选项不做选择 | 结论写清理由的决策占比 |
+| `research` | research | 2 | 问题作为工作项，来源放进 Brain，明确标注置信度，研究者起草、审阅者核查出处 | 带引用综述的问题占比 |
+| `hr` | hr | 3 | 招聘阶段是一个属性，入职是一个带日期步骤的项目，休假和合同申请作为工单，一条保密规则 | 入职首日前完成的步骤 |
+| `finance` | finance | 3 | 发票、报销和结账任务作为工作项，审批必须由人给出，超过阈值需要第二签字，一个对账助手 | 在 N 个工作日内完成结账 |
+| `legal` | legal | 3 | 合同评审带对方主体和风险等级，条款库放进 Brain，每次评审都由人批准，阅读者标出偏离条款 | 评审周转时长 |
+
+每个 pack 只声明**一个指标**：说明这个职能有没有在运转的那个数字。它由一个名称、一段定义和一句"去哪里读"组成，不是仪表盘。安装前先读它：指标你并不关心的 pack，就是你不需要的 pack。
+
+## pack 里有什么
+
+| 分组 | 种类 |
+|---|---|
+| 工作形态 | 工作项状态与类型、标签、自定义属性、保存的视图 |
+| 规则 | 状态流转规则、业务规则、归属规则、一段章程 |
+| 智能体 | 权限配置、skill、智能体 |
+| 内容 | 项目、目标、自动化、分诊来源、一个组织、Brain 笔记、示例任务 |
+
+行是**按名称**匹配的 —— 智能体、标签、视图、状态 key。正是这一点让升级成为可能：后续版本里同样的名称就是同一行。
+
+## 安装
+
+**设置 → Pack** 列出目录和你已经装了什么。安装是 `owner` 或 `admin` 的操作，而且背后的接口只接受人：智能体去调会拿到 `403`，因为 pack 会改写此后每一次运行都受其约束的类型、规则和章程。
+
+**先预览。** 预览会列出冲突（工作区里已经占用了 pack 某个名称的东西）、pack 自身的校验问题、将要采用的策略，以及安装会被拒绝时的原因。
+
+| 策略 | 做什么 | 什么时候是默认 |
+|---|---|---|
+| `skip` | 保留工作区里的行不动，装其余部分 | 首次安装 —— pack 绝不覆盖你已有的东西 |
+| `merge` | 用 pack 里的版本更新工作区的那一行 | 升级 —— pack 自己的行跟着新版本走 |
+| `rename` | 用一个空闲名称把 pack 的行装在你那行旁边 | 从不自动选用；需要你主动指定 |
+
+安装会返回一份**报告**：按种类统计的创建数和合并数、被跳过的行及原因、警告，以及它动过的全部行。那份清单就是台账 —— `multica pack items <install-id>` 会重新打印出来，带每一行的种类、名称，以及它是 `created` 还是 `merged`。
+
+<Callout title="pack 自己什么都不会启动">
+装完之后没有任何东西在跑：自动化是关闭的，规则是草稿，智能体没有运行时。第一周属于你 —— 把真实的工作放进视图，然后启用一个智能体。
+</Callout>
+
+## 升级
+
+升级就是安装同一个 pack id 的更新版本。目录会标出来，默认策略变成 `merge`，让 pack 自己的行跟着新版本走；上一次安装记录的行会被继承下来 —— 旧版本创建、这次跳过的行，依然属于这个 pack。
+
+重复安装你已有的那个版本会以 `409` 被拒绝，`--force` 会重新应用一次（迁移在 `skip` 下是幂等的，所以这是安全的）。**更低**的版本永远被拒绝：pack 不降级。
+
+## 卸载
+
+卸载移除 pack 装进来的**配置**，保留**内容**：
+
+- **被移除**：归属规则、保存的视图、状态流转规则、业务规则。智能体和自动化会被归档。标签、属性、状态和工作项类型会被移除或归档 —— 除非还有任务在用它们，这时会保留，并在报告里写明还有多少个。
+- **被保留**：项目、目标、Brain 笔记和任务，以及 pack `merged` 进一条早已存在的行的所有改动。那些从来不只属于这个 pack。
+
+报告会写出每一条保留下来的行以及保留的原因，所以"pack 卸了但类型还在"是一个答案，不是意外。
+
+## 前置条件
+
+pack 会声明它希望具备的东西 —— [原生运行时](/native-runtime)、已连接的运行时、某个集成、某个渠道 —— 预览会把每一项标为 `met`、`missing` 或 `unknown`。什么都不会被强制：运行时前置条件缺失的 pack 照样能装，只是它的智能体暂时没有可以跑的地方。可选的前置条件会被标出来。
+
+## 用自己的 pack，或者导出一个
+
+pack 就是一个 YAML 文件，所以团队可以把自己的 pack 和代码放在一起：
+
+```bash
+multica pack download helpdesk-it --out helpdesk-it.pack.yaml   # 从一个真实的 pack 开始
+multica pack preview-file my-desk.pack.yaml                     # 冲突、问题、策略
+multica pack install-file my-desk.pack.yaml --strategy skip
+```
+
+反过来，`pack export` 把你已经调好的这个工作区变成一个 pack 文件，manifest 由你提供：
+
+```bash
+multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
+  --summary "How we run support here." --domain support \
+  --metric-label "First-response delay" \
+  --metric-description "Median time to the first reply actually sent." \
+  --include-notes --out my-desk.pack.yaml
+```
+
+服务端接受最大 32 MB 的 pack 文件，从应用或 CLI（`multica pack preview-file` / `install-file`）上传均可。在已连接电脑上发现的技能不会被导出（它们属于那台机器）；加上 `--include-skills=false` 会把所有技能都排除。导出同样不携带任何凭证 —— 智能体的环境变量密钥被留下，触发器回来时是关闭的，分诊来源回来时没有 token。
+
+## pack 格式
+
+权威定义是 `FORMAT.md`，随代码库发布，和内置 pack 放在一起。自己写 pack 时真正重要的规则：
+
+- **正文用英文。** 产品翻译自己的界面，不翻译你的 pack。标题、指令、章程和示例任务是你团队要读的东西。
+- **名称就是身份。** 跨版本保持稳定，否则升级会创建第二行，而不是更新第一行。
+- **智能体**：`trust_mode: propose`、`effect_mode: preview`、`runtime_mode: native`、不写 `env_keys`，每个智能体都列出这个 pack 的流程 skill。
+- **状态**：只加这个职能在 7 个内置状态之外真正需要的，并给每个自定义状态指定其中一个 `category`。
+- **示例任务要说明自己是示例**，写在标题或第一行。
+- **每个 pack 都声明 `metric`**，每次改动都提升 semver `version`。
+
+### 已知边界
+
+- 状态流转规则以状态**类别**为条件，而不是某个工作项类型或某个属性：一个审批门会覆盖在这些类别之间移动的所有任务。
+- 属性不能标记为必填，两个单选属性之间也不能互相绑定。这类规则写进章程和一条业务规则里。
+- `metric` 只有一个名称和一段描述；第二个数字写进描述或提示。
+- 定时触发器接受一个 cron 表达式和一个固定时区。
+- 示例任务不带截止日期，也不带负责人。
+
+## 从 pack 开始一个工作区
+
+创建工作区时可以传 `pack_id`：新工作区的第一件事就是用那个目录里的 pack 装好自己。失败不会回滚工作区，而是保留工作区并报出错误 —— 解决掉阻塞原因之后再装一次即可。
+
+## 使用 CLI
+
+```bash
+multica pack list --domain helpdesk
+multica pack show helpdesk-it
+multica pack preview helpdesk-it --strategy skip
+multica pack install helpdesk-it
+multica pack installed
+multica pack items <install-id>
+multica pack uninstall <install-id>
+```
+
+| 命令 | 作用 |
+|---|---|
+| `pack list [--domain]` | 目录，带这个工作区的安装状态和可用升级 |
+| `pack show <id>` | manifest、指标、带状态的前置条件、按种类列出的内容 |
+| `pack preview <id> [--strategy]` | 冲突、问题、策略，以及安装为什么会被拒绝 |
+| `pack install <id> [--strategy] [--force]` | 应用并打印报告 |
+| `pack installed` | 安装台账 |
+| `pack items <install-id>` | 一次安装创建或合并的每一行 |
+| `pack uninstall <install-id>` | 移除了什么、保留了什么以及为什么 |
+| `pack download <id> [--out]` | pack 文件本身 |
+| `pack preview-file` / `pack install-file <file>` | 对自己的 pack 做同样两步 |
+| `pack export --id --version --title --summary …` | 把这个工作区的配置导出成 pack 文件 |
+
+每个命令都支持 `--output json`。公共参数见[使用 CLI](/cli)。
+
+## API
+
+- `GET /api/packs` → 目录：manifest、计数、`installed_version`、`upgrade_available`、带状态的前置条件。`GET /api/packs/{id}` 追加按种类列出的内容；`GET /api/packs/{id}/download` 返回文件。
+- `POST /api/packs/{id}/preview | install {strategy?, force?}` —— owner/admin，且只接受人。
+- `POST /api/packs/preview | install` —— 同上，multipart，pack 文件放在 `file` 字段。
+- `GET /api/packs/installed`、`GET /api/packs/installed/{id}` → 台账，以及一次安装的全部行。
+- `POST /api/packs/installed/{id}/uninstall` → 安装记录，以及移除／保留报告。
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → 一个 `pack.yaml`。
+- 审计动作 `pack.installed` 和 `pack.uninstalled`；`pack:changed` 事件让打开着的页面保持最新。
+
+## 接下来
+
+- [工作区](/workspaces) —— 导入、导出，以及 pack 旁边那些预置团队。
+- [章程](/doctrine) —— pack 追加的那一段，以及之后谁可以改它。
+- [智能体](/agents) —— 连上 pack 装好的那些同事。

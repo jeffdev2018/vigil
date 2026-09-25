@@ -24,7 +24,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
-import { useRowLink } from "../../navigation";
+import { AppLink, rowLinkInteractiveProps, useRowLink } from "../../navigation";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
@@ -41,13 +41,13 @@ import { DeleteMeetingDialog } from "./delete-meeting-dialog";
 export function meetingStatusDotClass(status: string): string {
   switch (status) {
     case "recording":
-      return "bg-red-500 animate-pulse";
+      return "bg-destructive animate-pulse";
     case "summarizing":
-      return "bg-blue-500";
+      return "bg-info";
     case "done":
-      return "bg-emerald-500";
+      return "bg-success";
     case "failed":
-      return "bg-red-500";
+      return "bg-destructive";
     default:
       return "bg-muted-foreground/40";
   }
@@ -136,6 +136,11 @@ export function MeetingsPage() {
             : undefined
         }
         loadingMore={meetingsQuery.isFetchingNextPage}
+        onRecord={
+          sttUnavailable || recorderPhase !== "idle"
+            ? undefined
+            : () => openMeetingRecorder()
+        }
       />
     </div>
   );
@@ -170,6 +175,7 @@ function MeetingList({
   searching,
   onLoadMore,
   loadingMore,
+  onRecord,
 }: {
   meetings: Meeting[];
   isLoading: boolean;
@@ -177,6 +183,8 @@ function MeetingList({
   searching: boolean;
   onLoadMore?: () => void;
   loadingMore: boolean;
+  /** Absent when recording is unavailable; the empty state then stays text-only. */
+  onRecord?: () => void;
 }) {
   const { t } = useT("meetings");
 
@@ -214,6 +222,14 @@ function MeetingList({
         icon={AudioLines}
         title={t(($) => $.list.empty_title)}
         description={t(($) => $.list.empty_description)}
+        actions={
+          onRecord ? (
+            <Button size="sm" onClick={onRecord}>
+              <Mic aria-hidden="true" className="size-3.5" />
+              {t(($) => $.list.record)}
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -243,12 +259,18 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
   const rowLink = useRowLink();
   const status = knownStatus(meeting.status);
 
+  const href = wsPaths.meetingDetail(meeting.id);
+
   return (
     <li>
+      {/* The row's click/auxclick handlers are a mouse convenience (see views
+          useRowLink). It used to claim `role="button"` with a tabIndex and no
+          key handler, so the keyboard could focus the row and then activate
+          nothing; the title anchor below is the real, activatable route to the
+          meeting. `rowLinkInteractiveProps` keeps its own click from also
+          reaching the row. */}
       <div
-        {...rowLink(wsPaths.meetingDetail(meeting.id), meeting.title)}
-        role="button"
-        tabIndex={0}
+        {...rowLink(href, meeting.title)}
         className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-left transition-colors hover:bg-accent/60"
       >
         <span
@@ -258,7 +280,14 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
             meetingStatusDotClass(meeting.status),
           )}
         />
-        <span className="min-w-0 flex-1 truncate text-body">{meeting.title}</span>
+        <AppLink
+          href={href}
+          newTabTitle={meeting.title}
+          {...rowLinkInteractiveProps}
+          className="min-w-0 flex-1 truncate text-body"
+        >
+          {meeting.title}
+        </AppLink>
         <span className="hidden w-28 shrink-0 truncate text-caption text-muted-foreground sm:block">
           {meeting.app_name || t(($) => $.list.no_app)}
         </span>

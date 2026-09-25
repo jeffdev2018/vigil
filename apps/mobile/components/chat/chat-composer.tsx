@@ -29,9 +29,12 @@
 import { useCallback } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import { MessageComposer } from "@/components/composer/message-composer";
+import { AgentRunNoticeLine, RunNoticeBox } from "@/components/issue/comment-run-notice";
+import { VoiceConversationButton } from "@/components/voice/voice-conversation-button";
+import { appConfigOptions } from "@/data/queries/billing";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { THEME } from "@/lib/theme";
@@ -57,6 +60,9 @@ interface Props {
   disabled?: boolean;
   /** When `disabled`, replaces the pill label with the reason. */
   disabledReason?: string;
+  /** Agent a send will run, when the conversation has not started yet: the
+   *  composer says so (runtime, cost) before the first send. */
+  runNoticeAgent?: { id: string; name: string } | null;
 }
 
 const IS_IOS = process.env.EXPO_OS === "ios";
@@ -70,8 +76,13 @@ export function ChatComposer({
   allowStop = true,
   disabled = false,
   disabledReason,
+  runNoticeAgent,
 }: Props) {
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
+  // Same gate as web chat-input: hide conversation when STT is not configured.
+  // Mirrors `useConfigStore.meetingTranscriptionAvailable`.
+  const { data: config } = useQuery(appConfigOptions());
+  const voiceEnabled = config?.meeting_transcription_available === true;
 
   const onSubmit = useCallback(
     async ({
@@ -95,6 +106,30 @@ export function ChatComposer({
     onStop();
   }, [onStop]);
 
+  const handleUtterance = useCallback(
+    (text: string) => {
+      // Mirror web VoiceConversationButton: join any typed draft, then send
+      // through the normal chat path.
+      const joined = value.trim() ? `${value.replace(/\s+$/, "")} ${text}` : text;
+      onChangeText(joined);
+      // Await + catch instead of a bare `void onSend(...)`: onSend
+      // (chat.tsx's handleSend) already Alerts the user and rolls back
+      // its own optimistic cache on failure, but a fire-and-forget call
+      // here left that rejection unhandled. The catch is a no-op beyond
+      // that — the dictated draft is never cleared on failure (only a
+      // successful send clears it), so it stays visible for retry, the
+      // same outcome MessageComposer's typed-send path restores to.
+      void (async () => {
+        try {
+          await onSend(joined, []);
+        } catch {
+          // Handled by onSend itself; swallow here so nothing rethrows.
+        }
+      })();
+    },
+    [value, onChangeText, onSend],
+  );
+
   return (
     <MessageComposer
       value={value}
@@ -117,7 +152,24 @@ export function ChatComposer({
       disabledReason={disabledReason}
       isSending={sending}
       renderStop={allowStop ? () => <StopButton onPress={handleStop} /> : undefined}
+      toolbarExtras={
+        voiceEnabled ? (
+          <VoiceConversationButton
+            disabled={!!disabled}
+            onUtterance={handleUtterance}
+          />
+        ) : null
+      }
       manageKeyboard={false}
+      renderNotice={
+        runNoticeAgent && !disabled
+          ? () => (
+              <RunNoticeBox>
+                <AgentRunNoticeLine agentId={runNoticeAgent.id} name={runNoticeAgent.name} />
+              </RunNoticeBox>
+            )
+          : undefined
+      }
     />
   );
 }

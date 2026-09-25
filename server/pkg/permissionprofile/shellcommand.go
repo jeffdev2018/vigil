@@ -129,24 +129,74 @@ func stripCommandEnvelope(tokens []string) []string {
 	return tokens
 }
 
-var shellNames = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "busybox": true}
+var shellNames = map[string]bool{"sh": true, "ash": true, "bash": true, "zsh": true, "dash": true, "ksh": true}
+
+// shellLongOptionsWithArgument are the long options that consume the next word
+// (bash's --rcfile/--init-file, zsh's --emulate). Any other --option is read as
+// a plain flag; `--opt=value` carries its value inline.
+var shellLongOptionsWithArgument = map[string]bool{"--rcfile": true, "--init-file": true, "--emulate": true}
 
 // shellScriptArgument returns the script a shell was asked to run. The second
 // value reports that the head IS a shell, so a caller can refuse a shell whose
 // script it cannot read rather than treat it as an ordinary command.
+//
+// It follows how a shell reads its own arguments: options come first and end
+// at "--", "-" or the first operand; the script is that first operand, and only
+// when a short-option cluster (-c, -lc, -ec, …) carried c. Options that take a
+// word (-o/-O, +o/+O, --rcfile FILE, …) consume it, so a decoy word there is
+// never mistaken for the script.
 func shellScriptArgument(tokens []string) (string, bool) {
 	head := tokens[0]
 	if slash := strings.LastIndex(head, "/"); slash >= 0 {
 		head = head[slash+1:]
 	}
+	if head == "busybox" {
+		// busybox is a shell only through a shell applet; any other applet is
+		// refused as an unreadable shell rather than read as a command.
+		if len(tokens) < 2 || !shellNames[tokens[1]] {
+			return "", true
+		}
+		return shellScriptArgument(tokens[1:])
+	}
 	if !shellNames[head] {
 		return "", false
 	}
-	for i := 1; i < len(tokens); i++ {
-		// -c, and the combined forms a shell accepts (-lc, -ec, …).
-		if strings.HasPrefix(tokens[i], "-") && strings.Contains(tokens[i], "c") && i+1 < len(tokens) {
-			return tokens[i+1], true
+	sawC := false
+	i := 1
+options:
+	for i < len(tokens) {
+		tok := tokens[i]
+		switch {
+		case tok == "--" || tok == "-":
+			i++
+			break options
+		case strings.HasPrefix(tok, "--"):
+			i++
+			if !strings.Contains(tok, "=") && shellLongOptionsWithArgument[tok] {
+				i++
+			}
+		case len(tok) > 1 && (tok[0] == '-' || tok[0] == '+') && isASCIILetters(tok[1:]):
+			i++
+			if tok[0] == '-' && strings.Contains(tok[1:], "c") {
+				sawC = true
+			}
+			// Each o/O in a cluster takes the next word as its option name.
+			i += strings.Count(tok[1:], "o") + strings.Count(tok[1:], "O")
+		default:
+			break options
 		}
 	}
-	return "", true
+	if !sawC || i >= len(tokens) {
+		return "", true
+	}
+	return tokens[i], true
+}
+
+func isASCIILetters(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return false
+		}
+	}
+	return true
 }

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Zap } from "lucide-react";
 import { autopilotQuotaUsageOptions } from "@multica/core/autopilots";
+import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 
@@ -24,7 +25,22 @@ const WARN_AT = 0.8;
  */
 export function AutopilotQuotaCard({ wsId }: { wsId: string }) {
   const { t } = useT("usage");
-  const { data } = useQuery(autopilotQuotaUsageOptions(wsId));
+  const { data, isError, refetch } = useQuery(autopilotQuotaUsageOptions(wsId));
+
+  if (isError) {
+    return (
+      <div
+        data-testid="autopilot-quota-error"
+        role="alert"
+        className="flex items-center justify-between gap-2 rounded-lg border bg-card px-4 py-2 text-caption text-destructive"
+      >
+        <span>{t(($) => $.autopilot_quota.load_error)}</span>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          {t(($) => $.autopilot_quota.retry)}
+        </Button>
+      </div>
+    );
+  }
 
   const limit = data?.limit ?? null;
   if (!data || data.action === "off" || limit === null || limit <= 0) return null;

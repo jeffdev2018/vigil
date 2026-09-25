@@ -239,31 +239,56 @@ func (s *TaskService) ScoreRunConfidence(ctx context.Context, taskID pgtype.UUID
 		}
 	}
 
-	raw, err := s.RunConfidence.GenerateJSON(ctx,
-		"", // deployment default: MULTICA_LLM_DEFAULT_MODEL, else llm.FallbackModel
-		runConfidenceSystemPrompt,
-		renderRunConfidencePrompt(issue.Title, completed.Output, s.latestCrossReviewVerdict(ctx, task.ID)),
-		0.1,
-		512,
-	)
-	if err != nil {
-		// A score needs a real assessment; an LLM failure means nothing worth
-		// storing.
-		slog.Warn("run confidence LLM call failed, skipping", "error", err)
-		return nil
-	}
-	score, rationale, perr := parseConfidenceScore(raw)
-	if perr != nil {
-		slog.Warn("run confidence parse failed, skipping", "error", perr)
-		return nil
-	}
-	if utf8.RuneCountInString(rationale) > runConfidenceRationaleMaxRunes {
-		rationale = string([]rune(rationale)[:runConfidenceRationaleMaxRunes])
+	reviewVerdict := s.latestCrossReviewVerdict(ctx, task.ID)
+
+	var score float64
+	var rationale, judgeModel string
+	if s.Decisions.Enabled() {
+		var ok bool
+		score, rationale, judgeModel, ok = s.scoreRunConfidenceByDecision(
+			ctx, issue.Title, completed.Output, reviewVerdict,
+			receiptsFromResult(task.Result), cfg.Threshold)
+		if !ok {
+			// Same outcome as a failed chat call: a score needs a real
+			// assessment, so nothing is stored.
+			return nil
+		}
+	} else {
+		raw, err := s.RunConfidence.GenerateJSON(ctx,
+			"", // deployment default: MULTICA_LLM_DEFAULT_MODEL, else llm.FallbackModel
+			runConfidenceSystemPrompt,
+			renderRunConfidencePrompt(issue.Title, completed.Output, reviewVerdict),
+			0.1,
+			512,
+		)
+		if err != nil {
+			// A score needs a real assessment; an LLM failure means nothing
+			// worth storing.
+			slog.Warn("run confidence LLM call failed, skipping", "error", err)
+			return nil
+		}
+		var perr error
+		score, rationale, perr = parseConfidenceScore(raw)
+		if perr != nil {
+			slog.Warn("run confidence parse failed, skipping", "error", perr)
+			return nil
+		}
+		if utf8.RuneCountInString(rationale) > runConfidenceRationaleMaxRunes {
+			rationale = string([]rune(rationale)[:runConfidenceRationaleMaxRunes])
+		}
+		judgeModel = s.RunConfidence.DefaultModel()
 	}
 
-	judgeModel := s.RunConfidence.DefaultModel()
 	producerModel := strings.TrimSpace(agent.Model.String)
-	independence := judgeIndependence(judgeModel, producerModel)
+	// A decision model does not run agents, so it cannot be the model that
+	// produced this run — independence holds by construction, including when
+	// the producing model was never recorded and a name comparison could only
+	// answer "unknown". That absence of evidence is precisely what the old
+	// path had to store, on the score that decides whether a human is called.
+	independence := JudgeIndependent
+	if !s.Decisions.Enabled() {
+		independence = judgeIndependence(judgeModel, producerModel)
+	}
 	if independence != JudgeIndependent {
 		slog.Warn("run confidence: the judge is not known to be independent of the producer",
 			"task_id", util.UUIDToString(task.ID), "independence", independence,

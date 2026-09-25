@@ -2,8 +2,13 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 
@@ -212,5 +217,137 @@ func TestResolveTaskModelSelectionFailsOpenOnDiscoveryError(t *testing.T) {
 	defer mu.Unlock()
 	if calls != 1 {
 		t.Errorf("catalog reads = %d, want 1 — a failed read must not be retried within the task", calls)
+	}
+}
+
+// TestResolveTaskModelCascadeOrder pins the tier order JEF-12 added on top of
+// the old two-tier resolution: task.model_override (the claim's
+// agent_task_queue.model_override) beats agent.model, which beats the
+// daemon-wide env var, and an all-empty cascade still passes "" through so
+// the backend omits --model and the CLI's own default applies.
+func TestResolveTaskModelCascadeOrder(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		task     Task
+		envModel string
+		want     string
+	}{
+		{
+			name:     "override beats agent model and env",
+			task:     Task{ModelOverride: "claude-opus-5", Agent: &AgentData{Model: "claude-sonnet-5"}},
+			envModel: "claude-haiku-4",
+			want:     "claude-opus-5",
+		},
+		{
+			name: "override beats agent model with empty env",
+			task: Task{ModelOverride: "gpt-5.6", Agent: &AgentData{Model: "gpt-5-mini"}},
+			want: "gpt-5.6",
+		},
+		{
+			name:     "agent model wins when no override",
+			task:     Task{Agent: &AgentData{Model: "claude-sonnet-5"}},
+			envModel: "claude-haiku-4",
+			want:     "claude-sonnet-5",
+		},
+		{
+			name:     "env wins when neither override nor agent model",
+			envModel: "claude-haiku-4",
+			want:     "claude-haiku-4",
+		},
+		{
+			name: "all empty passes through for the CLI default",
+			want: "",
+		},
+		{
+			name:     "nil agent with override still wins",
+			task:     Task{ModelOverride: "claude-opus-5"},
+			envModel: "claude-haiku-4",
+			want:     "claude-opus-5",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveTaskModel(tt.task, tt.envModel); got != tt.want {
+				t.Errorf("resolveTaskModel(%+v, %q) = %q, want %q", tt.task, tt.envModel, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTaskWireDecodesModelOverride pins the claim-payload contract: the
+// server's claim query returns agent_task_queue.model_override, and the
+// daemon must actually read it off the wire — a field that decodes nowhere
+// is a cascade tier that never fires.
+func TestTaskWireDecodesModelOverride(t *testing.T) {
+	t.Parallel()
+	var task Task
+	if err := json.Unmarshal([]byte(`{"id":"t-1","model_override":"claude-opus-5","agent":{"model":"claude-sonnet-5"}}`), &task); err != nil {
+		t.Fatalf("unmarshal claim payload: %v", err)
+	}
+	if task.ModelOverride != "claude-opus-5" {
+		t.Errorf("ModelOverride = %q, want %q from the claim payload", task.ModelOverride, "claude-opus-5")
+	}
+	if got := resolveTaskModel(task, ""); got != "claude-opus-5" {
+		t.Errorf("resolveTaskModel on the decoded claim = %q, want the override to win", got)
+	}
+}
+
+// Exercise real discovery through the daemon's task-launch guard rather than
+// injecting a prebuilt fallback: live discovery fails, bundled succeeds but
+// lacks the saved model. Model-scoped overrides pass through; the CLI-version
+// gate for explicit standard routing must still reject old Codex binaries.
+func TestResolveTaskModelSelectionKeepsLiveOnlyCodexOverridesOnFallback(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script fake binary requires a POSIX shell")
+	}
+	for _, tc := range []struct {
+		name, version string
+		in, want      taskModelSelection
+	}{
+		{
+			name: "new CLI retains model-scoped overrides", version: "0.155.1",
+			in:   taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high", ServiceTier: "priority"},
+			want: taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high", ServiceTier: "priority"},
+		},
+		{
+			name: "old CLI rejects explicit standard despite missing model", version: "0.130.0",
+			in:   taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high", ServiceTier: "default"},
+			want: taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high"},
+		},
+		{
+			name: "new CLI accepts explicit standard despite missing model", version: "0.155.1",
+			in:   taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high", ServiceTier: "default"},
+			want: taskModelSelection{Model: "gpt-6-sol", ThinkingLevel: "high", ServiceTier: "default"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			logFile := filepath.Join(dir, "calls")
+			binary := filepath.Join(dir, "codex")
+			script := "#!/bin/sh\n" +
+				"printf '%s\\n' \"$*\" >> '" + logFile + "'\n" +
+				"if [ \"$1\" = \"--version\" ]; then echo 'codex-cli " + tc.version + "'; exit 0; fi\n" +
+				"if [ \"$3\" = \"--bundled\" ]; then echo '{\"models\":[{\"slug\":\"gpt-5.5\",\"display_name\":\"GPT-5.5\",\"visibility\":\"list\"}]}'; exit 0; fi\n" +
+				"exit 1\n"
+			if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
+				t.Fatal(err)
+			}
+
+			got := resolveTaskModelSelection(context.Background(), "codex", agent.Command{Path: binary}, tc.in, quietTaskLog())
+			if got != tc.want {
+				t.Fatalf("launch selection = %+v, want %+v", got, tc.want)
+			}
+			calls, err := os.ReadFile(logFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(calls), "debug models\n") || !strings.Contains(string(calls), "debug models --bundled\n") {
+				t.Fatalf("expected failed live discovery and successful bundled fallback, got %q", calls)
+			}
+			if strings.Count(string(calls), "debug models --bundled\n") != 1 {
+				t.Fatalf("task capability checks must share a single fallback discovery: %q", calls)
+			}
+		})
 	}
 }

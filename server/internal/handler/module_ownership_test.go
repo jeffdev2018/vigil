@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -103,7 +104,7 @@ func createOwnershipRule(t *testing.T, body map[string]any) *testutil.Response {
 
 func TestModuleOwnershipRulesSuggestAndNotify(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM module_ownership WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM module_ownership WHERE workspace_id = $1`, testWorkspaceID)
 	})
 	owner := dbfx.User(t, "Owner", "owner-"+uuid.NewString()[:8]+"@multica.ai")
 	dbfx.Member(t, testWorkspaceID, owner, "member")

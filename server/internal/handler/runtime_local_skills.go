@@ -453,7 +453,9 @@ func (s *InMemoryLocalSkillImportStore) PopPendingBatch(_ context.Context, runti
 		return pending[i].CreatedAt.Before(pending[j].CreatedAt)
 	})
 
-	if limit > len(pending) {
+	if limit <= 0 {
+		limit = 0
+	} else if limit > len(pending) {
 		limit = len(pending)
 	}
 
@@ -892,6 +894,8 @@ func (h *Handler) ReportLocalSkillImportResult(w http.ResponseWriter, r *http.Re
 				failMsg = "you no longer have permission to overwrite this skill"
 			case errors.Is(oerr, errSkillOverwriteNameMismatch):
 				failMsg = "target skill name no longer matches the imported skill"
+			case errors.Is(oerr, errSkillOverwritePluginManaged):
+				failMsg = "target skill is managed by a plugin and cannot be edited directly; uninstall or upgrade the plugin instead"
 			}
 			h.failLocalSkillImport(w, r, requestID, failMsg)
 			return

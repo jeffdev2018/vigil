@@ -39,7 +39,3 @@ export function useProveAcceptanceCriterion(wsId: string) {
 export function isCriterionSatisfied(c: Pick<AcceptanceCriterion, "proof_state">): boolean {
   return c.proof_state === "satisfied";
 }
-
-export function unsatisfiedCriteria(list: AcceptanceCriterion[]): AcceptanceCriterion[] {
-  return list.filter((c) => !isCriterionSatisfied(c));
-}

@@ -69,14 +69,35 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "expo-image-picker",
         {
-          // iOS NSPhotoLibraryUsageDescription. Without this string in
-          // Info.plist, calling launchImageLibraryAsync hard-crashes on
-          // iOS 14+. Camera + microphone are disabled — we only ever read
-          // from the existing photo library.
+          // iOS NSPhotoLibraryUsageDescription / NSCameraUsageDescription.
+          // Without these strings in Info.plist, launchImageLibraryAsync /
+          // launchCameraAsync hard-crash on iOS 14+.
+          //
+          // The camera is enabled for the Brain capture composer: "capture
+          // first, organize later" means photographing a whiteboard in one
+          // gesture, and routing that through the photo library instead
+          // would mean leaving the app, shooting, coming back and picking.
+          // Adding it re-runs the config plugin, so the next build must go
+          // through `pnpm ios` (scripts/ios-run.sh always prebuilds).
+          //
+          // Microphone stays disabled here: recording (conversations, Brain
+          // voice memos) uses expo-audio's own mic permission string below.
           photosPermission:
-            "Allow Multica to access your photos to attach images to issues and comments.",
-          cameraPermission: false,
+            "Allow Multica to access your photos to attach images to issues, comments and Brain captures.",
+          cameraPermission:
+            "Allow Multica to use the camera to capture a photo straight into the workspace Brain.",
           microphonePermission: false,
+        },
+      ],
+      [
+        "expo-audio",
+        {
+          // Two recorders share this string: N20 duplex conversation
+          // (continuous mic in chat) and the Brain capture composer's voice
+          // memos. Dev-client / production builds need it in Info.plist or
+          // iOS kills the process on the first record attempt.
+          microphonePermission:
+            "Allow Multica to use the microphone for voice conversation in chat and voice memos in the Brain.",
         },
       ],
       [
