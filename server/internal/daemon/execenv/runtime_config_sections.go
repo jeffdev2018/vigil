@@ -223,6 +223,7 @@ func writeWorkspaceKnowledgeSection(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("multica brain save --title \"Deploys go through the release tag\" --tags deploy,release --content \"...\"\n")
 	b.WriteString("```\n\n")
 	b.WriteString("Save durable knowledge, not run logs: nothing about what you did in this task, nothing that will be false next week. Before saving, check `multica brain list --search <keyword>` and update the existing note instead of adding a near-duplicate.\n\n")
+	b.WriteString("When you rely on one of these notes, cite it inline as `[title](mention://note/<id>)`, using the id shown for that note (each note file's `- id:` line). Never invent an id.\n\n")
 }
 
 // writeRepoIndexHintsSection points the run at the places in the repository

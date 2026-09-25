@@ -43,7 +43,11 @@ export function RunBrainNotes({ wsId, taskId }: { wsId: string; taskId: string }
                     ? t(($) => $.transcript.brain_kind_retrieved)
                     : kind === "opened"
                       ? t(($) => $.transcript.brain_kind_opened)
-                      : kind,
+                      : kind === "cited"
+                        ? t(($) => $.transcript.brain_kind_cited)
+                        // Unknown kind (e.g. one a newer server added):
+                        // render its raw value instead of dropping it.
+                        : kind,
               )
               .join(", ")}
           </span>

@@ -1208,6 +1208,7 @@
     "brain_kind_injected": "Injectée",
     "brain_kind_retrieved": "Récupérée",
     "brain_kind_opened": "Ouverte",
+  "brain_kind_cited": "Citée",
     "display_clipped": "... (trop long pour tout afficher — seul le début est affiché)",
     "output_truncated_note": "La sortie était trop longue : seul le début a été conservé.",
     "step_duration_unknown": "La durée exacte est indisponible."

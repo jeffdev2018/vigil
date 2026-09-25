@@ -21,6 +21,14 @@ describe("stripMentionMarkdown", () => {
     ).toBe("MUL-123");
   });
 
+  // JEF-417 / B06: an agent citing a Brain note, e.g. `[the deploy
+  // note](mention://note/<uuid>)`. Same shape as an issue mention — no @ prefix.
+  it("strips note mention (no @ prefix)", () => {
+    expect(
+      stripMentionMarkdown("[the deploy note](mention://note/some-uuid)"),
+    ).toBe("the deploy note");
+  });
+
   it("handles escaped brackets in names", () => {
     expect(
       stripMentionMarkdown("[@David\\[TF\\]](mention://agent/id-123)"),

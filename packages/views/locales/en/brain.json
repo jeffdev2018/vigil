@@ -205,6 +205,7 @@
     "kind_retrieved": "Retrieved",
     "kind_opened": "Opened",
     "kind_viewed": "Viewed",
+    "kind_cited": "Cited",
     "viewers_one": "Read by {{count}} person",
     "viewers_other": "Read by {{count}} people",
     "last_used": "Last used {{time}}",

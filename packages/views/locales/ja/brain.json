@@ -204,6 +204,7 @@
     "kind_retrieved": "検索",
     "kind_opened": "開いた",
     "kind_viewed": "閲覧",
+    "kind_cited": "引用",
     "viewers_other": "{{count}} 人が閲覧",
     "last_used": "最終利用：{{time}}",
     "recent_runs": "最近の実行",

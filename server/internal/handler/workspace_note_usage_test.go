@@ -283,6 +283,7 @@ func TestNoteUsageSummaryRunsAndPrivacy(t *testing.T) {
 	}
 	record(issueRun, "injected")
 	record(issueRun, "opened")
+	record(issueRun, "cited")
 	record(chatRun, "retrieved")
 	dbfx.Exec(t, `UPDATE workspace_note_usage SET created_at = now() - interval '1 hour' WHERE task_id = $1`, issueRun)
 	for _, user := range []string{testUserID, chatOwner} {
@@ -293,7 +294,7 @@ func TestNoteUsageSummaryRunsAndPrivacy(t *testing.T) {
 
 	var usage WorkspaceNoteUsageResponse
 	noteUsageCall(t, testHandler.GetWorkspaceNoteUsage, "GET", note, "/usage").Want(http.StatusOK).JSON(&usage)
-	if usage.Counts != (WorkspaceNoteUsageCounts{Injected: 1, Retrieved: 1, Opened: 1, Viewed: 2}) || usage.RunsCount != 2 || usage.ViewersCount != 2 || usage.LastUsedAt == nil {
+	if usage.Counts != (WorkspaceNoteUsageCounts{Injected: 1, Retrieved: 1, Opened: 1, Viewed: 2, Cited: 1}) || usage.RunsCount != 2 || usage.ViewersCount != 2 || usage.LastUsedAt == nil {
 		t.Fatalf("summary = %+v", usage)
 	}
 	if len(usage.Runs) != 2 {
@@ -303,7 +304,7 @@ func TestNoteUsageSummaryRunsAndPrivacy(t *testing.T) {
 	if !chat.Private || chat.TaskID != "" || chat.IssueID != "" {
 		t.Fatalf("most recent run should be the masked chat run, got %+v", chat)
 	}
-	if issue.TaskID != issueRun || issue.IssueID != issueID || !strings.HasPrefix(issue.IssueIdentifier, "HAN-") || len(issue.Kinds) != 2 || issue.Private {
+	if issue.TaskID != issueRun || issue.IssueID != issueID || !strings.HasPrefix(issue.IssueIdentifier, "HAN-") || len(issue.Kinds) != 3 || issue.Private {
 		t.Fatalf("issue run = %+v", issue)
 	}
 

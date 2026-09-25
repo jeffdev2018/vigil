@@ -42,6 +42,7 @@ SELECT
     count(*) FILTER (WHERE kind = 'retrieved')::bigint AS retrieved,
     count(*) FILTER (WHERE kind = 'opened')::bigint AS opened,
     count(*) FILTER (WHERE kind = 'viewed')::bigint AS viewed,
+    count(*) FILTER (WHERE kind = 'cited')::bigint AS cited,
     count(DISTINCT task_id)::bigint AS runs_count,
     count(DISTINCT actor_id) FILTER (WHERE actor_type = 'member')::bigint AS viewers_count,
     max(created_at)::timestamptz AS last_used_at

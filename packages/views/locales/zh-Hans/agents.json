@@ -1188,6 +1188,7 @@
     "brain_kind_injected": "注入",
     "brain_kind_retrieved": "检索",
     "brain_kind_opened": "打开",
+  "brain_kind_cited": "被引用",
     "display_clipped": "...（内容过长，此处仅显示开头）",
     "output_truncated_note": "输出内容过长，只保留了开头部分。",
     "step_duration_unknown": "无法确定准确耗时。"

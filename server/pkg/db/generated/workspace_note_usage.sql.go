@@ -17,6 +17,7 @@ SELECT
     count(*) FILTER (WHERE kind = 'retrieved')::bigint AS retrieved,
     count(*) FILTER (WHERE kind = 'opened')::bigint AS opened,
     count(*) FILTER (WHERE kind = 'viewed')::bigint AS viewed,
+    count(*) FILTER (WHERE kind = 'cited')::bigint AS cited,
     count(DISTINCT task_id)::bigint AS runs_count,
     count(DISTINCT actor_id) FILTER (WHERE actor_type = 'member')::bigint AS viewers_count,
     max(created_at)::timestamptz AS last_used_at
@@ -34,6 +35,7 @@ type GetWorkspaceNoteUsageSummaryRow struct {
 	Retrieved    int64              `json:"retrieved"`
 	Opened       int64              `json:"opened"`
 	Viewed       int64              `json:"viewed"`
+	Cited        int64              `json:"cited"`
 	RunsCount    int64              `json:"runs_count"`
 	ViewersCount int64              `json:"viewers_count"`
 	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
@@ -47,6 +49,7 @@ func (q *Queries) GetWorkspaceNoteUsageSummary(ctx context.Context, arg GetWorks
 		&i.Retrieved,
 		&i.Opened,
 		&i.Viewed,
+		&i.Cited,
 		&i.RunsCount,
 		&i.ViewersCount,
 		&i.LastUsedAt,

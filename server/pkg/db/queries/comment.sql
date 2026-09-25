@@ -995,3 +995,14 @@ WITH locked_issue AS MATERIALIZED (
 )
 SELECT EXISTS(SELECT 1 FROM deleted_comment) AS changed,
        COALESCE((SELECT revision FROM touched_issue), 0)::bigint AS issue_revision;
+
+-- name: ListCommentsBySourceTask :many
+-- Every live comment one run posted (JEF-417): the completion-time citation
+-- pass scans these alongside the run's final output for
+-- mention://note/<uuid> links. A deleted comment carries no citation the
+-- workspace still sees.
+SELECT content FROM comment
+WHERE source_task_id = sqlc.arg('task_id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND deleted_at IS NULL
+ORDER BY created_at ASC;

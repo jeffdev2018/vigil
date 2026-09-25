@@ -81,7 +81,8 @@
     "group_current": "現在のページ",
     "group_recent": "最近見た項目",
     "group_search": "検索結果",
-    "group_cancelled": "キャンセル済み"
+    "group_cancelled": "キャンセル済み",
+    "note_not_found": "ノートが見つかりません"
   },
   "code_block": {
     "html_preview": "HTML プレビュー",
