@@ -94,7 +94,7 @@ vi.mock("@multica/core/types", () => ({}));
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import { LoginPage, validateCliCallback, ssoRequiredSlug } from "./login-page";
+import { LoginPage, validateCliCallback, ssoRequiredSlug, SSO_DESKTOP_HANDOFF_KEY } from "./login-page";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -911,6 +911,9 @@ describe("LoginPage SSO (K60)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // The page resumes a pending code step from sessionStorage; a test that
+    // reached that step must not start the next one on it.
+    window.sessionStorage.clear();
     mockApiGetMe.mockRejectedValue(new Error("unauthorized"));
     Object.defineProperty(window, "location", {
       writable: true,
@@ -936,6 +939,22 @@ describe("LoginPage SSO (K60)", () => {
     expect(window.location.href).toBe("https://idp.example.com/auth?x=1");
   });
 
+  it("stashes the desktop handoff flag before following the OIDC URL when ssoDesktopHandoff is set", async () => {
+    window.sessionStorage.clear();
+    mockApiStartOIDCLogin.mockResolvedValue({ authorization_url: "https://idp.example.com/auth?x=1" });
+    renderWithI18n(
+      <LoginPage onSuccess={onSuccess} ssoRedirectUri={REDIRECT} ssoDesktopHandoff />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Sign in with SSO" }));
+    await user.type(screen.getByLabelText("Workspace"), "acme");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(window.location.href).toBe("https://idp.example.com/auth?x=1"));
+    expect(window.sessionStorage.getItem(SSO_DESKTOP_HANDOFF_KEY)).not.toBeNull();
+  });
+
   it("offers the SSO path with the slug prefilled when the code login answers sso_required", async () => {
     mockSendCode.mockResolvedValue(undefined);
     mockVerifyCode.mockRejectedValueOnce(
@@ -953,6 +972,45 @@ describe("LoginPage SSO (K60)", () => {
     await user.click(screen.getByRole("button", { name: "Sign in with SSO" }));
     expect(screen.getByLabelText("Workspace")).toHaveValue("acme");
     expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  // Desktop (JEF-293): no ssoRedirectUri, so the SSO entry only appears
+  // because onSsoLogin is provided, and clicking it opens the external
+  // browser (via the desktop page's handler) instead of switching to the
+  // in-page workspace-slug step.
+  it("shows the SSO entry via onSsoLogin and calls it instead of the in-page SSO step (desktop)", async () => {
+    const onSsoLogin = vi.fn();
+    renderWithI18n(<LoginPage onSuccess={onSuccess} onSsoLogin={onSsoLogin} />);
+
+    const user = userEvent.setup();
+    const ssoButton = screen.getByRole("button", { name: "Sign in with SSO" });
+    await user.click(ssoButton);
+
+    expect(onSsoLogin).toHaveBeenCalledTimes(1);
+    expect(mockApiStartOIDCLogin).not.toHaveBeenCalled();
+    // Stayed on the email step — never switched to the in-page SSO form.
+    expect(screen.queryByLabelText("Workspace")).toBeNull();
+  });
+
+  it("routes the sso_required link through onSsoLogin on desktop", async () => {
+    const onSsoLogin = vi.fn();
+    mockSendCode.mockResolvedValue(undefined);
+    mockVerifyCode.mockRejectedValueOnce(
+      Object.assign(new Error("sso required"), { status: 403, body: { error: "sso_required", workspace_slug: "acme" } }),
+    );
+    renderWithI18n(<LoginPage onSuccess={onSuccess} onSsoLogin={onSsoLogin} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await waitFor(() => expect(screen.getByText(/check your email/i)).toBeInTheDocument());
+    await user.type(getOTPInput(), "123456");
+
+    await waitFor(() => expect(screen.getByText("This workspace requires single sign-on.")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Sign in with SSO" }));
+
+    expect(onSsoLogin).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Workspace")).toBeNull();
   });
 });
 

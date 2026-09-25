@@ -1473,13 +1473,7 @@ func (h *Handler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var deleted db.DeleteAttachmentRow
-	deleteParams := db.DeleteAttachmentParams{ID: att.ID, WorkspaceID: att.WorkspaceID}
-	err = h.withAttachmentOwnerLock(r.Context(), att, func(qtx *db.Queries) error {
-		var deleteErr error
-		deleted, deleteErr = qtx.DeleteAttachment(r.Context(), deleteParams)
-		return deleteErr
-	})
+	deleted, err := h.deleteAttachmentStorageAndRow(r.Context(), att)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// The attachment is gone — with its comment, with its issue, or on its
 		// own — while this waited for the owner lock.
@@ -1511,7 +1505,6 @@ func (h *Handler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.deleteS3Object(r.Context(), att.Url)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1610,6 +1603,29 @@ func (h *Handler) attachmentOwnerLockAttempt(ctx context.Context, att db.Attachm
 		return db.Attachment{}, err
 	}
 	return fresh, tx.Commit(ctx)
+}
+
+// deleteAttachmentStorageAndRow removes the attachment's storage object and
+// row through the same owner-locked path as DELETE /api/attachments/{id}
+// (DeleteAttachment above): lock whichever owner (issue/comment) currently
+// holds the row, delete it, then delete the storage object. The caller
+// decides what — if anything — to publish; DeleteAttachment publishes
+// issue/comment invalidation events because a live client may be looking at
+// the owner, while the orphan sweep (attachment_sweep.go) does not, because
+// by definition an orphaned attachment is no longer referenced by any live
+// content.
+func (h *Handler) deleteAttachmentStorageAndRow(ctx context.Context, att db.Attachment) (db.DeleteAttachmentRow, error) {
+	var deleted db.DeleteAttachmentRow
+	deleteParams := db.DeleteAttachmentParams{ID: att.ID, WorkspaceID: att.WorkspaceID}
+	if err := h.withAttachmentOwnerLock(ctx, att, func(qtx *db.Queries) error {
+		var deleteErr error
+		deleted, deleteErr = qtx.DeleteAttachment(ctx, deleteParams)
+		return deleteErr
+	}); err != nil {
+		return db.DeleteAttachmentRow{}, err
+	}
+	h.deleteS3Object(ctx, att.Url)
+	return deleted, nil
 }
 
 // deleteS3Object removes a single file from S3 by its CDN URL.

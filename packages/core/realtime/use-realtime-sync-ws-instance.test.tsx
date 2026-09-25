@@ -123,15 +123,16 @@ describe("useRealtimeSync — ws instance change", () => {
 
     // Should have called invalidateQueries for all workspace-scoped keys
     // (19 workspace-scoped [incl. property definitions, agent memories,
-    // meetings and the F30 work item type catalogue] + 6 per-issue prefixes +
-    // the workspace working-agents projection + 5 per-chat prefixes + 1
-    // workspaceKeys.list() + 1 cross-workspace inbox unread summary + budget
-    // policy/status scope = 35 calls).
+    // meetings and the F30 work item type catalogue] + 1 contest prefix
+    // [JEF-301, replaces the removed live-contest poll] + 6 per-issue
+    // prefixes + the workspace working-agents projection + 5 per-chat
+    // prefixes + 1 workspaceKeys.list() + 1 cross-workspace inbox unread
+    // summary + budget policy/status scope = 36 calls).
     //
     // Awaited rather than counted synchronously: the inbox unread summary
     // refresh cancels any in-flight request before invalidating (see
     // onInboxSummaryInvalidate), so that one lands after the synchronous ones.
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(35));
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(36));
   });
 
   it("does not re-invalidate when rerendered with the same ws instance", () => {

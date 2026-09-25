@@ -728,3 +728,49 @@ func TestSendSMTP_LoginAuthRejectsUnencryptedRemote(t *testing.T) {
 		t.Errorf("expected 'unencrypted connection' error, got: %v", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Production defense-in-depth: no transport configured (smtpHost == "" and
+// client == nil) must never fall back to the DEV stdout path in production
+// (JEF-288). main() already refuses to boot in this situation; these tests
+// cover the fallback guard for the unlikely case this code path is reached
+// anyway (e.g. APP_ENV flips after boot, or the guard in main() is bypassed).
+// ---------------------------------------------------------------------------
+
+func TestSendVerificationCode_NoTransportInProduction_Errors(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	s := &EmailService{} // no smtpHost, no client
+
+	err := s.SendVerificationCode("to@example.com", "123456")
+	if err == nil {
+		t.Fatal("expected error when no mail transport is configured in production")
+	}
+}
+
+func TestSendVerificationCode_NoTransportOutsideProduction_FallsBackToStdout(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	s := &EmailService{} // no smtpHost, no client
+
+	if err := s.SendVerificationCode("to@example.com", "123456"); err != nil {
+		t.Fatalf("expected dev stdout fallback (nil error), got: %v", err)
+	}
+}
+
+func TestSendInvitationEmail_NoTransportInProduction_Errors(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	s := &EmailService{} // no smtpHost, no client
+
+	err := s.SendInvitationEmail("to@example.com", "Inviter", "Workspace", "inv-123")
+	if err == nil {
+		t.Fatal("expected error when no mail transport is configured in production")
+	}
+}
+
+func TestSendInvitationEmail_NoTransportOutsideProduction_FallsBackToStdout(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	s := &EmailService{} // no smtpHost, no client
+
+	if err := s.SendInvitationEmail("to@example.com", "Inviter", "Workspace", "inv-123"); err != nil {
+		t.Fatalf("expected dev stdout fallback (nil error), got: %v", err)
+	}
+}

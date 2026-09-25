@@ -11,8 +11,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@multica/ui/components/ui/card";
+import { Button } from "@multica/ui/components/ui/button";
 import { AppLink, useNavigation } from "../navigation";
 import { useT } from "../i18n";
+import { clearSessionResume, readSessionResume } from "../common/session-resume";
+import { SSO_DESKTOP_HANDOFF_KEY, isTrueFlag } from "./login-page";
 
 /**
  * Landing page of the OIDC redirect (K60): exchanges `code` + `state` from the
@@ -23,6 +26,7 @@ export function SSOCallbackPage({ onTokenObtained }: { onTokenObtained?: () => v
   const { t } = useT("auth");
   const navigation = useNavigation();
   const [error, setError] = useState("");
+  const [desktopToken, setDesktopToken] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -32,10 +36,25 @@ export function SSOCallbackPage({ onTokenObtained }: { onTokenObtained?: () => v
       setError(t(($) => $.sso.callback.missing_params));
       return;
     }
+    // OIDC's `state` is a closed, server-signed token (unlike Google's
+    // client-extendable state), so "this round trip is for the desktop app"
+    // can only travel via this tab's storage — stashed by
+    // LoginPage.handleSsoStart right before it redirected to the IdP.
+    const isDesktop = readSessionResume(SSO_DESKTOP_HANDOFF_KEY, isTrueFlag) === true;
+    clearSessionResume(SSO_DESKTOP_HANDOFF_KEY);
     let cancelled = false;
     api
       .completeOIDCLogin(code, state)
       .then(async ({ token, workspace_slug }) => {
+        if (cancelled) return;
+        if (isDesktop) {
+          // Same handoff as the Google desktop flow (apps/web/app/auth/callback):
+          // hand the token to the app via deep link without logging this
+          // browser tab in.
+          setDesktopToken(token);
+          window.location.href = `multica://auth/callback?token=${encodeURIComponent(token)}`;
+          return;
+        }
         await useAuthStore.getState().loginWithToken(token);
         if (cancelled) return;
         onTokenObtained?.();
@@ -51,6 +70,33 @@ export function SSOCallbackPage({ onTokenObtained }: { onTokenObtained?: () => v
     // Runs once: the query string does not change while this page is mounted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (desktopToken) {
+    return (
+      <div className="flex min-h-svh items-center justify-center">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-display-sm">
+              {t(($) => $.web.desktop_handoff.opening_title)}
+            </CardTitle>
+            <CardDescription>
+              {t(($) => $.web.desktop_handoff.opening_description)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                window.location.href = `multica://auth/callback?token=${encodeURIComponent(desktopToken)}`;
+              }}
+            >
+              {t(($) => $.web.desktop_handoff.open_button)}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-svh items-center justify-center">

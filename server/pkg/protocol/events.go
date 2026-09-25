@@ -29,6 +29,11 @@ const (
 	EventAgentCreated  = "agent:created"
 	EventAgentArchived = "agent:archived"
 	EventAgentRestored = "agent:restored"
+	// EventAgentUpdated (JEF-301) fires when the agent's trust dial mode
+	// changes (SetAgentTrustMode); payload: {agent: AgentResponse}, same
+	// shape as the other agent:* broadcasts, so clients can invalidate/patch
+	// their cached agent from it without a refetch.
+	EventAgentUpdated = "agent:updated"
 
 	// Task events (server <-> daemon).
 	// Each event maps to a status transition on agent_task_queue. Front-end
@@ -201,6 +206,27 @@ const (
 	EventProjectResourceCreated = "project_resource:created"
 	EventProjectResourceUpdated = "project_resource:updated"
 	EventProjectResourceDeleted = "project_resource:deleted"
+
+	// Goal events (JEF-301). Workspace-scoped, like the project events above;
+	// payload: {goal: GoalResponse} for created/updated, {goal_id} for
+	// deleted.
+	EventGoalCreated = "goal:created"
+	EventGoalUpdated = "goal:updated"
+	EventGoalDeleted = "goal:deleted"
+
+	// Issue view events (JEF-301). Fired only for the shared write paths
+	// (create/update/delete of the view definition itself); per-user view-bar
+	// preferences (issue_view_preference.go) are private state keyed by user
+	// id and are never broadcast. Payload: {issue_view: IssueViewResponse}
+	// for created/updated, {issue_view_id} for deleted.
+	EventIssueViewCreated = "issue_view:created"
+	EventIssueViewUpdated = "issue_view:updated"
+	EventIssueViewDeleted = "issue_view:deleted"
+
+	// EventDecisionCreated (JEF-301) fires once per decision record stored,
+	// from either the manual API (CreateIssueDecisions) or LLM extraction
+	// (extractDecisionsWith). Payload: {decision: DecisionRecordResponse}.
+	EventDecisionCreated = "decision:created"
 
 	// Label events
 	EventLabelCreated       = "label:created"

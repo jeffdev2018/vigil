@@ -14,6 +14,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Goals with ancestry (K74): a root goal is the workspace mission, sub-goals
@@ -421,6 +422,7 @@ func (h *Handler) CreateGoal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "goal created but failed to load it")
 		return
 	}
+	h.publish(protocol.EventGoalCreated, uuidToString(wsUUID), "member", userID, map[string]any{"goal": resp})
 	writeJSON(w, http.StatusCreated, resp)
 }
 
@@ -489,6 +491,7 @@ func (h *Handler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "goal updated but failed to load it")
 		return
 	}
+	h.publish(protocol.EventGoalUpdated, uuidToString(wsUUID), "member", userID, map[string]any{"goal": resp})
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -547,6 +550,7 @@ func (h *Handler) DeleteGoal(w http.ResponseWriter, r *http.Request) {
 	}
 	h.unindexWhy(r.Context(), whySourceGoal, goal.ID)
 	h.audit(r.Context(), wsUUID, "member", uuidToString(requester.UserID), "goal.deleted", "goal", goal.ID, map[string]any{"title": goal.Title}, nil)
+	h.publish(protocol.EventGoalDeleted, uuidToString(wsUUID), "member", uuidToString(requester.UserID), map[string]any{"goal_id": uuidToString(goal.ID)})
 	w.WriteHeader(http.StatusNoContent)
 }
 

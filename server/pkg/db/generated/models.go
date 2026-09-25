@@ -507,6 +507,8 @@ type Attachment struct {
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
 	CaptureID       pgtype.UUID        `json:"capture_id"`
 	NoteID          pgtype.UUID        `json:"note_id"`
+	// When the sweep first found this attachment absent from its owning content; NULL while referenced.
+	UnreferencedSince pgtype.Timestamptz `json:"unreferenced_since"`
 }
 
 type AuditLogEntry struct {

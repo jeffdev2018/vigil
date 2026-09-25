@@ -301,3 +301,55 @@ ORDER BY id;
 DELETE FROM attachment
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND source_context_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- Orphaned attachment sweep (JEF-292)
+-- ---------------------------------------------------------------------------
+
+-- name: ListIssueOwnedAttachmentsForSweep :many
+-- Issue-level attachments (comment_id IS NULL): the description they were
+-- dropped into, plus every comment on the same issue, since a user can also
+-- paste the reference into a reply rather than the description itself.
+-- source_context_id rows are captured-context snapshots, never swept — they
+-- outlive the content that produced them by design.
+SELECT a.id, a.url, a.issue_id, a.unreferenced_since, i.description
+FROM attachment a
+JOIN issue i ON i.id = a.issue_id
+WHERE a.comment_id IS NULL
+  AND a.issue_id IS NOT NULL
+  AND a.source_context_id IS NULL
+ORDER BY a.id
+LIMIT sqlc.arg(limit_count);
+
+-- name: ListCommentContentsByIssueIDs :many
+SELECT issue_id, content FROM comment
+WHERE issue_id = ANY(sqlc.arg(issue_ids)::uuid[]);
+
+-- name: ListCommentOwnedAttachmentsForSweep :many
+-- Comment-level attachments: only the owning comment's own content is
+-- checked (not the whole issue) — see ListIssueOwnedAttachmentsForSweep for
+-- why issue-level attachments look wider.
+SELECT a.id, a.url, a.comment_id, a.unreferenced_since, c.content
+FROM attachment a
+JOIN comment c ON c.id = a.comment_id
+WHERE a.comment_id IS NOT NULL
+  AND a.source_context_id IS NULL
+ORDER BY a.id
+LIMIT sqlc.arg(limit_count);
+
+-- name: MarkAttachmentUnreferenced :exec
+UPDATE attachment SET unreferenced_since = now()
+WHERE id = sqlc.arg(id) AND unreferenced_since IS NULL;
+
+-- name: ClearAttachmentUnreferenced :exec
+UPDATE attachment SET unreferenced_since = NULL
+WHERE id = sqlc.arg(id) AND unreferenced_since IS NOT NULL;
+
+-- name: ListAttachmentsUnreferencedSince :many
+-- Deletion candidates: unreferenced past the retention cutoff. Oldest first
+-- so a bounded batch always drains the longest-orphaned rows.
+SELECT * FROM attachment
+WHERE unreferenced_since IS NOT NULL
+  AND unreferenced_since < sqlc.arg(cutoff)
+ORDER BY unreferenced_since ASC
+LIMIT sqlc.arg(limit_count);

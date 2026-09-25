@@ -52,6 +52,13 @@ func (a smtpClientAdapter) Extension(name string) (bool, string) {
 	return a.client.Extension(name)
 }
 
+// isProductionEnv mirrors handler.isProductionEnv (internal/handler/auth.go);
+// duplicated here rather than exported because it is a one-line env check and
+// service must not import handler.
+func isProductionEnv() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production")
+}
+
 func isLocalhost(name string) bool {
 	return name == "localhost" || name == "127.0.0.1" || name == "::1"
 }
@@ -350,6 +357,12 @@ func (s *EmailService) SendVerificationCode(to, code string) error {
 		return s.sendSMTP(to, "Your Multica verification code", body)
 	}
 	if s.client == nil {
+		if isProductionEnv() {
+			// Defense in depth: main() already refuses to boot in production
+			// without a mail transport (see mailTransportBootError). If this
+			// is ever reached anyway, never leak a login code to the log.
+			return fmt.Errorf("no mail transport configured: cannot send verification code in production")
+		}
 		fmt.Printf("[DEV] Verification code for %s: %s\n", to, code)
 		return nil
 	}
@@ -377,6 +390,10 @@ func (s *EmailService) SendInvitationEmail(to, inviterName, workspaceName, invit
 		return s.sendSMTP(to, params.Subject, params.Html)
 	}
 	if s.client == nil {
+		if isProductionEnv() {
+			// Defense in depth: see the matching check in SendVerificationCode.
+			return fmt.Errorf("no mail transport configured: cannot send invitation email in production")
+		}
 		fmt.Printf("[DEV] Invitation email to %s: %s invited you to %s — %s\n", to, inviterName, workspaceName, inviteURL)
 		return nil
 	}
