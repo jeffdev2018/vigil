@@ -1,5 +1,10 @@
-/** Who produced a Brain note. */
-export type WorkspaceNoteSource = "manual" | "agent" | "curation";
+/** Who produced a Brain note. `capture` and `decision` are stamped
+ *  server-side (organize flow, decision-record mirroring). */
+export type WorkspaceNoteSource = "manual" | "agent" | "curation" | "capture" | "decision";
+
+/** What kind of knowledge a note holds (JEF-415 / B04). Unknown or missing
+ *  parses to "fact" — see WorkspaceNoteKindSchema's `.catch`. */
+export type WorkspaceNoteKind = "fact" | "decision" | "procedure" | "glossary" | "episode";
 
 /** One workspace Brain note. */
 export interface WorkspaceNote {
@@ -21,6 +26,9 @@ export interface WorkspaceNote {
   created_by_id?: string | null;
   /** Optimistic-concurrency token: send it back on PATCH. */
   revision: number;
+  kind: WorkspaceNoteKind;
+  /** Set when this note mirrors a decision record; links to nothing new. */
+  decision_record_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,6 +44,7 @@ export interface CreateWorkspaceNoteInput {
   content?: string;
   tags?: string[];
   pinned?: boolean;
+  kind?: WorkspaceNoteKind;
 }
 
 export interface UpdateWorkspaceNoteInput {
@@ -43,6 +52,7 @@ export interface UpdateWorkspaceNoteInput {
   content?: string;
   tags?: string[];
   pinned?: boolean;
+  kind?: WorkspaceNoteKind;
   revision: number;
 }
 

@@ -2052,6 +2052,12 @@ export const EMPTY_POSTMORTEM_STATS: PostmortemStats = Object.freeze({
   discarded: 0,
 }) as PostmortemStats;
 
+// A kind added server-side, or omitted by an older server, must not fail the
+// parse: catch it to "fact" rather than rejecting the note (JEF-415 / B04).
+export const WorkspaceNoteKindSchema = z
+  .enum(["fact", "decision", "procedure", "glossary", "episode"])
+  .catch("fact");
+
 // Workspace Brain. One shared knowledge note; `revision` is the
 // optimistic-concurrency token the PATCH must send back.
 export const WorkspaceNoteSchema = z.object({
@@ -2069,6 +2075,8 @@ export const WorkspaceNoteSchema = z.object({
   created_by_type: z.string().default("member"),
   created_by_id: z.string().nullable().optional(),
   revision: z.number().default(0),
+  kind: WorkspaceNoteKindSchema,
+  decision_record_id: z.string().nullable().optional(),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
 }).loose();
@@ -2093,6 +2101,7 @@ export const EMPTY_WORKSPACE_NOTE: WorkspaceNote = Object.freeze({
   pinned: false,
   created_by_type: "member",
   revision: 0,
+  kind: "fact",
   created_at: "",
   updated_at: "",
 }) as WorkspaceNote;

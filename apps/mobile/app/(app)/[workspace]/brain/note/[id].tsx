@@ -27,9 +27,10 @@
  * none of this is optimistic.
  */
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, View } from "react-native";
+import { ActionSheetIOS, ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import type { WorkspaceNoteKind } from "@multica/core/types";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -46,6 +47,8 @@ import {
 import { useWorkspaceStore } from "@/data/workspace-store";
 import {
   isNoteArchived,
+  NOTE_KINDS,
+  noteKindLabel,
   noteSourceLabel,
   parseTagInput,
 } from "@/lib/brain-display";
@@ -80,6 +83,7 @@ export default function NoteDetailScreen() {
   const [title, setTitle] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
   const [content, setContent] = useState("");
+  const [kind, setKind] = useState<WorkspaceNoteKind>("fact");
 
   const data = note.data;
 
@@ -91,9 +95,24 @@ export default function NoteDetailScreen() {
     setTitle(data.title);
     setTagsRaw((data.tags ?? []).join(", "));
     setContent(data.content);
+    setKind(data.kind);
   }, [editing, data]);
 
   const busy = update.isPending || setArchived.isPending || remove.isPending;
+
+  const pickKind = useCallback(() => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: "Note kind",
+        options: [...NOTE_KINDS.map((k) => noteKindLabel(k)), "Cancel"],
+        cancelButtonIndex: NOTE_KINDS.length,
+      },
+      (index) => {
+        const next = NOTE_KINDS[index];
+        if (next) setKind(next);
+      },
+    );
+  }, []);
 
   const onSave = useCallback(() => {
     if (!data || busy) return;
@@ -118,6 +137,9 @@ export default function NoteDetailScreen() {
           title: title.trim(),
           content,
           tags: parseTagInput(tagsRaw),
+          // Only sent when the reader actually changed it, so an untouched
+          // kind never re-races a concurrent kind change on save.
+          ...(data.kind !== kind ? { kind } : {}),
           // The revision the draft was READ on. The server refuses a 0 and
           // answers 409 when the note moved since — never guessed locally.
           revision: editRevision,
@@ -134,7 +156,7 @@ export default function NoteDetailScreen() {
         },
       },
     );
-  }, [busy, content, data, editRevision, note, tagsRaw, title, update]);
+  }, [busy, content, data, editRevision, kind, note, tagsRaw, title, update]);
 
   const onTogglePin = useCallback(() => {
     if (!data || busy) return;
@@ -205,6 +227,7 @@ export default function NoteDetailScreen() {
   const archived = isNoteArchived(data);
   const meta = [
     noteSourceLabel(data.source),
+    noteKindLabel(data.kind),
     archived ? "Archived" : null,
     data.pinned === true ? "Pinned" : null,
     data.updated_at ? `updated ${timeAgo(data.updated_at)}` : null,
@@ -276,6 +299,17 @@ export default function NoteDetailScreen() {
               placeholder="What is this about?"
               invalid={title.length > MAX_TITLE_CHARS}
             />
+          </View>
+          <View className="gap-1">
+            <Text className="text-xs text-muted-foreground">Kind</Text>
+            <Pressable
+              onPress={pickKind}
+              accessibilityRole="button"
+              accessibilityLabel="Note kind"
+              className="flex-row items-center justify-between rounded-md border border-input px-3 py-2 active:bg-secondary/50"
+            >
+              <Text className="text-sm text-foreground">{noteKindLabel(kind)}</Text>
+            </Pressable>
           </View>
           <View className="gap-1">
             <Text className="text-xs text-muted-foreground">Tags</Text>

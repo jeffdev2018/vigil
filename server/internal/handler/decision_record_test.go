@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 // Decision memory (K29): extraction cites real run messages, a complex run
@@ -33,6 +35,10 @@ func decisionRun(t *testing.T, label string, files ...string) (string, string, s
 	projectID := dbfx.Project(t, label+" project")
 	dbfx.Exec(t, `UPDATE issue SET project_id = $1 WHERE id = $2`, projectID, issueID)
 	t.Cleanup(func() {
+		// JEF-415 / B04: a decision record mirrors into a Brain note; clean it
+		// up before the record it points at, or it never leaves testWorkspaceID
+		// and pollutes note ordering for the rest of this test binary run.
+		testPool.Exec(context.Background(), `DELETE FROM workspace_note WHERE decision_record_id IN (SELECT id FROM decision_record WHERE issue_id = $1)`, issueID)
 		testPool.Exec(context.Background(), `DELETE FROM decision_record WHERE issue_id = $1`, issueID)
 	})
 	runMessage(t, taskID, 1, "text", "Looking at the schema first.")
@@ -179,5 +185,145 @@ func TestDecisionMemoryExtractsWhenIssueIsAccepted(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM decision_record WHERE issue_id = $1`, other); n != 0 {
 		t.Fatalf("no llm but %d records", n)
+	}
+}
+
+// JEF-415 / B04: a decision record gets a second, searchable life as a Brain
+// note. The mirror is called from both CreateDecisionRecord call sites
+// (extraction and manual); this test drives the shared helper directly so it
+// does not depend on either caller's own gating.
+func TestDecisionRecordMirrorsToBrainNoteIdempotently(t *testing.T) {
+	issueID, taskID := completedAgentRun(t, "decision mirror")
+	issueUUID := parseUUID(issueID)
+	issue, err := testHandler.Queries.GetIssue(context.Background(), issueUUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recID := dbid.NewV7()
+	rec, err := testHandler.Queries.CreateDecisionRecord(context.Background(), db.CreateDecisionRecordParams{
+		ID: recID, WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: parseUUID(taskID),
+		SourceMessageSeq: 1, Title: "Keep the cache warm", Context: "cold starts were slow",
+		Decision: "prewarm on deploy", Consequences: pgtype.Text{String: "extra deploy step", Valid: true},
+		AuthorType: "agent",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM workspace_note WHERE decision_record_id = $1`, recID)
+		testPool.Exec(context.Background(), `DELETE FROM decision_record WHERE id = $1`, recID)
+	})
+
+	testHandler.mirrorDecisionRecordToNote(context.Background(), rec)
+	// A second mirror (a retry, or the runtime mirror racing the backfill)
+	// must not duplicate the note: the unique index on decision_record_id
+	// makes this idempotent.
+	testHandler.mirrorDecisionRecordToNote(context.Background(), rec)
+
+	var count int
+	dbfx.QueryRow(t, `SELECT COUNT(*) FROM workspace_note WHERE decision_record_id = $1`, recID).Scan(&count)
+	if count != 1 {
+		t.Fatalf("mirrored notes = %d, want 1 (idempotent)", count)
+	}
+	var kind, source, content string
+	dbfx.QueryRow(t, `SELECT kind, source, content FROM workspace_note WHERE decision_record_id = $1`, recID).Scan(&kind, &source, &content)
+	if kind != "decision" || source != "decision" {
+		t.Fatalf("kind/source = %q/%q, want decision/decision", kind, source)
+	}
+	for _, want := range []string{"## Contexte", "## Décision", "## Conséquences", "cold starts were slow", "prewarm on deploy"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("content missing %q:\n%s", want, content)
+		}
+	}
+}
+
+// The 993 backfill migration mirrors pre-existing decision records the same
+// way; this runs its exact SQL twice to prove it is safe to re-run (a
+// self-host upgrade retried, or run alongside the runtime mirror above).
+func TestDecisionRecordBackfillSQLIsIdempotent(t *testing.T) {
+	issueID, taskID := completedAgentRun(t, "decision backfill")
+	issueUUID := parseUUID(issueID)
+	issue, err := testHandler.Queries.GetIssue(context.Background(), issueUUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recID := dbid.NewV7()
+	if _, err := testHandler.Queries.CreateDecisionRecord(context.Background(), db.CreateDecisionRecordParams{
+		ID: recID, WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: parseUUID(taskID),
+		SourceMessageSeq: 1, Title: "Backfill me", Context: "ctx", Decision: "dec", AuthorType: "agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM workspace_note WHERE decision_record_id = $1`, recID)
+		testPool.Exec(context.Background(), `DELETE FROM decision_record WHERE id = $1`, recID)
+	})
+
+	const backfillSQL = `
+INSERT INTO workspace_note (
+    id, workspace_id, title, content, source, kind,
+    created_by_type, decision_record_id, created_at, updated_at
+)
+SELECT
+    gen_random_uuid(), dr.workspace_id, LEFT(dr.title, 200),
+    LEFT('## Contexte' || E'\n\n' || dr.context || E'\n\n## Décision' || E'\n\n' || dr.decision || E'\n\n## Conséquences' || E'\n\n' || COALESCE(dr.consequences, ''), 20000),
+    'decision', 'decision', 'system', dr.id, dr.created_at, dr.created_at
+FROM decision_record dr WHERE dr.id = $1
+ON CONFLICT (decision_record_id) WHERE decision_record_id IS NOT NULL DO NOTHING`
+
+	dbfx.Exec(t, backfillSQL, recID)
+	dbfx.Exec(t, backfillSQL, recID)
+
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM workspace_note WHERE decision_record_id = $1`, recID); n != 1 {
+		t.Fatalf("backfill notes = %d, want 1 after running the migration's SQL twice", n)
+	}
+}
+
+// JEF-415 / B04: mirrorDecisionRecordToNote is best-effort and only logs on
+// failure, so a decision record can be left with no note. The periodic brain
+// job (BackfillBrainEmbeddings) catches those up via
+// MirrorMissingDecisionRecordNotes; this drives the query directly.
+func TestMirrorMissingDecisionRecordNotesCatchesUpAndIsIdempotent(t *testing.T) {
+	issueID, taskID := completedAgentRun(t, "decision catch-up")
+	issueUUID := parseUUID(issueID)
+	issue, err := testHandler.Queries.GetIssue(context.Background(), issueUUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recID := dbid.NewV7()
+	// Created directly, without calling mirrorDecisionRecordToNote, to
+	// simulate the mirror having failed for this record.
+	if _, err := testHandler.Queries.CreateDecisionRecord(context.Background(), db.CreateDecisionRecordParams{
+		ID: recID, WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: parseUUID(taskID),
+		SourceMessageSeq: 1, Title: "Catch me up", Context: "the mirror failed here", Decision: "retry later", AuthorType: "agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(), `DELETE FROM workspace_note WHERE decision_record_id = $1`, recID)
+		testPool.Exec(context.Background(), `DELETE FROM decision_record WHERE id = $1`, recID)
+	})
+
+	if _, err := testHandler.Queries.MirrorMissingDecisionRecordNotes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM workspace_note WHERE decision_record_id = $1`, recID); n != 1 {
+		t.Fatalf("mirrored notes = %d, want 1 after the catch-up job runs", n)
+	}
+
+	// Running it again must not duplicate the note.
+	if _, err := testHandler.Queries.MirrorMissingDecisionRecordNotes(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM workspace_note WHERE decision_record_id = $1`, recID); n != 1 {
+		t.Fatalf("mirrored notes = %d, want 1 (idempotent) after running the catch-up job twice", n)
+	}
+}
+
+func TestDecisionRecordNoteTitleNeverBlank(t *testing.T) {
+	for in, want := range map[string]string{"": "Décision", "   ": "Décision", "  Choisir Postgres ": "Choisir Postgres"} {
+		if got := decisionRecordNoteTitle(in); got != want {
+			t.Fatalf("decisionRecordNoteTitle(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

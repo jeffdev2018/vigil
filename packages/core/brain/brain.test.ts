@@ -56,7 +56,20 @@ describe("listWorkspaceNotes", () => {
     expect(res.items[0]?.tags).toEqual([]);
     expect(res.items[0]?.pinned).toBe(false);
     expect(res.items[0]?.source).toBe("manual");
+    expect(res.items[0]?.kind).toBe("fact");
     expect(res.tags).toEqual([]);
+  });
+
+  it("degrades an unknown kind to fact rather than failing the parse", async () => {
+    stubFetchJson({ items: [{ ...validNote, kind: "some-future-kind" }] });
+    const res = await new ApiClient("https://api.example.test").listWorkspaceNotes();
+    expect(res.items[0]?.kind).toBe("fact");
+  });
+
+  it("defaults a missing kind to fact", async () => {
+    stubFetchJson({ items: [{ ...validNote, kind: undefined }] });
+    const res = await new ApiClient("https://api.example.test").listWorkspaceNotes();
+    expect(res.items[0]?.kind).toBe("fact");
   });
 
   it("degrades a malformed body to the empty fallback instead of throwing", async () => {
@@ -84,11 +97,13 @@ describe("listWorkspaceNotes", () => {
       search: "pgbouncer",
       tag: "db",
       archived: true,
+      kind: "decision",
     });
     const url = String(fetchMock.mock.calls[0]?.[0]);
     expect(url).toContain("search=pgbouncer");
     expect(url).toContain("tag=db");
     expect(url).toContain("archived=true");
+    expect(url).toContain("kind=decision");
   });
 });
 
@@ -106,12 +121,13 @@ describe("updateWorkspaceNote", () => {
 
 describe("brainKeys", () => {
   it("nests the list under the workspace prefix, keyed by its server-side filters", () => {
-    expect(brainKeys.list("ws-1", "pg", "db", false)).toEqual([
+    expect(brainKeys.list("ws-1", "pg", "db", false, "decision")).toEqual([
       ...brainKeys.all("ws-1"),
       "list",
       "pg",
       "db",
       false,
+      "decision",
     ]);
   });
 });
@@ -343,12 +359,14 @@ describe("searchWorkspaceNotes", () => {
       tag: "db",
       archived: true,
       limit: 5,
+      kind: "procedure",
     });
     const url = String(fetchMock.mock.calls[0]?.[0]);
     expect(url).toContain("q=pg+bouncer");
     expect(url).toContain("tag=db");
     expect(url).toContain("archived=true");
     expect(url).toContain("limit=5");
+    expect(url).toContain("kind=procedure");
   });
 });
 

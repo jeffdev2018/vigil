@@ -704,6 +704,9 @@ type brainOrganizeRequest struct {
 	Content string   `json:"content"`
 	Pinned  bool     `json:"pinned"`
 	NoteID  string   `json:"note_id"`
+	// Kind, one of service.NoteKinds; only used for action "note". Empty
+	// defaults to "fact".
+	Kind string `json:"kind"`
 }
 
 // brainCaptureAsMarkdown is what a capture becomes inside a note when the
@@ -778,7 +781,15 @@ func (h *Handler) OrganizeBrainCapture(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "at most 10 tags of 50 characters")
 			return
 		}
-		params := db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: content, Tags: tags, Source: "capture", Pinned: req.Pinned, CreatedByType: actorType, CreatedByID: actorID}
+		kind, ok := validateNoteKind(req.Kind)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "kind must be one of "+strings.Join(service.NoteKinds, ", "))
+			return
+		}
+		if kind == "" {
+			kind = service.DefaultNoteKind
+		}
+		params := db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: content, Tags: tags, Source: "capture", Kind: kind, Pinned: req.Pinned, CreatedByType: actorType, CreatedByID: actorID}
 		if actorType == "agent" {
 			params.SourceAgentID = actorID
 			params.SourceTaskID = taskID
@@ -903,7 +914,11 @@ func (h *Handler) SearchWorkspaceNotes(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = int32(n)
 	}
-	hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{WorkspaceID: wsUUID, Query: q, Tag: strings.TrimSpace(r.URL.Query().Get("tag")), IncludeArchived: r.URL.Query().Get("archived") == "true", Limit: limit})
+	kind, ok := noteKindQueryFilter(w, r)
+	if !ok {
+		return
+	}
+	hits, err := service.SearchBrainNotes(r.Context(), h.Queries, h.BrainEmbedder, service.BrainSearchParams{WorkspaceID: wsUUID, Query: q, Tag: strings.TrimSpace(r.URL.Query().Get("tag")), Kind: kind, IncludeArchived: r.URL.Query().Get("archived") == "true", Limit: limit})
 	if err != nil {
 		slog.Error("brain search failed", "workspace_id", uuidToString(wsUUID), "error", err)
 		writeError(w, http.StatusInternalServerError, "search failed")
@@ -931,9 +946,15 @@ func (h *Handler) embedNoteAsync(noteID pgtype.UUID) {
 }
 
 // BackfillBrainEmbeddings is the scheduler entry point: catches up the
-// passage index of every workspace, sweeps orphan passages and, with a
-// provider, embeds up to a batch of passages. Returns the work done.
+// passage index of every workspace, sweeps orphan passages, mirrors any
+// decision record whose runtime mirror (mirrorDecisionRecordToNote) failed,
+// and with a provider, embeds up to a batch of passages. Returns the work
+// done.
 func (h *Handler) BackfillBrainEmbeddings(ctx context.Context) int {
+	mirrored, err := h.Queries.MirrorMissingDecisionRecordNotes(ctx)
+	if err != nil {
+		slog.Error("brain embedding backfill: mirror missing decision record notes failed", "error", err)
+	}
 	b, ok := h.BrainEmbedder.(*service.BrainEmbedder)
 	if !ok || b == nil {
 		// No embedder wired: the lexical index still has to catch up.
@@ -943,7 +964,7 @@ func (h *Handler) BackfillBrainEmbeddings(ctx context.Context) int {
 	if err != nil {
 		slog.Warn("brain embedding backfill stopped", "done", n, "error", err)
 	}
-	return n
+	return n + len(mirrored)
 }
 
 // DELETE /api/brain/captures/{id} — the capture is gone for good, with its

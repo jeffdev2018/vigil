@@ -22,6 +22,7 @@ import type { WorkspaceNote, WorkspaceNoteSearchHit } from "@multica/core/types"
 import { Text } from "@/components/ui/text";
 import {
   isNoteArchived,
+  noteKindLabel,
   noteSourceLabel,
   parseSearchSnippet,
   searchSnippetText,
@@ -75,6 +76,7 @@ export function NoteRow({
 
       <View className="flex-row flex-wrap items-center gap-1">
         <Chip>{noteSourceLabel(note.source)}</Chip>
+        <Chip>{noteKindLabel(note.kind)}</Chip>
         {(note.tags ?? []).map((tag) => (
           <Chip key={tag}>{tag}</Chip>
         ))}

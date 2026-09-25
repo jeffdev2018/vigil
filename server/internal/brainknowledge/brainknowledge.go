@@ -37,7 +37,11 @@ type Note struct {
 	Tags    []string `json:"tags,omitempty"`
 	Pinned  bool     `json:"pinned,omitempty"`
 	Source  string   `json:"source,omitempty"`
-	Updated string   `json:"updated_at,omitempty"`
+	// Kind is one of the note kind constants (service.NoteKind*): fact,
+	// decision, procedure, glossary or episode. Empty from a server that
+	// predates note kinds, which is what keeps a mixed-version claim decoding.
+	Kind    string `json:"kind,omitempty"`
+	Updated string `json:"updated_at,omitempty"`
 	// Reason is one of the Reason* constants: why this note was selected.
 	// Empty from a server that predates relevance selection, which is what
 	// makes the index byte-identical to what it used to write.
@@ -82,7 +86,11 @@ func FileName(note Note) string {
 // agent needs to act on it (id, tags, source), then the body.
 func Body(note Note) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s\n\n", note.Title)
+	if note.Kind != "" && note.Kind != "fact" {
+		fmt.Fprintf(&b, "# [%s] %s\n\n", note.Kind, note.Title)
+	} else {
+		fmt.Fprintf(&b, "# %s\n\n", note.Title)
+	}
 	fmt.Fprintf(&b, "- id: `%s`\n", note.ID)
 	if len(note.Tags) > 0 {
 		fmt.Fprintf(&b, "- tags: %s\n", strings.Join(note.Tags, ", "))

@@ -10,7 +10,24 @@
     "manual": "手动",
     "agent": "智能体创建",
     "curation": "已整理",
+    "decision": "决策记录",
     "open_run": "查看运行"
+  },
+  "kind": {
+    "all": "全部类型",
+    "filter_label": "按类型筛选",
+    "picker_label": "笔记类型",
+    "fact": "事实",
+    "decision": "决策",
+    "procedure": "流程",
+    "glossary": "术语",
+    "episode": "事件",
+    "template": {
+      "decision": "## 背景\n\n## 决策\n\n## 原因\n\n## 已排除的方案\n\n## 约束\n\n## 复审日期",
+      "procedure": "## 适用场景\n\n## 步骤\n\n1. \n2. \n3. \n\n## 验证方式",
+      "glossary": "## 定义\n\n## 同义词\n\n## 参见",
+      "episode": "## 发生了什么\n\n## 影响\n\n## 处理结果\n\n## 要点"
+    }
   },
   "list": {
     "loading": "正在加载笔记",

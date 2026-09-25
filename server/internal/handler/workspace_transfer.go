@@ -207,6 +207,9 @@ type transferNote struct {
 	Content string   `json:"content"`
 	Tags    []string `json:"tags"`
 	Pinned  bool     `json:"pinned"`
+	// Kind, one of service.NoteKinds. Empty (an export from before note
+	// kinds) imports as "fact".
+	Kind string `json:"kind,omitempty"`
 }
 
 type transferIssue struct {
@@ -555,7 +558,7 @@ func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts
 			return nil, fmt.Errorf("notes: %w", err)
 		}
 		for _, n := range notes {
-			b.Notes = append(b.Notes, transferNote{Title: n.Title, Content: scrubText(n.Content), Tags: n.Tags, Pinned: n.Pinned})
+			b.Notes = append(b.Notes, transferNote{Title: n.Title, Content: scrubText(n.Content), Tags: n.Tags, Pinned: n.Pinned, Kind: n.Kind})
 		}
 	}
 	if opts.IncludeIssues {
@@ -1390,7 +1393,13 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			}
 			title += transferRenameSuffix
 		}
-		row, err := q.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: n.Content, Tags: tags, Source: "manual", Pinned: n.Pinned, CreatedByType: "member", CreatedByID: importer})
+		kind := n.Kind
+		if !service.ValidNoteKind(kind) {
+			// Empty on an export from before note kinds, or a corrupted
+			// value: falls back to fact rather than rejecting the import.
+			kind = service.DefaultNoteKind
+		}
+		row, err := q.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: n.Content, Tags: tags, Source: "manual", Kind: kind, Pinned: n.Pinned, CreatedByType: "member", CreatedByID: importer})
 		if err != nil {
 			return fmt.Errorf("create note %q: %w", n.Title, err)
 		}

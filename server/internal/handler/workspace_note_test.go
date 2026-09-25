@@ -213,3 +213,141 @@ func TestWorkspaceNoteSearchAndTagFilter(t *testing.T) {
 		t.Fatalf("tag=WEB returned %d items, want only the web note (the filter lowercases)", len(listed.Items))
 	}
 }
+
+// JEF-415 / B04: note kind on create/update/list, defaulting and validation.
+func TestWorkspaceNoteKind(t *testing.T) {
+	workspaceID := dbfx.Workspace(t, "Brain kind", "brain-kind-"+uuid.NewString())
+	dbfx.Member(t, workspaceID, testUserID, "owner")
+
+	// No kind given defaults to fact.
+	fact := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "A plain fact", Content: "x"})
+	if fact.Kind != "fact" {
+		t.Fatalf("default kind = %q, want fact", fact.Kind)
+	}
+
+	// An unknown kind is a 400 on create, not a silently ignored value.
+	testutil.Call(t, noteWorkspaceHandler(testHandler.CreateWorkspaceNote),
+		noteRequest(http.MethodPost, "/api/workspace/notes", workspaceID,
+			CreateWorkspaceNoteRequest{Title: "Bad kind", Content: "x", Kind: "opinion"})).
+		Want(http.StatusBadRequest)
+
+	decision := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Chose Postgres", Content: "x", Kind: "decision"})
+	if decision.Kind != "decision" {
+		t.Fatalf("created kind = %q, want decision", decision.Kind)
+	}
+
+	// Update without kind keeps the current kind.
+	newContent := "y"
+	var updated WorkspaceNoteResponse
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Content: &newContent, Revision: decision.Revision}), "id", decision.ID)).
+		Want(http.StatusOK).JSON(&updated)
+	if updated.Kind != "decision" {
+		t.Fatalf("kind after an update that omits it = %q, want unchanged decision", updated.Kind)
+	}
+
+	// Update with a kind changes it; an unknown value is a 400.
+	badKind := "opinion"
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Kind: &badKind, Revision: updated.Revision}), "id", decision.ID)).
+		Want(http.StatusBadRequest)
+	procedure := "procedure"
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Kind: &procedure, Revision: updated.Revision}), "id", decision.ID)).
+		Want(http.StatusOK).JSON(&updated)
+	if updated.Kind != "procedure" {
+		t.Fatalf("kind after explicit update = %q, want procedure", updated.Kind)
+	}
+
+	// List filters by kind; an unknown value is a 400.
+	var listed struct {
+		Items []WorkspaceNoteResponse `json:"items"`
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes?kind=fact", workspaceID, nil)).
+		Want(http.StatusOK).JSON(&listed)
+	if len(listed.Items) != 1 || listed.Items[0].ID != fact.ID {
+		t.Fatalf("kind=fact listing = %v, want only the fact note", listed.Items)
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes?kind=opinion", workspaceID, nil)).
+		Want(http.StatusBadRequest)
+}
+
+// JEF-415 / B04: kind defaults to fact, round-trips through create/update,
+// filters list and search, and an unknown value is a 400 everywhere it can
+// be given, never a silently ignored filter or a silently dropped write.
+func TestWorkspaceNoteKindValidation(t *testing.T) {
+	workspaceID := dbfx.Workspace(t, "Brain kind", "brain-kind-"+uuid.NewString())
+	dbfx.Member(t, workspaceID, testUserID, "owner")
+
+	// Default: a create with no kind is "fact".
+	def := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Plain fact", Content: "x"})
+	if def.Kind != "fact" {
+		t.Fatalf("default kind = %q, want fact", def.Kind)
+	}
+
+	// Create: a valid kind round-trips, an unknown one is a 400 and nothing
+	// is created.
+	decision := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "A choice", Content: "x", Kind: "decision"})
+	if decision.Kind != "decision" {
+		t.Fatalf("created kind = %q, want decision", decision.Kind)
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.CreateWorkspaceNote),
+		noteRequest(http.MethodPost, "/api/workspace/notes", workspaceID,
+			CreateWorkspaceNoteRequest{Title: "Bad kind", Content: "x", Kind: "opinion"})).
+		Want(http.StatusBadRequest)
+
+	// Update: an explicit valid kind changes it; omitting the field keeps the
+	// current kind; an explicit unknown value is a 400 and the note is
+	// unchanged.
+	proc := "procedure"
+	updated := WorkspaceNoteResponse{}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Kind: &proc, Revision: decision.Revision}), "id", decision.ID)).
+		Want(http.StatusOK).JSON(&updated)
+	if updated.Kind != "procedure" {
+		t.Fatalf("updated kind = %q, want procedure", updated.Kind)
+	}
+	noKindChange := WorkspaceNoteResponse{}
+	pinned := true
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Pinned: &pinned, Revision: updated.Revision}), "id", decision.ID)).
+		Want(http.StatusOK).JSON(&noKindChange)
+	if noKindChange.Kind != "procedure" {
+		t.Fatalf("kind after an update omitting it = %q, want unchanged procedure", noKindChange.Kind)
+	}
+	bad := "not-a-kind"
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UpdateWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPatch, "/api/workspace/notes/"+decision.ID, workspaceID,
+			UpdateWorkspaceNoteRequest{Kind: &bad, Revision: noKindChange.Revision}), "id", decision.ID)).
+		Want(http.StatusBadRequest)
+
+	// List: ?kind= filters; an unknown value is a 400.
+	var listed struct {
+		Items []WorkspaceNoteResponse `json:"items"`
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes?kind=fact", workspaceID, nil)).
+		Want(http.StatusOK).JSON(&listed)
+	if len(listed.Items) != 1 || listed.Items[0].ID != def.ID {
+		t.Fatalf("kind=fact returned %d items, want only the plain fact note", len(listed.Items))
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes?kind=bogus", workspaceID, nil)).
+		Want(http.StatusBadRequest)
+
+	// Search: ?kind= filters the ranked engine too; an unknown value is a 400.
+	listed.Items = nil
+	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=x&kind=procedure", workspaceID, nil)).
+		Want(http.StatusOK)
+	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=x&kind=bogus", workspaceID, nil)).
+		Want(http.StatusBadRequest)
+}

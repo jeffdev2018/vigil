@@ -48,6 +48,34 @@ func TestBrainClaimQueryTruncatesAndBoundsLabels(t *testing.T) {
 	}
 }
 
+// weighBrainHitsByKind is pure: this covers the ordering the injection weight
+// table (JEF-415 / B04) produces without a database.
+func TestWeighBrainHitsByKindOrdersByWeightedScore(t *testing.T) {
+	kinds := []string{NoteKindEpisode, NoteKindFact, NoteKindDecision, NoteKindProcedure, NoteKindGlossary, "future-kind"}
+	hits := make([]BrainSearchHit, len(kinds))
+	for i, k := range kinds {
+		hits[i] = BrainSearchHit{Note: db.WorkspaceNote{Kind: k}, Score: 1.0}
+	}
+	weighed := weighBrainHitsByKind(hits)
+	want := map[string]float64{
+		NoteKindEpisode: 0.85, NoteKindFact: 1.0, NoteKindDecision: 1.2,
+		NoteKindProcedure: 1.15, NoteKindGlossary: 1.0, "future-kind": 1.0, // unknown weighs like fact
+	}
+	scoreOf := map[string]float64{}
+	for _, h := range weighed {
+		scoreOf[h.Note.Kind] = h.Score
+		if h.Score != want[h.Note.Kind] {
+			t.Errorf("kind %q score = %v, want %v", h.Note.Kind, h.Score, want[h.Note.Kind])
+		}
+	}
+	// A decision must now outrank a same-relevance procedure, fact and episode.
+	if !(scoreOf[NoteKindDecision] > scoreOf[NoteKindProcedure] &&
+		scoreOf[NoteKindProcedure] > scoreOf[NoteKindFact] &&
+		scoreOf[NoteKindFact] > scoreOf[NoteKindEpisode]) {
+		t.Fatalf("weighted order wrong: %+v", scoreOf)
+	}
+}
+
 func TestBrainClaimQueryEmptyWithoutText(t *testing.T) {
 	for _, tc := range []struct{ title, description, project string }{
 		{"", "", ""},
@@ -198,6 +226,48 @@ func TestSelectWorkspaceNotesForBriefDeduplicates(t *testing.T) {
 	}
 }
 
+// JEF-415 / B04: a note mirrored from a decision record already reaches a
+// run through pinning or relevance search; it must not also ride the plain
+// "recent" tail, or a workspace's steady stream of accepted decisions would
+// crowd every other kind of note out of it.
+func TestLoadWorkspaceNotesForBriefExcludesDecisionSourcedNotesFromTheRecentTail(t *testing.T) {
+	f := newBrainInjectFixture(t)
+	recentFact := f.note(t, "Fact note", "Some fact.", false, 1)
+	recentDecision := f.fx.Insert(t, "workspace_note", testutil.Cols{
+		"id":           testutil.Raw("gen_random_uuid()"),
+		"workspace_id": f.wsID,
+		"title":        "Mirrored decision",
+		"content":      "A decision, mirrored as a note.",
+		"source":       "decision",
+	})
+	pinnedDecision := f.fx.Insert(t, "workspace_note", testutil.Cols{
+		"id":           testutil.Raw("gen_random_uuid()"),
+		"workspace_id": f.wsID,
+		"title":        "Pinned decision",
+		"content":      "A decision worth always knowing.",
+		"source":       "decision",
+		"pinned":       true,
+	})
+
+	rows, err := f.svc.LoadWorkspaceNotesForBrief(context.Background(), util.MustParseUUID(f.wsID))
+	if err != nil {
+		t.Fatalf("LoadWorkspaceNotesForBrief: %v", err)
+	}
+	ids := make([]string, len(rows))
+	for i, r := range rows {
+		ids[i] = util.UUIDToString(r.ID)
+	}
+	if !selectedNote(ids, recentFact) {
+		t.Errorf("plain recent note missing from %v", ids)
+	}
+	if selectedNote(ids, recentDecision) {
+		t.Errorf("non-pinned decision-sourced note reached the recent tail: %v", ids)
+	}
+	if !selectedNote(ids, pinnedDecision) {
+		t.Errorf("pinned decision-sourced note is missing (pinning must still work): %v", ids)
+	}
+}
+
 // Empty query and a query nothing matches both fall back to the selection
 // this replaced, so a workspace whose notes do not match its tickets keeps
 // what it had.
@@ -278,6 +348,45 @@ func TestSelectWorkspaceNotesForBriefExcludesArchived(t *testing.T) {
 	}
 }
 
+// JEF-415 / B04: weighBrainHitsByKind used to run AFTER the SQL query had
+// already cut results to brainInjectRelevantLimit, so a note the raw fused
+// score ranked just outside that window could never be weighted back in.
+// searchBrainForBrief now asks for 2x the final limit so a candidate like
+// that gets a chance to out-rank a weaker same-kind hit before the cut.
+func TestSelectWorkspaceNotesForBriefWeighsCandidatesBeyondTheOldSQLLimit(t *testing.T) {
+	f := newBrainInjectFixture(t)
+	term := "warehouse"
+	// 8 fact notes with strictly decreasing term frequency, so the lexical
+	// rank (and the fused RRF score) orders them 1..8 by construction.
+	for i, reps := range []int{100, 90, 80, 70, 60, 50, 40, 30} {
+		f.fx.Insert(t, "workspace_note", testutil.Cols{
+			"id":           testutil.Raw("gen_random_uuid()"),
+			"workspace_id": f.wsID,
+			"title":        fmt.Sprintf("Fact note %d", i),
+			"content":      strings.Repeat(term+" ", reps),
+		})
+	}
+	// Ranked 9th by raw score — just outside the old top-8 SQL window — but
+	// its 1.2x decision weight is enough to out-rank the 8 fact notes above,
+	// once it is even allowed to compete.
+	decision := f.fx.Insert(t, "workspace_note", testutil.Cols{
+		"id":           testutil.Raw("gen_random_uuid()"),
+		"workspace_id": f.wsID,
+		"title":        "Decision on warehouse capacity",
+		"content":      strings.Repeat(term+" ", 5),
+		"kind":         "decision",
+	})
+
+	ids, reasons := f.selected(t, term)
+
+	if !selectedNote(ids, decision) {
+		t.Fatalf("decision note ranked just outside the raw top %d did not enter after kind weighting; ids=%v", brainInjectRelevantLimit, ids)
+	}
+	if got := reasons[decision].Reason; got != brainknowledge.ReasonRelevant {
+		t.Errorf("reason for the decision note = %q, want %q (it must win by relevance, not ride in on the recent tail)", got, brainknowledge.ReasonRelevant)
+	}
+}
+
 // The native runtime gets the same selection as a daemon claim, rendered
 // compactly into its brief and recorded as injected through its own channel.
 func TestNativeBriefCarriesTheSelectedWorkspaceKnowledge(t *testing.T) {
@@ -299,6 +408,15 @@ func TestNativeBriefCarriesTheSelectedWorkspaceKnowledge(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		bf.note(t, fmt.Sprintf("Compte rendu de réunion %d", i), strings.Repeat("rien à retenir ", 300), false, i)
 	}
+	// Pinned, so it is always in the brief regardless of relevance: proves a
+	// non-fact kind still gets its "[kind]" heading prefix while the plain
+	// (default kind=fact) notes above do not.
+	fx.Insert(t, "workspace_note", testutil.Cols{
+		"id":           testutil.Raw("gen_random_uuid()"),
+		"workspace_id": ws, "title": "Rollback avant tag suivant",
+		"content": "Décision: on ne revert jamais un tag déployé.",
+		"pinned":  true, "kind": "decision",
+	})
 
 	issueID := fx.Issue(t, "Le déploiement échoue depuis une branche", testutil.Cols{
 		"description": "Le pipeline a refusé le build lancé depuis une branche.",
@@ -327,6 +445,15 @@ func TestNativeBriefCarriesTheSelectedWorkspaceKnowledge(t *testing.T) {
 	}
 	if !strings.Contains(block, "Procédure de déploiement en production") {
 		t.Errorf("the answering note is not in the block:\n%s", block)
+	}
+	// JEF-415 / B04: fact is the default, freeform kind and gets no "[kind]"
+	// heading prefix (byte-identical to a pre-kinds brief); a non-fact kind
+	// still does.
+	if strings.Contains(block, "## [fact]") {
+		t.Errorf("a fact note carries a redundant [fact] prefix:\n%s", block)
+	}
+	if !strings.Contains(block, "## [decision] Rollback avant tag suivant") {
+		t.Errorf("the pinned decision note lost its [decision] prefix:\n%s", block)
 	}
 	if len(block) > nativeBriefNoteBytes+512 {
 		t.Errorf("knowledge block is %d bytes, over the %d budget", len(block), nativeBriefNoteBytes)

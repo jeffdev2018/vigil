@@ -20,6 +20,7 @@ func newBrainSaveTestCmd() *cobra.Command {
 	cmd.Flags().String("content", "", "")
 	cmd.Flags().String("content-file", "", "")
 	cmd.Flags().Bool("pinned", false, "")
+	cmd.Flags().String("kind", "", "")
 	cmd.Flags().String("id", "", "")
 	cmd.Flags().String("output", "json", "")
 	return cmd
@@ -29,6 +30,7 @@ func newBrainListTestCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "list"}
 	cmd.Flags().String("search", "", "")
 	cmd.Flags().String("tag", "", "")
+	cmd.Flags().String("kind", "", "")
 	cmd.Flags().Bool("archived", false, "")
 	cmd.Flags().Int("limit", 0, "")
 	cmd.Flags().String("output", "table", "")
@@ -161,18 +163,57 @@ func TestRunBrainListPassesTheFiltersThrough(t *testing.T) {
 	cmd := newBrainListTestCmd()
 	_ = cmd.Flags().Set("search", "pgbouncer")
 	_ = cmd.Flags().Set("tag", "db")
+	_ = cmd.Flags().Set("kind", "decision")
 	_ = cmd.Flags().Set("archived", "true")
 	out, err := captureStdout(t, func() error { return runBrainList(cmd, nil) })
 	if err != nil {
 		t.Fatalf("runBrainList: %v", err)
 	}
-	for _, want := range []string{"search=pgbouncer", "tag=db", "archived=true"} {
+	for _, want := range []string{"search=pgbouncer", "tag=db", "kind=decision", "archived=true"} {
 		if !strings.Contains(gotQuery, want) {
 			t.Errorf("query %q missing %q", gotQuery, want)
 		}
 	}
 	if !strings.Contains(out, "Deploys") {
 		t.Errorf("table output missing the note title:\n%s", out)
+	}
+}
+
+// The CLI's own flag parsing carries --kind through to save, list and
+// search; server-side validation of the value is covered in
+// internal/handler/workspace_note_test.go.
+func TestRunBrainSaveSendsTheKindFlag(t *testing.T) {
+	var gotBody map[string]any
+	brainTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "note-1", "title": "Deploys", "kind": "procedure", "revision": 1})
+	})
+	cmd := newBrainSaveTestCmd()
+	_ = cmd.Flags().Set("title", "Deploys")
+	_ = cmd.Flags().Set("content", "Push v0.x.x on main.")
+	_ = cmd.Flags().Set("kind", "procedure")
+	if _, err := captureStdout(t, func() error { return runBrainSave(cmd, nil) }); err != nil {
+		t.Fatalf("runBrainSave: %v", err)
+	}
+	if gotBody["kind"] != "procedure" {
+		t.Errorf("body kind = %#v, want procedure", gotBody["kind"])
+	}
+}
+
+func TestRunBrainSearchPassesTheKindFlag(t *testing.T) {
+	var gotQuery string
+	brainTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{"notes": []map[string]any{}, "vector": false})
+	})
+	cmd := newBrainSearchTestCmd()
+	_ = cmd.Flags().Set("kind", "glossary")
+	if _, err := captureStdout(t, func() error { return runBrainSearch(cmd, []string{"pooling"}) }); err != nil {
+		t.Fatalf("runBrainSearch: %v", err)
+	}
+	if !strings.Contains(gotQuery, "kind=glossary") {
+		t.Errorf("query %q missing kind=glossary", gotQuery)
 	}
 }
 
@@ -212,6 +253,7 @@ func newBrainOrganizeTestCmd() *cobra.Command {
 func newBrainSearchTestCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "search"}
 	cmd.Flags().String("tag", "", "")
+	cmd.Flags().String("kind", "", "")
 	cmd.Flags().Bool("archived", false, "")
 	cmd.Flags().Int("limit", 0, "")
 	cmd.Flags().String("output", "table", "")

@@ -283,6 +283,7 @@ WITH items AS MATERIALIZED (
       AND n.workspace_id = $6::uuid
       AND ($7::bool OR n.archived_at IS NULL)
       AND ($8::text IS NULL OR $8::text = ANY(n.tags))
+      AND ($9::text IS NULL OR n.kind = $9::text)
       AND p.tsv @@ (SELECT q FROM q_or)
       AND p.note_id NOT IN (SELECT en.note_id FROM excluded_notes en)
 ), present AS MATERIALIZED (
@@ -299,30 +300,31 @@ WITH items AS MATERIALIZED (
     FROM lex_notes l
     JOIN workspace_note ln ON ln.id = l.note_id
     WHERE l.matched >= CASE
-        WHEN $9::bool THEN (SELECT count(*) FROM present)
+        WHEN $10::bool THEN (SELECT count(*) FROM present)
         ELSE GREATEST(1, ceil((SELECT count(*) FROM present) / 2.0))
     END
     ORDER BY lex_rank
-    LIMIT $10::int
+    LIMIT $11::int
 ), best_lexical AS (
     SELECT DISTINCT ON (h.note_id) h.note_id, h.ordinal
     FROM hits h
     WHERE h.note_id IN (SELECT lx.note_id FROM lexical lx)
     ORDER BY h.note_id, h.rank DESC, h.ordinal
 ), nearest AS (
-    SELECT vp.note_id, vp.ordinal, vp.embedding <=> CAST($11::text AS vector) AS distance
+    SELECT vp.note_id, vp.ordinal, vp.embedding <=> CAST($12::text AS vector) AS distance
     FROM workspace_note_passage vp
     JOIN workspace_note vn ON vn.id = vp.note_id
-    WHERE $11::text IS NOT NULL
+    WHERE $12::text IS NOT NULL
       AND vp.workspace_id = $6::uuid
       AND vn.workspace_id = $6::uuid
       AND vp.embedding IS NOT NULL
-      AND vp.embedding_model = $12::text
+      AND vp.embedding_model = $13::text
       AND ($7::bool OR vn.archived_at IS NULL)
       AND ($8::text IS NULL OR $8::text = ANY(vn.tags))
+      AND ($9::text IS NULL OR vn.kind = $9::text)
       AND vp.note_id NOT IN (SELECT en.note_id FROM excluded_notes en)
     ORDER BY distance
-    LIMIT $10::int * 4
+    LIMIT $11::int * 4
 ), vec AS (
     SELECT d.note_id, d.ordinal, d.distance, row_number() OVER (ORDER BY d.distance) AS vec_rank
     FROM (
@@ -331,7 +333,7 @@ WITH items AS MATERIALIZED (
         ORDER BY nr.note_id, nr.distance
     ) d
     ORDER BY vec_rank
-    LIMIT $10::int
+    LIMIT $11::int
 ), fused AS (
     SELECT COALESCE(l.note_id, v.note_id) AS note_id,
            (COALESCE(1.0 / (60 + l.lex_rank), 0) + COALESCE(1.0 / (60 + v.vec_rank), 0))::float8 AS score,
@@ -339,10 +341,10 @@ WITH items AS MATERIALIZED (
     FROM lexical l
     FULL OUTER JOIN vec v ON v.note_id = l.note_id
     WHERE l.note_id IS NOT NULL
-       OR $13::bool
-       OR 1 - v.distance >= $14::float8
+       OR $14::bool
+       OR 1 - v.distance >= $15::float8
 )
-SELECT n.id, n.workspace_id, n.title, n.content, n.tags, n.source, n.source_task_id, n.source_agent_id, n.pinned, n.archived_at, n.merged_into, n.created_by_type, n.created_by_id, n.revision, n.created_at, n.updated_at, f.score, f.lex_rank, f.vec_rank,
+SELECT n.id, n.workspace_id, n.title, n.content, n.tags, n.source, n.source_task_id, n.source_agent_id, n.pinned, n.archived_at, n.merged_into, n.created_by_type, n.created_by_id, n.revision, n.created_at, n.updated_at, n.kind, n.decision_record_id, f.score, f.lex_rank, f.vec_rank,
        COALESCE(bp.heading, '')::text AS passage_heading,
        COALESCE(bp.body, '')::text AS passage_body
 FROM fused f
@@ -362,6 +364,7 @@ type SearchBrainNotesParams struct {
 	WorkspaceID         pgtype.UUID   `json:"workspace_id"`
 	IncludeArchived     bool          `json:"include_archived"`
 	Tag                 pgtype.Text   `json:"tag"`
+	Kind                pgtype.Text   `json:"kind"`
 	Strict              bool          `json:"strict"`
 	Prefilter           int32         `json:"prefilter"`
 	QueryEmbedding      pgtype.Text   `json:"query_embedding"`
@@ -371,27 +374,29 @@ type SearchBrainNotesParams struct {
 }
 
 type SearchBrainNotesRow struct {
-	ID             pgtype.UUID        `json:"id"`
-	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
-	Title          string             `json:"title"`
-	Content        string             `json:"content"`
-	Tags           []string           `json:"tags"`
-	Source         string             `json:"source"`
-	SourceTaskID   pgtype.UUID        `json:"source_task_id"`
-	SourceAgentID  pgtype.UUID        `json:"source_agent_id"`
-	Pinned         bool               `json:"pinned"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	MergedInto     pgtype.UUID        `json:"merged_into"`
-	CreatedByType  string             `json:"created_by_type"`
-	CreatedByID    pgtype.UUID        `json:"created_by_id"`
-	Revision       int64              `json:"revision"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	Score          float64            `json:"score"`
-	LexRank        pgtype.Int8        `json:"lex_rank"`
-	VecRank        pgtype.Int8        `json:"vec_rank"`
-	PassageHeading string             `json:"passage_heading"`
-	PassageBody    string             `json:"passage_body"`
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	Title            string             `json:"title"`
+	Content          string             `json:"content"`
+	Tags             []string           `json:"tags"`
+	Source           string             `json:"source"`
+	SourceTaskID     pgtype.UUID        `json:"source_task_id"`
+	SourceAgentID    pgtype.UUID        `json:"source_agent_id"`
+	Pinned           bool               `json:"pinned"`
+	ArchivedAt       pgtype.Timestamptz `json:"archived_at"`
+	MergedInto       pgtype.UUID        `json:"merged_into"`
+	CreatedByType    string             `json:"created_by_type"`
+	CreatedByID      pgtype.UUID        `json:"created_by_id"`
+	Revision         int64              `json:"revision"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	Kind             string             `json:"kind"`
+	DecisionRecordID pgtype.UUID        `json:"decision_record_id"`
+	Score            float64            `json:"score"`
+	LexRank          pgtype.Int8        `json:"lex_rank"`
+	VecRank          pgtype.Int8        `json:"vec_rank"`
+	PassageHeading   string             `json:"passage_heading"`
+	PassageBody      string             `json:"passage_body"`
 }
 
 // Ranked note search over passages. Each query item compiles to its own
@@ -421,6 +426,7 @@ func (q *Queries) SearchBrainNotes(ctx context.Context, arg SearchBrainNotesPara
 		arg.WorkspaceID,
 		arg.IncludeArchived,
 		arg.Tag,
+		arg.Kind,
 		arg.Strict,
 		arg.Prefilter,
 		arg.QueryEmbedding,
@@ -452,6 +458,8 @@ func (q *Queries) SearchBrainNotes(ctx context.Context, arg SearchBrainNotesPara
 			&i.Revision,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Kind,
+			&i.DecisionRecordID,
 			&i.Score,
 			&i.LexRank,
 			&i.VecRank,

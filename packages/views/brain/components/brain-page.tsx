@@ -9,6 +9,7 @@ import {
   Bot,
   BrainCircuit,
   Inbox,
+  Landmark,
   Loader2,
   Pin,
   PinOff,
@@ -22,7 +23,11 @@ import {
 import { useWorkspaceId } from "@multica/core/hooks";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { ApiError } from "@multica/core/api";
-import type { WorkspaceNote, WorkspaceNoteSearchHit } from "@multica/core/types";
+import type {
+  WorkspaceNote,
+  WorkspaceNoteKind,
+  WorkspaceNoteSearchHit,
+} from "@multica/core/types";
 import {
   brainNotesOptions,
   noteSearchOptions,
@@ -41,6 +46,13 @@ import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,6 +86,52 @@ function parseTags(raw: string): string[] {
     .filter((tag) => tag !== "");
 }
 
+/** Every kind the picker and filter offer, in the order they are shown. */
+const NOTE_KINDS: WorkspaceNoteKind[] = [
+  "fact",
+  "decision",
+  "procedure",
+  "glossary",
+  "episode",
+];
+
+function kindLabel(t: BrainT, kind: WorkspaceNoteKind | (string & {})): string {
+  switch (kind) {
+    case "decision":
+      return t(($) => $.kind.decision);
+    case "procedure":
+      return t(($) => $.kind.procedure);
+    case "glossary":
+      return t(($) => $.kind.glossary);
+    case "episode":
+      return t(($) => $.kind.episode);
+    case "fact":
+    default:
+      return t(($) => $.kind.fact);
+  }
+}
+
+/**
+ * The Markdown skeleton a kind starts a note with. `fact` has none — a fact
+ * is the default, freeform case the other four are carved out of. Inserted
+ * only into an EMPTY editor; never overwrites what the author already typed.
+ */
+function kindTemplate(t: BrainT, kind: WorkspaceNoteKind): string {
+  switch (kind) {
+    case "decision":
+      return t(($) => $.kind.template.decision);
+    case "procedure":
+      return t(($) => $.kind.template.procedure);
+    case "glossary":
+      return t(($) => $.kind.template.glossary);
+    case "episode":
+      return t(($) => $.kind.template.episode);
+    case "fact":
+    default:
+      return "";
+  }
+}
+
 /**
  * The Brain has two halves of the same loop: capture first (the inbox), sort
  * later (the notes). They are tabs rather than panes because the phone-sized
@@ -89,6 +147,7 @@ export function BrainPage() {
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
   const [archived, setArchived] = useState(false);
+  const [kind, setKind] = useState<WorkspaceNoteKind | "">("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -101,13 +160,15 @@ export function BrainPage() {
   }, [linkedNoteId]);
 
   const rawCount = useBrainRawCount(wsId);
-  const notesQuery = useQuery(brainNotesOptions(wsId, { search: "", tag, archived }));
+  const notesQuery = useQuery(
+    brainNotesOptions(wsId, { search: "", tag, archived, kind: kind || undefined }),
+  );
 
   // A non-empty query goes to the ranked endpoint (lexical + vector, fused),
   // which returns hits with a snippet. An empty one is the plain list.
   const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const searchQuery = useQuery(
-    noteSearchOptions(wsId, debouncedSearch, { tag, archived }),
+    noteSearchOptions(wsId, debouncedSearch, { tag, archived, kind: kind || undefined }),
   );
   const searching = debouncedSearch !== "";
 
@@ -187,6 +248,26 @@ export function BrainPage() {
                 {t(($) => $.search.semantic)}
               </Badge>
             ) : null}
+            <Select
+              items={[
+                { value: "", label: t(($) => $.kind.all) },
+                ...NOTE_KINDS.map((k) => ({ value: k, label: kindLabel(t, k) })),
+              ]}
+              value={kind}
+              onValueChange={(value) => setKind((value ?? "") as WorkspaceNoteKind | "")}
+            >
+              <SelectTrigger size="sm" aria-label={t(($) => $.kind.filter_label)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t(($) => $.kind.all)}</SelectItem>
+                {NOTE_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {kindLabel(t, k)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               <TagChip
                 label={t(($) => $.filter.all_tags)}
@@ -429,6 +510,7 @@ function NoteList({
               />
               <span className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground">
                 <SourceBadge note={note} />
+                <KindBadge kind={note.kind} />
                 {(note.tags ?? []).map((noteTag) => (
                   <Badge key={noteTag} variant="outline" className="text-micro">
                     {noteTag}
@@ -483,15 +565,25 @@ function SourceBadge({ note }: { note: WorkspaceNote }) {
   const { t } = useT("brain");
   const slug = useWorkspaceSlug();
 
-  // Server-driven enum: an unknown source must not blank the badge.
+  // Server-driven enum: an unknown source must not blank the badge. A note
+  // mirrored from a decision record shows its own label and links nowhere —
+  // the record it mirrors is not a Multica entity this UI can open.
   const label =
     note.source === "agent"
       ? t(($) => $.source.agent)
       : note.source === "curation"
         ? t(($) => $.source.curation)
-        : t(($) => $.source.manual);
+        : note.source === "decision"
+          ? t(($) => $.source.decision)
+          : t(($) => $.source.manual);
   const Icon =
-    note.source === "agent" ? Bot : note.source === "curation" ? Sparkles : User;
+    note.source === "agent"
+      ? Bot
+      : note.source === "curation"
+        ? Sparkles
+        : note.source === "decision"
+          ? Landmark
+          : User;
 
   const badge = (
     <Badge variant="secondary" className="gap-1 text-micro">
@@ -509,6 +601,20 @@ function SourceBadge({ note }: { note: WorkspaceNote }) {
     >
       {badge}
     </AppLink>
+  );
+}
+
+/**
+ * What kind of knowledge the note holds — distinct from `SourceBadge`, which
+ * says who wrote it. An unknown kind renders as "Fact": the schema already
+ * catches it there, so this only has to cover the five known values.
+ */
+function KindBadge({ kind }: { kind: WorkspaceNoteKind | (string & {}) }) {
+  const { t } = useT("brain");
+  return (
+    <Badge variant="outline" className="text-micro">
+      {kindLabel(t, kind)}
+    </Badge>
   );
 }
 
@@ -559,6 +665,7 @@ function NoteDetailBody({
   const [title, setTitle] = useState(note.title);
   const [tagsRaw, setTagsRaw] = useState((note.tags ?? []).join(", "));
   const [content, setContent] = useState(note.content);
+  const [kind, setKind] = useState<WorkspaceNoteKind>(note.kind);
 
   // A realtime update (or a curation pass) can rewrite the note under an open
   // reader. Re-seed the draft while it is NOT being edited, so the pane stays
@@ -568,7 +675,8 @@ function NoteDetailBody({
     setTitle(note.title);
     setTagsRaw((note.tags ?? []).join(", "));
     setContent(note.content);
-  }, [editing, note.title, note.tags, note.content]);
+    setKind(note.kind);
+  }, [editing, note.title, note.tags, note.content, note.kind]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -578,6 +686,11 @@ function NoteDetailBody({
           title,
           content,
           tags: parseTags(tagsRaw),
+          // Only sent when the author actually changed it: the note's
+          // current kind already reflects a create/switch elsewhere, and
+          // re-sending the unchanged value on every text edit needlessly
+          // widens the diff a concurrent editor's kind change would race.
+          ...(kind !== note.kind ? { kind } : {}),
           revision: editRevision,
         },
       });
@@ -586,7 +699,7 @@ function NoteDetailBody({
     } catch (err) {
       handleWriteError(err, t);
     }
-  }, [content, editRevision, note.id, t, tagsRaw, title, update]);
+  }, [content, editRevision, kind, note.id, note.kind, t, tagsRaw, title, update]);
 
   const handleTogglePin = useCallback(async () => {
     try {
@@ -636,6 +749,7 @@ function NoteDetailBody({
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <SourceBadge note={note} />
+          <KindBadge kind={note.kind} />
           {note.merged_into ? (
             <span className="truncate text-caption text-muted-foreground">
               {t(($) => $.detail.merged_into)}
@@ -720,6 +834,22 @@ function NoteDetailBody({
               onChange={(e) => setTitle(e.target.value)}
               aria-label={t(($) => $.detail.title_label)}
             />
+            <Select
+              items={NOTE_KINDS.map((k) => ({ value: k, label: kindLabel(t, k) }))}
+              value={kind}
+              onValueChange={(value) => value && setKind(value as WorkspaceNoteKind)}
+            >
+              <SelectTrigger size="sm" aria-label={t(($) => $.kind.picker_label)} className="w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTE_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {kindLabel(t, k)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               value={tagsRaw}
               onChange={(e) => setTagsRaw(e.target.value)}
@@ -777,16 +907,32 @@ function NoteCreate({ wsId, onDone }: { wsId: string; onDone: () => void }) {
   const [title, setTitle] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
   const [content, setContent] = useState("");
+  const [kind, setKind] = useState<WorkspaceNoteKind>("fact");
+
+  // Picking a kind on an EMPTY editor inserts its Markdown skeleton. Switching
+  // again while the editor still holds exactly the previous kind's template
+  // (untouched) swaps it for the new one; the moment the author has typed
+  // anything else, switching kinds never overwrites their text.
+  const handleKindChange = useCallback(
+    (next: WorkspaceNoteKind) => {
+      const trimmed = content.trim();
+      if (trimmed === "" || trimmed === kindTemplate(t, kind).trim()) {
+        setContent(kindTemplate(t, next));
+      }
+      setKind(next);
+    },
+    [content, kind, t],
+  );
 
   const handleCreate = useCallback(async () => {
     try {
-      await create.mutateAsync({ title, content, tags: parseTags(tagsRaw) });
+      await create.mutateAsync({ title, content, tags: parseTags(tagsRaw), kind });
       toast.success(t(($) => $.create.created_toast));
       onDone();
     } catch (err) {
       handleWriteError(err, t, t(($) => $.create.error_toast));
     }
-  }, [content, create, onDone, t, tagsRaw, title]);
+  }, [content, create, kind, onDone, t, tagsRaw, title]);
 
   return (
     <aside className="flex min-w-0 flex-1 flex-col border-l">
@@ -817,6 +963,22 @@ function NoteCreate({ wsId, onDone }: { wsId: string; onDone: () => void }) {
           aria-label={t(($) => $.detail.title_label)}
           placeholder={t(($) => $.create.title_placeholder)}
         />
+        <Select
+          items={NOTE_KINDS.map((k) => ({ value: k, label: kindLabel(t, k) }))}
+          value={kind}
+          onValueChange={(value) => value && handleKindChange(value as WorkspaceNoteKind)}
+        >
+          <SelectTrigger size="sm" aria-label={t(($) => $.kind.picker_label)} className="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {NOTE_KINDS.map((k) => (
+              <SelectItem key={k} value={k}>
+                {kindLabel(t, k)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Input
           value={tagsRaw}
           onChange={(e) => setTagsRaw(e.target.value)}

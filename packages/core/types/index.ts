@@ -185,6 +185,7 @@ export type {
 export type {
   WorkspaceNote,
   WorkspaceNoteSource,
+  WorkspaceNoteKind,
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,

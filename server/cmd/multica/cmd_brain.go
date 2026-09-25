@@ -71,6 +71,7 @@ func init() {
 
 	brainListCmd.Flags().String("search", "", "Full-text search over title and body")
 	brainListCmd.Flags().String("tag", "", "Only notes carrying this tag")
+	brainListCmd.Flags().String("kind", "", "Only notes of this kind: fact, decision, procedure, glossary or episode")
 	brainListCmd.Flags().Bool("archived", false, "Include archived notes")
 	brainListCmd.Flags().Int("limit", 0, "Max number of notes to return")
 	brainListCmd.Flags().String("output", "table", "Output format: table or json")
@@ -83,6 +84,7 @@ func init() {
 	brainSaveCmd.Flags().String("content", "", "Note body as markdown")
 	brainSaveCmd.Flags().String("content-file", "", "Read the note body from this file (use - for stdin)")
 	brainSaveCmd.Flags().Bool("pinned", false, "Pin the note so every run always receives it")
+	brainSaveCmd.Flags().String("kind", "", "Note kind: fact, decision, procedure, glossary or episode (defaults to fact; omit to keep the current kind when --id is set)")
 	brainSaveCmd.Flags().String("id", "", "Update this existing note instead of creating a new one")
 	brainSaveCmd.Flags().String("output", "json", "Output format: table or json")
 
@@ -111,6 +113,7 @@ func init() {
 	brainSuggestCmd.Flags().String("output", "text", "Output format: text or json")
 
 	brainSearchCmd.Flags().String("tag", "", "Only notes carrying this tag")
+	brainSearchCmd.Flags().String("kind", "", "Only notes of this kind: fact, decision, procedure, glossary or episode")
 	brainSearchCmd.Flags().Bool("archived", false, "Include archived notes")
 	brainSearchCmd.Flags().Int("limit", 0, "Max number of hits to return (1-100, default 20)")
 	brainSearchCmd.Flags().String("output", "table", "Output format: table or json")
@@ -129,6 +132,7 @@ type brainNote struct {
 	Tags      []string `json:"tags"`
 	Source    string   `json:"source"`
 	Pinned    bool     `json:"pinned"`
+	Kind      string   `json:"kind"`
 	Revision  int64    `json:"revision"`
 	UpdatedAt string   `json:"updated_at"`
 }
@@ -148,6 +152,9 @@ func runBrainList(cmd *cobra.Command, _ []string) error {
 	}
 	if tag, _ := cmd.Flags().GetString("tag"); tag != "" {
 		query.Set("tag", tag)
+	}
+	if kind, _ := cmd.Flags().GetString("kind"); kind != "" {
+		query.Set("kind", kind)
 	}
 	if archived, _ := cmd.Flags().GetBool("archived"); archived {
 		query.Set("archived", "true")
@@ -176,7 +183,7 @@ func runBrainList(cmd *cobra.Command, _ []string) error {
 	}
 
 	fullID, _ := cmd.Flags().GetBool("full-id")
-	headers := []string{"ID", "TITLE", "TAGS", "SOURCE", "PINNED", "UPDATED"}
+	headers := []string{"ID", "TITLE", "KIND", "TAGS", "SOURCE", "PINNED", "UPDATED"}
 	rows := make([][]string, 0, len(resp.Items))
 	for _, n := range resp.Items {
 		pinned := ""
@@ -186,6 +193,7 @@ func runBrainList(cmd *cobra.Command, _ []string) error {
 		rows = append(rows, []string{
 			displayID(n.ID, fullID),
 			n.Title,
+			n.Kind,
 			strings.Join(n.Tags, ","),
 			n.Source,
 			pinned,
@@ -221,7 +229,7 @@ func runBrainShow(cmd *cobra.Command, args []string) error {
 	if len(note.Tags) > 0 {
 		fmt.Fprintf(os.Stdout, "- tags: %s\n", strings.Join(note.Tags, ", "))
 	}
-	fmt.Fprintf(os.Stdout, "- source: %s\n- revision: %d\n\n%s\n", note.Source, note.Revision, note.Content)
+	fmt.Fprintf(os.Stdout, "- kind: %s\n- source: %s\n- revision: %d\n\n%s\n", note.Kind, note.Source, note.Revision, note.Content)
 	return nil
 }
 
@@ -285,6 +293,9 @@ func runBrainSave(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("pinned") {
 		pinned, _ := cmd.Flags().GetBool("pinned")
 		body["pinned"] = pinned
+	}
+	if kind, _ := cmd.Flags().GetString("kind"); kind != "" {
+		body["kind"] = kind
 	}
 
 	var note brainNote
@@ -775,6 +786,9 @@ func runBrainSearch(cmd *cobra.Command, args []string) error {
 	if tag, _ := cmd.Flags().GetString("tag"); tag != "" {
 		query.Set("tag", tag)
 	}
+	if kind, _ := cmd.Flags().GetString("kind"); kind != "" {
+		query.Set("kind", kind)
+	}
 	if archived, _ := cmd.Flags().GetBool("archived"); archived {
 		query.Set("archived", "true")
 	}
@@ -798,7 +812,7 @@ func runBrainSearch(cmd *cobra.Command, args []string) error {
 	}
 
 	fullID, _ := cmd.Flags().GetBool("full-id")
-	headers := []string{"#", "SCORE", "ID", "TITLE", "SNIPPET"}
+	headers := []string{"#", "SCORE", "ID", "TITLE", "KIND", "SNIPPET"}
 	rows := make([][]string, 0, len(resp.Notes))
 	for i, hit := range resp.Notes {
 		rows = append(rows, []string{
@@ -806,6 +820,7 @@ func runBrainSearch(cmd *cobra.Command, args []string) error {
 			fmt.Sprintf("%.4f", hit.Score),
 			displayID(hit.ID, fullID),
 			hit.Title,
+			hit.Kind,
 			truncateBrainLine(brainHitExcerpt(hit)),
 		})
 	}

@@ -11,6 +11,8 @@ import {
   formatMediaClock,
   isNoteArchived,
   lonelyHttpUrl,
+  noteKindLabel,
+  noteKindTemplate,
   noteSourceLabel,
   parseSearchSnippet,
   parseTagInput,
@@ -57,6 +59,7 @@ const note = (over: Partial<WorkspaceNote> = {}): WorkspaceNote => ({
   pinned: false,
   created_by_type: "member",
   revision: 1,
+  kind: "fact",
   created_at: "",
   updated_at: "",
   ...over,
@@ -85,6 +88,24 @@ describe("server-driven enums never blank a row", () => {
   it("names the note source the organize flow stamps", () => {
     expect(noteSourceLabel("capture")).toBe("Captured");
     expect(noteSourceLabel("curation")).toBe("Curated");
+  });
+
+  it("names a note mirrored from a decision record and links nowhere", () => {
+    expect(noteSourceLabel("decision")).toBe("Decision record");
+  });
+
+  it("labels every documented note kind, defaulting an unknown one to Fact", () => {
+    expect(
+      ["fact", "decision", "procedure", "glossary", "episode"].map(noteKindLabel),
+    ).toEqual(["Fact", "Decision", "Procedure", "Glossary", "Episode"]);
+    expect(noteKindLabel("some-future-kind")).toBe("Fact");
+  });
+
+  it("gives fact no template and every other kind a non-empty one", () => {
+    expect(noteKindTemplate("fact")).toBe("");
+    for (const kind of ["decision", "procedure", "glossary", "episode"]) {
+      expect(noteKindTemplate(kind)).not.toBe("");
+    }
   });
 });
 

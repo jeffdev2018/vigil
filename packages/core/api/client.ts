@@ -346,6 +346,7 @@ import type {
   PostmortemStats,
   PostmortemsResponse,
   WorkspaceNote,
+  WorkspaceNoteKind,
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
@@ -3180,7 +3181,13 @@ export class ApiClient {
   // Workspace Brain. Shared knowledge notes: every workspace member reads and
   // writes; delete is narrower (workspace admin or the note's author).
   async listWorkspaceNotes(
-    params?: { search?: string; tag?: string; archived?: boolean; limit?: number },
+    params?: {
+      search?: string;
+      tag?: string;
+      archived?: boolean;
+      limit?: number;
+      kind?: WorkspaceNoteKind;
+    },
     options?: { signal?: AbortSignal },
   ): Promise<WorkspaceNotesResponse> {
     const search = new URLSearchParams();
@@ -3188,6 +3195,7 @@ export class ApiClient {
     if (params?.tag) search.set("tag", params.tag);
     if (params?.archived === true) search.set("archived", "true");
     if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.kind) search.set("kind", params.kind);
     const qs = search.toString();
     const raw = await this.fetch<unknown>(
       `/api/workspace/notes${qs ? `?${qs}` : ""}`,
@@ -3250,13 +3258,20 @@ export class ApiClient {
    * not the note list plus its tag facets.
    */
   async searchWorkspaceNotes(
-    params: { q: string; tag?: string; archived?: boolean; limit?: number },
+    params: {
+      q: string;
+      tag?: string;
+      archived?: boolean;
+      limit?: number;
+      kind?: WorkspaceNoteKind;
+    },
     init?: RequestInit,
   ): Promise<WorkspaceNoteSearchResponse> {
     const qs = new URLSearchParams({ q: params.q });
     if (params.tag) qs.set("tag", params.tag);
     if (params.archived === true) qs.set("archived", "true");
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.kind) qs.set("kind", params.kind);
     const raw = await this.fetch<unknown>(
       `/api/workspace/notes/search?${qs.toString()}`,
       init,

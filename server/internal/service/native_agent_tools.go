@@ -219,6 +219,7 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 				"properties": shared.FunctionParameters{
 					"query":            shared.FunctionParameters{"type": "string", "description": "What to look for. Omit to browse."},
 					"tag":              shared.FunctionParameters{"type": "string", "description": "Only notes carrying this tag."},
+					"kind":             shared.FunctionParameters{"type": "string", "enum": NoteKinds, "description": NoteKindToolDesc},
 					"limit":            shared.FunctionParameters{"type": "integer", "description": "Max hits, 1-50 (default 10)."},
 					"include_archived": shared.FunctionParameters{"type": "boolean", "description": "Also search notes that were archived."},
 				},
@@ -258,12 +259,13 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 					"title":   shared.FunctionParameters{"type": "string"},
 					"content": shared.FunctionParameters{"type": "string"},
 					"tags":    shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+					"kind":    shared.FunctionParameters{"type": "string", "enum": NoteKinds, "description": NoteKindToolDesc + " Defaults to fact."},
 				},
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "update_note",
-			Description: openai.String("Edit an existing knowledge note (title, content, or tags) by id."),
+			Description: openai.String("Edit an existing knowledge note (title, content, tags or kind) by id."),
 			Parameters: shared.FunctionParameters{
 				"type":     "object",
 				"required": []string{"note_id"},
@@ -272,6 +274,7 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 					"title":   shared.FunctionParameters{"type": "string"},
 					"content": shared.FunctionParameters{"type": "string"},
 					"tags":    shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+					"kind":    shared.FunctionParameters{"type": "string", "enum": NoteKinds, "description": NoteKindToolDesc + " Omit to keep the current kind."},
 				},
 			},
 		}),
@@ -1087,6 +1090,11 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 	query = strings.TrimSpace(query)
 	tag, _ := args["tag"].(string)
 	tag = strings.TrimSpace(tag)
+	kind, _ := args["kind"].(string)
+	kind = strings.TrimSpace(kind)
+	if kind != "" && !ValidNoteKind(kind) {
+		return nil, fmt.Errorf("kind must be one of %s", strings.Join(NoteKinds, ", "))
+	}
 	includeArchived, _ := args["include_archived"].(bool)
 	limit := int32(10)
 	if lim, ok := args["limit"].(float64); ok && lim >= 1 {
@@ -1094,13 +1102,13 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 	}
 
 	if query == "" {
-		return s.nativeBrowseNotes(ctx, tctx, tag, includeArchived, limit)
+		return s.nativeBrowseNotes(ctx, tctx, tag, kind, includeArchived, limit)
 	}
 
 	// The app's own search (SearchBrainNotes), so an agent and a person
 	// asking the same question see the same notes in the same order.
 	hits, err := SearchBrainNotes(ctx, s.Queries, s.NoteEmbedder, BrainSearchParams{
-		WorkspaceID: tctx.workspaceID, Query: query, Tag: tag, IncludeArchived: includeArchived, Limit: limit,
+		WorkspaceID: tctx.workspaceID, Query: query, Tag: tag, Kind: kind, IncludeArchived: includeArchived, Limit: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("note search failed: %w", err)
@@ -1113,6 +1121,7 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 			"title":   n.Title,
 			"tags":    n.Tags,
 			"pinned":  n.Pinned,
+			"kind":    n.Kind,
 			"score":   hit.Score,
 			"section": hit.PassageHeading,
 			// Fenced as a record (N01): a note's body is workspace data,
@@ -1127,7 +1136,7 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 
 // nativeBrowseNotes is the no-query branch: the freshest notes, so an agent
 // with no words to search by still has an answer.
-func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *nativeToolContext, tag string, includeArchived bool, limit int32) (any, error) {
+func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *nativeToolContext, tag, kind string, includeArchived bool, limit int32) (any, error) {
 	params := db.ListWorkspaceNotesParams{
 		WorkspaceID:     tctx.workspaceID,
 		IncludeArchived: includeArchived,
@@ -1135,6 +1144,9 @@ func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *native
 	}
 	if tag != "" {
 		params.Tag = pgtype.Text{String: tag, Valid: true}
+	}
+	if kind != "" {
+		params.Kind = pgtype.Text{String: kind, Valid: true}
 	}
 	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
 	if err != nil {
@@ -1147,6 +1159,7 @@ func (s *NativeAgentService) nativeBrowseNotes(ctx context.Context, tctx *native
 			"title":      n.Title,
 			"tags":       n.Tags,
 			"pinned":     n.Pinned,
+			"kind":       n.Kind,
 			"snippet":    nativeDataFence("note", clampString(n.Content, 300)),
 			"updated_at": nativeTimestamp(n.UpdatedAt),
 		})
@@ -1262,7 +1275,7 @@ func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeTool
 	return map[string]any{
 		"id": util.UUIDToString(note.ID), "title": note.Title,
 		"content": nativeDataFence("note", note.Content), "tags": note.Tags, "pinned": note.Pinned,
-		"revision": note.Revision,
+		"kind": note.Kind, "revision": note.Revision,
 	}, nil
 }
 
@@ -1285,12 +1298,21 @@ func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToo
 	if err != nil {
 		return nil, err
 	}
+	kind, _ := args["kind"].(string)
+	kind = strings.TrimSpace(kind)
+	switch {
+	case kind == "":
+		kind = DefaultNoteKind
+	case !ValidNoteKind(kind):
+		return nil, fmt.Errorf("kind must be one of %s", strings.Join(NoteKinds, ", "))
+	}
 	note, err := s.Queries.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{
 		ID:            dbid.NewV7(),
 		WorkspaceID:   tctx.workspaceID,
 		Title:         title,
 		Content:       content,
 		Tags:          tags,
+		Kind:          kind,
 		Source:        "agent",
 		SourceTaskID:  pgtype.UUID(tctx.task.ID),
 		SourceAgentID: pgtype.UUID(tctx.agent.ID),
@@ -1346,6 +1368,14 @@ func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeT
 			return nil, err
 		}
 		params.Tags = tags
+		hasChange = true
+	}
+	if kind, ok := args["kind"].(string); ok && strings.TrimSpace(kind) != "" {
+		kind = strings.TrimSpace(kind)
+		if !ValidNoteKind(kind) {
+			return nil, fmt.Errorf("kind must be one of %s", strings.Join(NoteKinds, ", "))
+		}
+		params.Kind = pgtype.Text{String: kind, Valid: true}
 		hasChange = true
 	}
 	if !hasChange {

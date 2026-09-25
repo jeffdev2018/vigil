@@ -3544,6 +3544,10 @@ type WorkspaceNote struct {
 	Revision      int64              `json:"revision"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	// What shape of knowledge this note holds: fact, decision, procedure, glossary or episode.
+	Kind string `json:"kind"`
+	// Set on a note mirrored from a decision_record row; unique so the mirror is idempotent.
+	DecisionRecordID pgtype.UUID `json:"decision_record_id"`
 }
 
 // JEF-412: one searchable passage of a Brain note. Rebuilt from the note when its revision or the chunker version changes; embedding kept while content_hash is unchanged.

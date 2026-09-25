@@ -107,7 +107,7 @@ NON-NEGOTIABLE RULES
 
 WHAT TO PROPOSE
 
-- merge: near-duplicates. "into" is the note that survives (prefer the one with the fuller body, then the more recently updated); "from" lists the ids it already covers. Each source is archived with a pointer to the target, so nothing is lost.
+- merge: near-duplicates. "into" is the note that survives (prefer the one with the fuller body, then the more recently updated); "from" lists the ids it already covers. Each source is archived with a pointer to the target, so nothing is lost. The target keeps its own kind, so prefer a target whose kind already fits the merged fact; do not merge a decision or a procedure into a note of a different kind unless the kinds genuinely describe the same thing.
 - retitle: a title that does not state the fact. "Deploys" becomes "Deploys go through the release tag". Keep it under 200 characters and derivable from the body. Do not retitle a title that already states its fact.
 - tag: normalize tags so the same subject carries the same tag across notes. Lowercase, at most 10 per note, no near-synonyms (pick one of "ci"/"ci-cd"). Only propose a change when it actually differs from the current tags.
 - archive: notes that have become false, notes superseded by another note, and notes that were never durable knowledge in the first place (a run log, a status report, "the build is red"). Give a one-line reason.
@@ -128,8 +128,8 @@ func renderBrainCurationPrompt(notes []db.WorkspaceNote) string {
 	var b strings.Builder
 	b.WriteString("# Index\n\n")
 	for _, n := range notes {
-		fmt.Fprintf(&b, "- id: %s | title: %s | tags: %s | pinned: %t | updated: %s\n",
-			util.UUIDToString(n.ID), n.Title, strings.Join(n.Tags, ","), n.Pinned,
+		fmt.Fprintf(&b, "- id: %s | title: %s | kind: %s | tags: %s | pinned: %t | updated: %s\n",
+			util.UUIDToString(n.ID), n.Title, n.Kind, strings.Join(n.Tags, ","), n.Pinned,
 			n.UpdatedAt.Time.UTC().Format(time.RFC3339))
 	}
 	b.WriteString("\n# Notes\n")

@@ -10,7 +10,24 @@
     "manual": "수동",
     "agent": "에이전트 작성",
     "curation": "정리됨",
+    "decision": "결정 기록",
     "open_run": "실행 열기"
+  },
+  "kind": {
+    "all": "모든 유형",
+    "filter_label": "유형으로 필터링",
+    "picker_label": "노트 유형",
+    "fact": "사실",
+    "decision": "결정",
+    "procedure": "절차",
+    "glossary": "용어",
+    "episode": "에피소드",
+    "template": {
+      "decision": "## 배경\n\n## 결정\n\n## 이유\n\n## 검토한 대안\n\n## 제약\n\n## 재검토 예정일",
+      "procedure": "## 사용 시점\n\n## 절차\n\n1. \n2. \n3. \n\n## 확인 방법",
+      "glossary": "## 정의\n\n## 유의어\n\n## 참고",
+      "episode": "## 발생한 일\n\n## 영향\n\n## 해결\n\n## 교훈"
+    }
   },
   "list": {
     "loading": "노트를 불러오는 중",

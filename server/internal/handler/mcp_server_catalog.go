@@ -62,6 +62,9 @@ var (
 	pIssueRef = mcpParam{Name: "issue_id", Type: "string", Desc: "Issue id or identifier (ONE-42).", Required: true, In: "path"}
 )
 
+// noteKindParamDesc describes each Brain note kind for an agent choosing one.
+const noteKindParamDesc = service.NoteKindToolDesc
+
 var mcpLeaves = []mcpLeaf{
 	// ---- Issues -------------------------------------------------------------
 	{Name: "issue_list", Group: "vigil_issue", Action: "list", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues",
@@ -185,6 +188,7 @@ var mcpLeaves = []mcpLeaf{
 		Params: []mcpParam{
 			{Name: "search", Type: "string", Desc: "Words to look for: the same ranked engine as note_search, best match first.", In: "query"},
 			{Name: "tag", Type: "string", Desc: "Only notes with this tag.", In: "query"},
+			{Name: "kind", Type: "string", Desc: noteKindParamDesc, In: "query", Enum: service.NoteKinds},
 			{Name: "archived", Type: "boolean", Desc: "Include archived notes.", In: "query"},
 			pLimit,
 		}},
@@ -197,6 +201,7 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "content", Type: "string", Desc: "Markdown body.", Required: true, In: "body"},
 			{Name: "tags", Type: "array", Items: "string", Desc: "Tags.", In: "body"},
 			{Name: "pinned", Type: "boolean", Desc: "Pin the note.", In: "body"},
+			{Name: "kind", Type: "string", Desc: noteKindParamDesc + " Defaults to fact.", In: "body", Enum: service.NoteKinds},
 		}},
 	{Name: "note_update", Group: "vigil_brain", Action: "update", Risk: mcpgov.RiskInternalWrite, Method: "PATCH", Path: "/api/workspace/notes/{id}",
 		Description: "Update a Brain note.",
@@ -205,6 +210,7 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "content", Type: "string", Desc: "Markdown body.", In: "body"},
 			{Name: "tags", Type: "array", Items: "string", Desc: "Tags.", In: "body"},
 			{Name: "pinned", Type: "boolean", Desc: "Pin the note.", In: "body"},
+			{Name: "kind", Type: "string", Desc: noteKindParamDesc + " Omit to keep the current kind.", In: "body", Enum: service.NoteKinds},
 		}},
 	{Name: "note_archive", Group: "vigil_brain", Action: "archive", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/workspace/notes/{id}/archive",
 		Description: "Archive a Brain note (reversible in the app).", Params: []mcpParam{{Name: "id", Type: "string", Desc: "Note id.", Required: true, In: "path"}}},
@@ -213,6 +219,7 @@ var mcpLeaves = []mcpLeaf{
 		Params: []mcpParam{
 			{Name: "q", Type: "string", Desc: "What to look for.", Required: true, In: "query"},
 			{Name: "tag", Type: "string", Desc: "Only notes with this tag.", In: "query"},
+			{Name: "kind", Type: "string", Desc: noteKindParamDesc, In: "query", Enum: service.NoteKinds},
 			{Name: "archived", Type: "boolean", Desc: "Include archived notes.", In: "query"},
 			pLimit,
 		}},
@@ -245,6 +252,7 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "tags", Type: "array", Items: "string", Desc: "Tags.", In: "body"},
 			{Name: "pinned", Type: "boolean", Desc: "Pin the created note.", In: "body"},
 			{Name: "note_id", Type: "string", Desc: "The note to merge into. Required for merge.", In: "body"},
+			{Name: "kind", Type: "string", Desc: noteKindParamDesc + " Only used for action note; defaults to fact.", In: "body", Enum: service.NoteKinds},
 		}},
 	{Name: "note_capture_reopen", Group: "vigil_brain", Action: "reopen", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/brain/captures/{capture_id}/reopen",
 		Description: "Put a discarded capture back into the inbox.",

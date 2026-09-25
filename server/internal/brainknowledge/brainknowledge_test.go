@@ -36,6 +36,22 @@ func TestBodyRendersMetadataThenContent(t *testing.T) {
 	}
 }
 
+// A fact-only workspace's brief must be byte-identical to a server that
+// predates note kinds: fact is the default, freeform case, so it earns no
+// "[kind]" prefix. A non-fact kind still gets one.
+func TestBodyOmitsTheKindPrefixForFact(t *testing.T) {
+	n := note("11111111-2222-3333-4444-555555555555", "Title", "body", false)
+	n.Kind = "fact"
+	if got := Body(n); !strings.HasPrefix(got, "# Title\n\n") {
+		t.Fatalf("Body with kind=fact =\n%q, want no [kind] prefix", got)
+	}
+
+	n.Kind = "decision"
+	if got := Body(n); !strings.HasPrefix(got, "# [decision] Title\n\n") {
+		t.Fatalf("Body with kind=decision =\n%q, want the [decision] prefix", got)
+	}
+}
+
 // Regression test for the budget bug: once the running total would exceed
 // the budget, selection must stop (prefix truncation), not skip the
 // over-budget note and keep scanning for a smaller one further down the
