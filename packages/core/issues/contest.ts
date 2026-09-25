@@ -91,11 +91,15 @@ export function contestIsLive(c: Pick<Contest, "status">): boolean {
   return c.status === "running" || c.status === "answering";
 }
 
+// No refetchInterval: contest:updated WS events (JEF-301) invalidate this
+// query on every status change, and useRealtimeSync's reconnect handler
+// re-invalidates the whole contest prefix to recover events missed while
+// disconnected. contestIsLive is kept — callers (live-state badges) still
+// need it even though the query itself no longer polls off it.
 export function issueContestsOptions(wsId: string, issueId: string) {
   return queryOptions({
     queryKey: contestKeys.issue(wsId, issueId),
     queryFn: () => api.listContests({ issue_id: issueId }),
-    refetchInterval: (q) => ((q.state.data ?? []).some(contestIsLive) ? 10_000 : false),
   });
 }
 
@@ -103,7 +107,6 @@ export function targetContestsOptions(wsId: string, targetType: ContestTargetTyp
   return queryOptions({
     queryKey: contestKeys.target(wsId, targetType, targetId),
     queryFn: () => api.listContests({ target_type: targetType, target_id: targetId }),
-    refetchInterval: (q) => ((q.state.data ?? []).some(contestIsLive) ? 10_000 : false),
   });
 }
 

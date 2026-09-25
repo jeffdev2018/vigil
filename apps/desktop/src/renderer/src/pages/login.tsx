@@ -12,15 +12,18 @@ function requireRuntimeAppUrl(): string {
   return runtimeConfig.config.appUrl;
 }
 
+function openWebLoginInBrowser(webUrl: string): void {
+  // Open web login page in the default browser with platform=desktop flag.
+  // The web callback will redirect back via multica:// deep link with the token.
+  // Shared by Google and SSO: both funnel through the same web /login page,
+  // which offers the same providers there as it does in-app.
+  window.desktopAPI.openExternal(`${webUrl}/login?platform=desktop`);
+}
+
 export function DesktopLoginPage() {
   const webUrl = requireRuntimeAppUrl();
-  const handleGoogleLogin = () => {
-    // Open web login page in the default browser with platform=desktop flag.
-    // The web callback will redirect back via multica:// deep link with the token.
-    window.desktopAPI.openExternal(
-      `${webUrl}/login?platform=desktop`,
-    );
-  };
+  const handleGoogleLogin = () => openWebLoginInBrowser(webUrl);
+  const handleSsoLogin = () => openWebLoginInBrowser(webUrl);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -32,6 +35,7 @@ export function DesktopLoginPage() {
           // Initial workspace navigation happens in routes.tsx via IndexRedirect.
         }}
         onGoogleLogin={handleGoogleLogin}
+        onSsoLogin={handleSsoLogin}
       />
     </div>
   );

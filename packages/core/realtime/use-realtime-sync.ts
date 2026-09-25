@@ -28,6 +28,8 @@ import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
 import { issueTypeKeys } from "../issue-types/queries";
+import { contestKeys } from "../issues/contest";
+import { issueViewKeys } from "../issue-views/queries";
 import {
   agentTaskSnapshotKeys,
   workspaceWorkingAgentsKeys,
@@ -717,6 +719,11 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     // would sit behind the 5-minute staleTime, long enough to keep painting a
     // stale badge or to offer a type the server already archived. (F30)
     qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
+    // Contest (JEF-301): replaces the 10s live-contest poll this hook used
+    // to run — a contest:updated missed while disconnected must still be
+    // recovered on reconnect, or a contest that finished mid-gap would show
+    // "running" until an unrelated refetch happened to touch it.
+    qc.invalidateQueries({ queryKey: contestKeys.all(wsId) });
   }
   // Cross-workspace, so outside the wsId guard: a reconnect may have missed
   // inbox events from any workspace, so re-pull the switcher-dot summary.
@@ -1054,6 +1061,61 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         const userId = authStore.getState().user?.id;
         if (wsId && userId) qc.invalidateQueries({ queryKey: pinKeys.all(wsId, userId) });
+      },
+      // Contest (K72, JEF-301): every step (objections ready, an answer, a
+      // human verdict) publishes contest:updated. contestKeys.all(wsId) is
+      // the parent of every contest query (issue, target, preflight,
+      // settings), so one invalidate covers whichever surface is open — the
+      // issue panel and target-scoped card refetch on their own key.
+      // Replaces the 10s poll issueContestsOptions/targetContestsOptions
+      // used to run while a contest was live.
+      contest: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: contestKeys.all(wsId) });
+      },
+      // project_resource:created|updated|deleted (JEF-301). Keyed by project
+      // under projectKeys.detail(wsId, projectId), so the prefix carries no
+      // project id to target one query — predicate-match every project's
+      // resources list instead of invalidating the whole project prefix.
+      project_resource: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              key[0] === "projects" &&
+              key[1] === wsId &&
+              key[2] === "detail" &&
+              key[4] === "resources"
+            );
+          },
+        });
+      },
+      // Goal loop (JEF-301): goal:created|updated|deleted mirrors the
+      // issue:aux_changed fallback already used for the same query (a
+      // continuation, pause/resume, or an answer given outside the web app).
+      goal: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: goalKeys.all(wsId) });
+      },
+      // Saved issue views (JEF-301): issue_view:created|updated|deleted.
+      // Invalidate only — the payload is a change hint, not a row to merge.
+      issue_view: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: issueViewKeys.all(wsId) });
+      },
+      // Decision memory (K29, JEF-301): decision:created. Two independent
+      // decision surfaces exist — the project's decision log (raw
+      // ["decisions", wsId] key, same one useCreateIssueDecision in
+      // projects/decisions.ts already invalidates on its own writes) and an
+      // issue's decision cards (issueKeys.decisions). A recorded decision
+      // can appear on either, so both are refreshed.
+      decision: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: ["decisions", wsId] });
+        qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
       },
       daemon: () => {
         const wsId = getCurrentWsId();

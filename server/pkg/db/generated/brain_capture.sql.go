@@ -253,7 +253,7 @@ func (q *Queries) ListBrainCaptures(ctx context.Context, arg ListBrainCapturesPa
 }
 
 const listNoteAttachments = `-- name: ListNoteAttachments :many
-SELECT id, workspace_id, issue_id, comment_id, uploader_type, uploader_id, filename, url, content_type, size_bytes, created_at, chat_session_id, chat_message_id, task_id, source_context_id, capture_id, note_id FROM attachment WHERE workspace_id = $1 AND note_id = $2 ORDER BY created_at ASC
+SELECT id, workspace_id, issue_id, comment_id, uploader_type, uploader_id, filename, url, content_type, size_bytes, created_at, chat_session_id, chat_message_id, task_id, source_context_id, capture_id, note_id, unreferenced_since FROM attachment WHERE workspace_id = $1 AND note_id = $2 ORDER BY created_at ASC
 `
 
 type ListNoteAttachmentsParams struct {
@@ -288,6 +288,7 @@ func (q *Queries) ListNoteAttachments(ctx context.Context, arg ListNoteAttachmen
 			&i.SourceContextID,
 			&i.CaptureID,
 			&i.NoteID,
+			&i.UnreferencedSince,
 		); err != nil {
 			return nil, err
 		}

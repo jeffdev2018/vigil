@@ -314,6 +314,7 @@ func (h *Handler) SetAgentTrustMode(w http.ResponseWriter, r *http.Request) {
 		changeResp = trustChangeToResponse(change)
 	}
 	h.audit(r.Context(), agent.WorkspaceID, "member", userID, AuditTrustModeChanged, "agent", agent.ID, map[string]any{"from": agent.TrustMode, "to": req.Mode, "reason": strings.TrimSpace(req.Reason)}, nil)
+	h.publish(protocol.EventAgentUpdated, uuidToString(agent.WorkspaceID), "member", userID, map[string]any{"agent": broadcastAgentResponse(h.agentToResponse(updated))})
 	writeJSON(w, http.StatusOK, map[string]any{"agent_id": uuidToString(agent.ID), "mode": updated.TrustMode, "change": changeResp})
 }
 

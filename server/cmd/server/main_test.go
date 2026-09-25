@@ -342,6 +342,36 @@ func TestJWTSecretBootError(t *testing.T) {
 	}
 }
 
+func TestMailTransportBootError(t *testing.T) {
+	tests := []struct {
+		name         string
+		resendAPIKey string
+		smtpHost     string
+		appEnv       string
+		wantErr      bool
+	}{
+		{"production_with_no_transport_is_rejected", "", "", "production", true},
+		{"production_with_uppercase_env_is_rejected", "", "", "PRODUCTION", true},
+		{"production_with_whitespace_env_is_rejected", "", "", " production ", true},
+		{"production_with_resend_key_is_accepted", "re_123", "", "production", false},
+		{"production_with_smtp_host_is_accepted", "", "smtp.example.com", "production", false},
+		{"production_with_whitespace_smtp_host_is_rejected", "", "   ", "production", true},
+		{"non_production_with_no_transport_is_allowed", "", "", "development", false},
+		{"non_production_with_no_transport_and_empty_env_is_allowed", "", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := mailTransportBootError(tt.resendAPIKey, tt.smtpHost, tt.appEnv)
+			if tt.wantErr && err == nil {
+				t.Fatalf("mailTransportBootError(%q, %q, %q) = nil, want error", tt.resendAPIKey, tt.smtpHost, tt.appEnv)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("mailTransportBootError(%q, %q, %q) = %v, want nil", tt.resendAPIKey, tt.smtpHost, tt.appEnv, err)
+			}
+		})
+	}
+}
+
 // TestNewMainHTTPServerTimeouts pins the production timeout defaults on the
 // public HTTP server. These are safety settings, not tuning: removing them,
 // resetting them to zero, or making ReadTimeout/WriteTimeout non-zero would

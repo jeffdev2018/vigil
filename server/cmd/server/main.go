@@ -289,6 +289,23 @@ func jwtSecretBootError(jwtSecret, appEnv string) error {
 	return auth.ValidateJWTSecret(jwtSecret)
 }
 
+// mailTransportBootError returns a non-nil error when production has no mail
+// transport configured (neither Resend nor SMTP). Production must never boot
+// silently into the dev stdout fallback, which would leak verification codes
+// and invitation links to the server log instead of delivering them.
+// Non-production keeps the stdout fallback and only warns (see the
+// RESEND_API_KEY/SMTP_HOST warning right after this check in main()).
+func mailTransportBootError(resendAPIKey, smtpHost, appEnv string) error {
+	isProduction := strings.EqualFold(strings.TrimSpace(appEnv), "production")
+	if !isProduction {
+		return nil
+	}
+	if strings.TrimSpace(resendAPIKey) != "" || strings.TrimSpace(smtpHost) != "" {
+		return nil
+	}
+	return fmt.Errorf("no mail transport configured for production: set RESEND_API_KEY or SMTP_HOST (see .env.example)")
+}
+
 // newMainHTTPServer builds the public HTTP server with the production timeout
 // defaults. These values are load-bearing safety settings, not cosmetic tuning,
 // so they live in one helper that main() and the config regression test share.
@@ -323,6 +340,13 @@ func main() {
 	}
 	if os.Getenv("JWT_SECRET") == "" {
 		slog.Warn("JWT_SECRET is not set — using insecure dev default (allowed only because APP_ENV is not production).")
+	}
+	if err := mailTransportBootError(os.Getenv("RESEND_API_KEY"), os.Getenv("SMTP_HOST"), os.Getenv("APP_ENV")); err != nil {
+		slog.Error(
+			"refusing to start: "+err.Error(),
+			"app_env", os.Getenv("APP_ENV"),
+		)
+		os.Exit(1)
 	}
 	if os.Getenv("RESEND_API_KEY") == "" && strings.TrimSpace(os.Getenv("SMTP_HOST")) == "" {
 		slog.Warn("no email backend configured (RESEND_API_KEY and SMTP_HOST both empty) — verification codes will be printed to the log instead of emailed.")
@@ -752,6 +776,10 @@ func main() {
 	// Approval gates past their deadline are settled once a minute so an
 	// inbox row or a timeline card never shows an ask nobody can answer.
 	go util.Supervise(sweepCtx, "approval gate sweeper", func(ctx context.Context) { runApprovalGateSweeper(ctx, h) })
+	// Orphaned attachment reclamation (JEF-292): marks issue/comment
+	// attachments no longer referenced by their owning content, and deletes
+	// what stays unreferenced past the retention window.
+	go util.Supervise(sweepCtx, "attachment sweeper", func(ctx context.Context) { runAttachmentSweeper(ctx, h) })
 	// Source-context cleanup is object-store work, so it gets its own goroutine
 	// instead of a slot in the runtime sweep tick.
 	go util.Supervise(sweepCtx, "source context sweeper", func(ctx context.Context) { runSourceContextSweeper(ctx, taskSvc) })

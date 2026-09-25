@@ -61,8 +61,21 @@ interface LoginPageProps {
   /** Override Google login handler (e.g. desktop opens browser externally). When provided, renders the Google button even if `google` config is omitted. */
   onGoogleLogin?: () => void;
   /** Redirect URI for the OIDC round-trip (K60), e.g. `${origin}/login/sso`.
-   *  Renders the "Sign in with SSO" path when provided; desktop omits it. */
+   *  Renders the "Sign in with SSO" path when provided; desktop omits it and
+   *  passes `onSsoLogin` instead. */
   ssoRedirectUri?: string;
+  /** Override SSO entry (desktop opens the web login in the external browser,
+   *  same as `onGoogleLogin`). When provided, renders the SSO button and the
+   *  "SSO required" link even if `ssoRedirectUri` is omitted, and clicking
+   *  either calls this instead of switching to the in-page SSO step. */
+  onSsoLogin?: () => void;
+  /** The OIDC round-trip that `ssoRedirectUri` starts is for a desktop handoff
+   *  (web `?platform=desktop`). Unlike Google's client-extendable state, the
+   *  OIDC `state` is a closed, server-signed token, so this flag is stashed in
+   *  sessionStorage right before the redirect; `SSOCallbackPage` reads it back
+   *  after the same-tab IdP round trip to know to hand off to desktop instead
+   *  of logging the browser tab in. Ignored when `onSsoLogin` is set. */
+  ssoDesktopHandoff?: boolean;
   /** Slot rendered at the bottom of the sign-in card, below the
    *  Google button. The web shell uses it for a "Prefer the desktop
    *  app?" prompt; desktop omits it (a download prompt inside the app
@@ -120,6 +133,14 @@ const PENDING_CODE_KEY = "multica_login_pending_code";
 const PENDING_CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_S = 60;
 
+// Read by SSOCallbackPage after the IdP round trip (see `ssoDesktopHandoff`
+// doc above). 10 minutes matches the server's OIDC state JWT expiry.
+export const SSO_DESKTOP_HANDOFF_KEY = "multica_sso_desktop_handoff";
+export const SSO_DESKTOP_HANDOFF_TTL_MS = 10 * 60 * 1000;
+export function isTrueFlag(value: unknown): value is true {
+  return value === true;
+}
+
 interface PendingCode {
   email: string;
   sentAt: number;
@@ -169,6 +190,8 @@ export function LoginPage({
   onTokenObtained,
   onGoogleLogin,
   ssoRedirectUri,
+  onSsoLogin,
+  ssoDesktopHandoff,
   extra,
 }: LoginPageProps) {
   const { t } = useT("auth");
@@ -404,6 +427,9 @@ export function LoginPage({
     try {
       const { authorization_url } = await api.startOIDCLogin(slug, ssoRedirectUri);
       if (!authorization_url) throw new Error(t(($) => $.sso.start_failed));
+      if (ssoDesktopHandoff) {
+        saveSessionResume(SSO_DESKTOP_HANDOFF_KEY, true, SSO_DESKTOP_HANDOFF_TTL_MS);
+      }
       window.location.href = authorization_url;
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : t(($) => $.sso.start_failed));
@@ -576,10 +602,14 @@ export function LoginPage({
                 {error}
               </p>
             )}
-            {ssoRequired && ssoRedirectUri && (
+            {ssoRequired && (ssoRedirectUri || onSsoLogin) && (
               <button
                 type="button"
                 onClick={() => {
+                  if (onSsoLogin) {
+                    onSsoLogin();
+                    return;
+                  }
                   setError("");
                   setStep("sso");
                 }}
@@ -727,13 +757,17 @@ export function LoginPage({
               {t(($) => $.signin.google)}
             </Button>
           )}
-          {ssoRedirectUri && (
+          {(ssoRedirectUri || onSsoLogin) && (
             <Button
               type="button"
               variant="outline"
               className="w-full"
               size="lg"
               onClick={() => {
+                if (onSsoLogin) {
+                  onSsoLogin();
+                  return;
+                }
                 setError("");
                 setStep("sso");
               }}

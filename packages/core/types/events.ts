@@ -162,7 +162,27 @@ export type WSEventType =
   // was filed or resolved.
   | "doctrine:changed"
   // Packs (OS plan, vague B): a pack was installed, upgraded or removed.
-  | "pack:changed";
+  | "pack:changed"
+  // Contest (K72, JEF-301): a rival model's objections, an answer, or a
+  // human verdict moved the contest's status. One event for every step.
+  | "contest:updated"
+  // Project resources (JEF-301): a project's linked resource was added,
+  // edited, or removed.
+  | "project_resource:created"
+  | "project_resource:updated"
+  | "project_resource:deleted"
+  // Goal loop (JEF-301): an issue's stated goal was set, its state advanced,
+  // or it was cleared.
+  | "goal:created"
+  | "goal:updated"
+  | "goal:deleted"
+  // Saved issue views (JEF-301): a view was created, edited, or removed.
+  | "issue_view:created"
+  | "issue_view:updated"
+  | "issue_view:deleted"
+  // Decision memory (K29, JEF-301): a decision was recorded on a project's
+  // issue.
+  | "decision:created";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -1100,6 +1120,19 @@ export interface WSEventPayloadMap {
   "workspace_note:created": unknown;
   "workspace_note:updated": unknown;
   "workspace_note:deleted": unknown;
+  // No formal payload interfaces yet — refreshMap handlers for these (JEF-301)
+  // only need the event prefix, not the payload.
+  "contest:updated": unknown;
+  "project_resource:created": unknown;
+  "project_resource:updated": unknown;
+  "project_resource:deleted": unknown;
+  "goal:created": unknown;
+  "goal:updated": unknown;
+  "goal:deleted": unknown;
+  "issue_view:created": unknown;
+  "issue_view:updated": unknown;
+  "issue_view:deleted": unknown;
+  "decision:created": unknown;
 }
 
 /**

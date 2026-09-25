@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Saved issue views (MUL-4796): server-backed filter definitions with
@@ -224,7 +225,9 @@ func (h *Handler) CreateIssueView(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create view")
 		return
 	}
-	writeJSON(w, http.StatusCreated, issueViewToResponse(view))
+	resp := issueViewToResponse(view)
+	h.publish(protocol.EventIssueViewCreated, uuidToString(wsUUID), "member", userID, map[string]any{"issue_view_id": resp.ID})
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (h *Handler) ListIssueViews(w http.ResponseWriter, r *http.Request) {
@@ -423,7 +426,9 @@ func (h *Handler) UpdateIssueView(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update view")
 		return
 	}
-	writeJSON(w, http.StatusOK, issueViewToResponse(updated))
+	resp := issueViewToResponse(updated)
+	h.publish(protocol.EventIssueViewUpdated, uuidToString(wsUUID), "member", userID, map[string]any{"issue_view_id": resp.ID})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) DeleteIssueView(w http.ResponseWriter, r *http.Request) {
@@ -445,5 +450,6 @@ func (h *Handler) DeleteIssueView(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete view")
 		return
 	}
+	h.publish(protocol.EventIssueViewDeleted, uuidToString(wsUUID), "member", userID, map[string]any{"issue_view_id": uuidToString(view.ID)})
 	w.WriteHeader(http.StatusNoContent)
 }

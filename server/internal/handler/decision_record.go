@@ -21,6 +21,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Decision memory (K29): when an issue is accepted (enters a done status),
@@ -282,6 +283,7 @@ func (h *Handler) extractDecisionsWith(ctx context.Context, model *llm.Client, i
 		created++
 		h.indexWhy(ctx, issue.WorkspaceID, whySourceDecisionRecord, recID, issue.ID, decisionRecordWhyContent(d.Title, d.Context, d.Decision))
 		h.mirrorDecisionRecordToNote(ctx, rec)
+		h.publish(protocol.EventDecisionCreated, uuidToString(issue.WorkspaceID), "agent", uuidToString(run.AgentID), map[string]any{"decision": decisionRecordToResponse(rec)})
 	}
 	if created > 0 {
 		h.audit(ctx, issue.WorkspaceID, "agent", uuidToString(run.AgentID), AuditDecisionRecorded, "issue", issue.ID,
@@ -511,9 +513,11 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to store decision")
 			return
 		}
-		out = append(out, decisionRecordToResponse(rec))
+		decResp := decisionRecordToResponse(rec)
+		out = append(out, decResp)
 		h.indexWhy(r.Context(), issue.WorkspaceID, whySourceDecisionRecord, rec.ID, issue.ID, decisionRecordWhyContent(rec.Title, rec.Context, rec.Decision))
 		h.mirrorDecisionRecordToNote(r.Context(), rec)
+		h.publish(protocol.EventDecisionCreated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"decision": decResp})
 	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditDecisionRecorded, "issue", issue.ID,
 		map[string]any{"count": len(out), "run_id": uuidToString(run.ID), "source": "manual"}, nil)
